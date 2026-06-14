@@ -1,8 +1,11 @@
 package com.pet.module.rag.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.pet.module.rag.embedding.EmbeddingService;
 import com.pet.module.rag.entity.KnowledgeDocument;
 import com.pet.module.rag.mapper.KnowledgeDocumentMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -11,10 +14,14 @@ import java.util.stream.Collectors;
 @Service
 public class RagService {
 
-    private final KnowledgeDocumentMapper documentMapper;
+    private static final Logger log = LoggerFactory.getLogger(RagService.class);
 
-    public RagService(KnowledgeDocumentMapper documentMapper) {
+    private final KnowledgeDocumentMapper documentMapper;
+    private final EmbeddingService embeddingService;
+
+    public RagService(KnowledgeDocumentMapper documentMapper, EmbeddingService embeddingService) {
         this.documentMapper = documentMapper;
+        this.embeddingService = embeddingService;
     }
 
     public List<KnowledgeDocument> listAll() {
@@ -32,6 +39,47 @@ public class RagService {
             return allDocs;
         }
 
+        List<KnowledgeDocument> vectorResults = embeddingService.search(query, allDocs);
+        if (!vectorResults.isEmpty()) {
+            log.debug("Vector search returned {} results for query: {}", vectorResults.size(), query);
+            return vectorResults;
+        }
+
+        log.debug("Vector search returned no results, using term matching for: {}", query);
+        return termSearch(query, allDocs);
+    }
+
+    public String answer(String question) {
+        List<KnowledgeDocument> relevantDocs = search(question, null);
+        if (relevantDocs.isEmpty()) {
+            return "抱歉，知识库中没有找到相关信息";
+        }
+
+        StringBuilder context = new StringBuilder();
+        for (int i = 0; i < Math.min(3, relevantDocs.size()); i++) {
+            KnowledgeDocument doc = relevantDocs.get(i);
+            context.append("[").append(doc.getCategory()).append("] ")
+                    .append(doc.getTitle()).append(":\n")
+                    .append(doc.getContent()).append("\n\n");
+        }
+
+        return "根据知识库，为您找到以下相关信息：\n\n" + context.toString().trim();
+    }
+
+    public KnowledgeDocument create(KnowledgeDocument doc) {
+        if (doc.getContent() != null) {
+            doc.setWordCount(doc.getContent().length());
+        }
+        documentMapper.insert(doc);
+        embeddingService.indexDocument(doc);
+        return doc;
+    }
+
+    public void delete(Long id) {
+        documentMapper.deleteById(id);
+    }
+
+    private List<KnowledgeDocument> termSearch(String query, List<KnowledgeDocument> allDocs) {
         Set<String> termSet = new LinkedHashSet<>();
         String[] rawTerms = query.toLowerCase().split("[\\s,，。、]+");
         for (String term : rawTerms) {
@@ -60,35 +108,6 @@ public class RagService {
                 .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toList());
-    }
-
-    public String answer(String question) {
-        List<KnowledgeDocument> relevantDocs = search(question, null);
-        if (relevantDocs.isEmpty()) {
-            return "抱歉，知识库中没有找到相关信息";
-        }
-
-        StringBuilder context = new StringBuilder();
-        for (int i = 0; i < Math.min(3, relevantDocs.size()); i++) {
-            KnowledgeDocument doc = relevantDocs.get(i);
-            context.append("[").append(doc.getCategory()).append("] ")
-                    .append(doc.getTitle()).append(":\n")
-                    .append(doc.getContent()).append("\n\n");
-        }
-
-        return "根据知识库，为您找到以下相关信息：\n\n" + context.toString().trim();
-    }
-
-    public KnowledgeDocument create(KnowledgeDocument doc) {
-        if (doc.getContent() != null) {
-            doc.setWordCount(doc.getContent().length());
-        }
-        documentMapper.insert(doc);
-        return doc;
-    }
-
-    public void delete(Long id) {
-        documentMapper.deleteById(id);
     }
 
     private int countOccurrences(String text, String term) {

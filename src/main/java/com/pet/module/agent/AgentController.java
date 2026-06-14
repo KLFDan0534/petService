@@ -7,8 +7,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/agent")
+@Tag(name = "AI智能体", description = "AI智能体交互，通过自然语言执行业务操作")
 public class AgentController {
 
     private final AgentService agentService;
@@ -18,6 +22,7 @@ public class AgentController {
     }
 
     @PostMapping("/execute")
+    @Operation(summary = "执行智能体指令", description = "通过自然语言输入让AI智能体执行业务操作")
     public Result<Map<String, Object>> execute(
             @AuthenticationPrincipal JwtAuthenticationToken token,
             @RequestBody Map<String, Object> body) {

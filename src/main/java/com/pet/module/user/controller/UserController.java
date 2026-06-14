@@ -12,8 +12,12 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/api/users")
+@Tag(name = "用户管理", description = "用户注册、登录、信息管理等功能")
 public class UserController {
 
     private final UserService userService;
@@ -23,11 +27,13 @@ public class UserController {
     }
 
     @GetMapping("/me")
+    @Operation(summary = "获取当前用户信息", description = "获取当前登录用户的详细信息")
     public Result<UserVO> getCurrentUser(@AuthenticationPrincipal JwtAuthenticationToken token) {
         return Result.success(userService.getUserInfo(token.getUserId()));
     }
 
     @PutMapping("/me")
+    @Operation(summary = "更新当前用户信息", description = "更新当前登录用户的个人资料")
     public Result<UserVO> updateCurrentUser(@AuthenticationPrincipal JwtAuthenticationToken token,
                                             @RequestBody UserVO vo) {
         return Result.success(userService.updateUser(token.getUserId(), vo));
@@ -35,6 +41,7 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "获取所有用户列表", description = "管理员获取平台所有用户信息列表")
     public Result<List<UserVO>> listAll() {
         List<User> users = userService.listAll();
         List<UserVO> vos = users.stream().map(u -> {

@@ -256,6 +256,19 @@ INSERT IGNORE INTO `knowledge_document` (`title`, `content`, `category`, `source
 ('宠物护理指南', '1. 每日定时喂食，保持饮食规律\n2. 提供充足的饮用水\n3. 每日遛狗不少于2次\n4. 保持居住环境清洁卫生\n5. 定期梳毛，防止打结\n6. 注意观察宠物精神状态\n7. 发现异常及时记录并通知主人\n8. 按主人要求给药（如有）', 'care', 'txt'),
 ('疫苗要求', '1. 寄养宠物必须完成核心疫苗接种\n2. 犬类：狂犬病疫苗、犬瘟热疫苗、细小病毒疫苗\n3. 猫类：狂犬病疫苗、猫三联疫苗\n4. 疫苗需在有效期内\n5. 需提供疫苗接种证明\n6. 未接种疫苗的宠物需加收健康管理费\n7. 建议接种流感疫苗（季节性）\n8. 老年宠物建议做健康检查', 'vaccine', 'txt');
 
+-- Document Embedding Table (for vector search)
+CREATE TABLE IF NOT EXISTS `document_embedding` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `document_id` BIGINT NOT NULL,
+    `embedding` LONGTEXT COMMENT 'JSON array of float embedding vector',
+    `dimension` INT DEFAULT 0,
+    `chunk_index` INT DEFAULT 0,
+    `chunk_text` TEXT,
+    `deleted` TINYINT DEFAULT 0,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`document_id`) REFERENCES `knowledge_document`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Init Roles
 INSERT IGNORE INTO `role` (`name`, `code`, `description`) VALUES
 ('管理员', 'ADMIN', '系统管理员'),

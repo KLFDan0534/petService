@@ -234,6 +234,17 @@ INSERT INTO `role` (`name`, `code`, `description`) VALUES
 ('商家', 'MERCHANT', '商家'),
 ('客服', 'CUSTOMER_SERVICE', '客服人员');
 
+CREATE TABLE IF NOT EXISTS `document_embedding` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `document_id` BIGINT NOT NULL,
+    `embedding` LONGTEXT,
+    `dimension` INT DEFAULT 0,
+    `chunk_index` INT DEFAULT 0,
+    `chunk_text` TEXT,
+    `deleted` TINYINT DEFAULT 0,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT INTO `knowledge_document` (`title`, `content`, `category`, `source_type`) VALUES
 ('宠物寄养规则', '1. 寄养前需确保宠物已完成疫苗接种\n2. 寄养期间宠物主需提供宠物食物\n3. 寄养员需每日提供宠物活动时间不少于2小时\n4. 寄养期间如宠物生病需及时通知宠物主\n5. 寄养期间宠物意外伤害由寄养员负责\n6. 寄养期间宠物死亡由寄养员全责赔偿\n7. 寄养前需签订寄养协议\n8. 寄养费用按天计算，不足一天按一天计算', 'boarding', 'txt'),
 ('退款规则', '1. 订单支付后24小时内可全额退款\n2. 寄养开始前3天退款扣除10%手续费\n3. 寄养开始前1天退款扣除30%手续费\n4. 寄养开始后不接受退款\n5. 因平台原因导致无法服务的，全额退款\n6. 因商家原因取消订单的，全额退款并赔偿20%\n7. 退款到账时间：1-3个工作日\n8. 部分退款按实际未服务天数计算', 'refund', 'txt'),
