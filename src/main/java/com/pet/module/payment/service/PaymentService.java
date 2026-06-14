@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class PaymentService {
@@ -30,10 +31,15 @@ public class PaymentService {
     }
 
     public List<Payment> listByUser(Long userId) {
+        List<PetOrder> orders = orderMapper.selectList(
+                new LambdaQueryWrapper<PetOrder>()
+                        .eq(PetOrder::getOwnerId, userId)
+                        .select(PetOrder::getId));
+        if (orders.isEmpty()) return List.of();
+        List<Long> orderIds = orders.stream().map(PetOrder::getId).collect(Collectors.toList());
         return paymentMapper.selectList(
                 new LambdaQueryWrapper<Payment>()
-                        .inSql(Payment::getOrderId,
-                                "SELECT id FROM pet_order WHERE owner_id = " + userId)
+                        .in(Payment::getOrderId, orderIds)
                         .orderByDesc(Payment::getCreatedAt));
     }
 

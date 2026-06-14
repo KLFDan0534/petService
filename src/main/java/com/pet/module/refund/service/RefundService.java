@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class RefundService {
@@ -23,10 +24,15 @@ public class RefundService {
     }
 
     public List<Refund> listByOwner(Long ownerId) {
+        List<PetOrder> orders = orderMapper.selectList(
+                new LambdaQueryWrapper<PetOrder>()
+                        .eq(PetOrder::getOwnerId, ownerId)
+                        .select(PetOrder::getId));
+        if (orders.isEmpty()) return List.of();
+        List<Long> orderIds = orders.stream().map(PetOrder::getId).collect(Collectors.toList());
         return refundMapper.selectList(
                 new LambdaQueryWrapper<Refund>()
-                        .inSql(Refund::getOrderId,
-                                "SELECT id FROM pet_order WHERE owner_id = " + ownerId)
+                        .in(Refund::getOrderId, orderIds)
                         .orderByDesc(Refund::getCreatedAt));
     }
 
