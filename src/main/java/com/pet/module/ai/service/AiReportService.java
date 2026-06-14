@@ -1,8 +1,8 @@
-package com.pet.module.order.service;
+package com.pet.module.ai.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.pet.module.order.entity.AiReport;
-import com.pet.module.order.mapper.AiReportMapper;
+import com.pet.module.ai.entity.AiReport;
+import com.pet.module.ai.mapper.AiReportMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

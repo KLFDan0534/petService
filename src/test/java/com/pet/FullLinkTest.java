@@ -2,6 +2,9 @@ package com.pet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.module.agent.AgentService;
+import com.pet.module.ai.service.AiReportService;
+import com.pet.module.chat.service.ChatService;
+import com.pet.module.favorite.service.FavoriteService;
 import com.pet.module.keeper.entity.Keeper;
 import com.pet.module.keeper.mapper.KeeperMapper;
 import com.pet.module.merchant.entity.Merchant;
@@ -14,6 +17,8 @@ import com.pet.module.payment.service.PaymentService;
 import com.pet.module.pet.entity.Pet;
 import com.pet.module.pet.mapper.PetMapper;
 import com.pet.module.rag.service.RagService;
+import com.pet.module.complaint.entity.Complaint;
+import com.pet.module.complaint.service.ComplaintService;
 import com.pet.module.rating.entity.Rating;
 import com.pet.module.rating.service.RatingService;
 import com.pet.module.refund.entity.Refund;
@@ -53,6 +58,10 @@ public class FullLinkTest {
     @Autowired private RatingService ratingService;
     @Autowired private RagService ragService;
     @Autowired private AgentService agentService;
+    @Autowired private AiReportService aiReportService;
+    @Autowired private ChatService chatService;
+    @Autowired private FavoriteService favoriteService;
+    @Autowired private ComplaintService complaintService;
     @Autowired private ObjectMapper objectMapper;
 
     private static Long ownerId;
@@ -277,5 +286,65 @@ public class FullLinkTest {
         assertNotNull(result);
         assertEquals("success", result.get("status"));
         System.out.println("PASS: Agent order with budget constraint");
+    }
+
+    @Test
+    @Order(16)
+    void test16AiReport() {
+        com.pet.module.ai.entity.AiReport care = aiReportService.generateCareSuggestion(petId, keeperId,
+                orderService.getByOrderNo(orderNo).getId());
+        assertNotNull(care);
+        assertNotNull(care.getId());
+        assertEquals("care", care.getType());
+
+        com.pet.module.ai.entity.AiReport boarding = aiReportService.generateBoardingReport(petId, keeperId,
+                orderService.getByOrderNo(orderNo).getId());
+        assertNotNull(boarding);
+        assertNotNull(boarding.getId());
+        assertEquals("final", boarding.getType());
+
+        System.out.println("PASS: AI reports generated");
+    }
+
+    @Test
+    @Order(17)
+    void test17FavoriteToggle() {
+        favoriteService.toggle(ownerId, merchantId, "merchant");
+        assertTrue(favoriteService.isFavorited(ownerId, merchantId, "merchant"));
+        favoriteService.toggle(ownerId, merchantId, "merchant");
+        assertFalse(favoriteService.isFavorited(ownerId, merchantId, "merchant"));
+        System.out.println("PASS: Favorite toggle works");
+    }
+
+    @Test
+    @Order(18)
+    void test18ChatMessage() {
+        com.pet.module.chat.entity.ChatMessage msg = new com.pet.module.chat.entity.ChatMessage();
+        msg.setFromUserId(ownerId);
+        msg.setToUserId(keeperId);
+        msg.setContent("Hello, how is my pet?");
+        chatService.sendMessage(msg);
+        var unread = chatService.getUnreadMessages(keeperId);
+        assertFalse(unread.isEmpty());
+        var messages = chatService.getConversation(ownerId, keeperId, null);
+        assertFalse(messages.isEmpty());
+        chatService.markConversationAsRead(ownerId, keeperId, null);
+        assertEquals(0, chatService.getUnreadMessages(keeperId).size());
+        System.out.println("PASS: Chat message flow works");
+    }
+
+    @Test
+    @Order(19)
+    void test19Complaint() {
+        Complaint complaint = new Complaint();
+        complaint.setOwnerId(ownerId);
+        complaint.setOrderId(orderService.getByOrderNo(orderNo).getId());
+        complaint.setTitle("Test complaint");
+        complaint.setContent("This is a test complaint for verification");
+        Complaint created = complaintService.create(complaint);
+        assertNotNull(created);
+        assertNotNull(created.getId());
+        assertEquals("pending", created.getStatus());
+        System.out.println("PASS: Complaint created");
     }
 }

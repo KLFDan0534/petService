@@ -10,11 +10,11 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
+    sql-script-encoding: UTF-8
   sql:
     init:
       mode: always
       schema-locations: classpath:schema.sql
-      data-locations:
   data:
     redis:
       host: localhost

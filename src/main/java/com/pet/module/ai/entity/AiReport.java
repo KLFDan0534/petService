@@ -1,4 +1,4 @@
-package com.pet.module.order.entity;
+package com.pet.module.ai.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import java.time.LocalDateTime;
