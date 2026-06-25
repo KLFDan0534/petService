@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.pet</groupId>
+        <artifactId>pet-platform</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>pet-ai</artifactId>
+    <name>pet-ai</name>
+    <description>AI module (Agent, AI Report, RAG, Embedding)</description>
+    <dependencies>
+        <dependency>
+            <groupId>com.pet</groupId>
+            <artifactId>pet-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pet</groupId>
+            <artifactId>pet-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pet</groupId>
+            <artifactId>pet-framework</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pet</groupId>
+            <artifactId>pet-system</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pet</groupId>
+            <artifactId>pet-business</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+        </dependency>
+    </dependencies>
+</project>

@@ -1,0 +1,123 @@
+# 服务器配置
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+# Spring 配置
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: pet-service
+  web:
+    resources:
+      add-mappings: false
+  security:
+    user:
+      name: admin
+      password: pet123456
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
+
+# 数据源配置
+  sql:
+    init:
+      mode: never
+
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3308/pet_service?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true&sessionVariables=character_set_client=utf8mb4,character_set_connection=utf8mb4,character_set_results=utf8mb4}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:1234}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted_wsh
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+minio:
+  endpoint: http://localhost:9000
+  public-url: http://localhost/minio
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket: pet-service
+
+jwt:
+  access-token-expiration: 86400000
+  refresh-token-expiration: 604800000
+  secret: YTJkM2Y1ZjdhOGI5YzBlMWQ0ZjVnNmE3YjhkOWMwZTFkNGY1ZjZhN2I4ZDljMGUxZDRmNWY2YTdiOGQ5YzBlMQ==
+
+logging:
+  file:
+    name: logs/pet-service.log
+  level:
+    com.pet: DEBUG
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+ai:
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:}
+    model: ${DEEPSEEK_MODEL:deepseek-chat}
+    endpoint: ${DEEPSEEK_ENDPOINT:https://api.deepseek.com}
+    max-tokens: ${DEEPSEEK_MAX_TOKENS:8192}
+    temperature: ${DEEPSEEK_TEMPERATURE:0.7}
+    thinking-type: ${DEEPSEEK_THINKING_TYPE:disabled}
+
+chroma:
+  url: ${CHROMA_URL:http://localhost:8000}
+  tenant: ${CHROMA_TENANT:default_tenant}
+  database: ${CHROMA_DATABASE:default_database}

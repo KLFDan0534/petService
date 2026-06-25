@@ -7,3 +7,62 @@ target/
 *.iml
 .DS_Store
 node_modules/
+.env
+application-local.yml
+application-local.yaml
+
+# 前端构建产物
+frontend/dist/
+frontend/node_modules/
+frontend/.env
+
+# 构建产物
+.flattened-pom.xml
+
+# 运行时/日志
+logs/
+
+# 编辑器/OS
+.vscode/
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# 旧代码/归档
+archive/
+
+# 工具/测试缓存
+.playwright-mcp/
+test/
+e2e-tests/
+test-cs-integration.ps1
+
+# 页面快照
+login-page.yml
+login-snapshot.yml
+merchant-pets.yml
+profile-snapshot.yml
+
+# 项目文档
+docs/
+
+# opencode 配置
+.opencode/
+
+# 启动脚本
+start-backend.bat
+start-backend.ps1
+
+# 外部 Skill / 模板
+ui-ux-pro-max-skill/
+*.skill/
+
+# 项目说明文档（非正式文档）
+PROJECT_MAP.md
+
+# H2 数据库文件
+pet-admin/data/
+
+# 前端构建产物备份
+pet-admin/src/main/resources/static_backup/

@@ -1,0 +1,1 @@
+import{c as i,d as o,e,t as s,K as a}from"./index-Cp9aJKLp.js";const c={class:"empty-state"},r={class:"icon"},p={__name:"EmptyState",props:{icon:String,title:String,description:String},setup(t){return(n,l)=>(i(),o("div",c,[e("div",r,s(t.icon||"📭"),1),e("h3",null,s(t.title),1),e("p",null,s(t.description),1),a(n.$slots,"default")]))}};export{p as _};
