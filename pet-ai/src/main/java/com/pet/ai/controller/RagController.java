@@ -3,6 +3,8 @@ package com.pet.ai.controller;
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
 import com.pet.ai.dto.AskResult;
+import com.pet.ai.dto.KnowledgeDocumentDTO;
+import com.pet.ai.dto.RagDocumentCreateRequestDTO;
 import com.pet.ai.entity.KnowledgeDocument;
 import com.pet.ai.service.RagService;
 import jakarta.validation.Valid;
@@ -10,16 +12,20 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.pet.ai.dto.AskRequestDTO;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/rag")
-@Tag(name = "知识库", description = "RAG知识文档管理和问答")
+@Tag(name = "【AI】知识库", description = "RAG知识文档管理和AI问答（普通用户/管理员使用）")
 @Slf4j
 public class RagController {
 
@@ -37,9 +43,14 @@ public class RagController {
      **/
     @GetMapping("/documents")
     @Operation(summary = "文档列表", description = "获取所有知识文档")
-    public Result<List<KnowledgeDocument>> listDocuments() {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<KnowledgeDocumentDTO>> listDocuments() {
         log.info("调用 listDocuments()");
-        return Result.success(ragService.listAll());
+        List<KnowledgeDocument> list = ragService.listAll();
+        return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
     /**
@@ -52,10 +63,16 @@ public class RagController {
      **/
     @GetMapping("/search")
     @Operation(summary = "搜索知识", description = "通过分类过滤查找文档")
-    public Result<List<KnowledgeDocument>> search(@RequestParam String query,
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<KnowledgeDocumentDTO>> search(@RequestParam String query,
             @RequestParam(required = false) String category) {
         log.info("调用 search()");
-        return Result.success(ragService.search(query, category));
+        List<KnowledgeDocument> list = ragService.search(query, category);
+        return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
     /**
@@ -67,13 +84,15 @@ public class RagController {
      **/
     @PostMapping("/ask")
     @Operation(summary = "AI问答", description = "基于知识文档进行问答")
-    public Result<AskResult> ask(@RequestBody Map<String, String> body) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<AskResult> ask(@Valid @RequestBody AskRequestDTO request) {
         log.info("调用 ask()");
-        String question = body.get("question");
-        if (question == null || question.isBlank()) {
-            return Result.error(400, "问题不能为空");
-        }
-        String petProfile = body.containsKey("petProfile") ? body.get("petProfile") : body.get("pet_profile_wsh");
+        String question = request.getQuestion_wsh();
+        String petProfile = request.getPet_profile_wsh();
         String answer = ragService.answer(question, petProfile);
         return Result.success(new AskResult(question, answer));
     }
@@ -88,9 +107,16 @@ public class RagController {
     @PostMapping("/documents")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "创建文档", description = "新增知识文档")
-    public Result<KnowledgeDocument> create(@Valid @RequestBody KnowledgeDocument doc) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<KnowledgeDocumentDTO> create(@Valid @RequestBody RagDocumentCreateRequestDTO request) {
         log.info("调用 create()");
-        return Result.success(ragService.create(doc));
+        return Result.success(toDTO(ragService.create(request)));
     }
 
     /**
@@ -103,7 +129,15 @@ public class RagController {
     @DeleteMapping("/documents/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "删除文档", description = "删除知识文档")
-    public Result<Void> delete(@PathVariable Long id) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "404", description = "资源不存在"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> delete(@Parameter(description = "文档ID") @PathVariable Long id) {
         log.info("调用 delete()");
         ragService.delete(id);
         return Result.success();
@@ -121,7 +155,14 @@ public class RagController {
     @PostMapping("/documents/upload")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "上传文档文件", description = "上传 txt/docx 文件并自动提取文本创建知识文档")
-    public Result<KnowledgeDocument> uploadDocument(
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<KnowledgeDocumentDTO> uploadDocument(
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String title,
             @RequestParam(required = false) String category) throws IOException {
@@ -135,6 +176,19 @@ public class RagController {
             return Result.error(400, "不支持的文件格式，仅支持 .txt 和 .docx 文件");
         }
         KnowledgeDocument doc = ragService.createFromFile(fileName, file.getBytes(), title, category);
-        return Result.success(doc);
+        return Result.success(toDTO(doc));
+    }
+
+    private KnowledgeDocumentDTO toDTO(KnowledgeDocument entity) {
+        KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
+        dto.setId_wsh(entity.getId_wsh());
+        dto.setTitle_wsh(entity.getTitle_wsh());
+        dto.setContent_wsh(entity.getContent_wsh());
+        dto.setCategory_wsh(entity.getCategory_wsh());
+        dto.setSource_type_wsh(entity.getSource_type_wsh());
+        dto.setSource_path_wsh(entity.getSource_path_wsh());
+        dto.setWord_count_wsh(entity.getWord_count_wsh());
+        dto.setCreated_at_wsh(entity.getCreated_at_wsh());
+        return dto;
     }
 }

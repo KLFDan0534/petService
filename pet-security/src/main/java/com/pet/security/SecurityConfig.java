@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .requestMatchers("/", "/index.html", "/assets/**", "/admin/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/merchants/**", "/api/keepers/**", "/api/services/**", "/api/ratings/**", "/api/categories/**", "/api/notices/active").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/merchants/**", "/api/keepers/**", "/api/services/**", "/api/ratings/**", "/api/categories/**", "/api/service-categories/**", "/api/notices/active", "/api/order-events/stream", "/api/chat-events/stream", "/api/notification-events/stream").permitAll()
                 .requestMatchers("/api/files/**").permitAll()
                 .requestMatchers(new NonApiRequestMatcher()).permitAll()
                 .anyRequest().authenticated()

@@ -18,7 +18,9 @@ public interface WalletMapper extends BaseMapper<Wallet> {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    @Insert("INSERT INTO wallet_wsh (user_id_wsh, balance_wsh, frozen_amount_wsh, version_wsh, created_at_wsh, updated_at_wsh) VALUES (#{userId}, 0, 0, 0, NOW(), NOW())")
+    @Insert("INSERT INTO wallet_wsh (user_id_wsh, balance_wsh, frozen_amount_wsh, created_at_wsh, updated_at_wsh) " +
+            "SELECT #{userId}, 0, 0, NOW(), NOW() " +
+            "WHERE NOT EXISTS (SELECT 1 FROM wallet_wsh WHERE user_id_wsh = #{userId} AND deleted_wsh = 0)")
     int createWallet(@Param("userId") Long userId);
 
     /**
@@ -29,7 +31,7 @@ public interface WalletMapper extends BaseMapper<Wallet> {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    @Update("UPDATE wallet_wsh SET balance_wsh = balance_wsh + #{amount} WHERE user_id_wsh = #{userId}")
+    @Update("UPDATE wallet_wsh SET balance_wsh = balance_wsh + #{amount}, updated_at_wsh = NOW() WHERE user_id_wsh = #{userId}")
     int addBalance(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
 
     /**
@@ -40,7 +42,7 @@ public interface WalletMapper extends BaseMapper<Wallet> {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    @Update("UPDATE wallet_wsh SET balance_wsh = balance_wsh - #{amount} WHERE user_id_wsh = #{userId} AND balance_wsh >= #{amount}")
+    @Update("UPDATE wallet_wsh SET balance_wsh = balance_wsh - #{amount}, updated_at_wsh = NOW() WHERE user_id_wsh = #{userId} AND (balance_wsh - frozen_amount_wsh) >= #{amount}")
     int deductBalance(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
 
     /**
@@ -51,7 +53,7 @@ public interface WalletMapper extends BaseMapper<Wallet> {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    @Update("UPDATE wallet_wsh SET frozen_amount_wsh = frozen_amount_wsh + #{amount} WHERE user_id_wsh = #{userId} AND (balance_wsh - frozen_amount_wsh) >= #{amount}")
+    @Update("UPDATE wallet_wsh SET frozen_amount_wsh = frozen_amount_wsh + #{amount}, updated_at_wsh = NOW() WHERE user_id_wsh = #{userId} AND (balance_wsh - frozen_amount_wsh) >= #{amount}")
     int freeze(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
 
     /**
@@ -62,7 +64,7 @@ public interface WalletMapper extends BaseMapper<Wallet> {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    @Update("UPDATE wallet_wsh SET frozen_amount_wsh = GREATEST(0, frozen_amount_wsh - #{amount}) WHERE user_id_wsh = #{userId}")
+    @Update("UPDATE wallet_wsh SET frozen_amount_wsh = frozen_amount_wsh - #{amount}, updated_at_wsh = NOW() WHERE user_id_wsh = #{userId} AND frozen_amount_wsh >= #{amount}")
     int unfreeze(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
 
     /**
@@ -73,6 +75,9 @@ public interface WalletMapper extends BaseMapper<Wallet> {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    @Update("UPDATE wallet_wsh SET balance_wsh = balance_wsh - #{amount}, frozen_amount_wsh = frozen_amount_wsh - #{amount} WHERE user_id_wsh = #{userId} AND frozen_amount_wsh >= #{amount}")
+    @Update("UPDATE wallet_wsh SET balance_wsh = balance_wsh - #{amount}, frozen_amount_wsh = frozen_amount_wsh - #{amount}, updated_at_wsh = NOW() WHERE user_id_wsh = #{userId} AND frozen_amount_wsh >= #{amount}")
     int transferFrozenToBalance(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
+
+    @Update("UPDATE wallet_wsh SET balance_wsh = #{balance}, updated_at_wsh = NOW() WHERE user_id_wsh = #{userId}")
+    int setBalance(@Param("userId") Long userId, @Param("balance") BigDecimal balance);
 }

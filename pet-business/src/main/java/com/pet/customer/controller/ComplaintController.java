@@ -1,27 +1,34 @@
 package com.pet.customer.controller;
 
-import lombok.extern.slf4j.Slf4j;
-import com.pet.common.PageParam;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.PageResult;
 import com.pet.common.Result;
-import com.pet.customer.entity.Complaint;
+import com.pet.customer.dto.ComplaintCreateRequestDTO;
+import com.pet.customer.dto.ComplaintDTO;
+import com.pet.customer.dto.ComplaintEvidenceDTO;
+import com.pet.customer.dto.ComplaintReviewRequestDTO;
 import com.pet.customer.service.ComplaintService;
 import com.pet.security.JwtAuthenticationToken;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/complaints")
-@Tag(name = "投诉管理", description = "用户投诉管理")
-@Slf4j
+@Tag(name = "【用户端】投诉管理", description = "投诉管理（用户投诉/管理员处理）")
 public class ComplaintController {
 
     private final ComplaintService complaintService;
@@ -30,80 +37,129 @@ public class ComplaintController {
         this.complaintService = complaintService;
     }
 
-    /**
-     * 获取当前用户的投诉列表
-     * @param token 当前用户认证信息
-     * @return 投诉列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取我的投诉", description = "获取当前用户的投诉列表")
-    public Result<List<Complaint>> listMyComplaints(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("调用 listMyComplaints()");
+    @Operation(summary = "获取我的投诉列表")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<ComplaintDTO>> listMyComplaints(@AuthenticationPrincipal JwtAuthenticationToken token) {
         return Result.success(complaintService.listByOwner(token.getUserId()));
     }
 
-    /**
-     * 管理员/客服分页查询所有投诉
-     * @param pageParam 分页参数
-     * @return 分页投诉列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CUSTOMER_SERVICE')")
-    @Operation(summary = "获取所有投诉列表", description = "管理员/客服分页查询所有投诉")
-    public Result<PageResult<Complaint>> listAll(PageParam pageParam) {
-        log.info("调用 listAll()");
-        return Result.success(new PageResult<>(complaintService.listPage(pageParam)));
+    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT','CUSTOMER_SERVICE')")
+    @Operation(summary = "管理员获取所有投诉列表")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<ComplaintDTO>> listAll(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            PageRequestDTO pageParam) {
+        return Result.success(new PageResult<>(complaintService.listPageForStaff(
+                pageParam,
+                token.getUserId(),
+                hasRole(token, "ADMIN"),
+                hasRole(token, "MERCHANT"),
+                hasRole(token, "CUSTOMER_SERVICE"))));
     }
 
-    /**
-     * 提交投诉
-     * @param token 当前用户认证信息
-     * @param complaint 投诉信息
-     * @return 创建的投诉
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+    @GetMapping("/{id}/evidence")
+    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT','CUSTOMER_SERVICE')")
+    @Operation(summary = "获取投诉证据")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ComplaintEvidenceDTO> evidence(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @PathVariable @Parameter(description = "投诉ID") Long id) {
+        return Result.success(complaintService.getEvidenceForStaff(
+                id,
+                token.getUserId(),
+                hasRole(token, "ADMIN"),
+                hasRole(token, "MERCHANT"),
+                hasRole(token, "CUSTOMER_SERVICE")));
+    }
+
     @PostMapping
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "提交投诉", description = "用户提交投诉")
-    public Result<Complaint> create(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                    @Valid @RequestBody Complaint complaint) {
-        log.info("调用 create()");
-        return Result.success(complaintService.create(complaint));
+    @Operation(summary = "创建投诉")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ComplaintDTO> create(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @Valid @RequestBody ComplaintCreateRequestDTO request) {
+        return Result.success(complaintService.create(request, token.getUserId()));
     }
 
-    /**
-     * 管理员/客服标记投诉为已解决
-     * @param id 投诉ID
-     * @param body 请求体，包含result_wsh处理结果
-     * @return 更新后的投诉
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @PostMapping("/{id}/resolve")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CUSTOMER_SERVICE')")
-    @Operation(summary = "解决投诉", description = "管理员/客服标记投诉为已解决")
-    public Result<Complaint> resolve(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        return Result.success(complaintService.process(id, body.get("result_wsh"), "resolved"));
+    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT','CUSTOMER_SERVICE')")
+    @Operation(summary = "处理投诉")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ComplaintDTO> resolve(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @PathVariable @Parameter(description = "投诉ID") Long id,
+            @Valid @RequestBody ComplaintReviewRequestDTO request) {
+        return Result.success(complaintService.processForStaff(
+                id,
+                request.getResult_wsh(),
+                "resolved",
+                token.getUserId(),
+                hasRole(token, "ADMIN"),
+                hasRole(token, "MERCHANT"),
+                hasRole(token, "CUSTOMER_SERVICE")));
     }
 
-    /**
-     * 管理员/客服驳回投诉
-     * @param id 投诉ID
-     * @param body 请求体，包含result_wsh驳回原因
-     * @return 更新后的投诉
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CUSTOMER_SERVICE')")
-    @Operation(summary = "驳回投诉", description = "管理员/客服标记投诉为已驳回")
-    public Result<Complaint> reject(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        return Result.success(complaintService.process(id, body.get("result_wsh"), "rejected"));
+    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT','CUSTOMER_SERVICE')")
+    @Operation(summary = "驳回投诉")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ComplaintDTO> reject(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @PathVariable @Parameter(description = "投诉ID") Long id,
+            @Valid @RequestBody ComplaintReviewRequestDTO request) {
+        return Result.success(complaintService.processForStaff(
+                id,
+                request.getResult_wsh(),
+                "rejected",
+                token.getUserId(),
+                hasRole(token, "ADMIN"),
+                hasRole(token, "MERCHANT"),
+                hasRole(token, "CUSTOMER_SERVICE")));
+    }
+
+    private boolean hasRole(JwtAuthenticationToken token, String role) {
+        String authority = "ROLE_" + role;
+        return token != null
+                && token.getAuthorities().stream().anyMatch(a -> authority.equals(a.getAuthority()));
     }
 }

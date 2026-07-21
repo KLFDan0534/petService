@@ -3,6 +3,10 @@ import { useAppStore } from '../app'
 
 describe('app store', () => {
   beforeEach(() => {
+    localStorage.clear()
+    document.documentElement.removeAttribute('data-theme')
+    document.documentElement.classList.remove('dark')
+    document.documentElement.removeAttribute('style')
     setActivePinia(createPinia())
   })
 
@@ -10,6 +14,7 @@ describe('app store', () => {
     const store = useAppStore()
     expect(store.toasts).toEqual([])
     expect(store.unread).toBe(0)
+    expect(store.theme).toBe('light')
   })
 
   it('addToast adds a toast and removes it after timeout', async () => {
@@ -38,5 +43,53 @@ describe('app store', () => {
     const store = useAppStore()
     store.addToast('plain')
     expect(store.toasts[0].type).toBe('info')
+  })
+
+  it('setTheme persists and applies dark theme to the document root', () => {
+    const store = useAppStore()
+
+    store.setTheme('dark')
+
+    expect(store.theme).toBe('dark')
+    expect(store.isDarkTheme).toBe(true)
+    expect(localStorage.getItem('pet-service-theme')).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('#101114')
+  })
+
+  it('toggleTheme switches between dark and light themes', () => {
+    const store = useAppStore()
+
+    store.toggleTheme()
+    expect(store.theme).toBe('dark')
+
+    store.toggleTheme()
+    expect(store.theme).toBe('light')
+    expect(localStorage.getItem('pet-service-theme')).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    expect(document.documentElement.style.getPropertyValue('--color-background')).toBe('#F8FAFC')
+  })
+
+  it('uses a stored theme preference when the store is created', () => {
+    localStorage.setItem('pet-service-theme', 'dark')
+    const store = useAppStore()
+
+    expect(store.theme).toBe('dark')
+
+    store.applyTheme()
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
+
+  it('normalizes invalid theme values to light', () => {
+    const store = useAppStore()
+
+    store.setTheme('unexpected')
+
+    expect(store.theme).toBe('light')
+    expect(localStorage.getItem('pet-service-theme')).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('light')
   })
 })

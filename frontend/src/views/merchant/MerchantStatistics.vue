@@ -11,14 +11,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import request from '@/utils/request'
+import { getMerchantStatistics } from '@/api/statistics'
 
 const stats = ref({})
 
 onMounted(async () => {
   try {
-    const r = await request.get('/statistics/merchant')
-    if (r.data.code === 200) stats.value = r.data.data
+    const r = await getMerchantStatistics()
+    if (r.code === 200) stats.value = r.data
   } catch (e) {}
 })
 </script>

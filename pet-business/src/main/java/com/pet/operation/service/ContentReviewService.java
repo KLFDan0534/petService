@@ -1,7 +1,7 @@
 package com.pet.operation.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.pet.common.PageParam;
+import com.pet.common.PageRequestDTO;
 import com.pet.operation.entity.ContentReview;
 
 import java.util.List;
@@ -28,7 +28,7 @@ public interface ContentReviewService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    IPage<ContentReview> listPendingPage(PageParam pageParam);
+    IPage<ContentReview> listPendingPage(PageRequestDTO pageParam);
     /**
      * 分页查询所有内容审核记录
      * @param pageParam 分页参数
@@ -36,7 +36,7 @@ public interface ContentReviewService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    IPage<ContentReview> listPage(PageParam pageParam);
+    IPage<ContentReview> listPage(PageRequestDTO pageParam);
     /**
      * 举报内容
      * @param targetType 目标类型

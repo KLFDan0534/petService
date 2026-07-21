@@ -33,11 +33,9 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { getCategories, createCategory, updateCategory, deleteCategory as apiDeleteCategory } from '@/api/category'
 import DataTable from '@/components/common/DataTable.vue'
-
-const authStore = useAuthStore()
 const appStore = useAppStore()
 const categories = ref([])
 const showForm = ref(false)
@@ -49,7 +47,7 @@ const topCategories = computed(() => categories.value.filter(c => c.parent_id_ws
 onMounted(loadCategories)
 
 async function loadCategories() {
-  try { const r = await authStore.apiGet('/api/categories'); if (r.code === 200) categories.value = r.data }
+  try { const r = await getCategories(); if (r.code === 200) categories.value = r.data }
   catch (e) {}
 }
 
@@ -69,10 +67,10 @@ async function saveCategory() {
   try {
     const payload = { name_wsh: form.name_wsh, parent_id_wsh: form.parent_id_wsh, sort_order_wsh: form.sort_order_wsh }
     if (editingCategory.value) {
-      await authStore.apiPut(`/api/categories/${editingCategory.value.id_wsh}`, payload)
+      await updateCategory(editingCategory.value.id_wsh, payload)
       appStore.addToast('更新成功', 'success')
     } else {
-      await authStore.apiPost('/api/categories', payload)
+      await createCategory(payload)
       appStore.addToast('创建成功', 'success')
     }
     showForm.value = false; editingCategory.value = null; loadCategories()
@@ -81,7 +79,7 @@ async function saveCategory() {
 
 async function deleteCategory(id) {
   if (!confirm('确定删除？')) return
-  try { await authStore.apiDelete(`/api/categories/${id}`); appStore.addToast('删除成功', 'success'); loadCategories() }
+  try { await apiDeleteCategory(id); appStore.addToast('删除成功', 'success'); loadCategories() }
   catch (e) { appStore.addToast('删除失败', 'error') }
 }
 </script>

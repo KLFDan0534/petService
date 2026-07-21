@@ -1,4 +1,6 @@
 :root {
+  color-scheme: light;
+
   /* === UI/UX Pro Max Design System - Pet Tech App === */
   /* Generated from ui-ux-pro-max-skill reasoning engine */
 
@@ -9,15 +11,17 @@
   --color-on-secondary: #0F172A;
   --color-accent: #2563EB;
   --color-on-accent: #FFFFFF;
-  --color-background: #FFF7ED;
-  --color-foreground: #9A3412;
+  --color-background: #F8FAFC;
+  --color-foreground: #0F172A;
   --color-card: #FFFFFF;
-  --color-card-foreground: #9A3412;
-  --color-muted: #F1F0F0;
+  --color-card-foreground: #111827;
+  --color-muted: #F1F5F9;
   --color-muted-foreground: #64748B;
-  --color-border: #FED7AA;
+  --color-border: #E2E8F0;
   --color-destructive: #DC2626;
   --color-on-destructive: #FFFFFF;
+  --color-danger: #DC2626;
+  --color-error: #DC2626;
   --color-ring: #F97316;
 
   /* Semantic colors */
@@ -42,10 +46,10 @@
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
-  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
-  --shadow-xl: 0 20px 25px rgba(0,0,0,0.15);
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
+  --shadow-md: 0 8px 20px rgba(15,23,42,0.08);
+  --shadow-lg: 0 14px 32px rgba(15,23,42,0.1);
+  --shadow-xl: 0 24px 48px rgba(15,23,42,0.16);
   --shadow-inner: inset -2px -2px 8px rgba(0,0,0,0.04), 4px 4px 8px rgba(0,0,0,0.08);
 
   /* Typography */
@@ -59,7 +63,40 @@
   --transition-slow: 300ms ease;
 
   /* Claymorphism specific */
-  --clay-border: 3px solid var(--color-border);
-  --clay-shadow: var(--shadow-inner);
-  --clay-radius: var(--radius-lg);
+  --clay-border: 1px solid var(--color-border);
+  --clay-shadow: var(--shadow-sm);
+  --clay-radius: var(--radius-md);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary: #F59E0B;
+  --color-on-primary: #111827;
+  --color-secondary: #FBBF24;
+  --color-on-secondary: #111827;
+  --color-accent: #38BDF8;
+  --color-on-accent: #07111F;
+  --color-background: #101114;
+  --color-foreground: #F4F5F7;
+  --color-card: #181A1F;
+  --color-card-foreground: #F4F5F7;
+  --color-muted: #23262D;
+  --color-muted-foreground: #A8B0BD;
+  --color-border: #343946;
+  --color-destructive: #F87171;
+  --color-on-destructive: #1F1111;
+  --color-danger: #F87171;
+  --color-error: #F87171;
+  --color-ring: #F59E0B;
+
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-info: #60A5FA;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 8px 20px rgba(0,0,0,0.35);
+  --shadow-lg: 0 14px 32px rgba(0,0,0,0.42);
+  --shadow-xl: 0 24px 48px rgba(0,0,0,0.5);
+  --shadow-inner: inset -2px -2px 8px rgba(255,255,255,0.03), 4px 4px 10px rgba(0,0,0,0.35);
 }

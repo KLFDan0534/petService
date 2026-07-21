@@ -2,10 +2,16 @@ CREATE TABLE IF NOT EXISTS `user_wsh` (
     `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
     `username_wsh` VARCHAR(50) NOT NULL UNIQUE,
     `password_wsh` VARCHAR(255) NOT NULL,
+    `payment_password_wsh` VARCHAR(255),
     `nickname_wsh` VARCHAR(50),
     `phone_wsh` VARCHAR(20),
     `avatar_wsh` VARCHAR(500),
+    `gender_wsh` TINYINT DEFAULT 0,
     `email_wsh` VARCHAR(100),
+    `real_name_wsh` VARCHAR(50),
+    `id_card_no_wsh` VARCHAR(32),
+    `real_name_status_wsh` TINYINT DEFAULT 0,
+    `reject_reason_wsh` VARCHAR(500),
     `address_wsh` VARCHAR(255),
     `latitude_wsh` DECIMAL(10, 6),
     `longitude_wsh` DECIMAL(10, 6),
@@ -75,6 +81,8 @@ CREATE TABLE IF NOT EXISTS `merchant_wsh` (
     `business_license_wsh` VARCHAR(500),
     `rating_wsh` DECIMAL(3, 2) DEFAULT 5.00,
     `status_wsh` TINYINT DEFAULT 0,
+    `store_mode_wsh` TINYINT DEFAULT 0,
+    `store_status_wsh` TINYINT DEFAULT 0,
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -106,6 +114,7 @@ CREATE TABLE IF NOT EXISTS `pet_service_wsh` (
     `merchant_id_wsh` BIGINT NOT NULL,
     `name_wsh` VARCHAR(100) NOT NULL,
     `type_wsh` VARCHAR(50),
+    `category_id_wsh` BIGINT,
     `description_wsh` TEXT,
     `price_wsh` DECIMAL(10, 2) NOT NULL,
     `unit_wsh` VARCHAR(20) DEFAULT 'day',
@@ -113,7 +122,22 @@ CREATE TABLE IF NOT EXISTS `pet_service_wsh` (
     `status_wsh` TINYINT DEFAULT 1,
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
-    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_category_id` (`category_id_wsh`),
+    INDEX `idx_merchant_id` (`merchant_id_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `service_category_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `parent_id_wsh` BIGINT DEFAULT NULL,
+    `name_wsh` VARCHAR(50) NOT NULL,
+    `code_wsh` VARCHAR(50) NOT NULL UNIQUE,
+    `sort_wsh` INT DEFAULT 0,
+    `status_wsh` TINYINT DEFAULT 1,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_parent_id` (`parent_id_wsh`)
 );
 
 CREATE TABLE IF NOT EXISTS `pet_order_wsh` (
@@ -130,17 +154,44 @@ CREATE TABLE IF NOT EXISTS `pet_order_wsh` (
     `price_per_day_wsh` DECIMAL(10, 2) NOT NULL,
     `total_amount_wsh` DECIMAL(10, 2) NOT NULL,
     `discount_wsh` DECIMAL(10, 2) DEFAULT 0,
+    `coupon_id_wsh` BIGINT,
+    `coupon_template_id_wsh` BIGINT,
+    `coupon_discount_wsh` DECIMAL(10, 2) DEFAULT 0,
+    `membership_id_wsh` BIGINT,
+    `membership_plan_id_wsh` BIGINT,
+    `membership_discount_wsh` DECIMAL(10, 2) DEFAULT 0,
+    `membership_snapshot_wsh` TEXT,
+    `platform_subsidy_wsh` DECIMAL(10, 2) DEFAULT 0,
+    `settlement_amount_wsh` DECIMAL(10, 2),
+    `promotion_snapshot_wsh` TEXT,
     `final_amount_wsh` DECIMAL(10, 2) NOT NULL,
     `status_wsh` VARCHAR(20) DEFAULT 'pending',
     `handover_code_wsh` VARCHAR(4),
     `delivery_address_wsh` VARCHAR(500),
+    `delivery_latitude_wsh` DECIMAL(10, 7),
+    `delivery_longitude_wsh` DECIMAL(10, 7),
+    `delivery_location_source_wsh` VARCHAR(50),
     `delivery_time_wsh` DATETIME,
     `receiver_available_start_wsh` DATETIME,
     `receiver_available_end_wsh` DATETIME,
+    `emergency_contact_name_wsh` VARCHAR(50),
+    `emergency_contact_phone_wsh` VARCHAR(20),
     `pickup_address_wsh` VARCHAR(500),
+    `pickup_latitude_wsh` DECIMAL(10, 7),
+    `pickup_longitude_wsh` DECIMAL(10, 7),
+    `pickup_location_source_wsh` VARCHAR(50),
     `pickup_time_wsh` DATETIME,
     `delivered_at_wsh` DATETIME,
+    `delivered_address_wsh` VARCHAR(500),
+    `delivered_latitude_wsh` DECIMAL(10, 7),
+    `delivered_longitude_wsh` DECIMAL(10, 7),
+    `delivered_accuracy_wsh` DECIMAL(10, 2),
     `received_at_wsh` DATETIME,
+    `received_address_wsh` VARCHAR(500),
+    `received_latitude_wsh` DECIMAL(10, 7),
+    `received_longitude_wsh` DECIMAL(10, 7),
+    `received_accuracy_wsh` DECIMAL(10, 2),
+    `received_distance_m_wsh` DECIMAL(10, 1),
     `started_at_wsh` DATETIME,
     `start_photo_wsh` VARCHAR(1000),
     `completed_at_wsh` DATETIME,
@@ -149,6 +200,84 @@ CREATE TABLE IF NOT EXISTS `pet_order_wsh` (
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS `order_snapshot_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `order_id_wsh` BIGINT NOT NULL,
+    `order_no_wsh` VARCHAR(50) NOT NULL,
+    `owner_snapshot_wsh` TEXT,
+    `pet_snapshot_wsh` TEXT,
+    `merchant_snapshot_wsh` TEXT,
+    `keeper_snapshot_wsh` TEXT,
+    `service_snapshot_wsh` TEXT,
+    `address_snapshot_wsh` TEXT,
+    `price_snapshot_wsh` TEXT,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_order_snapshot_order` (`order_id_wsh`),
+    INDEX `idx_order_snapshot_no` (`order_no_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `coupon_template_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name_wsh` VARCHAR(100) NOT NULL,
+    `type_wsh` VARCHAR(20) NOT NULL,
+    `threshold_amount_wsh` DECIMAL(10, 2) DEFAULT 0,
+    `discount_amount_wsh` DECIMAL(10, 2) DEFAULT 0,
+    `discount_rate_wsh` DECIMAL(5, 2),
+    `max_discount_amount_wsh` DECIMAL(10, 2),
+    `total_quantity_wsh` INT,
+    `issued_quantity_wsh` INT DEFAULT 0,
+    `per_user_limit_wsh` INT DEFAULT 1,
+    `valid_from_wsh` DATETIME NOT NULL,
+    `valid_to_wsh` DATETIME NOT NULL,
+    `status_wsh` TINYINT DEFAULT 1,
+    `scope_type_wsh` VARCHAR(20) DEFAULT 'platform',
+    `merchant_id_wsh` BIGINT,
+    `created_by_wsh` BIGINT,
+    `remark_wsh` VARCHAR(500),
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_coupon_template_status` (`status_wsh`, `valid_from_wsh`, `valid_to_wsh`),
+    INDEX `idx_coupon_template_scope` (`scope_type_wsh`, `merchant_id_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `user_coupon_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `template_id_wsh` BIGINT NOT NULL,
+    `user_id_wsh` BIGINT NOT NULL,
+    `status_wsh` VARCHAR(20) DEFAULT 'available',
+    `source_wsh` VARCHAR(20) DEFAULT 'claim',
+    `order_id_wsh` BIGINT,
+    `order_no_wsh` VARCHAR(50),
+    `discount_amount_wsh` DECIMAL(10, 2),
+    `locked_at_wsh` DATETIME,
+    `used_at_wsh` DATETIME,
+    `expire_at_wsh` DATETIME,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_user_coupon_user_status` (`user_id_wsh`, `status_wsh`),
+    INDEX `idx_user_coupon_template_user` (`template_id_wsh`, `user_id_wsh`),
+    INDEX `idx_user_coupon_order` (`order_id_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `coupon_usage_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_coupon_id_wsh` BIGINT NOT NULL,
+    `template_id_wsh` BIGINT NOT NULL,
+    `user_id_wsh` BIGINT NOT NULL,
+    `order_id_wsh` BIGINT NOT NULL,
+    `order_no_wsh` VARCHAR(50) NOT NULL,
+    `discount_amount_wsh` DECIMAL(10, 2) NOT NULL,
+    `funding_party_wsh` VARCHAR(20) DEFAULT 'platform',
+    `status_wsh` VARCHAR(20) DEFAULT 'used',
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_coupon_usage_user_coupon` (`user_coupon_id_wsh`),
+    INDEX `idx_coupon_usage_order` (`order_id_wsh`),
+    INDEX `idx_coupon_usage_user` (`user_id_wsh`)
 );
 
 CREATE TABLE IF NOT EXISTS `payment_wsh` (
@@ -162,7 +291,8 @@ CREATE TABLE IF NOT EXISTS `payment_wsh` (
     `paid_at_wsh` DATETIME,
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
-    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_payment_pay_no` (`pay_no_wsh`)
 );
 
 CREATE TABLE IF NOT EXISTS `refund_wsh` (
@@ -172,6 +302,7 @@ CREATE TABLE IF NOT EXISTS `refund_wsh` (
     `amount_wsh` DECIMAL(10, 2) NOT NULL,
     `reason_wsh` TEXT,
     `status_wsh` VARCHAR(20) DEFAULT 'pending',
+    `order_status_before_refund_wsh` VARCHAR(30),
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -179,7 +310,8 @@ CREATE TABLE IF NOT EXISTS `refund_wsh` (
 
 CREATE TABLE IF NOT EXISTS `complaint_wsh` (
     `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
-    `order_id_wsh` BIGINT NOT NULL,
+    `order_id_wsh` BIGINT,
+    `merchant_id_wsh` BIGINT,
     `owner_id_wsh` BIGINT NOT NULL,
     `target_id_wsh` BIGINT,
     `target_type_wsh` VARCHAR(20),
@@ -203,7 +335,11 @@ CREATE TABLE IF NOT EXISTS `chat_message_wsh` (
     `file_url_wsh` VARCHAR(500),
     `read_wsh` TINYINT DEFAULT 0,
     `deleted_wsh` TINYINT DEFAULT 0,
-    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_chat_order_created` (`order_id_wsh`, `created_at_wsh`),
+    INDEX `idx_chat_order_id` (`order_id_wsh`, `id_wsh`),
+    INDEX `idx_chat_to_read` (`to_user_id_wsh`, `read_wsh`),
+    INDEX `idx_chat_order_pair` (`order_id_wsh`, `from_user_id_wsh`, `to_user_id_wsh`)
 );
 
 CREATE TABLE IF NOT EXISTS `favorite_wsh` (
@@ -319,7 +455,8 @@ CREATE TABLE IF NOT EXISTS `wallet_wsh` (
     `version_wsh` INT DEFAULT 0,
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
-    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_wallet_user` (`user_id_wsh`)
 );
 
 -- Finance: Wallet Transaction
@@ -329,11 +466,22 @@ CREATE TABLE IF NOT EXISTS `wallet_transaction_wsh` (
     `user_id_wsh` BIGINT NOT NULL,
     `type_wsh` VARCHAR(20) DEFAULT 'income',
     `amount_wsh` DECIMAL(12,2) NOT NULL,
+    `balance_before_wsh` DECIMAL(12,2),
     `balance_after_wsh` DECIMAL(12,2),
+    `frozen_before_wsh` DECIMAL(12,2),
+    `frozen_after_wsh` DECIMAL(12,2),
+    `direction_wsh` VARCHAR(20),
+    `status_wsh` VARCHAR(20) DEFAULT 'success',
+    `business_type_wsh` VARCHAR(50),
+    `business_id_wsh` VARCHAR(100),
+    `request_id_wsh` VARCHAR(120),
     `order_id_wsh` BIGINT,
     `description_wsh` VARCHAR(500),
     `deleted_wsh` TINYINT DEFAULT 0,
-    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_wallet_tx_request` (`request_id_wsh`),
+    INDEX `idx_wallet_tx_user` (`user_id_wsh`),
+    INDEX `idx_wallet_tx_business` (`business_type_wsh`, `business_id_wsh`)
 );
 
 -- Finance: Withdrawal
@@ -359,6 +507,7 @@ CREATE TABLE IF NOT EXISTS `notice_wsh` (
     `title_wsh` VARCHAR(200) NOT NULL,
     `content_wsh` TEXT,
     `type_wsh` VARCHAR(20) DEFAULT 'notice',
+    `delivery_type_wsh` VARCHAR(32) DEFAULT '',
     `image_url_wsh` VARCHAR(500),
     `link_url_wsh` VARCHAR(500),
     `sort_order_wsh` INT DEFAULT 0,
@@ -401,19 +550,59 @@ CREATE TABLE IF NOT EXISTS `file_record_wsh` (
     `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS `qualification_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `owner_type_wsh` VARCHAR(30) NOT NULL,
+    `owner_id_wsh` BIGINT NOT NULL,
+    `user_id_wsh` BIGINT,
+    `qual_type_wsh` VARCHAR(50) NOT NULL,
+    `title_wsh` VARCHAR(100),
+    `file_url_wsh` VARCHAR(1000),
+    `summary_wsh` VARCHAR(500),
+    `status_wsh` VARCHAR(20) DEFAULT 'pending',
+    `visibility_wsh` VARCHAR(20) DEFAULT 'masked_public',
+    `reviewer_id_wsh` BIGINT,
+    `review_remark_wsh` VARCHAR(500),
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_qualification_owner` (`owner_type_wsh`, `owner_id_wsh`),
+    INDEX `idx_qualification_user` (`user_id_wsh`)
+);
+
 -- Ticket System
 CREATE TABLE IF NOT EXISTS `ticket_wsh` (
     `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `merchant_id_wsh` BIGINT,
+    `order_id_wsh` BIGINT,
     `user_id_wsh` BIGINT NOT NULL,
     `title_wsh` VARCHAR(200) NOT NULL,
     `content_wsh` TEXT,
     `category_wsh` VARCHAR(50),
     `priority_wsh` VARCHAR(20) DEFAULT 'medium',
     `status_wsh` VARCHAR(20) DEFAULT 'pending',
+    `result_wsh` VARCHAR(2000) COMMENT '处理结果',
     `assignee_id_wsh` BIGINT,
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS `merchant_customer_service_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `merchant_id_wsh` BIGINT NOT NULL,
+    `user_id_wsh` BIGINT NOT NULL,
+    `applicant_note_wsh` VARCHAR(500),
+    `review_note_wsh` VARCHAR(500),
+    `status_wsh` VARCHAR(20) NOT NULL DEFAULT 'pending',
+    `reviewer_id_wsh` BIGINT,
+    `reviewed_at_wsh` DATETIME,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_mcs_merchant_user` (`merchant_id_wsh`, `user_id_wsh`),
+    INDEX `idx_mcs_user_status` (`user_id_wsh`, `status_wsh`),
+    INDEX `idx_mcs_merchant_status` (`merchant_id_wsh`, `status_wsh`)
 );
 
 CREATE TABLE IF NOT EXISTS `ticket_message_wsh` (
@@ -451,6 +640,109 @@ CREATE TABLE IF NOT EXISTS `tip_wsh` (
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS `member_plan_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `code_wsh` VARCHAR(50) NOT NULL,
+    `name_wsh` VARCHAR(100) NOT NULL,
+    `level_wsh` INT NOT NULL DEFAULT 1,
+    `price_wsh` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    `duration_days_wsh` INT NOT NULL,
+    `discount_rate_wsh` DECIMAL(5,2) DEFAULT 1.00,
+    `monthly_coupon_config_wsh` TEXT,
+    `benefit_config_wsh` TEXT,
+    `status_wsh` TINYINT DEFAULT 1,
+    `sort_order_wsh` INT DEFAULT 0,
+    `remark_wsh` VARCHAR(500),
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_member_plan_code` (`code_wsh`),
+    INDEX `idx_member_plan_status` (`status_wsh`, `level_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `user_membership_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id_wsh` BIGINT NOT NULL,
+    `plan_id_wsh` BIGINT,
+    `plan_code_wsh` VARCHAR(50),
+    `level_wsh` INT DEFAULT 0,
+    `status_wsh` VARCHAR(20) DEFAULT 'inactive',
+    `started_at_wsh` DATETIME,
+    `expires_at_wsh` DATETIME,
+    `auto_renew_wsh` TINYINT DEFAULT 0,
+    `source_wsh` VARCHAR(30) DEFAULT 'purchase',
+    `last_order_id_wsh` BIGINT,
+    `benefit_snapshot_wsh` TEXT,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_user_membership_user` (`user_id_wsh`),
+    INDEX `idx_user_membership_status` (`status_wsh`, `expires_at_wsh`),
+    INDEX `idx_user_membership_plan` (`plan_id_wsh`, `status_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `membership_order_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `order_no_wsh` VARCHAR(50) NOT NULL,
+    `user_id_wsh` BIGINT NOT NULL,
+    `plan_id_wsh` BIGINT NOT NULL,
+    `plan_code_wsh` VARCHAR(50),
+    `amount_wsh` DECIMAL(10,2) NOT NULL,
+    `pay_method_wsh` VARCHAR(20) DEFAULT 'balance',
+    `status_wsh` VARCHAR(20) DEFAULT 'pending',
+    `paid_at_wsh` DATETIME,
+    `membership_start_at_wsh` DATETIME,
+    `membership_end_at_wsh` DATETIME,
+    `request_id_wsh` VARCHAR(120),
+    `plan_snapshot_wsh` TEXT,
+    `remark_wsh` VARCHAR(500),
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_membership_order_no` (`order_no_wsh`),
+    UNIQUE KEY `uk_membership_order_request` (`request_id_wsh`),
+    INDEX `idx_membership_order_user_status` (`user_id_wsh`, `status_wsh`),
+    INDEX `idx_membership_order_plan` (`plan_id_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `membership_benefit_usage_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id_wsh` BIGINT NOT NULL,
+    `membership_id_wsh` BIGINT,
+    `plan_id_wsh` BIGINT,
+    `benefit_type_wsh` VARCHAR(30) NOT NULL,
+    `benefit_code_wsh` VARCHAR(50),
+    `business_type_wsh` VARCHAR(50),
+    `business_id_wsh` VARCHAR(100),
+    `amount_wsh` DECIMAL(10,2) DEFAULT 0.00,
+    `quantity_wsh` INT DEFAULT 1,
+    `usage_status_wsh` VARCHAR(20) DEFAULT 'used',
+    `request_id_wsh` VARCHAR(120),
+    `usage_snapshot_wsh` TEXT,
+    `used_at_wsh` DATETIME,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_membership_usage_request` (`request_id_wsh`),
+    INDEX `idx_membership_usage_user_type` (`user_id_wsh`, `benefit_type_wsh`),
+    INDEX `idx_membership_usage_business` (`business_type_wsh`, `business_id_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `membership_event_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id_wsh` BIGINT NOT NULL,
+    `membership_id_wsh` BIGINT,
+    `membership_order_id_wsh` BIGINT,
+    `event_type_wsh` VARCHAR(50) NOT NULL,
+    `event_status_wsh` VARCHAR(20) DEFAULT 'success',
+    `operator_id_wsh` BIGINT,
+    `message_wsh` VARCHAR(500),
+    `event_snapshot_wsh` TEXT,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_membership_event_user` (`user_id_wsh`, `created_at_wsh`),
+    INDEX `idx_membership_event_membership` (`membership_id_wsh`),
+    INDEX `idx_membership_event_order` (`membership_order_id_wsh`)
+);
+
 -- Operation Log Table
 CREATE TABLE IF NOT EXISTS `operation_log_wsh` (
     `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -483,4 +775,44 @@ CREATE TABLE IF NOT EXISTS `business_hours_wsh` (
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY `uk_merchant_day` (`merchant_id_wsh`, `day_of_week_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `keeper_attendance_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `keeper_id_wsh` BIGINT NOT NULL,
+    `merchant_id_wsh` BIGINT NOT NULL,
+    `check_in_at_wsh` DATETIME NOT NULL,
+    `check_in_latitude_wsh` DECIMAL(10,7) NOT NULL,
+    `check_in_longitude_wsh` DECIMAL(10,7) NOT NULL,
+    `check_in_address_wsh` VARCHAR(500),
+    `check_in_accuracy_wsh` DECIMAL(10,2),
+    `check_in_distance_wsh` DECIMAL(10,2) NOT NULL,
+    `check_out_at_wsh` DATETIME,
+    `check_out_latitude_wsh` DECIMAL(10,7),
+    `check_out_longitude_wsh` DECIMAL(10,7),
+    `check_out_address_wsh` VARCHAR(500),
+    `check_out_accuracy_wsh` DECIMAL(10,2),
+    `check_out_distance_wsh` DECIMAL(10,2),
+    `radius_meters_wsh` INT NOT NULL,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_keeper_day` (`keeper_id_wsh`, `check_in_at_wsh`),
+    INDEX `idx_merchant_day` (`merchant_id_wsh`, `check_in_at_wsh`),
+    INDEX `idx_open_shift` (`keeper_id_wsh`, `check_out_at_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `keeper_leave_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `keeper_id_wsh` BIGINT NOT NULL,
+    `merchant_id_wsh` BIGINT NOT NULL,
+    `start_date_wsh` DATE NOT NULL,
+    `end_date_wsh` DATE NOT NULL,
+    `reason_wsh` VARCHAR(500),
+    `created_by_wsh` BIGINT,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_keeper_range` (`keeper_id_wsh`, `start_date_wsh`, `end_date_wsh`),
+    INDEX `idx_merchant_range` (`merchant_id_wsh`, `start_date_wsh`, `end_date_wsh`)
 );

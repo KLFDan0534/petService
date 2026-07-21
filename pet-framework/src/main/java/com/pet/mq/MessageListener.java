@@ -1,10 +1,12 @@
 package com.pet.mq;
 
+import com.pet.common.mq.ComplaintProcessHandler;
 import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,6 +21,9 @@ import org.springframework.stereotype.Component;
 public class MessageListener {
 
     private static final Logger log = LoggerFactory.getLogger(MessageListener.class);
+
+    @Autowired(required = false)
+    private ComplaintProcessHandler complaintProcessHandler;
 
     /**
      * Handles order creation messages from the order.create queue.
@@ -117,16 +122,21 @@ public class MessageListener {
 
     /**
      * Handles complaint processing messages from the complaint.process queue.
+     * Delegates to ComplaintProcessHandler (defined in pet-common and implemented in pet-business)
+     * for actual business logic.
      * @param complaintId the complaint identifier
      * @param message the AMQP message
      * @param channel the RabbitMQ channel
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @RabbitListener(queues = "complaint.process")
     public void handleComplaintProcess(String complaintId, Message message, Channel channel) {
         try {
             log.info("Complaint process: {}", complaintId);
+            if (complaintProcessHandler != null) {
+                complaintProcessHandler.handle(Long.valueOf(complaintId));
+            } else {
+                log.warn("ComplaintProcessHandler not available in context");
+            }
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
             log.error("Failed to process complaint: {}", complaintId, e);

@@ -1,7 +1,7 @@
 package com.pet.operation.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.pet.common.PageParam;
+import com.pet.common.PageRequestDTO;
 import com.pet.operation.entity.OperationLog;
 
 public interface OperationLogService {
@@ -15,7 +15,7 @@ public interface OperationLogService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    IPage<OperationLog> page(PageParam param, String module, String operation, Integer status);
+    IPage<OperationLog> page(PageRequestDTO param, String module, String operation, Integer status);
     /**
      * 根据ID获取操作日志
      * @param id 日志ID

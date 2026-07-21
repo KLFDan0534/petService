@@ -44,5 +44,11 @@ public interface NotificationService {
      * @date: 2026/6/24 11:05
      **/
     void markAllAsRead(Long userId);
+
+    /**
+     * 根据关联业务ID删除通知
+     * @param relatedId 关联业务ID
+     */
+    void deleteByRelatedId(Long relatedId);
 }
 

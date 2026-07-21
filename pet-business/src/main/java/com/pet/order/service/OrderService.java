@@ -1,74 +1,21 @@
 package com.pet.order.service;
 
-import com.pet.order.dto.CreateOrderRequest;
+import com.pet.order.dto.OrderCreateRequestDTO;
+import com.pet.order.dto.OrderDeliveredRequestDTO;
+import com.pet.order.dto.OrderDTO;
+import com.pet.order.dto.OrderReceivedRequestDTO;
 import com.pet.order.entity.PetOrder;
 import java.util.List;
 
 public interface OrderService {
-    /**
-     * 获取所有订单列表
-     * @return 订单列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    List<PetOrder> listAll();
-    /**
-     * 根据宠物主人ID获取订单列表
-     * @param ownerId 主人ID
-     * @return 订单列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    List<PetOrder> listByOwner(Long ownerId);
-    /**
-     * 根据商家ID获取订单列表
-     * @param merchantId 商家ID
-     * @return 订单列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    List<PetOrder> listByMerchant(Long merchantId);
-    /**
-     * 根据看护人ID获取订单列表
-     * @param keeperId 看护人ID
-     * @return 订单列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    List<PetOrder> listByKeeper(Long keeperId);
-    /**
-     * 获取看护人待处理订单列表
-     * @param keeperId 看护人ID
-     * @return 待处理订单列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    List<PetOrder> listPendingByKeeper(Long keeperId);
-    /**
-     * 根据订单编号获取订单
-     * @param orderNo 订单编号
-     * @return 订单实体
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+    List<OrderDTO> listAll();
+    List<OrderDTO> listByOwner(Long ownerId);
+    List<OrderDTO> listByMerchant(Long merchantId);
+    List<OrderDTO> listByKeeper(Long keeperId);
+    List<OrderDTO> listPendingByKeeper(Long keeperId);
     PetOrder getByOrderNo(String orderNo);
-    /**
-     * 根据ID获取订单
-     * @param id 订单ID
-     * @return 订单实体
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     PetOrder getById(Long id);
-    /**
-     * 创建订单
-     * @param ownerId 主人ID
-     * @param request 创建订单请求
-     * @return 创建后的订单
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    PetOrder createOrder(Long ownerId, CreateOrderRequest request);
+    OrderDTO createOrder(Long ownerId, OrderCreateRequestDTO request);
     /**
      * 根据ID取消订单
      * @param ownerId 主人ID
@@ -110,6 +57,10 @@ public interface OrderService {
      * @date: 2026/6/24 11:05
      **/
     void rejectOrder(Long userId, String orderNo);
+    boolean autoAcceptPaidOrderIfTimeout(String orderNo);
+    int autoAcceptPaidOrdersIfTimeout();
+    boolean cancelPendingOrderIfPaymentTimeout(String orderNo);
+    int cancelPaymentTimeoutOrders();
     /**
      * 标记订单已送达
      * @param userId 用户ID
@@ -118,6 +69,7 @@ public interface OrderService {
      * @date: 2026/6/24 11:05
      **/
     void markDelivered(Long userId, String orderNo);
+    void markDelivered(Long userId, OrderDeliveredRequestDTO request);
     /**
      * 标记订单已接收
      * @param userId 用户ID
@@ -126,6 +78,7 @@ public interface OrderService {
      * @date: 2026/6/24 11:05
      **/
     void markReceived(Long userId, String orderNo, String handoverCode);
+    void markReceived(Long userId, OrderReceivedRequestDTO request);
     /**
      * 开始服务
      * @param userId 用户ID
@@ -134,6 +87,7 @@ public interface OrderService {
      * @date: 2026/6/24 11:05
      **/
     void startService(Long userId, String orderNo, String startPhoto);
+    void validateStartServiceAccess(Long userId, String orderNo);
     /**
      * 更新订单状态
      * @param orderNo 订单编号
@@ -142,12 +96,9 @@ public interface OrderService {
      * @date: 2026/6/24 11:05
      **/
     void updateOrderStatus(String orderNo, String status);
-    /**
-     * 生成测试订单数据
-     * @param userId 用户ID
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    void seedTestOrders(Long userId);
+    OrderDTO toDTO(PetOrder entity);
+    OrderDTO toDTOEnriched(PetOrder entity);
+    OrderDTO getDTOById(Long id);
+    OrderDTO getDTOByOrderNo(String orderNo);
 }
 

@@ -1,5 +1,6 @@
 package com.pet.finance.service;
 
+import com.pet.finance.dto.TransactionDTO;
 import com.pet.finance.entity.Transaction;
 import java.util.List;
 
@@ -26,5 +27,7 @@ public interface TransactionService {
      * @date: 2026/6/24 11:05
      **/
     void add(Transaction tx);
+
+    TransactionDTO toDTO(Transaction entity);
 }
 

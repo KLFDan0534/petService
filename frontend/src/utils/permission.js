@@ -1,7 +1,8 @@
 import { useAuthStore } from '@/stores/auth'
 
 export const ROLES = {
-  USER: 'USER',
+  OWNER: 'OWNER',
+  KEEPER: 'KEEPER',
   MERCHANT: 'MERCHANT',
   ADMIN: 'ADMIN',
   CUSTOMER_SERVICE: 'CUSTOMER_SERVICE',

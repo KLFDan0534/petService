@@ -1,10 +1,12 @@
 package com.pet.system.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.pet.common.PageParam;
-import com.pet.system.dto.LoginRequest;
-import com.pet.system.dto.LoginResponse;
-import com.pet.system.dto.RegisterRequest;
+import com.pet.common.PageRequestDTO;
+import com.pet.system.dto.LoginRequestDTO;
+import com.pet.system.dto.RegisterCaptchaRequestDTO;
+import com.pet.system.dto.RegisterRequestDTO;
+import com.pet.system.vo.LoginResponseVO;
+import com.pet.system.vo.RegisterCaptchaVO;
 import com.pet.system.vo.UserVO;
 import com.pet.system.entity.User;
 
@@ -19,7 +21,9 @@ public interface UserService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    LoginResponse register(RegisterRequest request);
+    LoginResponseVO register(RegisterRequestDTO request);
+
+    RegisterCaptchaVO requestRegisterCaptcha(String phone);
 
     /**
      * 用户登录
@@ -28,7 +32,7 @@ public interface UserService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    LoginResponse login(LoginRequest request);
+    LoginResponseVO login(LoginRequestDTO request);
 
     /**
      * 刷新用户token
@@ -37,7 +41,7 @@ public interface UserService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    LoginResponse refreshToken(String refreshToken);
+    LoginResponseVO refreshToken(String refreshToken);
 
     /**
      * 用户登出
@@ -46,6 +50,8 @@ public interface UserService {
      * @date: 2026/6/24 11:05
      **/
     void logout(String token);
+
+    void deleteCurrentUser(Long userId, String token);
 
     /**
      * 获取用户信息
@@ -66,6 +72,12 @@ public interface UserService {
      **/
     UserVO updateUser(Long userId, UserVO vo);
 
+    void setPaymentPassword(Long userId, String paymentPassword);
+
+    boolean hasPaymentPassword(Long userId);
+
+    void verifyPaymentPassword(Long userId, String paymentPassword);
+
     /**
      * 获取所有用户列表
      * @return 用户视图对象列表
@@ -82,7 +94,7 @@ public interface UserService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    IPage<UserVO> listPage(PageParam pageParam, String keyword);
+    IPage<UserVO> listPage(PageRequestDTO pageParam, String keyword);
 
     /**
      * 获取用户角色列表

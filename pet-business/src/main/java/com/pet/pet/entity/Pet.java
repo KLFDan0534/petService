@@ -12,6 +12,8 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * 宠物实体
  * @author: wsh
@@ -20,95 +22,114 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @TableName("pet_wsh")
+@Schema(description = "宠物实体")
 public class Pet {
     @JsonProperty("id_wsh")
     @TableId(value = "id_wsh", type = IdType.AUTO)
+    @Schema(description = "ID")
     private Long id_wsh;
 
     @JsonProperty("owner_id_wsh")
     @JsonAlias({"ownerId", "owner_id"})
     @TableField(value = "owner_id_wsh")
+    @Schema(description = "宠物主用户ID")
     private Long owner_id_wsh;
 
     @JsonProperty("name_wsh")
     @JsonAlias({"name"})
     @NotBlank(message = "�1�7�1�7�1�7�1�7�1�7�1�7�1�7�0�8�1�7�1�7�1�7�0�2�1�7�1�7")
     @TableField(value = "name_wsh")
+    @Schema(description = "名称")
     private String name_wsh;
 
     @JsonProperty("type_wsh")
     @JsonAlias({"type"})
     @NotBlank(message = "�1�7�1�7�1�7�1�7类�1�7�0�0�1�7�1�7�1�7�0�2�1�7�1�7")
     @TableField(value = "type_wsh")
+    @Schema(description = "类型")
     private String type_wsh;
 
     @JsonProperty("breed_wsh")
     @JsonAlias({"breed"})
     @TableField(value = "breed_wsh")
+    @Schema(description = "品种")
     private String breed_wsh;
 
     @JsonProperty("age_wsh")
     @JsonAlias({"age"})
     @Positive(message = "�1�7�1�7龄�1�7�1�7�1�7�1�7�0�2�1�7�1�7�1�7�1�7")
     @TableField(value = "age_wsh")
+    @Schema(description = "年龄")
     private Integer age_wsh;
 
     @JsonProperty("weight_wsh")
     @JsonAlias({"weight"})
     @Positive(message = "�1�7�1�7�1�7�1�9�1�7�1�7�1�7�0�2�1�7�1�7�1�7�1�7")
     @TableField(value = "weight_wsh")
+    @Schema(description = "体重(kg)")
     private BigDecimal weight_wsh;
 
     @JsonProperty("gender_wsh")
     @JsonAlias({"gender"})
     @TableField(value = "gender_wsh")
+    @Schema(description = "性别")
     private Integer gender_wsh;
 
     @JsonProperty("sterilized_wsh")
     @JsonAlias({"sterilized"})
     @TableField(value = "sterilized_wsh")
+    @Schema(description = "是否绝育")
     private Integer sterilized_wsh;
 
     @JsonProperty("vaccinated_wsh")
     @JsonAlias({"vaccinated"})
     @TableField(value = "vaccinated_wsh")
+    @Schema(description = "是否已接种疫苗")
     private Integer vaccinated_wsh;
 
     @JsonProperty("avatar_wsh")
     @JsonAlias({"avatar"})
     @TableField(value = "avatar_wsh")
+    @Schema(description = "头像URL")
     private String avatar_wsh;
 
     @JsonProperty("description_wsh")
     @JsonAlias({"description"})
     @TableField(value = "description_wsh")
+    @Schema(description = "描述")
     private String description_wsh;
 
     @JsonProperty("allergies_wsh")
     @JsonAlias({"allergies"})
     @TableField(value = "allergies_wsh")
+    @Schema(description = "过敏信息")
     private String allergies_wsh;
 
     @JsonProperty("habits_wsh")
     @JsonAlias({"habits"})
     @TableField(value = "habits_wsh")
+    @Schema(description = "生活习惯")
     private String habits_wsh;
 
     @JsonProperty("owner_name_wsh")
     @TableField(exist = false)
+    @Schema(description = "宠物主姓名")
     private String owner_name_wsh;
 
     @JsonIgnore
     @TableLogic
     @TableField(value = "deleted_wsh")
+    @Schema(description = "逻辑删除标志")
     private Integer deleted_wsh;
 
     @JsonProperty("created_at_wsh")
     @TableField(value = "created_at_wsh", fill = FieldFill.INSERT)
+    @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
 
     @JsonProperty("updated_at_wsh")
     @TableField(value = "updated_at_wsh", fill = FieldFill.INSERT_UPDATE)
+    @Schema(description = "更新时间")
     private LocalDateTime updated_at_wsh;
 
     @JsonGetter("id")

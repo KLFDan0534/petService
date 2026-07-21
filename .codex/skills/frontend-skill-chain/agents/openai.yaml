@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Skill Chain"
+  short_description: "Run frontend skills in the requested order."
+  default_prompt: "Use $frontend-skill-chain before frontend implementation work."

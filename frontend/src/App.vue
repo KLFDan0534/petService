@@ -16,8 +16,11 @@
     <router-view v-else />
 
     <div class="toast-container">
-      <div v-for="toast in appStore.toasts" :key="toast.id"
-        :class="['toast', `toast-${toast.type}`]">
+      <div
+        v-for="toast in appStore.toasts"
+        :key="toast.id"
+        :class="['toast', `toast-${toast.type}`]"
+      >
         {{ toast.message }}
       </div>
     </div>
@@ -25,18 +28,21 @@
     <div v-if="showModal" class="modal-overlay" @mousedown.self="closeModal">
       <div class="modal">
         <h2>{{ modalTitle }}</h2>
-        <div v-html="modalContent"></div>
+        <div class="modal-content">{{ modalContent }}</div>
         <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" @click="closeModal">取消</button>
-          <button v-if="modalConfirm" class="btn btn-primary btn-sm" @click="onModalConfirm">确认</button>
+          <button class="btn btn-secondary btn-sm" type="button" @click="closeModal">取消</button>
+          <button v-if="modalConfirm" class="btn btn-primary btn-sm" type="button" @click="onModalConfirm">确认</button>
         </div>
       </div>
     </div>
+
+    <PopupNotice />
+    <LoginPromptDialog :visible="appStore.showLoginPrompt" @close="appStore.closeLoginPrompt()" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useNotificationStore } from '@/stores/notification'
@@ -44,17 +50,25 @@ import { useAuthStore } from '@/stores/auth'
 import UserLayout from '@/components/layout/UserLayout.vue'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 import MerchantLayout from '@/components/layout/MerchantLayout.vue'
+import PopupNotice from '@/components/common/PopupNotice.vue'
+import LoginPromptDialog from '@/components/common/LoginPromptDialog.vue'
 
 const route = useRoute()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 
-onMounted(() => {
-  if (authStore.isLoggedIn) {
-    notificationStore.startPolling(30000)
-  }
-})
+watch(
+  () => authStore.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) {
+      notificationStore.startPolling(30000)
+      return
+    }
+    notificationStore.stopPolling()
+  },
+  { immediate: true },
+)
 
 onUnmounted(() => {
   notificationStore.stopPolling()

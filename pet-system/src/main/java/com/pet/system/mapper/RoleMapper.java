@@ -19,6 +19,6 @@ public interface RoleMapper extends BaseMapper<Role> {
      **/
     @Select("SELECT r.code_wsh FROM role_wsh r " +
             "JOIN user_role_wsh ur ON r.id_wsh = ur.role_id_wsh " +
-            "WHERE ur.user_id_wsh = #{userId} AND r.deleted_wsh = 0")
+            "WHERE ur.user_id_wsh = #{userId} AND ur.deleted_wsh = 0 AND r.deleted_wsh = 0")
     List<String> selectRoleCodesByUserId(Long userId);
 }

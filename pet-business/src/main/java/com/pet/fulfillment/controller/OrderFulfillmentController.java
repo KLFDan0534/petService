@@ -1,35 +1,41 @@
 package com.pet.fulfillment.controller;
 
 import com.pet.common.Result;
-import com.pet.customer.entity.ChatMessage;
-import com.pet.fulfillment.dto.CreateCareRecordRequest;
-import com.pet.fulfillment.dto.SendOrderMessageRequest;
+import com.pet.customer.dto.ChatMessageDTO;
+import com.pet.fulfillment.dto.CreateCareRecordRequestDTO;
+import com.pet.fulfillment.dto.DailyStatusDTO;
+import com.pet.fulfillment.dto.SendOrderMessageRequestDTO;
 import com.pet.fulfillment.service.OrderFulfillmentService;
+import com.pet.fulfillment.vo.OrderFulfillmentOverviewVO;
+import com.pet.pet.dto.CareRecordDTO;
 import com.pet.pet.entity.CareRecord;
 import com.pet.security.JwtAuthenticationToken;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
-/**
- * 订单履行控制器
- * 提供订单护理时间线、每日上传状态及订单聊天功能
- * @author: wsh
- * @date: 2026/06/24 11:05
- */
 @RestController
 @RequestMapping("/api/order-fulfillments")
-@Tag(name = "订单履行", description = "订单护理时间线、照片和订单范围内的聊天")
+@Tag(name = "【用户端】订单履行管理", description = "订单时间线、护理记录和订单消息（用户/看护者/商家使用）")
 @Slf4j
 public class OrderFulfillmentController {
 
@@ -39,186 +45,178 @@ public class OrderFulfillmentController {
         this.fulfillmentService = fulfillmentService;
     }
 
-    /**
-     * 获取订单履行概览
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @return 履行概览信息
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/{orderId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取订单履行概览")
-    public Result<Map<String, Object>> overview(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                                @PathVariable Long orderId) {
-        log.info("调用 overview()");
+    @Operation(summary = "获取订单履行概览", description = "获取订单履行总体概览")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<OrderFulfillmentOverviewVO> overview(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                       @PathVariable @Parameter(description = "订单ID") Long orderId) {
         return Result.success(fulfillmentService.getOverview(token.getUserId(), isAdmin(token), orderId));
     }
 
-    /**
-     * 获取订单护理时间线
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @return 护理记录列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/{orderId}/timeline")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取订单护理时间线")
-    public Result<List<CareRecord>> timeline(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                             @PathVariable Long orderId) {
-        log.info("调用 timeline()");
-        return Result.success(fulfillmentService.listTimeline(token.getUserId(), isAdmin(token), orderId));
+    @Operation(summary = "获取订单护理时间线", description = "获取订单护理记录时间线")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<CareRecordDTO>> timeline(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                @PathVariable @Parameter(description = "订单ID") Long orderId) {
+        List<CareRecord> list = fulfillmentService.listTimeline(token.getUserId(), isAdmin(token), orderId);
+        return Result.success(list.stream().map(this::toCareRecordDTO).collect(Collectors.toList()));
     }
 
-    /**
-     * 获取每日护理上传状态
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @return 每日上传状态信息
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/{orderId}/daily-status")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取每日护理上传状态")
-    public Result<Map<String, Object>> dailyStatus(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                                   @PathVariable Long orderId) {
-        log.info("调用 dailyStatus()");
+    @Operation(summary = "获取每日护理上传状态", description = "获取每日护理记录上传状态")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<DailyStatusDTO> dailyStatus(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                              @PathVariable @Parameter(description = "订单ID") Long orderId) {
         return Result.success(fulfillmentService.getDailyUploadStatus(token.getUserId(), isAdmin(token), orderId));
     }
 
-    /**
-     * 创建订单护理时间线记录
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @param request 创建护理记录请求
-     * @return 创建的护理记录
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @PostMapping("/{orderId}/timeline")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "创建护理时间线记录")
-    public Result<CareRecord> createTimeline(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                             @PathVariable Long orderId,
-                                             @RequestBody CreateCareRecordRequest request) {
-        log.info("调用 createTimeline()");
-        return Result.success(fulfillmentService.createTimelineRecord(token.getUserId(), isAdmin(token), orderId, request));
+    @Operation(summary = "创建护理记录", description = "创建订单护理时间线记录")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<CareRecordDTO> createTimeline(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                @PathVariable @Parameter(description = "订单ID") Long orderId,
+                                                @RequestBody CreateCareRecordRequestDTO request) {
+        return Result.success(toCareRecordDTO(fulfillmentService.createTimelineRecord(
+                token.getUserId(), isAdmin(token), orderId, request)));
     }
 
-    /**
-     * 创建护理时间线记录并上传图片
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @param typeWsh 护理类型
-     * @param type 护理类型（备用字段名）
-     * @param contentWsh 护理内容
-     * @param content 护理内容（备用字段名）
-     * @param recordTimeWsh 记录时间
-     * @param recordTime 记录时间（备用字段名）
-     * @param files 上传文件数组
-     * @param file 单个上传文件
-     * @return 创建的护理记录
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @PostMapping(value = "/{orderId}/timeline/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "创建护理时间线记录并上传照片")
-    public Result<CareRecord> uploadTimeline(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                             @PathVariable Long orderId,
-                                             @RequestParam(value = "type_wsh", required = false) String typeWsh,
-                                             @RequestParam(value = "type", required = false) String type,
-                                             @RequestParam(value = "content_wsh", required = false) String contentWsh,
-                                             @RequestParam(value = "content", required = false) String content,
-                                             @RequestParam(value = "record_time_wsh", required = false) String recordTimeWsh,
-                                             @RequestParam(value = "recordTime", required = false) String recordTime,
-                                             @RequestParam(value = "files", required = false) MultipartFile[] files,
-                                             @RequestParam(value = "file", required = false) MultipartFile file) {
-        log.info("调用 uploadTimeline()");
-        return Result.success(fulfillmentService.createTimelineRecordWithFiles(
+    @Operation(summary = "上传照片创建护理记录", description = "上传照片并创建护理时间线记录")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<CareRecordDTO> uploadTimeline(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                @PathVariable @Parameter(description = "订单ID") Long orderId,
+                                                @RequestParam(value = "type_wsh", required = false) String typeWsh,
+                                                @RequestParam(value = "type", required = false) String type,
+                                                @RequestParam(value = "content_wsh", required = false) String contentWsh,
+                                                @RequestParam(value = "content", required = false) String content,
+                                                @RequestParam(value = "record_time_wsh", required = false) String recordTimeWsh,
+                                                @RequestParam(value = "recordTime", required = false) String recordTime,
+                                                @RequestParam(value = "files", required = false) MultipartFile[] files,
+                                                @RequestParam(value = "file", required = false) MultipartFile file) {
+        return Result.success(toCareRecordDTO(fulfillmentService.createTimelineRecordWithFiles(
                 token.getUserId(), isAdmin(token), orderId,
                 firstNonBlank(typeWsh, type),
                 firstNonBlank(contentWsh, content),
                 firstNonBlank(recordTimeWsh, recordTime),
-                mergeFiles(files, file)));
+                mergeFiles(files, file))));
     }
 
-    /**
-     * 获取订单范围内的会话消息
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @param otherUserId 对方用户ID（可选）
-     * @return 会话消息列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/{orderId}/conversation")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取订单会话消息")
-    public Result<List<ChatMessage>> conversation(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                                  @PathVariable Long orderId,
-                                                  @RequestParam(required = false) Long otherUserId) {
-        log.info("调用 conversation()");
-        return Result.success(fulfillmentService.listConversation(token.getUserId(), isAdmin(token), orderId, otherUserId));
+    @Operation(summary = "获取订单会话消息", description = "获取订单相关的聊天消息")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<ChatMessageDTO>> conversation(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                     @PathVariable @Parameter(description = "订单ID") Long orderId,
+                                                     @RequestParam(required = false) Long otherUserId,
+                                                     @RequestParam(required = false) Long beforeId,
+                                                     @RequestParam(required = false) Integer size) {
+        return Result.success(fulfillmentService.listConversation(
+                token.getUserId(), isAdmin(token), orderId, otherUserId, beforeId, size));
     }
 
-    /**
-     * 发送订单范围内的消息
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @param request 发送消息请求
-     * @return 发送的消息
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @PostMapping("/{orderId}/conversation")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "发送订单消息")
-    public Result<ChatMessage> sendMessage(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                           @PathVariable Long orderId,
-                                           @RequestBody SendOrderMessageRequest request) {
-        log.info("调用 sendMessage()");
+    @Operation(summary = "发送订单消息", description = "发送订单相关的聊天消息")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ChatMessageDTO> sendMessage(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                              @PathVariable @Parameter(description = "订单ID") Long orderId,
+                                              @RequestBody SendOrderMessageRequestDTO request) {
         return Result.success(fulfillmentService.sendMessage(token.getUserId(), isAdmin(token), orderId, request));
     }
 
-    /**
-     * 发送订单范围内带文件的消息
-     * @param token 当前用户认证信息
-     * @param orderId 订单ID
-     * @param toUserIdWsh 接收方用户ID
-     * @param toUserId 接收方用户ID（备用字段名）
-     * @param contentWsh 消息内容
-     * @param content 消息内容（备用字段名）
-     * @param typeWsh 消息类型
-     * @param type 消息类型（备用字段名）
-     * @param file 上传文件
-     * @return 发送的消息
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @PostMapping(value = "/{orderId}/conversation/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "发送带文件的订单消息")
-    public Result<ChatMessage> sendMessageWithFile(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                                   @PathVariable Long orderId,
-                                                   @RequestParam(value = "to_user_id_wsh", required = false) Long toUserIdWsh,
-                                                   @RequestParam(value = "toUserId", required = false) Long toUserId,
-                                                   @RequestParam(value = "content_wsh", required = false) String contentWsh,
-                                                   @RequestParam(value = "content", required = false) String content,
-                                                   @RequestParam(value = "type_wsh", required = false) String typeWsh,
-                                                   @RequestParam(value = "type", required = false) String type,
-                                                   @RequestParam("file") MultipartFile file) {
-        log.info("调用 sendMessageWithFile()");
+    @Operation(summary = "发送带文件订单消息", description = "发送带附件的订单聊天消息")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ChatMessageDTO> sendMessageWithFile(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                      @PathVariable @Parameter(description = "订单ID") Long orderId,
+                                                      @RequestParam(value = "to_user_id_wsh", required = false) Long toUserIdWsh,
+                                                      @RequestParam(value = "toUserId", required = false) Long toUserId,
+                                                      @RequestParam(value = "content_wsh", required = false) String contentWsh,
+                                                      @RequestParam(value = "content", required = false) String content,
+                                                      @RequestParam(value = "type_wsh", required = false) String typeWsh,
+                                                      @RequestParam(value = "type", required = false) String type,
+                                                      @RequestParam("file") MultipartFile file) {
         return Result.success(fulfillmentService.sendMessageWithFile(
                 token.getUserId(), isAdmin(token), orderId,
                 toUserIdWsh != null ? toUserIdWsh : toUserId,
                 firstNonBlank(contentWsh, content),
                 firstNonBlank(typeWsh, type),
                 file));
+    }
+
+    @PostMapping("/{orderId}/conversation/read")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "标记订单会话已读", description = "标记订单聊天会话为已读")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "资源不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> markConversationRead(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                             @PathVariable @Parameter(description = "订单ID") Long orderId,
+                                             @RequestParam(required = false) Long otherUserId) {
+        fulfillmentService.markConversationAsRead(token.getUserId(), isAdmin(token), orderId, otherUserId);
+        return Result.success();
     }
 
     private boolean isAdmin(JwtAuthenticationToken token) {
@@ -241,5 +239,19 @@ public class OrderFulfillmentController {
             merged.add(file);
         }
         return merged;
+    }
+
+    private CareRecordDTO toCareRecordDTO(CareRecord entity) {
+        CareRecordDTO dto = new CareRecordDTO();
+        dto.setId_wsh(entity.getId_wsh());
+        dto.setOrder_id_wsh(entity.getOrder_id_wsh());
+        dto.setPet_id_wsh(entity.getPet_id_wsh());
+        dto.setKeeper_id_wsh(entity.getKeeper_id_wsh());
+        dto.setType_wsh(entity.getType_wsh());
+        dto.setContent_wsh(entity.getContent_wsh());
+        dto.setImages_wsh(entity.getImages_wsh());
+        dto.setRecord_time_wsh(entity.getRecord_time_wsh());
+        dto.setCreated_at_wsh(entity.getCreated_at_wsh());
+        return dto;
     }
 }

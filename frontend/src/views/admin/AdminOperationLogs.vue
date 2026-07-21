@@ -57,9 +57,9 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { getOperationLogs } from '@/api/admin'
 
-const authStore = useAuthStore()
+
 const logs = ref([])
 const page = ref(1)
 const size = ref(20)
@@ -75,11 +75,11 @@ async function load() {
     if (filter.module) params.module = filter.module
     if (filter.operation) params.operation = filter.operation
     if (filter.status !== '') params.status = filter.status
-    const r = await authStore.apiGet('/api/operation-logs', params)
+    const r = await getOperationLogs(params)
     if (r.code === 200) {
-      logs.value = r.data.list || []
+      logs.value = r.data?.list || r.data?.records || []
       total.value = r.data.total || 0
-      pages.value = r.data.pages_wsh || 0
+      pages.value = r.data.pages || r.data.pages_wsh || 0
     }
   } catch (e) { /* ignore */ }
 }

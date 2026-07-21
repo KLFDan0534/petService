@@ -12,7 +12,10 @@
     <div class="card" style="padding:24px">
       <div style="font-size:32px;font-weight:700;color:var(--color-primary)">¥{{ wallet.balance_wsh || 0 }}</div>
       <div style="font-size:14px;color:var(--color-muted-foreground);margin-top:4px">可用余额</div>
-      <button class="btn btn-primary btn-sm" style="margin-top:12px" @click="showWithdrawForm = true">申请提现</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <router-link to="/recharge" class="btn btn-outline btn-sm">充值</router-link>
+        <button class="btn btn-primary btn-sm" @click="showWithdrawForm = true">申请提现</button>
+      </div>
     </div>
 
     <div v-if="showWithdrawForm" class="modal-overlay" @mousedown.self="showWithdrawForm = false">
@@ -72,12 +75,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { getMyWallet, getMyTips, getMyTransactions, getMyWithdrawals, createWithdrawal } from '@/api/wallet'
+import { getUserStatistics } from '@/api/statistics'
+import { TransactionStatus, WithdrawalStatus, enrichWithStatus } from '@/constants/statusMaps'
 import { useAppStore } from '@/stores/app'
 import PageHero from '@/components/common/PageHero.vue'
 import DataTable from '@/components/common/DataTable.vue'
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 const tips = ref([])
 const wallet = ref({})
@@ -85,15 +89,8 @@ const stats = ref({})
 const transactions = ref([])
 const withdrawals = ref([])
 
-const txStatusMap = { pending: { text: '待处理', cls: 'badge-warning' }, success: { text: '成功', cls: 'badge-success' }, completed: { text: '已完成', cls: 'badge-success' }, failed: { text: '失败', cls: 'badge-danger' } }
-const wdStatusMap = { pending: { text: '待审核', cls: 'badge-warning' }, approved: { text: '已通过', cls: 'badge-success' }, rejected: { text: '已拒绝', cls: 'badge-danger' }, completed: { text: '已完成', cls: 'badge-success' } }
-
-function enrichTx(t) {
-  const s = txStatusMap[t.status_wsh]; t.tx_status_label_wsh = s ? `<span class="badge ${s.cls}">${s.text}</span>` : t.status_wsh; return t
-}
-function enrichWd(w) {
-  const s = wdStatusMap[w.status_wsh]; w.wd_status_label_wsh = s ? `<span class="badge ${s.cls}">${s.text}</span>` : w.status_wsh; return w
-}
+function enrichTx(t) { return enrichWithStatus(t, 'status_wsh', TransactionStatus, 'tx_status_label_wsh') }
+function enrichWd(w) { return enrichWithStatus(w, 'status_wsh', WithdrawalStatus, 'wd_status_label_wsh') }
 const tipsLoading = ref(true)
 const statsLoading = ref(true)
 const txLoading = ref(true)
@@ -104,26 +101,26 @@ const withdrawAccount = ref('')
 
 onMounted(async () => {
   try {
-    const r = await authStore.apiGet('/api/wallet/me')
+    const r = await getMyWallet()
     if (r.code === 200) wallet.value = r.data
   } catch (e) {}
   try {
-    const r = await authStore.apiGet('/api/tips/me')
+    const r = await getMyTips()
     if (r.code === 200) tips.value = r.data
   } catch (e) {}
   finally { tipsLoading.value = false }
   try {
-    const r = await authStore.apiGet('/api/transactions/me')
+    const r = await getMyTransactions()
     if (r.code === 200) transactions.value = (Array.isArray(r.data) ? r.data : []).map(enrichTx)
   } catch (e) {}
   finally { txLoading.value = false }
   try {
-    const r = await authStore.apiGet('/api/withdrawals/me')
+    const r = await getMyWithdrawals()
     if (r.code === 200) withdrawals.value = (Array.isArray(r.data) ? r.data : []).map(enrichWd)
   } catch (e) {}
   finally { wdLoading.value = false }
   try {
-    const r = await authStore.apiGet('/api/statistics/user')
+    const r = await getUserStatistics()
     if (r.code === 200) stats.value = r.data
   } catch (e) {}
   finally { statsLoading.value = false }
@@ -132,7 +129,7 @@ onMounted(async () => {
 async function submitWithdraw() {
   if (!withdrawAmount.value || !withdrawAccount.value) return
   try {
-    const r = await authStore.apiPost('/api/withdrawals', { amount_wsh: withdrawAmount.value, account_name_wsh: withdrawAccount.value, bank_name_wsh: '', bank_card_wsh: '' })
+    const r = await createWithdrawal({ amount_wsh: withdrawAmount.value, account_name_wsh: withdrawAccount.value, bank_name_wsh: '', bank_card_wsh: '' })
     if (r.code === 200) {
       appStore.addToast('提现申请已提交', 'success')
       showWithdrawForm.value = false

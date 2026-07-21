@@ -2,7 +2,9 @@ package com.pet.boarding.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
-import com.pet.boarding.entity.Address;
+import com.pet.boarding.dto.AddressCreateRequestDTO;
+import com.pet.boarding.dto.AddressDTO;
+import com.pet.boarding.dto.AddressUpdateRequestDTO;
 import com.pet.security.JwtAuthenticationToken;
 import com.pet.boarding.service.AddressService;
 import jakarta.validation.Valid;
@@ -11,8 +13,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
@@ -23,7 +29,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  */
 @RestController
 @RequestMapping("/api/addresses")
-@Tag(name = "地址管理", description = "用户地址增删改查")
+@Tag(name = "【用户端】地址管理", description = "用户地址增删改查及默认地址设置")
 @Slf4j
 public class AddressController {
 
@@ -43,9 +49,15 @@ public class AddressController {
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "获取地址列表", description = "获取当前用户的地址列表")
-    public Result<List<Address>> list(@AuthenticationPrincipal JwtAuthenticationToken token) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<AddressDTO>> list(@AuthenticationPrincipal JwtAuthenticationToken token) {
         log.info("list() called");
-        return Result.success(addressService.listByUser(token.getUserId()));
+        return Result.success(addressService.listByUser(token.getUserId()).stream().map(addressService::toDTO).collect(Collectors.toList()));
     }
 
     /**
@@ -59,14 +71,16 @@ public class AddressController {
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "获取地址详情", description = "根据ID获取地址详情")
-    public Result<Address> get(@AuthenticationPrincipal JwtAuthenticationToken token,
-                               @PathVariable Long id) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<AddressDTO> get(@AuthenticationPrincipal JwtAuthenticationToken token,
+                               @Parameter(description = "地址ID") @PathVariable Long id) {
         log.info("get() called");
-        Address address = addressService.getById(id);
-        if (address == null) {
-            return Result.error(404, "�1�7�1�7�0�7�1�7�1�7�1�7�1�7�1�7�1�7");
-        }
-        return Result.success(addressService.getById(id));
+        return Result.success(addressService.toDTO(addressService.getById(id)));
     }
 
     /**
@@ -80,10 +94,16 @@ public class AddressController {
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "新增地址", description = "新增用户地址")
-    public Result<Address> create(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                  @Valid @RequestBody Address addr) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<AddressDTO> create(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                  @Valid @RequestBody AddressCreateRequestDTO dto) {
         log.info("create() called");
-        return Result.success(addressService.create(token.getUserId(), addr));
+        return Result.success(addressService.toDTO(addressService.create(token.getUserId(), dto)));
     }
 
     /**
@@ -98,11 +118,17 @@ public class AddressController {
     @PutMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "更新地址", description = "更新指定地址信息")
-    public Result<Address> update(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                  @PathVariable Long id,
-                                  @Valid @RequestBody Address addr) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<AddressDTO> update(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                  @Parameter(description = "地址ID") @PathVariable Long id,
+                                  @Valid @RequestBody AddressUpdateRequestDTO dto) {
         log.info("update() called");
-        return Result.success(addressService.update(token.getUserId(), id, addr));
+        return Result.success(addressService.toDTO(addressService.update(token.getUserId(), id, dto)));
     }
 
     /**
@@ -116,8 +142,14 @@ public class AddressController {
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "删除地址", description = "删除指定地址")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
     public Result<Void> delete(@AuthenticationPrincipal JwtAuthenticationToken token,
-                               @PathVariable Long id) {
+                               @Parameter(description = "地址ID") @PathVariable Long id) {
         log.info("delete()被调用");
         addressService.delete(token.getUserId(), id);
         return Result.success();
@@ -134,8 +166,14 @@ public class AddressController {
     @PostMapping("/{id}/default")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "设置默认地址", description = "将指定地址设为默认地址")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
     public Result<Void> setDefault(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                   @PathVariable Long id) {
+                                   @Parameter(description = "地址ID") @PathVariable Long id) {
         log.info("setDefault()被调用");
         addressService.setDefault(token.getUserId(), id);
         return Result.success();

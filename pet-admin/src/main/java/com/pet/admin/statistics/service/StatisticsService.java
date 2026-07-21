@@ -1,33 +1,18 @@
 package com.pet.admin.statistics.service;
 
-import java.util.Map;
+import com.pet.admin.statistics.vo.AdminDashboardVO;
+import com.pet.admin.statistics.vo.MerchantDashboardVO;
+import com.pet.admin.statistics.vo.ReputationStatsVO;
+import com.pet.admin.statistics.vo.UserDashboardVO;
 
 public interface StatisticsService {
 
-    /**
-     * 获取管理员仪表盘数据
-     * @return 仪表盘数据Map
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    Map<String, Object> getAdminDashboard();
+    AdminDashboardVO getAdminDashboard();
 
-    /**
-     * 获取商家仪表盘数据
-     * @param merchantId 商家ID
-     * @return 仪表盘数据Map
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    Map<String, Object> getMerchantDashboard(Long merchantId);
+    MerchantDashboardVO getMerchantDashboard(Long merchantId);
 
-    /**
-     * 获取用户仪表盘数据
-     * @param userId 用户ID
-     * @return 仪表盘数据Map
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    Map<String, Object> getUserDashboard(Long userId);
+    UserDashboardVO getUserDashboard(Long userId);
+
+    ReputationStatsVO getReputationStats(String targetType, Long targetId);
 }
 

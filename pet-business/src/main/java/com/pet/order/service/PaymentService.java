@@ -1,5 +1,6 @@
 package com.pet.order.service;
 
+import com.pet.order.dto.PaymentDTO;
 import com.pet.order.entity.Payment;
 import java.util.List;
 
@@ -11,7 +12,7 @@ public interface PaymentService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Payment getByOrderNo(String orderNo);
+    Payment getByOrderNo(Long ownerId, String orderNo);
     /**
      * 根据用户ID获取支付记录列表
      * @param userId 用户ID
@@ -46,6 +47,8 @@ public interface PaymentService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    void pay(String payNo);
+    void pay(Long userId, String payNo);
+
+    PaymentDTO toDTO(Payment entity);
 }
 

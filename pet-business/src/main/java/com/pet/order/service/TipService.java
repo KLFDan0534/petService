@@ -1,5 +1,7 @@
 package com.pet.order.service;
 
+import com.pet.order.dto.TipCreateRequestDTO;
+import com.pet.order.dto.TipDTO;
 import com.pet.order.entity.Tip;
 
 import java.util.List;
@@ -17,7 +19,7 @@ public interface TipService {
      * @author: wsh
      * @date: 2026/06/24 11:05
      */
-    void create(Long userId, Tip tip);
+    void create(Long userId, TipCreateRequestDTO request);
     /**
      * 根据订单ID获取小费列表
      * @param orderId 订单ID
@@ -34,4 +36,6 @@ public interface TipService {
      * @date: 2026/06/24 11:05
      */
     List<Tip> listMyTips(Long userId);
+
+    TipDTO toDTO(Tip entity);
 }

@@ -5,7 +5,6 @@ import com.pet.common.StatusCode;
 import com.pet.common.annotation.LogOperation;
 import com.pet.operation.entity.OperationLog;
 import com.pet.operation.service.OperationLogService;
-import com.pet.security.JwtAuthenticationToken;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -82,9 +81,12 @@ public class LogOperationAspect {
 
         // from security  context
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth instanceof JwtAuthenticationToken jwtToken) {
-            opLog.setUser_id_wsh(jwtToken.getUserId());
-            opLog.setUsername_wsh(jwtToken.getUsername());
+        if (auth != null) {
+            Long userId = extractLong(auth.getPrincipal(), "getUserId");
+            if (userId != null) {
+                opLog.setUser_id_wsh(userId);
+            }
+            opLog.setUsername_wsh(auth.getName());
         }
 
         // from HttpServletRequest
@@ -119,6 +121,19 @@ public class LogOperationAspect {
     private String truncate(String str, int maxLen) {
         if (str == null) return null;
         return str.length() <= maxLen ? str : str.substring(0, maxLen);
+    }
+
+    private Long extractLong(Object target, String methodName) {
+        if (target == null) return null;
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            Object value = method.invoke(target);
+            if (value instanceof Long longValue) return longValue;
+            if (value instanceof Number number) return number.longValue();
+            if (value instanceof String text) return Long.parseLong(text);
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private String getClientIp(HttpServletRequest request) {

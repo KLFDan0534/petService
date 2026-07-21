@@ -44,7 +44,7 @@ const notifications = computed(() => notificationStore.notifications)
 const unreadCount = computed(() => notificationStore.unreadCount)
 
 function typeLabel(type) {
-  return { system: '系统', order: '订单', adoption: '领养' }[type] || type
+  return { system: '系统', order: '订单' }[type] || type
 }
 
 onMounted(async () => {

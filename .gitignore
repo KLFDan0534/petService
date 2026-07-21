@@ -34,7 +34,7 @@ archive/
 
 # 工具/测试缓存
 .playwright-mcp/
-test/
+/test/
 e2e-tests/
 test-cs-integration.ps1
 
@@ -42,7 +42,7 @@ test-cs-integration.ps1
 login-page.yml
 login-snapshot.yml
 merchant-pets.yml
-profile-snapshot.yml
+
 
 # 项目文档
 docs/

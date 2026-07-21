@@ -1,23 +1,37 @@
 package com.pet.operation.controller;
 
-import lombok.extern.slf4j.Slf4j;
+import com.pet.common.BusinessException;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
+import com.pet.operation.dto.FavoriteCardDTO;
+import com.pet.operation.dto.FavoriteDTO;
+import com.pet.operation.dto.FavoriteTargetTypeDTO;
+import com.pet.operation.dto.FavoriteToggleRequestDTO;
 import com.pet.operation.entity.Favorite;
 import com.pet.operation.service.FavoriteService;
 import com.pet.security.JwtAuthenticationToken;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/favorites")
-@Tag(name = "收藏管理", description = "用户收藏管理，包括添加/取消/检查")
+@Tag(name = "【用户端】收藏管理", description = "用户收藏管理（收藏/取消收藏/查询）")
 @Slf4j
 public class FavoriteController {
 
@@ -27,59 +41,110 @@ public class FavoriteController {
         this.favoriteService = favoriteService;
     }
 
-    /**
-     * 获取当前用户的收藏列表
-     * @param token 当前用户认证信息
-     * @param targetType 收藏目标类型（可选）
-     * @return 收藏列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取收藏列表", description = "获取当前用户的收藏列表")
-    public Result<List<Favorite>> list(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                       @RequestParam(required = false) String targetType) {
-        log.info("调用 list()");
-        return Result.success(favoriteService.listByUser(token.getUserId(), targetType));
+    @Operation(summary = "获取收藏列表", description = "获取当前用户的收藏记录")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<FavoriteDTO>> list(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                          @RequestParam(value = "target_type_wsh", required = false) String target_type_wsh,
+                                          @RequestParam(value = "targetType", required = false) String legacyTargetType) {
+        log.info("list()");
+        String targetType = firstNonBlank(target_type_wsh, legacyTargetType);
+        List<Favorite> list = favoriteService.listByUser(token.getUserId(), targetType);
+        return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
-    /**
-     * 切换收藏状态
-     * @param token 当前用户认证信息
-     * @param body 请求体，包含target_id_wsh和target_type_wsh
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+    @GetMapping("/page")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "分页获取收藏列表", description = "获取分页的收藏卡片列表")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<FavoriteCardDTO>> page(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                    @RequestParam(value = "target_type_wsh", required = false) String target_type_wsh,
+                                                    @RequestParam(value = "targetType", required = false) String legacyTargetType,
+                                                    @RequestParam(defaultValue = "1") int page,
+                                                    @RequestParam(defaultValue = "10") int size) {
+        log.info("page()");
+        String targetType = firstNonBlank(target_type_wsh, legacyTargetType);
+        return Result.success(favoriteService.pageByUser(token.getUserId(), targetType, page, size));
+    }
+
+    @GetMapping("/types")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "获取收藏类型列表", description = "返回支持的收藏目标类型")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<FavoriteTargetTypeDTO>> types() {
+        log.info("types()");
+        return Result.success(favoriteService.listTargetTypes());
+    }
+
     @PostMapping("/toggle")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "切换收藏", description = "切换目标的收藏状态")
+    @Operation(summary = "切换收藏状态", description = "切换目标的收藏状态")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
     public Result<Void> toggle(@AuthenticationPrincipal JwtAuthenticationToken token,
-                               @RequestBody Map<String, Object> body) {
-        log.info("调用 toggle()");
-        Long targetId = Long.valueOf(body.get("target_id_wsh").toString());
-        String targetType = body.get("target_type_wsh").toString();
-        favoriteService.toggle(token.getUserId(), targetId, targetType);
+                               @Valid @RequestBody FavoriteToggleRequestDTO body) {
+        log.info("toggle()");
+        favoriteService.toggle(token.getUserId(), body.getTarget_id_wsh(), body.getTarget_type_wsh());
         return Result.success();
     }
 
-    /**
-     * 检查用户是否已收藏目标
-     * @param token 当前用户认证信息
-     * @param targetId 目标ID
-     * @param targetType 目标类型
-     * @return 是否已收藏
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/check")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "检查是否已收藏", description = "检查用户是否已收藏目标实体")
+    @Operation(summary = "检查收藏状态", description = "检查当前用户是否已收藏目标")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
     public Result<Boolean> check(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                 @RequestParam Long targetId,
-                                 @RequestParam String targetType) {
-        log.info("调用 check()");
+                                 @RequestParam(value = "target_id_wsh", required = false) Long target_id_wsh,
+                                 @RequestParam(value = "targetId", required = false) Long legacyTargetId,
+                                 @RequestParam(value = "target_type_wsh", required = false) String target_type_wsh,
+                                 @RequestParam(value = "targetType", required = false) String legacyTargetType) {
+        log.info("check()");
+        Long targetId = target_id_wsh != null ? target_id_wsh : legacyTargetId;
+        String targetType = firstNonBlank(target_type_wsh, legacyTargetType);
+        if (targetId == null) {
+            throw new BusinessException(400, "target_id_wsh is required");
+        }
         return Result.success(favoriteService.isFavorited(token.getUserId(), targetId, targetType));
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback;
+    }
+
+    private FavoriteDTO toDTO(Favorite entity) {
+        FavoriteDTO dto = new FavoriteDTO();
+        dto.setId_wsh(entity.getId_wsh());
+        dto.setUser_id_wsh(entity.getUser_id_wsh());
+        dto.setTarget_id_wsh(entity.getTarget_id_wsh());
+        dto.setTarget_type_wsh(entity.getTarget_type_wsh());
+        dto.setCreated_at_wsh(entity.getCreated_at_wsh());
+        return dto;
     }
 }

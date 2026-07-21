@@ -31,7 +31,7 @@ public class OrderCompletedReportListener {
             return;
         }
         try {
-            aiReportService.generateBoardingReport(event.petId(), event.keeperId(), event.orderId());
+            aiReportService.generateBoardingReportInternal(event.petId(), event.keeperId(), event.orderId());
             order.setFinal_report_generated_wsh(1);
             orderMapper.updateById(order);
         } catch (Exception e) {

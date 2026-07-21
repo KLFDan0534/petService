@@ -85,7 +85,7 @@ mybatis-plus:
 
 minio:
   endpoint: http://localhost:9000
-  public-url: http://localhost/minio
+  public-url: /minio
   access-key: minioadmin
   secret-key: minioadmin
   bucket: pet-service
@@ -107,6 +107,11 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
+    doc-expansion: none
+    default-models-expand-depth: -1
+  cache:
+    disabled: false
+  show-actuator: false
 
 ai:
   deepseek:
@@ -121,3 +126,10 @@ chroma:
   url: ${CHROMA_URL:http://localhost:8000}
   tenant: ${CHROMA_TENANT:default_tenant}
   database: ${CHROMA_DATABASE:default_database}
+
+gao:
+  map:
+    api-key: ${GAO_MAP_API_KEY:}
+    security-code: ${GAO_MAP_SECURITY_CODE:}
+    handover-radius-meters: ${GAO_MAP_HANDOVER_RADIUS_METERS:500}
+    attendance-radius-meters: ${GAO_MAP_ATTENDANCE_RADIUS_METERS:300}

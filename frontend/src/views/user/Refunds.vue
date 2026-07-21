@@ -1,19 +1,26 @@
 <template>
   <div>
     <PageHero title="退款管理" subtitle="查看退款申请和进度" />
-    <button class="btn btn-primary" style="margin-bottom:24px" @click="openForm">+ 申请退款</button>
+    <div class="refund-actions">
+      <button class="btn btn-primary" type="button" @click="openForm">+ 申请退款</button>
+    </div>
     <div v-if="loading" class="loading">加载中...</div>
     <EmptyState v-else-if="refunds.length === 0" title="暂无退款申请" icon="💳">
       <router-link to="/orders" class="btn btn-primary">查看订单</router-link>
     </EmptyState>
-    <div v-else v-for="r in refunds" :key="r.id_wsh" class="card" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between">
-        <div><strong>¥{{ r.amount_wsh }}</strong> · {{ r.reason_wsh }}</div>
-        <span :class="['badge', r.status_wsh === 'approved' ? 'badge-success' : r.status_wsh === 'rejected' ? 'badge-danger' : 'badge-warning']">
-          {{ statusMap[r.status_wsh] || r.status_wsh }}
-        </span>
-      </div>
-      <div style="font-size:13px;color:var(--color-muted-foreground);margin-top:4px">订单 #{{ r.order_id_wsh }} · {{ new Date(r.created_at_wsh).toLocaleDateString() }}</div>
+    <div v-else class="refund-list">
+      <article v-for="r in refunds" :key="r.id_wsh" class="card refund-card">
+        <div class="refund-card-head">
+          <div class="refund-main">
+            <strong>¥{{ r.amount_wsh }}</strong>
+            <span class="refund-reason">{{ r.reason_wsh }}</span>
+          </div>
+          <span :class="['badge', r.status_wsh === 'approved' ? 'badge-success' : r.status_wsh === 'rejected' ? 'badge-danger' : 'badge-warning']">
+            {{ statusMap[r.status_wsh] || r.status_wsh }}
+          </span>
+        </div>
+        <div class="refund-meta">订单 #{{ r.order_id_wsh }} · {{ new Date(r.created_at_wsh).toLocaleDateString() }}</div>
+      </article>
     </div>
 
     <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
@@ -40,30 +47,31 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { getMyRefunds, createRefund } from '@/api/refund'
+import { RefundStatus, getStatusLabel } from '@/constants/statusMaps'
 import { useAppStore } from '@/stores/app'
 import PageHero from '@/components/common/PageHero.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 const refunds = ref([])
 const loading = ref(true)
 const showForm = ref(false)
 const form = reactive({ order_id_wsh: '', reason_wsh: '' })
-const statusMap = { pending: '审核中', approved: '已通过', rejected: '已拒绝', completed: '已完成' }
+const statusMap = Object.fromEntries(Object.entries(RefundStatus).map(([k, v]) => [k, v.label]))
+function statusLabel(s) { return getStatusLabel(RefundStatus, s) }
 
 function openForm() { form.order_id_wsh = ''; form.reason_wsh = ''; showForm.value = true }
 
 onMounted(async () => {
-  try { const r = await authStore.apiGet('/api/refunds'); if (r.code === 200) refunds.value = r.data }
+  try { const r = await getMyRefunds(); if (r.code === 200) refunds.value = r.data }
   catch (e) {}
   finally { loading.value = false }
 })
 
 async function submitRefund() {
   try {
-    const r = await authStore.apiPost('/api/refunds', form)
+    const r = await createRefund(form)
     if (r.code === 200) {
       appStore.addToast('退款申请已提交', 'success')
       showForm.value = false
@@ -72,3 +80,58 @@ async function submitRefund() {
   } catch (e) { appStore.addToast('提交失败', 'error') }
 }
 </script>
+
+<style scoped>
+.refund-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.refund-list {
+  display: grid;
+  gap: 12px;
+}
+
+.refund-card {
+  min-width: 0;
+}
+
+.refund-card-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.refund-main {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.refund-reason {
+  overflow-wrap: anywhere;
+}
+
+.refund-meta {
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .refund-actions .btn {
+    width: 100%;
+  }
+
+  .refund-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+</style>

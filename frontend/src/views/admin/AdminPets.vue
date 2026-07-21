@@ -66,11 +66,9 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { getAdminPets, createPet, updatePet, deletePet as apiDeletePet } from '@/api/pet'
 import DataTable from '@/components/common/DataTable.vue'
-
-const authStore = useAuthStore()
 const appStore = useAppStore()
 const pets = ref([])
 const detailPet = ref(null)
@@ -85,7 +83,7 @@ const form = reactive({
 onMounted(loadPets)
 
 async function loadPets() {
-  try { const r = await authStore.apiGet('/api/pets/admin/all'); if (r.code === 200) pets.value = r.data }
+  try { const r = await getAdminPets(); if (r.code === 200) pets.value = r.data }
   catch (e) { appStore.addToast('加载失败', 'error') }
 }
 
@@ -127,10 +125,10 @@ async function savePet() {
       description_wsh: form.description_wsh || null
     }
     if (editingPet.value) {
-      await authStore.apiPut(`/api/pets/${editingPet.value.id_wsh}`, payload)
+      await updatePet(editingPet.value.id_wsh, payload)
       appStore.addToast('更新成功', 'success')
     } else {
-      await authStore.apiPost('/api/pets', payload)
+      await createPet(payload)
       appStore.addToast('创建成功', 'success')
     }
     showForm.value = false
@@ -142,7 +140,7 @@ async function savePet() {
 async function deletePet(id) {
   if (!confirm('确定删除该宠物？')) return
   try {
-    await authStore.apiDelete(`/api/pets/${id}`)
+    await apiDeletePet(id)
     appStore.addToast('删除成功', 'success')
     loadPets()
   } catch (e) { appStore.addToast('删除失败', 'error') }

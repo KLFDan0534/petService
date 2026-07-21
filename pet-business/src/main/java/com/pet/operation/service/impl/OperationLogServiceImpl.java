@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.pet.common.PageParam;
+import com.pet.common.PageRequestDTO;
 import com.pet.operation.entity.OperationLog;
 import com.pet.operation.mapper.OperationLogMapper;
 import com.pet.operation.service.OperationLogService;
@@ -24,7 +24,7 @@ public class OperationLogServiceImpl implements OperationLogService {
     }
 
     @Override
-    public IPage<OperationLog> page(PageParam param, String module, String operation, Integer status) {
+    public IPage<OperationLog> page(PageRequestDTO param, String module, String operation, Integer status) {
         log.info("page() called");
         Page<OperationLog> page = new Page<>(param.getPage(), param.getSize());
         LambdaQueryWrapper<OperationLog> wrapper = new LambdaQueryWrapper<OperationLog>()

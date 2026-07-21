@@ -13,27 +13,25 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import DataTable from '@/components/common/DataTable.vue'
+import { getReviews, approveReview, rejectReview } from '@/api/rating'
+import { ReviewStatus, enrichWithStatus } from '@/constants/statusMaps'
 
-const authStore = useAuthStore()
+
 const appStore = useAppStore()
 const reviews = ref([])
 
-const reviewStatusMap = { pending: { text: '待审核', cls: 'badge-warning' }, approved: { text: '已通过', cls: 'badge-success' }, rejected: { text: '已拒绝', cls: 'badge-danger' } }
-
 function enrichReview(r) {
-  const s = reviewStatusMap[r.status_wsh]
-  r.status_label_wsh = s ? `<span class="badge ${s.cls}">${s.text}</span>` : r.status_wsh
-  return r
+  return enrichWithStatus(r, 'status_wsh', ReviewStatus)
 }
 
-onMounted(async () => {
-  try { const r = await authStore.apiGet('/api/reviews'); if (r.code === 200) reviews.value = (r.data.list || []).map(enrichReview) }
+async function loadReviews() {
+  try { const r = await getReviews(); if (r.code === 200) reviews.value = (r.data.list || []).map(enrichReview) }
   catch (e) {}
-})
+}
+onMounted(loadReviews)
 
-async function approve(id) { try { await authStore.apiPost(`/api/reviews/${id}/approve`, {}); appStore.addToast('已通过', 'success'); location.reload() } catch (e) { appStore.addToast('操作失败', 'error') } }
-async function reject(id) { try { await authStore.apiPost(`/api/reviews/${id}/reject`, {}); appStore.addToast('已拒绝', 'success'); location.reload() } catch (e) { appStore.addToast('操作失败', 'error') } }
+async function approve(id) { try { await approveReview(id); appStore.addToast('已通过', 'success'); await loadReviews() } catch (e) { appStore.addToast('操作失败', 'error') } }
+async function reject(id) { try { await rejectReview(id); appStore.addToast('已拒绝', 'success'); await loadReviews() } catch (e) { appStore.addToast('操作失败', 'error') } }
 </script>

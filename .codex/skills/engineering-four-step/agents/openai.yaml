@@ -1,0 +1,4 @@
+interface:
+  display_name: "Engineering Four Step"
+  short_description: "Run four engineering checks before coding."
+  default_prompt: "Use $engineering-four-step before writing implementation code."

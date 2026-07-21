@@ -45,3 +45,10 @@ ai:
     max-tokens: ${DEEPSEEK_MAX_TOKENS:8192}
     temperature: ${DEEPSEEK_TEMPERATURE:0.7}
     thinking-type: ${DEEPSEEK_THINKING_TYPE:disabled}
+
+gao:
+  map:
+    api-key: ${GAO_MAP_API_KEY:}
+    security-code: ${GAO_MAP_SECURITY_CODE:}
+    handover-radius-meters: ${GAO_MAP_HANDOVER_RADIUS_METERS:500}
+    attendance-radius-meters: ${GAO_MAP_ATTENDANCE_RADIUS_METERS:300}

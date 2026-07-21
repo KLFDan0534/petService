@@ -1,29 +1,27 @@
 <template>
   <div>
-    <PageHero title="信用体系" subtitle="查看信用等级、评价、投诉和绩效" />
+    <PageHero title="信誉统计" subtitle="查看评价、投诉和绩效" />
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
       <div><label>目标类型</label><select v-model="targetType" class="form-control"><option value="keeper">寄养师</option><option value="merchant">商家</option></select></div>
       <div><label>目标ID</label><input v-model="targetId" class="form-control" style="width:100px"></div>
-      <div style="display:flex;align-items:flex-end"><button class="btn btn-primary btn-sm" @click="loadRatings">查询</button></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn btn-primary btn-sm" @click="loadReputation">查询</button></div>
     </div>
     <div style="margin-bottom:24px">
       <div class="card" style="padding:24px;margin-bottom:16px">
-        <h3>信用等级</h3>
-        <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
-          <div class="stat-card"><div class="stat-value">{{ creditInfo.level_wsh || '暂无' }}</div><div class="stat-label">当前等级</div></div>
-          <div class="stat-card"><div class="stat-value">{{ creditInfo.score_wsh || 0 }}</div><div class="stat-label">信用分</div></div>
+        <h3>评价统计</h3>
+        <div class="stat-grid" style="grid-template-columns:repeat(2,1fr)">
           <div class="stat-card"><div class="stat-value">{{ creditInfo.totalRatings || 0 }}</div><div class="stat-label">总评价</div></div>
           <div class="stat-card"><div class="stat-value">{{ creditInfo.avgRating || 0 }}</div><div class="stat-label">平均评分</div></div>
         </div>
       </div>
     </div>
 
-    <h2 style="margin:24px 0 12px">我的评价</h2>
+    <h2 style="margin:24px 0 12px">评价记录</h2>
     <div v-if="ratingsLoading" class="loading">加载中...</div>
     <div v-else-if="ratings.length === 0" class="empty-state"><h3>暂无评价</h3></div>
     <div v-else class="card" style="margin-bottom:12px" v-for="r in ratings" :key="r.id_wsh">
       <div style="display:flex;justify-content:space-between">
-        <strong>{{ r.targetType === 'keeper' ? '寄养员' : '商家' }}评价</strong>
+        <strong>{{ targetType === 'keeper' ? '寄养员' : '商家' }}评价</strong>
         <span :class="'badge badge-success'">评分: {{ r.score_wsh }}/5</span>
       </div>
       <p style="margin-top:8px">{{ r.content_wsh }}</p>
@@ -59,10 +57,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { getRatings } from '@/api/rating'
+import { getReputationStatistics } from '@/api/statistics'
+import { getMyComplaints } from '@/api/complaint'
 import PageHero from '@/components/common/PageHero.vue'
-
-const authStore = useAuthStore()
 const creditInfo = ref({})
 const ratings = ref([])
 const complaints = ref([])
@@ -71,23 +69,25 @@ const complaintsLoading = ref(true)
 const targetType = ref('keeper')
 const targetId = ref('')
 
-async function loadRatings() {
+async function loadReputation() {
   if (!targetId.value) return
   ratingsLoading.value = true
+  creditInfo.value = {}
   try {
-    const r = await authStore.apiGet('/api/ratings', { targetId: targetId.value, targetType: targetType.value })
-    if (r.code === 200) ratings.value = r.data
+    const [ratingRes, statRes] = await Promise.all([
+      getRatings({ targetId: targetId.value, targetType: targetType.value }),
+      getReputationStatistics({ targetId: targetId.value, targetType: targetType.value })
+    ])
+    if (ratingRes.code === 200) ratings.value = ratingRes.data
+    if (statRes.code === 200) creditInfo.value = statRes.data
   } catch (e) {}
   finally { ratingsLoading.value = false }
 }
 
 onMounted(async () => {
+  ratingsLoading.value = false
   try {
-    const r = await authStore.apiGet('/api/statistics/user')
-    if (r.code === 200) creditInfo.value = r.data
-  } catch (e) {}
-  try {
-    const r = await authStore.apiGet('/api/complaints')
+    const r = await getMyComplaints()
     if (r.code === 200) complaints.value = r.data
   } catch (e) {}
   finally { complaintsLoading.value = false }

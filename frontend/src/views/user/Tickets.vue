@@ -115,6 +115,8 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { getMyTickets, createTicket as apiCreateTicket, getTicketMessages, sendTicketMessage } from '@/api/ticket'
+import { TicketStatus, TicketCategoryMap, getStatusLabel, getStatusBadge } from '@/constants/statusMaps'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import PageHero from '@/components/common/PageHero.vue'
@@ -133,29 +135,19 @@ const form = reactive({ title_wsh: '', content_wsh: '', category_wsh: 'appeal', 
 
 const currentUserId = authStore.user?.id_wsh
 
-function categoryLabel(cat) {
-  return { appeal: '申诉', complaint: '投诉', other: '其他' }[cat] || cat
-}
-
-function categoryBadge(cat) {
-  return { appeal: 'badge-warning', complaint: 'badge-error', other: 'badge-info' }[cat] || 'badge-info'
-}
+function categoryLabel(cat) { return getStatusLabel(TicketCategoryMap, cat) }
+function categoryBadge(cat) { return getStatusBadge(TicketCategoryMap, cat) }
 
 function priorityLabel(p) {
   return { high: '紧急', medium: '普通', low: '低' }[p] || p
 }
 
-function statusLabel(s) {
-  return { pending: '待处理', processing: '处理中', resolved: '已解决', closed: '已关闭' }[s] || s
-}
-
-function statusBadge(s) {
-  return { pending: 'badge-warning', processing: 'badge-info', resolved: 'badge-success', closed: 'badge-secondary' }[s] || 'badge-info'
-}
+function statusLabel(s) { return getStatusLabel(TicketStatus, s) }
+function statusBadge(s) { return getStatusBadge(TicketStatus, s) }
 
 onMounted(async () => {
   try {
-    const r = await authStore.apiGet('/api/tickets/me')
+    const r = await getMyTickets()
     if (r.code === 200) tickets.value = r.data
   } catch (e) {}
   finally { loading.value = false }
@@ -163,7 +155,7 @@ onMounted(async () => {
 
 async function createTicket() {
   try {
-    const r = await authStore.apiPost('/api/tickets', { ...form })
+    const r = await apiCreateTicket({ ...form })
     if (r.code === 200) {
       appStore.addToast('创建成功', 'success')
       showForm.value = false
@@ -179,14 +171,14 @@ async function selectTicket(t) {
   evidenceContent.value = ''
   messages.value = []
   try {
-    const r = await authStore.apiGet(`/api/tickets/${t.id_wsh}/messages`)
+    const r = await getTicketMessages(t.id_wsh)
     if (r.code === 200) messages.value = r.data
   } catch (e) {}
 }
 
 async function submitEvidence() {
   try {
-    const r = await authStore.apiPost(`/api/tickets/${selectedTicket.value.id_wsh}/messages`, { content_wsh: evidenceContent.value })
+    const r = await sendTicketMessage(selectedTicket.value.id_wsh, { content_wsh: evidenceContent.value })
     if (r.code === 200) {
       appStore.addToast('证据已提交', 'success')
       messages.value.push(r.data)

@@ -23,7 +23,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import request from '@/utils/request'
+import { forgotPassword } from '@/api/auth'
 
 const account = ref('')
 const error = ref('')
@@ -35,7 +35,7 @@ async function handleReset() {
   success.value = ''
   loading.value = true
   try {
-    const r = await request.post('/auth/forgot-password', { email_wsh: account.value })
+    const r = await forgotPassword({ email_wsh: account.value })
     if (r.data.code === 200) {
       success.value = '重置链接已发送，请检查您的邮箱'
     } else {

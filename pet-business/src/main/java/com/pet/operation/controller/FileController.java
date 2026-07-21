@@ -2,6 +2,7 @@ package com.pet.operation.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
+import com.pet.operation.dto.FileRecordDTO;
 import com.pet.operation.entity.FileRecord;
 import com.pet.operation.service.FileRecordService;
 import com.pet.operation.service.impl.MinIoService;
@@ -14,13 +15,17 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @RestController
 @RequestMapping("/api/files")
-@Tag(name = "文件管理", description = "文件上传管理")
+@Tag(name = "【用户端】文件管理", description = "文件上传管理（用户文件上传/下载）")
 @Slf4j
 public class FileController {
 
@@ -44,9 +49,15 @@ public class FileController {
     @PostMapping("/upload")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "上传文件", description = "上传文件到MinIO存储并返回URL")
-    public Result<FileRecord> upload(@RequestParam("file") MultipartFile file,
-                                     @RequestParam String directory,
-                                     @AuthenticationPrincipal JwtAuthenticationToken token) {
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<FileRecordDTO> upload(@Parameter(description = "上传的文件") @RequestParam("file") MultipartFile file,
+                                        @Parameter(description = "存储目录") @RequestParam String directory,
+                                        @AuthenticationPrincipal JwtAuthenticationToken token) {
         log.info("调用 upload()");
         String objectName = minIoService.uploadFile(file, directory);
         FileRecord record = new FileRecord();
@@ -56,8 +67,7 @@ public class FileController {
         record.setContent_type_wsh(file.getContentType());
         record.setUser_id_wsh(token.getUserId());
         fileRecordService.create(record);
-        record.setUrl_wsh(minIoService.getFileUrl(objectName));
-        return Result.success(record);
+        return Result.success(toDTO(record));
     }
 
     /**
@@ -70,9 +80,16 @@ public class FileController {
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "文件列表", description = "获取当前用户的文件列表")
-    public Result<List<FileRecord>> list(@AuthenticationPrincipal JwtAuthenticationToken token) {
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<FileRecordDTO>> list(@AuthenticationPrincipal JwtAuthenticationToken token) {
         log.info("调用 list()");
-        return Result.success(fileRecordService.listByUser(token.getUserId()));
+        List<FileRecord> list = fileRecordService.listByUser(token.getUserId());
+        return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
     /**
@@ -85,7 +102,13 @@ public class FileController {
     @GetMapping("/{id}/download")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "下载文件", description = "重定向到MinIO文件URL")
-    public void download(@PathVariable Long id, HttpServletResponse response) throws IOException {
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public void download(@Parameter(description = "文件记录ID") @PathVariable Long id, HttpServletResponse response) throws IOException {
         FileRecord record = fileRecordService.getById(id);
         if (record == null) {
             response.sendError(404, "文件不存在");
@@ -93,5 +116,16 @@ public class FileController {
         }
         String url = minIoService.getFileUrl(record.getObject_name_wsh());
         response.sendRedirect(url);
+    }
+
+    private FileRecordDTO toDTO(FileRecord entity) {
+        FileRecordDTO dto = new FileRecordDTO();
+        dto.setId_wsh(entity.getId_wsh());
+        dto.setUrl_wsh(minIoService.getFileUrl(entity.getObject_name_wsh()));
+        dto.setOriginal_name_wsh(entity.getOriginal_name_wsh());
+        dto.setFile_type_wsh(entity.getContent_type_wsh());
+        dto.setFile_size_wsh(entity.getSize_wsh());
+        dto.setCreated_at_wsh(entity.getCreated_at_wsh());
+        return dto;
     }
 }

@@ -1,4 +1,4 @@
-﻿CREATE TABLE IF NOT EXISTS `category_wsh` (
+CREATE TABLE IF NOT EXISTS `category_wsh` (
     `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
     `name_wsh` VARCHAR(50) NOT NULL COMMENT '分类名称',
     `parent_id_wsh` BIGINT DEFAULT 0 COMMENT '父分类ID,0表示一级分类',
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS `notice_wsh` (
     `title_wsh` VARCHAR(200) NOT NULL COMMENT '标题',
     `content_wsh` TEXT COMMENT '内容',
     `type_wsh` VARCHAR(20) DEFAULT 'notice' COMMENT '类型: notice-公告 banner-Banner',
+    `delivery_type_wsh` VARCHAR(32) DEFAULT 'notice' COMMENT '投递方式: notice-普通公告 popup-弹窗通知 broadcast-全员通知',
     `image_url_wsh` VARCHAR(500) COMMENT '图片URL',
     `link_url_wsh` VARCHAR(500) COMMENT '跳转链接',
     `sort_order_wsh` INT DEFAULT 0 COMMENT '排序',
@@ -274,6 +275,44 @@ CREATE TABLE IF NOT EXISTS `file_record_wsh` (
     INDEX idx_user (`user_id_wsh`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='File upload record table';
 
+-- Order immutable snapshot table
+CREATE TABLE IF NOT EXISTS `order_snapshot_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `order_id_wsh` BIGINT NOT NULL COMMENT 'Order ID',
+    `order_no_wsh` VARCHAR(50) NOT NULL COMMENT 'Order number',
+    `owner_snapshot_wsh` TEXT COMMENT 'Owner snapshot JSON',
+    `pet_snapshot_wsh` TEXT COMMENT 'Pet snapshot JSON',
+    `merchant_snapshot_wsh` TEXT COMMENT 'Merchant snapshot JSON',
+    `keeper_snapshot_wsh` TEXT COMMENT 'Keeper snapshot JSON',
+    `service_snapshot_wsh` TEXT COMMENT 'Service snapshot JSON',
+    `address_snapshot_wsh` TEXT COMMENT 'Address and fulfillment snapshot JSON',
+    `price_snapshot_wsh` TEXT COMMENT 'Price snapshot JSON',
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_order_snapshot_order` (`order_id_wsh`),
+    INDEX `idx_order_snapshot_no` (`order_no_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Order immutable snapshot table';
+
+-- Qualification proof table
+CREATE TABLE IF NOT EXISTS `qualification_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `owner_type_wsh` VARCHAR(30) NOT NULL COMMENT 'merchant/keeper/adopter',
+    `owner_id_wsh` BIGINT NOT NULL COMMENT 'Business owner ID',
+    `user_id_wsh` BIGINT COMMENT 'Submitting user ID',
+    `qual_type_wsh` VARCHAR(50) NOT NULL COMMENT 'Qualification type',
+    `title_wsh` VARCHAR(100) COMMENT 'Display title',
+    `file_url_wsh` VARCHAR(1000) COMMENT 'Qualification image URL',
+    `summary_wsh` VARCHAR(500) COMMENT 'Summary',
+    `status_wsh` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/approved/rejected',
+    `visibility_wsh` VARCHAR(20) DEFAULT 'masked_public' COMMENT 'private/masked_public/public',
+    `reviewer_id_wsh` BIGINT COMMENT 'Reviewer ID',
+    `review_remark_wsh` VARCHAR(500) COMMENT 'Review remark',
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_qualification_owner` (`owner_type_wsh`, `owner_id_wsh`),
+    INDEX `idx_qualification_user` (`user_id_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Qualification proof table';
+
 -- Fix double-encoded UTF-8 Chinese data (UTF-8 bytes stored via latin1 connection)
 UPDATE user_wsh SET nickname_wsh = CONVERT(UNHEX(HEX(CONVERT(nickname_wsh USING latin1))) USING utf8mb4), address_wsh = CONVERT(UNHEX(HEX(CONVERT(address_wsh USING latin1))) USING utf8mb4) WHERE CONVERT(nickname_wsh USING latin1) NOT LIKE '%?%' OR CONVERT(address_wsh USING latin1) NOT LIKE '%?%';
 UPDATE merchant_wsh SET name_wsh = CONVERT(UNHEX(HEX(CONVERT(name_wsh USING latin1))) USING utf8mb4), address_wsh = CONVERT(UNHEX(HEX(CONVERT(address_wsh USING latin1))) USING utf8mb4), description_wsh = CONVERT(UNHEX(HEX(CONVERT(description_wsh USING latin1))) USING utf8mb4) WHERE CONVERT(name_wsh USING latin1) NOT LIKE '%?%';
@@ -302,4 +341,49 @@ FROM user_wsh u, pet_wsh p, keeper_wsh k, merchant_wsh m, pet_service_wsh s WHER
 INSERT IGNORE INTO pet_order_wsh (order_no_wsh, owner_id_wsh, pet_id_wsh, keeper_id_wsh, merchant_id_wsh, service_id_wsh, start_date_wsh, end_date_wsh, days_wsh, price_per_day_wsh, total_amount_wsh, final_amount_wsh, status_wsh, created_at_wsh)
 SELECT 'ORD_ADMIN_COMPLETED', u.id_wsh, p.id_wsh, k.id_wsh, m.id_wsh, s.id_wsh, CURDATE() - INTERVAL 5 DAY, CURDATE() - INTERVAL 2 DAY, 3, 88.00, 264.00, 264.00, 'completed', NOW()
 FROM user_wsh u, pet_wsh p, keeper_wsh k, merchant_wsh m, pet_service_wsh s WHERE u.username_wsh = 'admin' AND p.name_wsh = 'AdminPet' LIMIT 1;
+
+ALTER TABLE ticket_wsh ADD COLUMN IF NOT EXISTS `result_wsh` VARCHAR(2000) COMMENT '处理结果' AFTER `status_wsh`;
+ALTER TABLE ticket_wsh ADD COLUMN IF NOT EXISTS `merchant_id_wsh` BIGINT COMMENT 'Merchant ID' AFTER `id_wsh`;
+ALTER TABLE ticket_wsh ADD COLUMN IF NOT EXISTS `order_id_wsh` BIGINT COMMENT 'Order ID' AFTER `merchant_id_wsh`;
+ALTER TABLE complaint_wsh MODIFY COLUMN `order_id_wsh` BIGINT;
+ALTER TABLE complaint_wsh ADD COLUMN IF NOT EXISTS `merchant_id_wsh` BIGINT COMMENT 'Merchant ID' AFTER `order_id_wsh`;
+
+CREATE TABLE IF NOT EXISTS `merchant_customer_service_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `merchant_id_wsh` BIGINT NOT NULL COMMENT 'Merchant ID',
+    `user_id_wsh` BIGINT NOT NULL COMMENT 'Applicant/customer service user ID',
+    `applicant_note_wsh` VARCHAR(500) COMMENT 'Application note',
+    `review_note_wsh` VARCHAR(500) COMMENT 'Merchant review note',
+    `status_wsh` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending/approved/rejected/resigned/terminated',
+    `reviewer_id_wsh` BIGINT COMMENT 'Merchant reviewer user ID',
+    `reviewed_at_wsh` DATETIME COMMENT 'Review time',
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_mcs_merchant_user` (`merchant_id_wsh`, `user_id_wsh`),
+    INDEX `idx_mcs_user_status` (`user_id_wsh`, `status_wsh`),
+    INDEX `idx_mcs_merchant_status` (`merchant_id_wsh`, `status_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Merchant customer service applications';
+
+ALTER TABLE notice_wsh ADD COLUMN IF NOT EXISTS `delivery_type_wsh` VARCHAR(32) DEFAULT '' COMMENT '投递方式: popup-弹窗通知 notification-消息通知(可组合,逗号分隔)' AFTER `type_wsh`;
+
+-- Finance ledger compatibility columns.
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `balance_before_wsh` DECIMAL(12,2) COMMENT 'Balance before change' AFTER `amount_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `frozen_before_wsh` DECIMAL(12,2) COMMENT 'Frozen amount before change' AFTER `balance_after_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `frozen_after_wsh` DECIMAL(12,2) COMMENT 'Frozen amount after change' AFTER `frozen_before_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `direction_wsh` VARCHAR(20) COMMENT 'Ledger direction' AFTER `frozen_after_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `status_wsh` VARCHAR(20) DEFAULT 'success' COMMENT 'Ledger status' AFTER `direction_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `business_type_wsh` VARCHAR(50) COMMENT 'Business type' AFTER `status_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `business_id_wsh` VARCHAR(100) COMMENT 'Business id' AFTER `business_type_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `request_id_wsh` VARCHAR(120) COMMENT 'Idempotency request id' AFTER `business_id_wsh`;
+ALTER TABLE refund_wsh ADD COLUMN IF NOT EXISTS `order_status_before_refund_wsh` VARCHAR(30) COMMENT 'Order status before refund' AFTER `status_wsh`;
+
+-- Wallet unique constraint (run once; may error if duplicates exist, clean data first)
+ALTER TABLE wallet_wsh ADD UNIQUE INDEX `uk_wallet_user` (`user_id_wsh`);
+-- Wallet transaction constraints
+ALTER TABLE wallet_transaction_wsh ADD UNIQUE INDEX `uk_wallet_tx_request` (`request_id_wsh`);
+ALTER TABLE wallet_transaction_wsh ADD INDEX `idx_wallet_tx_user` (`user_id_wsh`);
+ALTER TABLE wallet_transaction_wsh ADD INDEX `idx_wallet_tx_business` (`business_type_wsh`, `business_id_wsh`);
+-- Payment unique constraint
+ALTER TABLE payment_wsh ADD UNIQUE INDEX `uk_payment_pay_no` (`pay_no_wsh`);
 

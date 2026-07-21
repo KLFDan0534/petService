@@ -1,19 +1,12 @@
 <template>
-  <div>
-    <div v-if="showNoticeDialog && currentNotice" class="notice-modal-overlay">
-      <div class="notice-modal" role="dialog" aria-modal="true" aria-labelledby="notice-dialog-title">
-        <div class="notice-modal-header">
-          <span class="notice-badge">公告</span>
-          <span class="notice-date">{{ formatDate(currentNotice.created_at_wsh) }}</span>
-        </div>
-        <h2 id="notice-dialog-title">{{ currentNotice.title_wsh }}</h2>
-        <p>{{ currentNotice.content_wsh }}</p>
-        <button class="btn btn-primary notice-confirm" @click="acknowledgeNotice">我知道了</button>
-      </div>
-    </div>
-
+  <div class="dashboard-page">
     <div v-if="banners.length" class="page-hero banner-hero">
-      <div class="banner-track" :class="{ 'no-transition': !transitioning }" :style="{ transform: `translateX(-${activeSlide * 100}%)` }" @click="goBannerLink">
+      <div
+        class="banner-track"
+        :class="{ 'no-transition': !transitioning }"
+        :style="{ transform: `translateX(-${activeSlide * 100}%)` }"
+        @click="goBannerLink"
+      >
         <div v-for="(s, i) in slides" :key="i" class="banner-slide">
           <div v-if="s.type === 'welcome'" class="slide-welcome">
             <h1>首页</h1>
@@ -25,10 +18,16 @@
           </template>
         </div>
       </div>
-      <button v-if="slides.length > 1" class="banner-prev" @click.stop="prevSlide">‹</button>
-      <button v-if="slides.length > 1" class="banner-next" @click.stop="nextSlide">›</button>
+            <button v-if="slides.length > 1" class="banner-prev" aria-label="上一张轮播图" @click.stop="prevSlide">&lsaquo;</button>
+            <button v-if="slides.length > 1" class="banner-next" aria-label="下一张轮播图" @click.stop="nextSlide">&rsaquo;</button>
       <div class="banner-dots">
-        <span v-for="(s, i) in slides" :key="i" :class="{ active: activeSlide === i }" @click.stop="goSlide(i)"></span>
+        <button
+          v-for="(s, i) in slides"
+          :key="i"
+          :class="{ active: activeSlide === i }"
+          :aria-label="`切换到第 ${i + 1} 张`"
+          @click.stop="goSlide(i)"
+        ></button>
       </div>
     </div>
     <PageHero v-else title="首页" subtitle="选择适合您爱宠的服务" />
@@ -59,7 +58,16 @@
       </div>-->
 
       <div v-if="featured.length" class="pricing-grid">
-        <div v-for="s in featured" :key="s.id_wsh" class="pricing-card featured" @click="goDetail(s.id_wsh)" style="cursor:pointer">
+        <div
+          v-for="s in featured"
+          :key="s.id_wsh"
+          class="pricing-card featured"
+          role="button"
+          tabindex="0"
+          @click="goDetail(s.id_wsh)"
+          @keydown.enter.prevent="goDetail(s.id_wsh)"
+          @keydown.space.prevent="goDetail(s.id_wsh)"
+        >
           <div v-if="s.firstImage" class="pricing-card-img" :style="{ backgroundImage: `url(${s.firstImage})` }"></div>
           <div class="price">¥{{ s.price_wsh }} <span>/ {{ s.unit_wsh }}</span></div>
           <h3>{{ s.name_wsh }}</h3>
@@ -78,7 +86,16 @@
         <p>敬请期待</p>
       </div>
       <div v-else class="service-grid">
-        <div v-for="s in withImages" :key="s.id_wsh" class="service-card" @click="goDetail(s.id_wsh)" style="cursor:pointer">
+        <div
+          v-for="s in withImages"
+          :key="s.id_wsh"
+          class="service-card"
+          role="button"
+          tabindex="0"
+          @click="goDetail(s.id_wsh)"
+          @keydown.enter.prevent="goDetail(s.id_wsh)"
+          @keydown.space.prevent="goDetail(s.id_wsh)"
+        >
           <div v-if="s.firstImage" class="service-card-img" :style="{ backgroundImage: `url(${s.firstImage})` }"></div>
           <div v-else class="service-card-img icon-placeholder">宠</div>
           <div class="service-card-body">
@@ -114,9 +131,6 @@ const stats = ref({})
 const services = ref([])
 const loading = ref(true)
 const banners = ref([])
-const noticeQueue = ref([])
-const currentNotice = ref(null)
-const showNoticeDialog = ref(false)
 const activeSlide = ref(0)
 const transitioning = ref(true)
 let bannerTimer = null
@@ -175,52 +189,6 @@ async function loadBanners() {
   } catch (e) {}
 }
 
-async function loadUnreadNotices() {
-  try {
-    const response = authStore.isLoggedIn
-      ? await request.get('/api/notices/unread')
-      : await request.get('/api/notices/active', { params: { type: 'notice' } })
-
-    if (response.data.code !== 200) return
-    let notices = response.data.data || []
-    if (!authStore.isLoggedIn) {
-      notices = notices.filter(n => !localStorage.getItem(publicNoticeKey(n.id_wsh)))
-    }
-    noticeQueue.value = notices
-    showNextNotice()
-  } catch (e) {}
-}
-
-function showNextNotice() {
-  currentNotice.value = noticeQueue.value.shift() || null
-  showNoticeDialog.value = !!currentNotice.value
-}
-
-function publicNoticeKey(id) {
-  return `notice_read_public_${id}`
-}
-
-function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleDateString()
-}
-
-async function acknowledgeNotice() {
-  const notice = currentNotice.value
-  if (!notice) return
-  try {
-    if (authStore.isLoggedIn) {
-      await request.post(`/api/notices/${notice.id_wsh}/read`, {})
-    } else {
-      localStorage.setItem(publicNoticeKey(notice.id_wsh), '1')
-    }
-  } catch (e) {
-    if (!authStore.isLoggedIn) localStorage.setItem(publicNoticeKey(notice.id_wsh), '1')
-  } finally {
-    showNextNotice()
-  }
-}
-
 async function loadDashboard() {
   loading.value = true
   try {
@@ -239,7 +207,6 @@ async function loadDashboard() {
     loading.value = false
   }
   loadBanners()
-  loadUnreadNotices()
 }
 
 function goBannerLink() {
@@ -276,76 +243,17 @@ function onVisibilityChange() {
 </script>
 
 <style scoped>
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+}
+
 .banner-hero {
   position: relative;
   overflow: hidden;
   cursor: pointer;
   padding: 0;
   height: 200px;
-}
-
-.notice-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(15, 23, 42, 0.45);
-}
-
-.notice-modal {
-  width: min(440px, 100%);
-  border-radius: 12px;
-  background: var(--color-card);
-  color: var(--color-card-foreground);
-  padding: 24px;
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
-}
-
-.notice-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.notice-badge {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.notice-date {
-  color: var(--color-muted-foreground);
-  font-size: 13px;
-}
-
-.notice-modal h2 {
-  margin: 0 0 12px;
-  font-size: 22px;
-}
-
-.notice-modal p {
-  max-height: 45vh;
-  overflow: auto;
-  margin: 0;
-  color: var(--color-muted-foreground);
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-
-.notice-confirm {
-  width: 100%;
-  margin-top: 20px;
 }
 
 .banner-track {
@@ -377,8 +285,8 @@ function onVisibilityChange() {
   align-items: center;
   justify-content: center;
   height: 100%;
-  background: var(--color-primary);
-  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: var(--color-on-primary);
 }
 
 .slide-welcome h1 {
@@ -387,22 +295,23 @@ function onVisibilityChange() {
 }
 
 .slide-welcome p {
-  color: var(--color-muted-foreground);
+  color: var(--color-on-primary);
+  opacity: 0.72;
 }
 
 .banner-label {
   position: absolute;
   right: 16px;
   bottom: 40px;
-  background: linear-gradient(135deg, rgba(0,0,0,0.6), rgba(0,0,0,0.3));
+  max-width: min(420px, calc(100% - 32px));
+  background: rgba(15, 23, 42, 0.68);
   color: #fff;
-  padding: 8px 18px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-weight: 700;
   backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.16);
 }
 
 .banner-prev,
@@ -410,15 +319,15 @@ function onVisibilityChange() {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background: rgba(0,0,0,0.3);
+  background: rgba(15, 23, 42, 0.42);
   color: #fff;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.18);
   font-size: 24px;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   cursor: pointer;
-  line-height: 36px;
+  line-height: 34px;
   text-align: center;
   z-index: 2;
 }
@@ -428,7 +337,7 @@ function onVisibilityChange() {
 
 .banner-prev:hover,
 .banner-next:hover {
-  background: rgba(0,0,0,0.6);
+  background: rgba(15, 23, 42, 0.72);
 }
 
 .banner-dots {
@@ -440,15 +349,18 @@ function onVisibilityChange() {
   gap: 8px;
 }
 
-.banner-dots span {
+.banner-dots button {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.5);
+  min-height: 8px;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: rgba(255,255,255,0.55);
   cursor: pointer;
 }
 
-.banner-dots span.active {
+.banner-dots button.active {
+  width: 18px;
   background: #fff;
 }
 
@@ -464,6 +376,19 @@ function onVisibilityChange() {
 
 .section-title {
   margin: 32px 0 16px;
+  font-size: 20px;
+  color: var(--color-foreground);
+}
+
+.pricing-card,
+.service-card {
+  cursor: pointer;
+}
+
+.pricing-card:focus-visible,
+.service-card:focus-visible {
+  outline: 3px solid var(--color-ring);
+  outline-offset: 3px;
 }
 
 .pricing-card-img {
@@ -471,8 +396,8 @@ function onVisibilityChange() {
   height: 180px;
   background-size: cover;
   background-position: center;
-  border-radius: 12px 12px 0 0;
-  margin-bottom: 12px;
+  border-radius: var(--radius-md);
+  margin-bottom: 14px;
 }
 
 .service-desc {
@@ -486,6 +411,7 @@ function onVisibilityChange() {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: center;
   margin: 8px 0 12px;
 }
 
@@ -494,19 +420,20 @@ function onVisibilityChange() {
   height: 160px;
   background-size: cover;
   background-position: center;
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--radius-md);
 }
 
 .icon-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
+  font-size: 42px;
   background: var(--color-muted);
+  color: var(--color-primary);
 }
 
 .service-card-body {
-  padding: 12px 16px 16px;
+  padding: 14px 2px 0;
 }
 
 .service-card-body p {
@@ -520,7 +447,7 @@ function onVisibilityChange() {
 }
 
 .service-card-footer {
-  margin-top: 8px;
+  margin-top: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -531,10 +458,28 @@ function onVisibilityChange() {
   font-weight: 700;
   font-size: 18px;
   color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .service-price span {
   font-size: 13px;
   font-weight: 400;
+  color: var(--color-muted-foreground);
+}
+
+@media (max-width: 768px) {
+  .banner-hero {
+    height: 180px;
+  }
+
+  .pricing-grid,
+  .service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .service-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

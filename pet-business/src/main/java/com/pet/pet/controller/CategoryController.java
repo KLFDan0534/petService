@@ -2,10 +2,15 @@ package com.pet.pet.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
-import com.pet.pet.entity.Category;
+import com.pet.pet.dto.CategoryCreateRequestDTO;
+import com.pet.pet.dto.CategoryDTO;
+import com.pet.pet.dto.CategoryUpdateRequestDTO;
 import com.pet.pet.service.CategoryService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +19,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/categories")
-@Tag(name = "分类管理", description = "宠物分类管理")
+@Tag(name = "【用户端】宠物分类管理", description = "宠物分类管理（用户浏览/管理员维护）")
 @Slf4j
 public class CategoryController {
 
@@ -31,8 +36,14 @@ public class CategoryController {
      * @date: 2026/6/24 11:05
      **/
     @GetMapping
-    @Operation(summary = "获取所有分类")
-    public Result<List<Category>> listAll() {
+    @Operation(summary = "获取所有分类", description = "获取所有宠物分类列表")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<CategoryDTO>> listAll() {
         log.info("调用 listAll()");
         return Result.success(categoryService.listAll());
     }
@@ -45,8 +56,14 @@ public class CategoryController {
      * @date: 2026/6/24 11:05
      **/
     @GetMapping("/parent/{parentId}")
-    @Operation(summary = "根据父分类获取子分类")
-    public Result<List<Category>> listByParent(@PathVariable Long parentId) {
+    @Operation(summary = "根据父分类获取子分类", description = "根据父分类ID获取子分类列表")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<CategoryDTO>> listByParent(@Parameter(description = "父分类ID") @PathVariable Long parentId) {
         log.info("调用 listByParent()");
         return Result.success(categoryService.listByParent(parentId));
     }
@@ -59,41 +76,59 @@ public class CategoryController {
      * @date: 2026/6/24 11:05
      **/
     @GetMapping("/{id}")
-    @Operation(summary = "获取分类详情")
-    public Result<Category> getById(@PathVariable Long id) {
+    @Operation(summary = "获取分类详情", description = "根据ID获取宠物分类详情")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<CategoryDTO> getById(@Parameter(description = "分类ID") @PathVariable Long id) {
         log.info("调用 getById()");
         return Result.success(categoryService.getById(id));
     }
 
     /**
      * 创建宠物分类
-     * @param category 分类信息
+     * @param request 分类信息
      * @return 创建的分类
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "创建分类")
-    public Result<Category> create(@Valid @RequestBody Category category) {
+    @Operation(summary = "创建分类", description = "管理员创建宠物分类")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<CategoryDTO> create(@Valid @RequestBody CategoryCreateRequestDTO request) {
         log.info("调用 create()");
-        return Result.success(categoryService.create(category));
+        return Result.success(categoryService.create(request));
     }
 
     /**
      * 更新宠物分类
      * @param id 分类ID
-     * @param category 分类信息
+     * @param request 分类信息
      * @return 更新后的分类
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "更新分类")
-    public Result<Category> update(@PathVariable Long id, @Valid @RequestBody Category category) {
+    @Operation(summary = "更新分类", description = "管理员更新宠物分类")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<CategoryDTO> update(@Parameter(description = "分类ID") @PathVariable Long id, @Valid @RequestBody CategoryUpdateRequestDTO request) {
         log.info("调用 update()");
-        return Result.success(categoryService.update(id, category));
+        return Result.success(categoryService.update(id, request));
     }
 
     /**
@@ -105,8 +140,14 @@ public class CategoryController {
      **/
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "删除分类")
-    public Result<Void> delete(@PathVariable Long id) {
+    @Operation(summary = "删除分类", description = "管理员删除宠物分类")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> delete(@Parameter(description = "分类ID") @PathVariable Long id) {
         log.info("调用 delete()");
         categoryService.delete(id);
         return Result.success();

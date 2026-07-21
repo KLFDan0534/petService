@@ -1,0 +1,77 @@
+package com.pet.membership.entity;
+
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Getter
+@Setter
+@TableName("membership_order_wsh")
+@Schema(description = "会员购买与续费订单")
+public class MembershipOrder {
+    @JsonProperty("id_wsh")
+    @TableId(value = "id_wsh", type = IdType.AUTO)
+    private Long id_wsh;
+
+    @JsonProperty("order_no_wsh")
+    private String order_no_wsh;
+
+    @JsonProperty("user_id_wsh")
+    private Long user_id_wsh;
+
+    @JsonProperty("plan_id_wsh")
+    private Long plan_id_wsh;
+
+    @JsonProperty("plan_code_wsh")
+    private String plan_code_wsh;
+
+    @JsonProperty("amount_wsh")
+    private BigDecimal amount_wsh;
+
+    @JsonProperty("pay_method_wsh")
+    private String pay_method_wsh;
+
+    @JsonProperty("status_wsh")
+    private String status_wsh;
+
+    @JsonProperty("paid_at_wsh")
+    private LocalDateTime paid_at_wsh;
+
+    @JsonProperty("membership_start_at_wsh")
+    private LocalDateTime membership_start_at_wsh;
+
+    @JsonProperty("membership_end_at_wsh")
+    private LocalDateTime membership_end_at_wsh;
+
+    @JsonProperty("request_id_wsh")
+    private String request_id_wsh;
+
+    @JsonProperty("plan_snapshot_wsh")
+    private String plan_snapshot_wsh;
+
+    @JsonProperty("remark_wsh")
+    private String remark_wsh;
+
+    @JsonIgnore
+    @TableLogic
+    private Integer deleted_wsh;
+
+    @JsonProperty("created_at_wsh")
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime created_at_wsh;
+
+    @JsonProperty("updated_at_wsh")
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updated_at_wsh;
+}

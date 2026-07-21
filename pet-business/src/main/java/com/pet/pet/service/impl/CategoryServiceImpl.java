@@ -3,6 +3,9 @@ package com.pet.pet.service.impl;
 import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pet.common.BusinessException;
+import com.pet.pet.dto.CategoryCreateRequestDTO;
+import com.pet.pet.dto.CategoryDTO;
+import com.pet.pet.dto.CategoryUpdateRequestDTO;
 import com.pet.pet.entity.Category;
 import com.pet.pet.mapper.CategoryMapper;
 import com.pet.pet.service.CategoryService;
@@ -10,12 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
-/**
- * 分类服务实现类
- * @author: wsh
- * @date: 2026/06/24 11:05
- */
 @Service
 @Slf4j
 public class CategoryServiceImpl implements CategoryService {
@@ -26,90 +25,51 @@ public class CategoryServiceImpl implements CategoryService {
         this.categoryMapper = categoryMapper;
     }
 
-    /**
-     * 获取所有分类列表
-     * @return 分类列表
-     * @author: wsh
-     * @date: 2026/06/24 11:05
-     */
-    public List<Category> listAll() {
+    public List<CategoryDTO> listAll() {
         log.info("调用 listAll()");
-        return categoryMapper.selectList(
+        return toDTOList(categoryMapper.selectList(
                 new LambdaQueryWrapper<Category>()
                         .orderByAsc(Category::getSort_order_wsh)
-                        .orderByAsc(Category::getId_wsh));
+                        .orderByAsc(Category::getId_wsh)));
     }
 
-    /**
-     * 根据父级ID获取子分类列表
-     * @param parentId 父级ID
-     * @return 子分类列表
-     * @author: wsh
-     * @date: 2026/06/24 11:05
-     */
-    public List<Category> listByParent(Long parentId) {
+    public List<CategoryDTO> listByParent(Long parentId) {
         log.info("调用 listByParent()");
-        return categoryMapper.selectList(
+        return toDTOList(categoryMapper.selectList(
                 new LambdaQueryWrapper<Category>()
                         .eq(Category::getParent_id_wsh, parentId)
-                        .orderByAsc(Category::getSort_order_wsh));
+                        .orderByAsc(Category::getSort_order_wsh)));
     }
 
-    /**
-     * 根据ID获取分类
-     * @param id 分类ID
-     * @return 分类实体
-     * @author: wsh
-     * @date: 2026/06/24 11:05
-     */
-    public Category getById(Long id) {
+    public CategoryDTO getById(Long id) {
         log.info("调用 getById()");
         Category c = categoryMapper.selectById(id);
         if (c == null) throw new BusinessException("分类不存在");
-        return c;
+        return toDTO(c);
     }
 
-    /**
-     * 创建分类
-     * @param category 分类实体
-     * @return 创建后的分类
-     * @author: wsh
-     * @date: 2026/06/24 11:05
-     */
     @Transactional
-    public Category create(Category category) {
+    public CategoryDTO create(CategoryCreateRequestDTO request) {
         log.info("调用 create()");
-        if (category.getSort_order_wsh() == null) category.setSort_order_wsh(0);
-        if (category.getParent_id_wsh() == null) category.setParent_id_wsh(0L);
+        Category category = new Category();
+        category.setName_wsh(request.getName_wsh());
+        category.setParent_id_wsh(request.getParent_id_wsh() != null ? request.getParent_id_wsh() : 0L);
+        category.setSort_order_wsh(request.getSort_order_wsh() != null ? request.getSort_order_wsh() : 0);
         categoryMapper.insert(category);
-        return category;
+        return toDTO(category);
     }
 
-    /**
-     * 更新分类
-     * @param id 分类ID
-     * @param category 分类实体
-     * @return 更新后的分类
-     * @author: wsh
-     * @date: 2026/06/24 11:05
-     */
     @Transactional
-    public Category update(Long id, Category category) {
+    public CategoryDTO update(Long id, CategoryUpdateRequestDTO request) {
         log.info("调用 update()");
-        Category existing = getById(id);
-        if (category.getName_wsh() != null) existing.setName_wsh(category.getName_wsh());
-        if (category.getParent_id_wsh() != null) existing.setParent_id_wsh(category.getParent_id_wsh());
-        if (category.getSort_order_wsh() != null) existing.setSort_order_wsh(category.getSort_order_wsh());
+        Category existing = getByIdRaw(id);
+        if (request.getName_wsh() != null) existing.setName_wsh(request.getName_wsh());
+        if (request.getParent_id_wsh() != null) existing.setParent_id_wsh(request.getParent_id_wsh());
+        if (request.getSort_order_wsh() != null) existing.setSort_order_wsh(request.getSort_order_wsh());
         categoryMapper.updateById(existing);
-        return existing;
+        return toDTO(existing);
     }
 
-    /**
-     * 删除分类
-     * @param id 分类ID
-     * @author: wsh
-     * @date: 2026/06/24 11:05
-     */
     @Transactional
     public void delete(Long id) {
         log.info("调用 delete()");
@@ -117,5 +77,26 @@ public class CategoryServiceImpl implements CategoryService {
                 new LambdaQueryWrapper<Category>().eq(Category::getParent_id_wsh, id));
         if (subCount > 0) throw new BusinessException("存在子分类，无法删除");
         categoryMapper.deleteById(id);
+    }
+
+    private Category getByIdRaw(Long id) {
+        Category c = categoryMapper.selectById(id);
+        if (c == null) throw new BusinessException("分类不存在");
+        return c;
+    }
+
+    private CategoryDTO toDTO(Category c) {
+        if (c == null) return null;
+        CategoryDTO dto = new CategoryDTO();
+        dto.setId_wsh(c.getId_wsh());
+        dto.setName_wsh(c.getName_wsh());
+        dto.setParent_id_wsh(c.getParent_id_wsh());
+        dto.setSort_order_wsh(c.getSort_order_wsh());
+        return dto;
+    }
+
+    private List<CategoryDTO> toDTOList(List<Category> list) {
+        if (list == null) return List.of();
+        return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 }

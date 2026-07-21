@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.common.BusinessException;
-import com.pet.common.PageParam;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.ReviewStatus;
 import com.pet.operation.entity.ContentReview;
 import com.pet.operation.mapper.ContentReviewMapper;
@@ -39,7 +39,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
                 new LambdaQueryWrapper<ContentReview>().orderByDesc(ContentReview::getCreated_at_wsh));
     }
 
-    public IPage<ContentReview> listPendingPage(PageParam pageParam) {
+    public IPage<ContentReview> listPendingPage(PageRequestDTO pageParam) {
         log.info("listPendingPage() called");
         Page<ContentReview> page = new Page<>(pageParam.getPage(), pageParam.getSize());
         return contentReviewMapper.selectPage(page,
@@ -48,7 +48,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
                         .orderByDesc(ContentReview::getCreated_at_wsh));
     }
 
-    public IPage<ContentReview> listPage(PageParam pageParam) {
+    public IPage<ContentReview> listPage(PageRequestDTO pageParam) {
         log.info("listPage() called");
         Page<ContentReview> page = new Page<>(pageParam.getPage(), pageParam.getSize());
         return contentReviewMapper.selectPage(page,

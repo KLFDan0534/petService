@@ -1,5 +1,8 @@
 package com.pet.pet.service;
 
+import com.pet.pet.dto.CategoryCreateRequestDTO;
+import com.pet.pet.dto.CategoryDTO;
+import com.pet.pet.dto.CategoryUpdateRequestDTO;
 import com.pet.pet.entity.Category;
 import java.util.List;
 
@@ -10,7 +13,7 @@ public interface CategoryService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    List<Category> listAll();
+    List<CategoryDTO> listAll();
     /**
      * 根据父级ID获取子分类列表
      * @param parentId 父级ID
@@ -18,32 +21,32 @@ public interface CategoryService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    List<Category> listByParent(Long parentId);
+    List<CategoryDTO> listByParent(Long parentId);
     /**
      * 根据ID获取分类
      * @param id 分类ID
-     * @return 分类实体
+     * @return 分类数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Category getById(Long id);
+    CategoryDTO getById(Long id);
     /**
      * 创建分类
-     * @param category 分类实体
-     * @return 创建后的分类
+     * @param request 创建请求
+     * @return 创建后的分类数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Category create(Category category);
+    CategoryDTO create(CategoryCreateRequestDTO request);
     /**
      * 更新分类
      * @param id 分类ID
-     * @param category 分类实体
-     * @return 更新后的分类
+     * @param request 更新请求
+     * @return 更新后的分类数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Category update(Long id, Category category);
+    CategoryDTO update(Long id, CategoryUpdateRequestDTO request);
     /**
      * 删除分类
      * @param id 分类ID

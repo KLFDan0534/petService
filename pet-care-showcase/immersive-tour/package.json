@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "scripts": {
+    "serve": "python -m http.server 4177 --bind 127.0.0.1"
+  },
+  "dependencies": {
+    "three": "^0.165.0"
+  }
+}

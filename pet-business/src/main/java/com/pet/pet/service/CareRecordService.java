@@ -1,5 +1,8 @@
 package com.pet.pet.service;
 
+import com.pet.pet.dto.CareRecordCreateRequestDTO;
+import com.pet.pet.dto.CareRecordDTO;
+import com.pet.pet.dto.CareRecordUpdateRequestDTO;
 import com.pet.pet.entity.CareRecord;
 
 import java.util.List;
@@ -12,32 +15,41 @@ public interface CareRecordService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    List<CareRecord> listByOrder(Long orderId);
+    List<CareRecordDTO> listByOrder(Long orderId);
+
+    List<CareRecordDTO> listByOrder(Long actorUserId, boolean admin, Long orderId);
     /**
      * 根据ID获取护理记录
      * @param id 记录ID
-     * @return 护理记录实体
+     * @return 护理记录数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    CareRecord getById(Long id);
+    CareRecordDTO getById(Long id);
+
+    CareRecordDTO getById(Long actorUserId, boolean admin, Long id);
     /**
      * 创建护理记录
-     * @param record 护理记录实体
-     * @return 创建后的护理记录
+     * @param request 创建请求
+     * @return 创建后的护理记录数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    CareRecord create(CareRecord record);
+    CareRecordDTO create(CareRecordCreateRequestDTO request);
+
+    CareRecordDTO create(Long actorUserId, boolean admin, CareRecordCreateRequestDTO request);
     /**
      * 更新护理记录
      * @param id 记录ID
-     * @param record 护理记录实体
-     * @return 更新后的护理记录
+     * @param request 更新请求
+     * @return 更新后的护理记录数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
-     **/
-    CareRecord update(Long id, CareRecord record);
+    **/
+    CareRecordDTO update(Long id, CareRecordUpdateRequestDTO request);
+
+    CareRecordDTO update(Long actorUserId, boolean admin, Long id, CareRecordUpdateRequestDTO request);
+
     /**
      * 删除护理记录
      * @param id 记录ID
@@ -45,5 +57,7 @@ public interface CareRecordService {
      * @date: 2026/6/24 11:05
      **/
     void delete(Long id);
+
+    void delete(Long actorUserId, boolean admin, Long id);
 }
 

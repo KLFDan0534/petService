@@ -34,10 +34,10 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { getRecycleBinTables, getRecycleBin, restoreFromRecycleBin } from '@/api/admin'
 
-const authStore = useAuthStore()
+
 const appStore = useAppStore()
 const tables = ref([])
 const selectedTable = ref('')
@@ -51,19 +51,19 @@ const sample = computed(() => {
 })
 
 onMounted(async () => {
-  try { const r = await authStore.apiGet('/api/recycle-bin/tables'); if (r.code === 200) tables.value = r.data || [] }
+  try { const r = await getRecycleBinTables(); if (r.code === 200) tables.value = r.data || [] }
   catch (e) {}
 })
 
 async function loadDeleted() {
   if (!selectedTable.value) return
   searched.value = true
-  try { const r = await authStore.apiGet('/api/recycle-bin', { params: { table: selectedTable.value } }); if (r.code === 200) records.value = r.data || [] }
+  try { const r = await getRecycleBin({ table: selectedTable.value }); if (r.code === 200) records.value = r.data || [] }
   catch (e) { records.value = [] }
 }
 
 async function restore(id) {
-  try { await authStore.apiPost(`/api/recycle-bin/restore?table=${selectedTable.value}&id=${id}`, {}); appStore.addToast('恢复成功', 'success'); loadDeleted() }
+  try { await restoreFromRecycleBin(selectedTable.value, id); appStore.addToast('恢复成功', 'success'); loadDeleted() }
   catch (e) { appStore.addToast('恢复失败', 'error') }
 }
 

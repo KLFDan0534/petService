@@ -21,10 +21,6 @@
         </dependency>
         <dependency>
             <groupId>com.pet</groupId>
-            <artifactId>pet-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.pet</groupId>
             <artifactId>pet-framework</artifactId>
         </dependency>
         <dependency>

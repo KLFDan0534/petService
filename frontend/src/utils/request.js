@@ -37,9 +37,7 @@ request.interceptors.response.use(
       return handle401Error(response.config)
     }
     if (res.code === 403) {
-      const appStore = useAppStore()
-      appStore.addToast(res.message || '权限不足', 'error')
-      return Promise.reject(new Error(res.message || '权限不足'))
+      return handle403Error(response.config)
     }
     if (res && typeof res.code === 'number' && res.code !== 200) {
       const appStore = useAppStore()
@@ -56,9 +54,9 @@ request.interceptors.response.use(
       return handle401Error(config)
     }
     if (status === 403) {
-      const appStore = useAppStore()
-      appStore.addToast('权限不足，无法访问', 'error')
-    } else if (status === 500) {
+      return handle403Error(config)
+    }
+    if (status === 500) {
       const appStore = useAppStore()
       appStore.addToast('服务器错误，请稍后重试', 'error')
     }
@@ -66,45 +64,64 @@ request.interceptors.response.use(
   }
 )
 
-async function handle401Error(config) {
-  const refreshToken = localStorage.getItem('refreshToken')
-  if (!refreshToken) {
-    clearAuthAndRedirect()
-    return Promise.reject(new Error('未登录'))
-  }
-  if (!isRefreshing) {
-    isRefreshing = true
-    try {
-      const r = await axios.post('/api/auth/refresh', { refresh_token_wsh: refreshToken })
-      if (r.data.code === 200) {
-        const newToken = r.data.data.access_token_wsh
-        const newRefresh = r.data.data.refresh_token_wsh
-        localStorage.setItem('token', newToken)
-        if (newRefresh) localStorage.setItem('refreshToken', newRefresh)
-        const userStr = localStorage.getItem('user')
-        if (userStr) {
-          const user = JSON.parse(userStr)
-          user.roles_wsh = r.data.data.roles_wsh || user.roles_wsh
-          localStorage.setItem('user', JSON.stringify(user))
+async function tryRefresh(config) {
+  const rt = localStorage.getItem('refreshToken')
+  if (!rt) return false
+  if (isRefreshing) {
+    return new Promise(resolve => {
+      addPendingRequest(newToken => {
+        if (newToken) {
+          config.headers.Authorization = `Bearer ${newToken}`
+          resolve(true)
+        } else {
+          resolve(false)
         }
-        onRefreshed(newToken)
-        isRefreshing = false
-        config.headers.Authorization = `Bearer ${newToken}`
-        return request(config)
-      }
-    } catch (refreshError) {
-      isRefreshing = false
-      pendingRequests = []
-    }
-    clearAuthAndRedirect()
-    return Promise.reject(new Error('Token刷新失败'))
-  }
-  return new Promise(resolve => {
-    addPendingRequest(newToken => {
-      config.headers.Authorization = `Bearer ${newToken}`
-      resolve(request(config))
+      })
     })
-  })
+  }
+  isRefreshing = true
+  try {
+    const r = await axios.post('/api/auth/refresh', { refresh_token_wsh: rt })
+    if (r.data.code === 200) {
+      const { access_token_wsh, refresh_token_wsh, roles_wsh } = r.data.data
+      localStorage.setItem('token', access_token_wsh)
+      if (refresh_token_wsh) localStorage.setItem('refreshToken', refresh_token_wsh)
+      const userStr = localStorage.getItem('user')
+      if (userStr) {
+        const user = JSON.parse(userStr)
+        if (roles_wsh) user.roles_wsh = roles_wsh
+        localStorage.setItem('user', JSON.stringify(user))
+      }
+      onRefreshed(access_token_wsh)
+      isRefreshing = false
+      config.headers.Authorization = `Bearer ${access_token_wsh}`
+      return true
+    }
+  } catch { /* ignore */ }
+  isRefreshing = false
+  onRefreshed(null)
+  return false
+}
+
+async function handle401Error(config) {
+  const ok = await tryRefresh(config)
+  if (ok) return request(config)
+  clearAuthAndRedirect()
+  return Promise.reject(new Error('Token刷新失败'))
+}
+
+async function handle403Error(config) {
+  if (config._retry403) {
+    const appStore = useAppStore()
+    appStore.addToast('权限不足', 'error')
+    return Promise.reject(new Error('权限不足'))
+  }
+  config._retry403 = true
+  const ok = await tryRefresh(config)
+  if (ok) return request(config)
+  const appStore = useAppStore()
+  appStore.addToast('权限不足', 'error')
+  return Promise.reject(new Error('权限不足'))
 }
 
 function clearAuthAndRedirect() {

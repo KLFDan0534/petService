@@ -15,28 +15,26 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import DataTable from '@/components/common/DataTable.vue'
+import { getRefunds, approveRefund, rejectRefund, completeRefund as apiCompleteRefund } from '@/api/refund'
+import { RefundStatus, enrichWithStatus } from '@/constants/statusMaps'
 
-const authStore = useAuthStore()
+
 const appStore = useAppStore()
 const refunds = ref([])
 
-const refundStatusMap = { pending: { text: '待审核', cls: 'badge-info' }, approved: { text: '已通过(待退款)', cls: 'badge-primary' }, completed: { text: '已完成', cls: 'badge-success' }, rejected: { text: '已拒绝', cls: 'badge-danger' } }
-
 function enrichRefund(r) {
-  const s = refundStatusMap[r.status_wsh]
-  r.status_label_wsh = s ? `<span class="badge ${s.cls}">${s.text}</span>` : r.status_wsh
-  return r
+  return enrichWithStatus(r, 'status_wsh', RefundStatus)
 }
 
-onMounted(async () => {
-  try { const r = await authStore.apiGet('/api/refunds/all'); if (r.code === 200) refunds.value = (Array.isArray(r.data) ? r.data : []).map(enrichRefund) }
+async function loadRefunds() {
+  try { const r = await getRefunds(); if (r.code === 200) refunds.value = (Array.isArray(r.data) ? r.data : []).map(enrichRefund) }
   catch (e) {}
-})
+}
+onMounted(loadRefunds)
 
-async function approve(id) { try { await authStore.apiPost(`/api/refunds/${id}/approve`, {}); appStore.addToast('已通过', 'success'); location.reload() } catch (e) { appStore.addToast('操作失败', 'error') } }
-async function reject(id) { try { await authStore.apiPost(`/api/refunds/${id}/reject`, {}); appStore.addToast('已拒绝', 'success'); location.reload() } catch (e) { appStore.addToast('操作失败', 'error') } }
-async function completeRefund(id) { try { await authStore.apiPost(`/api/refunds/${id}/complete`, {}); appStore.addToast('退款完成', 'success'); location.reload() } catch (e) { appStore.addToast('操作失败', 'error') } }
+async function approve(id) { try { await approveRefund(id); appStore.addToast('已通过', 'success'); await loadRefunds() } catch (e) { appStore.addToast('操作失败', 'error') } }
+async function reject(id) { try { await rejectRefund(id); appStore.addToast('已拒绝', 'success'); await loadRefunds() } catch (e) { appStore.addToast('操作失败', 'error') } }
+async function completeRefund(id) { try { await apiCompleteRefund(id); appStore.addToast('退款完成', 'success'); await loadRefunds() } catch (e) { appStore.addToast('操作失败', 'error') } }
 </script>

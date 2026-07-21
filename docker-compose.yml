@@ -10,10 +10,10 @@ services:
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     ports:
-      - "3306:3306"
+      - "3308:3306"
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./pet-admin/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -89,8 +89,27 @@ services:
     networks:
       - pet-network
 
+  nginx:
+    image: nginx:latest
+    container_name: pet-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./frontend/dist:/usr/share/nginx/html
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+      - minio
+      - chroma
+    networks:
+      - pet-network
+
 volumes:
   mysql-data:
+    name: petservice_mysql_manual_copy_20260708-135648
   redis-data:
   rabbitmq-data:
   minio-data:

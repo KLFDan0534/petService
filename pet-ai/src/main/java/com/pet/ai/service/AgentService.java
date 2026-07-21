@@ -1,6 +1,6 @@
 package com.pet.ai.service;
 
-import java.util.Map;
+import com.pet.ai.dto.AgentExecuteResult;
 
 public interface AgentService {
 
@@ -10,10 +10,11 @@ public interface AgentService {
      * @param userInput 用户输入内容
      * @param latitude 纬度坐标
      * @param longitude 经度坐标
-     * @return 执行结果Map
+     * @return 执行结果
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Map<String, Object> execute(Long userId, String userInput, Double latitude, Double longitude);
+    AgentExecuteResult execute(Long userId, String userInput, Double latitude, Double longitude,
+                               Boolean autoPay, String paymentPassword);
 }
 

@@ -1,14 +1,15 @@
 package com.pet.fulfillment.service;
 
-import com.pet.customer.entity.ChatMessage;
-import com.pet.fulfillment.dto.CreateCareRecordRequest;
-import com.pet.fulfillment.dto.SendOrderMessageRequest;
+import com.pet.customer.dto.ChatMessageDTO;
+import com.pet.fulfillment.dto.CreateCareRecordRequestDTO;
+import com.pet.fulfillment.dto.DailyStatusDTO;
+import com.pet.fulfillment.vo.OrderFulfillmentOverviewVO;
+import com.pet.fulfillment.dto.SendOrderMessageRequestDTO;
 import com.pet.order.entity.PetOrder;
 import com.pet.pet.entity.CareRecord;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 订单履行服务接口
@@ -25,7 +26,7 @@ public interface OrderFulfillmentService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Map<String, Object> getOverview(Long userId, boolean admin, Long orderId);
+    OrderFulfillmentOverviewVO getOverview(Long userId, boolean admin, Long orderId);
 
     /**
      * 获取订单护理时间线列表
@@ -47,7 +48,7 @@ public interface OrderFulfillmentService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Map<String, Object> getDailyUploadStatus(Long userId, boolean admin, Long orderId);
+    DailyStatusDTO getDailyUploadStatus(Long userId, boolean admin, Long orderId);
 
     /**
      * 创建时间线护理记录
@@ -59,7 +60,7 @@ public interface OrderFulfillmentService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    CareRecord createTimelineRecord(Long userId, boolean admin, Long orderId, CreateCareRecordRequest request);
+    CareRecord createTimelineRecord(Long userId, boolean admin, Long orderId, CreateCareRecordRequestDTO request);
 
     /**
      * 创建时间线护理记录（含文件上传）
@@ -88,7 +89,12 @@ public interface OrderFulfillmentService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    List<ChatMessage> listConversation(Long userId, boolean admin, Long orderId, Long otherUserId);
+    default List<ChatMessageDTO> listConversation(Long userId, boolean admin, Long orderId, Long otherUserId) {
+        return listConversation(userId, admin, orderId, otherUserId, null, null);
+    }
+
+    List<ChatMessageDTO> listConversation(Long userId, boolean admin, Long orderId, Long otherUserId,
+                                          Long beforeId, Integer size);
 
     /**
      * 发送订单消息
@@ -96,11 +102,11 @@ public interface OrderFulfillmentService {
      * @param admin 是否为管理员
      * @param orderId 订单ID
      * @param request 发送消息请求
-     * @return 发送后的聊天消息
+     * @return 发送后的聊天消息数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    ChatMessage sendMessage(Long userId, boolean admin, Long orderId, SendOrderMessageRequest request);
+    ChatMessageDTO sendMessage(Long userId, boolean admin, Long orderId, SendOrderMessageRequestDTO request);
 
     /**
      * 发送订单消息（含文件）
@@ -111,12 +117,14 @@ public interface OrderFulfillmentService {
      * @param content 消息内容
      * @param type 消息类型
      * @param file 上传文件
-     * @return 发送后的聊天消息
+     * @return 发送后的聊天消息数据传输对象
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    ChatMessage sendMessageWithFile(Long userId, boolean admin, Long orderId,
+    ChatMessageDTO sendMessageWithFile(Long userId, boolean admin, Long orderId,
                                     Long toUserId, String content, String type, MultipartFile file);
+
+    void markConversationAsRead(Long userId, boolean admin, Long orderId, Long otherUserId);
 
     /**
      * 校验并获取可读订单

@@ -37,4 +37,23 @@ public interface NoticeMapper extends BaseMapper<Notice> {
     List<Notice> selectUnreadByUser(@Param("userId") Long userId,
                                     @Param("type") String type,
                                     @Param("status") Integer status);
+
+    @Select("""
+            SELECT n.*
+            FROM notice_wsh n
+            WHERE n.deleted_wsh = 0
+              AND n.status_wsh = #{status}
+              AND LOWER(n.type_wsh) = 'notice'
+              AND n.delivery_type_wsh LIKE '%popup%'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM notice_read_wsh r
+                  WHERE r.notice_id_wsh = n.id_wsh
+                    AND r.user_id_wsh = #{userId}
+                    AND r.deleted_wsh = 0
+              )
+            ORDER BY n.sort_order_wsh ASC, n.created_at_wsh DESC
+            """)
+    List<Notice> selectPopupByUser(@Param("userId") Long userId,
+                                   @Param("status") Integer status);
 }

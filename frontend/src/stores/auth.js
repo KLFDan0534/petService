@@ -1,8 +1,19 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import request from '@/utils/request'
+import { isTokenExpired } from '@/utils/jwt'
+
+function clearStoredAuth() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('user')
+}
 
 export const useAuthStore = defineStore('auth', () => {
+  const rawToken = localStorage.getItem('token')
+  if (rawToken && isTokenExpired(rawToken)) {
+    clearStoredAuth()
+  }
   const user = ref(loadUser())
   const token = ref(localStorage.getItem('token') || null)
   const refreshToken = ref(localStorage.getItem('refreshToken') || null)
@@ -23,25 +34,23 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAdmin = computed(() => normalizedRoles.value.includes('ADMIN'))
   const isMerchant = computed(() => normalizedRoles.value.includes('MERCHANT'))
-  const isUser = computed(() => normalizedRoles.value.includes('USER'))
+  const isOwner = computed(() => normalizedRoles.value.includes('OWNER'))
   const isCs = computed(() => normalizedRoles.value.includes('CUSTOMER_SERVICE'))
 
   function hasRole(role) {
     const cleanRole = role.replace('ROLE_', '')
-    if (normalizedRoles.value.includes(cleanRole)) return true
-    const roleMap = { 'OWNER': 'USER', 'KEEPER': 'USER' }
-    const mapped = normalizedRoles.value.map(r => roleMap[r] || r)
-    return mapped.includes(cleanRole)
+    return normalizedRoles.value.includes(cleanRole)
   }
 
   function setAuth(data) {
-    const roles = (data.roles_wsh || data.roles || []).map(r => r.replace('ROLE_', ''))
-    const accessToken = data.access_token_wsh || data.access_token || data.accessToken
-    const refresh = data.refresh_token_wsh || data.refresh_token || data.refreshToken || null
+    const roles = (data.roles_wsh || []).map(r => r.replace('ROLE_', ''))
+    const accessToken = data.access_token_wsh
+    const refresh = data.refresh_token_wsh || null
     user.value = {
-      id_wsh: data.user_id_wsh || data.user_id || data.userId,
-      username_wsh: data.username_wsh || data.username,
-      nickname_wsh: data.nickname_wsh || data.nickname,
+      id_wsh: data.user_id_wsh,
+      username_wsh: data.username_wsh,
+      nickname_wsh: data.nickname_wsh,
+      avatar_wsh: data.avatar_wsh || '',
       roles_wsh: roles,
     }
     token.value = accessToken
@@ -89,5 +98,5 @@ export const useAuthStore = defineStore('auth', () => {
     return r.data
   }
 
-  return { user, token, refreshToken, isLoggedIn, isAdmin, isMerchant, isUser, isCs, hasRole, setAuth, clearAuth, refetchUser, apiGet, apiPost, apiPut, apiDelete, apiPatch }
+  return { user, token, refreshToken, isLoggedIn, isAdmin, isMerchant, isOwner, isCs, hasRole, setAuth, clearAuth, refetchUser, apiGet, apiPost, apiPut, apiDelete, apiPatch }
 })

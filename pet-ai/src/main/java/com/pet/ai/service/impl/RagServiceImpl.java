@@ -1,5 +1,6 @@
 package com.pet.ai.service.impl;
 
+import com.pet.ai.dto.RagDocumentCreateRequestDTO;
 import com.pet.ai.service.AiChatService;
 import com.pet.ai.service.ChromaService;
 import com.pet.ai.service.ChromaService.ChromaGetResult;
@@ -327,19 +328,14 @@ public class RagServiceImpl implements RagService {
      * @return 创建后的知识文档
      */
     @Override
-    public KnowledgeDocument create(KnowledgeDocument doc) {
+    public KnowledgeDocument create(RagDocumentCreateRequestDTO request) {
         log.info("调用 create()");
-        if (doc.getTitle_wsh() != null) {
-            doc.setTitle_wsh(HtmlUtils.htmlEscape(doc.getTitle_wsh()));
-        }
-        if (doc.getContent_wsh() != null) {
-            doc.setContent_wsh(HtmlUtils.htmlEscape(doc.getContent_wsh()));
-            doc.setWord_count_wsh(doc.getContent_wsh().length());
-        }
-        doc.setCreated_at_wsh(LocalDateTime.now());
-        doc.setUpdated_at_wsh(LocalDateTime.now());
-        storeInChroma(doc);
-        return doc;
+        KnowledgeDocument doc = new KnowledgeDocument();
+        doc.setTitle_wsh(HtmlUtils.htmlEscape(request.getTitle_wsh()));
+        doc.setContent_wsh(HtmlUtils.htmlEscape(request.getContent_wsh()));
+        doc.setCategory_wsh(request.getCategory_wsh());
+        doc.setWord_count_wsh(request.getContent_wsh().length());
+        return doCreateDocument(doc);
     }
 
     @Override
@@ -355,7 +351,14 @@ public class RagServiceImpl implements RagService {
         doc.setCategory_wsh(category);
         doc.setSource_type_wsh("upload");
         doc.setSource_path_wsh(fileName);
-        return create(doc);
+        return doCreateDocument(doc);
+    }
+
+    private KnowledgeDocument doCreateDocument(KnowledgeDocument doc) {
+        doc.setCreated_at_wsh(LocalDateTime.now());
+        doc.setUpdated_at_wsh(LocalDateTime.now());
+        storeInChroma(doc);
+        return doc;
     }
 
     private String extractText(String fileName, byte[] fileBytes) {

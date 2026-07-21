@@ -22,7 +22,7 @@ public class RecycleBinServiceImpl implements RecycleBinService {
             "knowledge_document_wsh", "document_embedding_wsh", "address_wsh",
             "notice_wsh", "care_record_wsh", "wallet_wsh", "wallet_transaction_wsh",
             "withdrawal_wsh", "ticket_wsh", "ticket_message_wsh", "content_review_wsh",
-            "notification_wsh", "adoption_pet_wsh", "adoption_application_wsh"
+            "notification_wsh"
     );
 
     private final RecycleBinMapper recycleBinMapper;

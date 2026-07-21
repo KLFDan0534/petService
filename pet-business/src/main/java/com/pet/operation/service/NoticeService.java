@@ -1,5 +1,7 @@
 package com.pet.operation.service;
 
+import com.pet.operation.dto.NoticeCreateRequestDTO;
+import com.pet.operation.dto.NoticeUpdateRequestDTO;
 import com.pet.operation.entity.Notice;
 
 import java.util.List;
@@ -46,21 +48,37 @@ public interface NoticeService {
     Notice getById(Long id);
     /**
      * 创建公告
-     * @param notice 公告实体
+     * @param request 创建请求DTO
      * @return 创建后的公告
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Notice create(Notice notice);
+    Notice create(NoticeCreateRequestDTO request);
     /**
      * 更新公告
      * @param id 公告ID
-     * @param notice 公告实体
+     * @param request 更新请求DTO
      * @return 更新后的公告
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Notice update(Long id, Notice notice);
+    Notice update(Long id, NoticeUpdateRequestDTO request);
+    /**
+     * 获取用户未读弹窗公告
+     * @param userId 用户ID
+     * @return 未读弹窗列表
+     * @author: wsh
+     * @date: 2026/7/1 11:00
+     **/
+    List<Notice> listPopup(Long userId);
+    /**
+     * 关闭弹窗公告
+     * @param id 公告ID
+     * @param userId 用户ID
+     * @author: wsh
+     * @date: 2026/7/1 11:00
+     **/
+    void dismissPopup(Long id, Long userId);
     /**
      * 标记公告为已读
      * @param id 公告ID

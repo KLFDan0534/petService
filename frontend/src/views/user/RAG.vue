@@ -4,7 +4,7 @@
     <div style="margin-bottom:24px;display:flex;gap:12px">
       <input v-model="query" placeholder="搜索宠物护理知识..." style="flex:1" @keyup.enter="search">
       <button class="btn btn-primary" @click="search">搜索</button>
-      <button class="btn btn-outline" @click="showDocForm = !showDocForm">新增文档</button>
+      <button v-if="authStore.isAdmin" class="btn btn-outline" @click="showDocForm = !showDocForm">新增文档</button>
     </div>
 
     <div v-if="showDocForm" class="card" style="margin-bottom:16px;padding:20px">
@@ -35,6 +35,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { searchRag, createRagDocument } from '@/api/ai'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import PageHero from '@/components/common/PageHero.vue'
@@ -51,7 +52,7 @@ async function search() {
   if (!query.value.trim()) return
   loading.value = true
   try {
-    const r = await authStore.apiGet('/api/rag/search', { query: query.value })
+    const r = await searchRag({ query: query.value })
     if (r.code === 200) results.value = r.data
   } catch (e) {}
   loading.value = false
@@ -59,7 +60,7 @@ async function search() {
 
 async function createDocument() {
   try {
-    const r = await authStore.apiPost('/api/rag/documents', { ...docForm })
+    const r = await createRagDocument({ ...docForm })
     if (r.code === 200) {
       appStore.addToast('文档添加成功', 'success')
       showDocForm.value = false

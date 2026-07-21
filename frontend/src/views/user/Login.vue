@@ -21,6 +21,9 @@
         <router-link to="/register">还没有账号？立即注册</router-link>
         <router-link to="/forget-password" style="margin-left:16px">忘记密码？</router-link>
       </div>
+      <div class="guest-link">
+        <router-link to="/dashboard">以游客身份访问</router-link>
+      </div>
     </div>
   </div>
 </template>
@@ -71,4 +74,7 @@ async function handleLogin() {
 .subtitle { color: var(--color-muted-foreground); margin-bottom: 24px; }
 .auth-error { background: #fef2f2; color: var(--color-destructive); padding: 10px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
 .auth-links { margin-top: 20px; font-size: 13px; }
+.guest-link { margin-top: 12px; font-size: 13px; }
+.guest-link a { color: var(--color-muted-foreground); text-decoration: none; }
+.guest-link a:hover { color: var(--color-primary); text-decoration: underline; }
 </style>

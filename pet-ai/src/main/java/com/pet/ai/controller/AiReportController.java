@@ -2,20 +2,28 @@ package com.pet.ai.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
+import com.pet.ai.dto.AiReportCreateRequestDTO;
+import com.pet.ai.dto.AiReportDTO;
 import com.pet.ai.entity.AiReport;
 import com.pet.ai.service.AiReportService;
+import com.pet.security.JwtAuthenticationToken;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/ai")
-@Tag(name = "AI报告", description = "AI报告生成和管理")
+@Tag(name = "【AI】AI报告", description = "AI报告生成和管理（用户/看护者/管理员使用）")
 @Slf4j
 public class AiReportController {
 
@@ -35,9 +43,19 @@ public class AiReportController {
     @GetMapping("/reports/order/{orderId}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "根据订单获取报告", description = "根据订单ID获取AI报告")
-    public Result<List<AiReport>> getByOrder(@PathVariable Long orderId) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "404", description = "资源不存在"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<AiReportDTO>> getByOrder(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                                @Parameter(description = "订单ID") @PathVariable Long orderId) {
         log.info("调用 getByOrder()");
-        return Result.success(aiReportService.getReportsByOrder(orderId));
+        List<AiReport> list = aiReportService.getReportsByOrder(token.getUserId(), orderId);
+        return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
     /**
@@ -50,9 +68,19 @@ public class AiReportController {
     @GetMapping("/reports/pet/{petId}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "根据宠物获取报告", description = "根据宠物ID获取AI报告")
-    public Result<List<AiReport>> getByPet(@PathVariable Long petId) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "404", description = "资源不存在"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<AiReportDTO>> getByPet(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                              @Parameter(description = "宠物ID") @PathVariable Long petId) {
         log.info("调用 getByPet()");
-        return Result.success(aiReportService.getReportsByPet(petId));
+        List<AiReport> list = aiReportService.getReportsByPet(token.getUserId(), petId);
+        return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
     /**
@@ -65,9 +93,17 @@ public class AiReportController {
     @PostMapping("/reports")
     @PreAuthorize("hasAnyRole('ADMIN','KEEPER')")
     @Operation(summary = "创建报告", description = "手动创建AI报告")
-    public Result<AiReport> create(@RequestBody AiReport report) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<AiReportDTO> create(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                      @RequestBody AiReportCreateRequestDTO request) {
         log.info("调用 create()");
-        return Result.success(aiReportService.createReport(report));
+        return Result.success(toDTO(aiReportService.createReport(token.getUserId(), request)));
     }
 
     /**
@@ -83,7 +119,15 @@ public class AiReportController {
     @PostMapping("/care-suggestion")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "生成护理建议", description = "AI生成护理建议报告")
-    public Result<AiReport> generateCareSuggestion(
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<AiReportDTO> generateCareSuggestion(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
             @RequestBody(required = false) Map<String, Object> body,
             @RequestParam(required = false) Long petId,
             @RequestParam(required = false) Long keeperId,
@@ -92,7 +136,7 @@ public class AiReportController {
         petId = resolveLong(petId, body, "petId", "pet_id_wsh");
         keeperId = resolveLong(keeperId, body, "keeperId", "keeper_id_wsh");
         orderId = resolveLong(orderId, body, "orderId", "order_id_wsh");
-        return Result.success(aiReportService.generateCareSuggestion(petId, keeperId, orderId));
+        return Result.success(toDTO(aiReportService.generateCareSuggestion(token.getUserId(), petId, keeperId, orderId)));
     }
 
     /**
@@ -108,7 +152,15 @@ public class AiReportController {
     @PostMapping("/boarding-report")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "生成寄养报告", description = "AI生成寄养总结报告")
-    public Result<AiReport> generateBoardingReport(
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<AiReportDTO> generateBoardingReport(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
             @RequestBody(required = false) Map<String, Object> body,
             @RequestParam(required = false) Long petId,
             @RequestParam(required = false) Long keeperId,
@@ -117,7 +169,19 @@ public class AiReportController {
         petId = resolveLong(petId, body, "petId", "pet_id_wsh");
         keeperId = resolveLong(keeperId, body, "keeperId", "keeper_id_wsh");
         orderId = resolveLong(orderId, body, "orderId", "order_id_wsh");
-        return Result.success(aiReportService.generateBoardingReport(petId, keeperId, orderId));
+        return Result.success(toDTO(aiReportService.generateBoardingReport(token.getUserId(), petId, keeperId, orderId)));
+    }
+
+    private AiReportDTO toDTO(AiReport entity) {
+        AiReportDTO dto = new AiReportDTO();
+        dto.setId_wsh(entity.getId_wsh());
+        dto.setOrder_id_wsh(entity.getOrder_id_wsh());
+        dto.setPet_id_wsh(entity.getPet_id_wsh());
+        dto.setKeeper_id_wsh(entity.getKeeper_id_wsh());
+        dto.setContent_wsh(entity.getContent_wsh());
+        dto.setType_wsh(entity.getType_wsh());
+        dto.setCreated_at_wsh(entity.getCreated_at_wsh());
+        return dto;
     }
 
     private Long resolveLong(Long queryValue, Map<String, Object> body, String camelKey, String snakeKey) {

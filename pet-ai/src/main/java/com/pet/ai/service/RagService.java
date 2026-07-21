@@ -1,5 +1,6 @@
 package com.pet.ai.service;
 
+import com.pet.ai.dto.RagDocumentCreateRequestDTO;
 import com.pet.ai.entity.KnowledgeDocument;
 
 import java.util.List;
@@ -45,12 +46,12 @@ public interface RagService {
 
     /**
      * 创建知识文档
-     * @param doc 知识文档实体
+     * @param request 创建请求DTO
      * @return 创建后的知识文档
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    KnowledgeDocument create(KnowledgeDocument doc);
+    KnowledgeDocument create(RagDocumentCreateRequestDTO request);
 
     /**
      * 从文件创建知识文档

@@ -53,6 +53,18 @@ public class MessageSender {
                 RabbitMQConfig.QUEUE_ORDER_CANCEL, orderNo);
     }
 
+    public void sendOrderPaymentTimeout(String orderNo) {
+        log.info("Sending order payment timeout event: {}", orderNo);
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
+                RabbitMQConfig.QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY, orderNo);
+    }
+
+    public void sendOrderAcceptTimeout(String orderNo) {
+        log.info("Sending order accept timeout event: {}", orderNo);
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
+                RabbitMQConfig.QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY, orderNo);
+    }
+
     /**
      * Sends an order refund event to the order.refund queue.
      * @param orderNo the order number

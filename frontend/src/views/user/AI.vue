@@ -58,11 +58,12 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { getPets } from '@/api/pet'
+import { getOrders } from '@/api/order'
+import { askRag, getCareSuggestion, getBoardingReport } from '@/api/ai'
 import { useAppStore } from '@/stores/app'
 import PageHero from '@/components/common/PageHero.vue'
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 
 const messages = ref([{ id: 0, role: 'ai', content: '您好！我是宠物护理 AI 助手' }])
@@ -89,11 +90,11 @@ function formatDate(dt) {
 
 onMounted(async () => {
   try {
-    const r = await authStore.apiGet('/api/pets')
+    const r = await getPets()
     if (r.code === 200) pets.value = Array.isArray(r.data) ? r.data : []
   } catch (e) {}
   try {
-    const r = await authStore.apiGet('/api/orders')
+    const r = await getOrders()
     if (r.code === 200) orders.value = Array.isArray(r.data) ? r.data : []
   } catch (e) {}
 })
@@ -108,8 +109,8 @@ async function generateReport(type) {
   const label = type === 'care_suggestion' ? '培养建议' : '培养完成报告'
   messages.value.push({ id: Date.now(), role: 'user', content: `为宠物 #${selectedPetId.value} 订单 #${selectedOrderId.value} 生成${label}` })
   try {
-    const endpoint = type === 'care_suggestion' ? '/api/ai/care-suggestion' : '/api/ai/boarding-report'
-    const r = await authStore.apiPost(endpoint, { pet_id_wsh: Number(selectedPetId.value), order_id_wsh: Number(selectedOrderId.value) })
+    const fn = type === 'care_suggestion' ? getCareSuggestion : getBoardingReport
+    const r = await fn({ pet_id_wsh: Number(selectedPetId.value), order_id_wsh: Number(selectedOrderId.value) })
     if (r.code === 200) {
       messages.value.push({ id: Date.now(), role: 'ai', content: r.data.content_wsh || '生成成功', reportType: type })
     } else {
@@ -128,7 +129,7 @@ async function ask() {
   question.value = ''
   loading.value = true
   try {
-    const r = await authStore.apiPost('/api/rag/ask', { question: q })
+    const r = await askRag({ question_wsh: q })
     if (r.code === 200) {
       messages.value.push({ id: Date.now(), role: 'ai', content: r.data.reply_wsh || r.data.answer || '暂无回复' })
     }

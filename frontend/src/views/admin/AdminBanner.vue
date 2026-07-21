@@ -35,20 +35,16 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { getNotices, createNotice, updateNotice, deleteNotice } from '@/api/notice'
+import { uploadFileToDirectory } from '@/api/file'
+import { BannerStatus, enrichWithStatus } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
-
-const authStore = useAuthStore()
 const appStore = useAppStore()
 const banners = ref([])
 
-const bannerStatusMap = { 0: { text: '下架', cls: 'badge-secondary' }, 1: { text: '上架', cls: 'badge-success' } }
-
 function enrichBanner(b) {
-  const s = bannerStatusMap[b.status_wsh]
-  b.status_label_wsh = s ? `<span class="badge ${s.cls}">${s.text}</span>` : b.status_wsh
-  return b
+  return enrichWithStatus(b, 'status_wsh', BannerStatus)
 }
 const showForm = ref(false)
 const editingBanner = ref(null)
@@ -61,7 +57,7 @@ onMounted(loadBanners)
 
 async function loadBanners() {
   try {
-    const r = await authStore.apiGet('/api/notices?type=banner&_t=' + Date.now())
+    const r = await getNotices({ type: 'banner', _t: Date.now() })
     if (r.code === 200) banners.value = r.data.filter(n => n.type_wsh === 'banner').map(enrichBanner)
   } catch (e) {}
 }
@@ -81,7 +77,7 @@ async function onImageSelect(e) {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const r = await authStore.apiPost('/api/files/upload?directory=banners', formData)
+    const r = await uploadFileToDirectory('banners', formData)
     if (r.code === 200 && r.data.url_wsh) {
       form.image_url_wsh = r.data.url_wsh
     } else {
@@ -106,10 +102,10 @@ async function saveBanner() {
   try {
     const payload = { title_wsh: form.title_wsh, content_wsh: '', type_wsh: 'banner', image_url_wsh: form.image_url_wsh, link_url_wsh: form.link_url_wsh, sort_order_wsh: form.sort_order_wsh }
     if (editingBanner.value) {
-      await authStore.apiPost(`/api/notices/${editingBanner.value.id_wsh}`, payload)
+      await updateNotice(editingBanner.value.id_wsh, payload)
       appStore.addToast('更新成功', 'success')
     } else {
-      await authStore.apiPost('/api/notices', payload)
+      await createNotice(payload)
       appStore.addToast('投放成功', 'success')
     }
     showForm.value = false; editingBanner.value = null; loadBanners()
@@ -118,7 +114,7 @@ async function saveBanner() {
 
 async function toggleBanner(banner) {
   try {
-    await authStore.apiPost(`/api/notices/${banner.id_wsh}`, { status_wsh: banner.status_wsh === 1 ? 0 : 1 })
+    await updateNotice(banner.id_wsh, { status_wsh: banner.status_wsh === 1 ? 0 : 1 })
     appStore.addToast(banner.status_wsh === 1 ? '已下架' : '已上架', 'success')
     loadBanners()
   } catch (e) { appStore.addToast('操作失败', 'error') }
@@ -126,7 +122,7 @@ async function toggleBanner(banner) {
 
 async function deleteBanner(id) {
   if (!confirm('确定删除？')) return
-  try { await authStore.apiDelete(`/api/notices/${id}`); appStore.addToast('删除成功', 'success'); loadBanners() }
+  try { await deleteNotice(id); appStore.addToast('删除成功', 'success'); loadBanners() }
   catch (e) { appStore.addToast('删除失败', 'error') }
 }
 </script>

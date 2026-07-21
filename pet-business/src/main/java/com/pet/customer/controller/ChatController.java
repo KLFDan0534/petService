@@ -1,121 +1,175 @@
 package com.pet.customer.controller;
 
-import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
+import com.pet.customer.dto.ChatMarkConversationReadRequestDTO;
+import com.pet.customer.dto.ChatMessageDTO;
+import com.pet.customer.dto.ChatSendRequestDTO;
 import com.pet.customer.entity.ChatMessage;
+import com.pet.customer.service.ChatEventBroadcaster;
 import com.pet.customer.service.ChatService;
+import com.pet.fulfillment.dto.SendOrderMessageRequestDTO;
+import com.pet.fulfillment.service.OrderFulfillmentService;
 import com.pet.security.JwtAuthenticationToken;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/chat")
-@Tag(name = "聊天管理", description = "用户聊天/消息管理")
+@Tag(name = "【用户端】聊天管理", description = "用户聊天和订单消息管理（用户/商家/看护者使用）")
 @Slf4j
 public class ChatController {
-
     private final ChatService chatService;
+    private final OrderFulfillmentService fulfillmentService;
+    private final ChatEventBroadcaster chatEventBroadcaster;
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService,
+                          OrderFulfillmentService fulfillmentService,
+                          ChatEventBroadcaster chatEventBroadcaster) {
         this.chatService = chatService;
+        this.fulfillmentService = fulfillmentService;
+        this.chatEventBroadcaster = chatEventBroadcaster;
     }
 
-    /**
-     * 获取与另一用户在某个订单中的会话消息
-     * @param token 当前用户认证信息
-     * @param otherUserId 对方用户ID
-     * @param orderId 订单ID
-     * @return 会话消息列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/conversation")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取会话消息", description = "获取与另一用户在某个订单中的会话消息")
-    public Result<List<ChatMessage>> getConversation(
+    @Operation(summary = "获取会话消息", description = "获取用户之间的聊天会话消息")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<ChatMessageDTO>> getConversation(
             @AuthenticationPrincipal JwtAuthenticationToken token,
             @RequestParam Long otherUserId,
-            @RequestParam Long orderId) {
-        log.info("调用 getConversation()");
-        return Result.success(chatService.getConversation(token.getUserId(), otherUserId, orderId));
+            @RequestParam(required = false) Long orderId,
+            @RequestParam(required = false) Long beforeId,
+            @RequestParam(required = false) Integer size) {
+        if (orderId != null) {
+            return Result.success(fulfillmentService.listConversation(
+                    token.getUserId(), isAdmin(token), orderId, otherUserId, beforeId, size));
+        }
+        return Result.success(chatService.getConversation(token.getUserId(), otherUserId, null, beforeId, size));
     }
 
-    /**
-     * 获取当前用户的未读消息列表
-     * @param token 当前用户认证信息
-     * @return 未读消息列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @GetMapping("/unread")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取未读消息", description = "获取当前用户的未读消息列表")
-    public Result<List<ChatMessage>> getUnread(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("调用 getUnread()");
+    @Operation(summary = "获取未读消息", description = "获取用户未读的聊天消息")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<ChatMessageDTO>> getUnread(@AuthenticationPrincipal JwtAuthenticationToken token) {
         return Result.success(chatService.getUnreadMessages(token.getUserId()));
     }
 
-    /**
-     * 发送聊天消息
-     * @param token 当前用户认证信息
-     * @param message 消息信息
-     * @return 发送的消息
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
-    @PostMapping("/send")
+    @GetMapping("/unread-count")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "发送消息", description = "向另一用户发送聊天消息")
-    public Result<ChatMessage> send(@AuthenticationPrincipal JwtAuthenticationToken token,
-            @Valid @RequestBody ChatMessage message) {
-        log.info("调用 send()");
-        message.setFrom_user_id_wsh(token.getUserId());
-        return Result.success(chatService.sendMessage(message));
+    @Operation(summary = "获取未读消息数量", description = "获取用户未读的聊天消息数量")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Long> getUnreadCount(@AuthenticationPrincipal JwtAuthenticationToken token) {
+        return Result.success(chatService.countUnreadMessages(token.getUserId()));
     }
 
-    /**
-     * 标记单条消息为已读
-     * @param token 当前用户认证信息
-     * @param messageId 消息ID
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+    @PostMapping("/send")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "发送聊天消息", description = "发送一条聊天消息")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ChatMessageDTO> send(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                       @Valid @RequestBody ChatSendRequestDTO request) {
+        if (request.getOrder_id_wsh() != null) {
+            SendOrderMessageRequestDTO orderRequest = new SendOrderMessageRequestDTO();
+            orderRequest.setTo_user_id_wsh(request.getTo_user_id_wsh());
+            orderRequest.setContent_wsh(request.getContent_wsh());
+            orderRequest.setType_wsh(request.getType_wsh());
+            orderRequest.setFile_url_wsh(request.getFile_url_wsh());
+            return Result.success(fulfillmentService.sendMessage(
+                    token.getUserId(), isAdmin(token), request.getOrder_id_wsh(), orderRequest));
+        }
+
+        ChatMessage message = new ChatMessage();
+        message.setFrom_user_id_wsh(token.getUserId());
+        message.setTo_user_id_wsh(request.getTo_user_id_wsh());
+        message.setContent_wsh(request.getContent_wsh());
+        message.setType_wsh(request.getType_wsh());
+        message.setFile_url_wsh(request.getFile_url_wsh());
+        ChatMessageDTO saved = chatService.sendMessage(message);
+        chatEventBroadcaster.broadcastMessage(saved);
+        return Result.success(saved);
+    }
+
     @PostMapping("/read/{messageId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "标记消息已读", description = "标记单条消息为已读")
+    @Operation(summary = "标记消息已读", description = "标记单条聊天消息为已读")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "404", description = "消息不存在"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
     public Result<Void> markAsRead(@AuthenticationPrincipal JwtAuthenticationToken token,
-            @PathVariable Long messageId) {
-        log.info("调用 markAsRead()");
+                                   @Parameter(description = "消息ID") @PathVariable Long messageId) {
         chatService.markAsRead(messageId, token.getUserId());
         return Result.success();
     }
 
-    /**
-     * 标记整个会话为已读
-     * @param token 当前用户认证信息
-     * @param body 请求体，包含other_user_id_wsh和可选的order_id_wsh
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
     @PostMapping("/read-conversation")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "标记会话已读", description = "标记整个会话的所有消息为已读")
+    @Operation(summary = "标记会话已读", description = "标记整个会话为已读")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
     public Result<Void> markConversationAsRead(@AuthenticationPrincipal JwtAuthenticationToken token,
-            @RequestBody Map<String, Object> body) {
-        log.info("调用 markConversationAsRead()");
-        Long otherUserId = Long.valueOf(body.get("other_user_id_wsh").toString());
-        Long orderId = body.get("order_id_wsh") != null ? Long.valueOf(body.get("order_id_wsh").toString()) : null;
-        chatService.markConversationAsRead(token.getUserId(), otherUserId, orderId);
+                                               @Valid @RequestBody ChatMarkConversationReadRequestDTO request) {
+        if (request.getOrder_id_wsh() != null) {
+            fulfillmentService.markConversationAsRead(
+                    token.getUserId(), isAdmin(token), request.getOrder_id_wsh(), request.getOther_user_id_wsh());
+        } else {
+            chatService.markConversationAsRead(
+                    token.getUserId(), request.getOther_user_id_wsh(), null);
+        }
         return Result.success();
+    }
+
+    private boolean isAdmin(JwtAuthenticationToken token) {
+        return token.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
     }
 }

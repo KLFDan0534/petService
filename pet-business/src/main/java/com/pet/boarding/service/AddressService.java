@@ -1,5 +1,8 @@
 package com.pet.boarding.service;
 
+import com.pet.boarding.dto.AddressCreateRequestDTO;
+import com.pet.boarding.dto.AddressDTO;
+import com.pet.boarding.dto.AddressUpdateRequestDTO;
 import com.pet.boarding.entity.Address;
 
 import java.util.List;
@@ -29,22 +32,22 @@ public interface AddressService {
     /**
      * 创建地址
      * @param userId 用户ID
-     * @param addr 地址实体
+     * @param dto 地址创建请求DTO
      * @return 创建后的地址
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Address create(Long userId, Address addr);
+    Address create(Long userId, AddressCreateRequestDTO dto);
     /**
      * 更新地址
      * @param userId 用户ID
      * @param id 地址ID
-     * @param addr 地址实体
+     * @param dto 地址更新请求DTO
      * @return 更新后的地址
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    Address update(Long userId, Long id, Address addr);
+    Address update(Long userId, Long id, AddressUpdateRequestDTO dto);
     /**
      * 删除地址
      * @param userId 用户ID
@@ -61,5 +64,7 @@ public interface AddressService {
      * @date: 2026/6/24 11:05
      **/
     void setDefault(Long userId, Long id);
+
+    AddressDTO toDTO(Address entity);
 }
 

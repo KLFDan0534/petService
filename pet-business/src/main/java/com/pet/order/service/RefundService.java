@@ -1,5 +1,6 @@
 package com.pet.order.service;
 
+import com.pet.order.dto.RefundDTO;
 import com.pet.order.entity.Refund;
 import java.util.List;
 
@@ -60,5 +61,7 @@ public interface RefundService {
      * @date: 2026/6/24 11:05
      **/
     void rejectRefund(Long refundId);
+
+    RefundDTO toDTO(Refund entity);
 }
 

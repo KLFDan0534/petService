@@ -12,7 +12,7 @@
           <button v-if="!a.is_default_wsh" class="btn btn-sm btn-primary" @click="setDefault(a.id_wsh)">设为默认</button>
           <span v-else class="badge badge-success" style="padding:4px 8px">默认地址</span>
           <button class="btn btn-sm btn-outline" @click="openEdit(a)">编辑</button>
-          <button class="btn btn-sm btn-danger" @click="deleteAddress(a.id_wsh)">删除</button>
+          <button class="btn btn-sm btn-danger" @click="removeAddress(a.id_wsh)">删除</button>
         </div>
       </div>
     </div>
@@ -26,10 +26,14 @@
             <div class="form-group"><label>联系人</label><input v-model="form.name_wsh" required></div>
             <div class="form-group"><label>电话</label><input v-model="form.phone_wsh" required></div>
           </div>
-          <div class="form-row">
-            <div class="form-group"><label>省份</label><input v-model="form.province" required></div>
-            <div class="form-group"><label>城市</label><input v-model="form.city" required></div>
-            <div class="form-group"><label>区县</label><input v-model="form.district" required></div>
+          <div class="form-group">
+            <label>地址</label>
+            <AmapAddressPicker
+              v-model="form.address_wsh"
+              v-model:latitude="form.latitude_wsh"
+              v-model:longitude="form.longitude_wsh"
+              placeholder="搜索地址或点击定位"
+            />
           </div>
           <div class="form-group"><label>详细地址</label><input v-model="form.detail_wsh" required></div>
           <div class="modal-actions">
@@ -44,20 +48,20 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import PageHero from '@/components/common/PageHero.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import AmapAddressPicker from '@/components/common/AmapAddressPicker.vue'
+import { getAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress } from '@/api/address'
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 const addresses = ref([])
 const loading = ref(true)
 const showForm = ref(false)
 const editingId = ref(null)
-const form = reactive({ name_wsh: '', phone_wsh: '', province: '', city: '', district: '', detail_wsh: '' })
+const form = reactive({ name_wsh: '', phone_wsh: '', address_wsh: '', detail_wsh: '', latitude_wsh: null, longitude_wsh: null })
 
-function resetForm() { form.name_wsh = ''; form.phone_wsh = ''; form.province = ''; form.city = ''; form.district = ''; form.detail_wsh = ''; editingId.value = null }
+function resetForm() { form.name_wsh = ''; form.phone_wsh = ''; form.address_wsh = ''; form.detail_wsh = ''; form.latitude_wsh = null; form.longitude_wsh = null; editingId.value = null }
 
 function openAdd() { resetForm(); showForm.value = true }
 
@@ -65,32 +69,38 @@ function openEdit(a) {
   editingId.value = a.id_wsh
   form.name_wsh = a.name_wsh || ''
   form.phone_wsh = a.phone_wsh || ''
-  form.province = ''
-  form.city = ''
-  form.district = ''
+  form.address_wsh = a.address_wsh || ''
   form.detail_wsh = a.detail_wsh || ''
+  form.latitude_wsh = a.latitude_wsh ?? null
+  form.longitude_wsh = a.longitude_wsh ?? null
   showForm.value = true
 }
 
 onMounted(async () => {
-  try { const r = await authStore.apiGet('/api/addresses'); if (r.code === 200) addresses.value = r.data }
+  try { const r = await getAddresses(); if (r.code === 200) addresses.value = r.data }
   catch (e) {}
   finally { loading.value = false }
 })
 
 async function saveAddress() {
   try {
+    if (!form.address_wsh || form.latitude_wsh == null || form.longitude_wsh == null) {
+      appStore.addToast('请选择或定位地址', 'warning')
+      return
+    }
     const payload = {
       name_wsh: form.name_wsh,
       phone_wsh: form.phone_wsh,
-      address_wsh: [form.province, form.city, form.district].filter(Boolean).join(''),
+      address_wsh: form.address_wsh,
       detail_wsh: form.detail_wsh,
+      latitude_wsh: form.latitude_wsh,
+      longitude_wsh: form.longitude_wsh,
     }
     let r
     if (editingId.value) {
-      r = await authStore.apiPut(`/api/addresses/${editingId.value}`, payload)
+      r = await updateAddress(editingId.value, payload)
     } else {
-      r = await authStore.apiPost('/api/addresses', payload)
+      r = await createAddress(payload)
     }
     if (r.code === 200) {
       appStore.addToast(editingId.value ? '更新成功' : '添加成功', 'success')
@@ -105,10 +115,10 @@ async function saveAddress() {
   } catch (e) { appStore.addToast('保存失败', 'error') }
 }
 
-async function deleteAddress(id) {
+async function removeAddress(id) {
   if (!confirm('确定删除该地址？')) return
   try {
-    const r = await authStore.apiDelete(`/api/addresses/${id}`)
+    const r = await deleteAddress(id)
     if (r.code === 200) {
       appStore.addToast('删除成功', 'success')
       addresses.value = addresses.value.filter(a => a.id_wsh !== id)
@@ -118,7 +128,7 @@ async function deleteAddress(id) {
 
 async function setDefault(id) {
   try {
-    const r = await authStore.apiPost(`/api/addresses/${id}/default`, {})
+    const r = await setDefaultAddress(id)
     if (r.code === 200) {
       appStore.addToast('已设为默认', 'success')
       addresses.value.forEach(a => { a.is_default_wsh = a.id_wsh === id })

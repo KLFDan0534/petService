@@ -1,17 +1,19 @@
 import { defineStore } from 'pinia'
-import { ref, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { useAuthStore } from './auth'
+import { getUnreadCount, getNotifications, markAsRead as apiMarkRead, markAllAsRead as apiMarkAllAsRead } from '@/api/notification'
+import socketManager from '@/utils/SocketManager'
 
 export const useNotificationStore = defineStore('notification', () => {
   const unreadCount = ref(0)
   const notifications = ref([])
-  let pollingInterval = null
+  let cleanup = null
 
   async function fetchUnreadCount() {
     const authStore = useAuthStore()
     if (!authStore.isLoggedIn) return
     try {
-      const r = await authStore.apiGet('/api/notifications/unread-count')
+      const r = await getUnreadCount()
       if (r.code === 200) unreadCount.value = r.data.count
     } catch (e) {}
   }
@@ -20,7 +22,7 @@ export const useNotificationStore = defineStore('notification', () => {
     const authStore = useAuthStore()
     if (!authStore.isLoggedIn) return
     try {
-      const r = await authStore.apiGet('/api/notifications')
+      const r = await getNotifications()
       if (r.code === 200) notifications.value = r.data
     } catch (e) {}
   }
@@ -28,7 +30,7 @@ export const useNotificationStore = defineStore('notification', () => {
   async function markAsRead(id) {
     const authStore = useAuthStore()
     try {
-      const r = await authStore.apiPost(`/api/notifications/${id}/read`, {})
+      const r = await apiMarkRead(id)
       if (r.code === 200) {
         const notif = notifications.value.find(n => n.id_wsh === id)
         if (notif) notif.is_read_wsh = 1
@@ -40,7 +42,7 @@ export const useNotificationStore = defineStore('notification', () => {
   async function markAllAsRead() {
     const authStore = useAuthStore()
     try {
-      const r = await authStore.apiPost('/api/notifications/read-all', {})
+      const r = await apiMarkAllAsRead()
       if (r.code === 200) {
         notifications.value.forEach(n => { n.is_read_wsh = 1 })
         unreadCount.value = 0
@@ -48,16 +50,29 @@ export const useNotificationStore = defineStore('notification', () => {
     } catch (e) {}
   }
 
-  function startPolling(intervalMs = 30000) {
+  function startPolling(intervalMs = 60000) {
     stopPolling()
     fetchUnreadCount()
-    pollingInterval = setInterval(fetchUnreadCount, intervalMs)
+    const authStore = useAuthStore()
+    if (authStore.token) {
+      socketManager.connectSSE('/api/notification-events/stream', authStore.token)
+    }
+    const timer = setInterval(fetchUnreadCount, intervalMs)
+    const unsub = socketManager.on('notification', () => {
+      fetchUnreadCount()
+      fetchNotifications()
+    })
+    cleanup = () => {
+      clearInterval(timer)
+      unsub()
+      socketManager.disconnect()
+    }
   }
 
   function stopPolling() {
-    if (pollingInterval) {
-      clearInterval(pollingInterval)
-      pollingInterval = null
+    if (cleanup) {
+      cleanup()
+      cleanup = null
     }
   }
 

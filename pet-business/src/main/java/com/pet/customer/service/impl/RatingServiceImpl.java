@@ -6,14 +6,21 @@ import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.mapper.OrderMapper;
+import com.pet.customer.dto.RatingCreateRequestDTO;
+import com.pet.customer.dto.RatingDTO;
 import com.pet.customer.entity.Rating;
 import com.pet.customer.mapper.RatingMapper;
 import com.pet.customer.service.RatingService;
+import com.pet.boarding.entity.Merchant;
+import com.pet.boarding.entity.Keeper;
+import com.pet.boarding.mapper.MerchantMapper;
+import com.pet.boarding.mapper.KeeperMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -21,24 +28,38 @@ public class RatingServiceImpl implements RatingService {
 
     private final RatingMapper ratingMapper;
     private final OrderMapper orderMapper;
+    private final MerchantMapper merchantMapper;
+    private final KeeperMapper keeperMapper;
 
-    public RatingServiceImpl(RatingMapper ratingMapper, OrderMapper orderMapper) {
+    public RatingServiceImpl(RatingMapper ratingMapper,
+                             OrderMapper orderMapper,
+                             MerchantMapper merchantMapper,
+                             KeeperMapper keeperMapper) {
         this.ratingMapper = ratingMapper;
         this.orderMapper = orderMapper;
+        this.merchantMapper = merchantMapper;
+        this.keeperMapper = keeperMapper;
     }
 
-    public List<Rating> getRatingsByTarget(Long targetId, String targetType) {
+    public List<RatingDTO> getRatingsByTarget(Long targetId, String targetType) {
         log.info("调用 getRatingsByTarget()");
-        return ratingMapper.selectList(
+        return toDTOList(ratingMapper.selectList(
                 new LambdaQueryWrapper<Rating>()
                         .eq(Rating::getTarget_id_wsh, targetId)
                         .eq(Rating::getTarget_type_wsh, targetType)
-                        .orderByDesc(Rating::getCreated_at_wsh));
+                        .orderByDesc(Rating::getCreated_at_wsh)));
     }
 
     @Transactional
-    public Rating createRating(Long userId, Rating rating) {
+    public RatingDTO createRating(Long userId, RatingCreateRequestDTO request) {
         log.info("调用 createRating()");
+        Rating rating = new Rating();
+        rating.setOrder_id_wsh(request.getOrder_id_wsh());
+        rating.setTarget_id_wsh(request.getTarget_id_wsh());
+        rating.setTarget_type_wsh(request.getTarget_type_wsh());
+        rating.setScore_wsh(request.getScore_wsh());
+        rating.setContent_wsh(request.getContent_wsh());
+        rating.setImages_wsh(request.getImages_wsh());
         if (rating.getTarget_id_wsh() == null || rating.getTarget_type_wsh() == null || rating.getTarget_type_wsh().isBlank()) {
             throw new BusinessException("评价目标不能为空");
         }
@@ -67,7 +88,7 @@ public class RatingServiceImpl implements RatingService {
             rating.setOrder_id_wsh(order.getId_wsh());
             rating.setUser_id_wsh(userId);
             ratingMapper.insert(rating);
-            return rating;
+            return toDTO(rating);
         }
 
         PetOrder order = orderMapper.selectById(rating.getOrder_id_wsh());
@@ -86,19 +107,54 @@ public class RatingServiceImpl implements RatingService {
         }
         rating.setUser_id_wsh(userId);
         ratingMapper.insert(rating);
-        return rating;
+        return toDTO(rating);
     }
 
     @Transactional
-    public Rating replyRating(Long id, String reply, Long merchantId) {
+    public RatingDTO replyRating(Long id, String reply, Long userId) {
         log.info("调用 replyRating()");
         Rating rating = ratingMapper.selectById(id);
         if (rating == null) {
             throw new BusinessException("评价记录不存在");
         }
+        if ("merchant".equals(rating.getTarget_type_wsh())) {
+            Merchant merchant = merchantMapper.selectOne(
+                    new LambdaQueryWrapper<Merchant>().eq(Merchant::getUser_id_wsh, userId));
+            if (merchant == null || !merchant.getId_wsh().equals(rating.getTarget_id_wsh())) {
+                throw new BusinessException(403, "无权回复该评价");
+            }
+        } else if ("keeper".equals(rating.getTarget_type_wsh())) {
+            Keeper keeper = keeperMapper.selectOne(
+                    new LambdaQueryWrapper<Keeper>().eq(Keeper::getUser_id_wsh, userId));
+            if (keeper == null || !keeper.getId_wsh().equals(rating.getTarget_id_wsh())) {
+                throw new BusinessException(403, "无权回复该评价");
+            }
+        }
         rating.setReply_wsh(reply);
         rating.setReply_at_wsh(LocalDateTime.now());
         ratingMapper.updateById(rating);
-        return rating;
+        return toDTO(rating);
+    }
+
+    private RatingDTO toDTO(Rating rating) {
+        if (rating == null) return null;
+        RatingDTO dto = new RatingDTO();
+        dto.setId_wsh(rating.getId_wsh());
+        dto.setOrder_id_wsh(rating.getOrder_id_wsh());
+        dto.setUser_id_wsh(rating.getUser_id_wsh());
+        dto.setTarget_id_wsh(rating.getTarget_id_wsh());
+        dto.setTarget_type_wsh(rating.getTarget_type_wsh());
+        dto.setScore_wsh(rating.getScore_wsh());
+        dto.setContent_wsh(rating.getContent_wsh());
+        dto.setImages_wsh(rating.getImages_wsh());
+        dto.setReply_wsh(rating.getReply_wsh());
+        dto.setReply_at_wsh(rating.getReply_at_wsh());
+        dto.setCreated_at_wsh(rating.getCreated_at_wsh());
+        return dto;
+    }
+
+    private List<RatingDTO> toDTOList(List<Rating> list) {
+        if (list == null) return List.of();
+        return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 }

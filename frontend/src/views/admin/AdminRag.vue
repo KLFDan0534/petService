@@ -62,12 +62,12 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import DataTable from '@/components/common/DataTable.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { getRagDocuments, searchRag, createRagDocument, uploadRagDocument, deleteRagDocument } from '@/api/ai'
 
-const authStore = useAuthStore()
+
 const appStore = useAppStore()
 const documents = ref([])
 const loading = ref(true)
@@ -94,10 +94,10 @@ async function loadDocuments() {
   loading.value = true
   try {
     if (query.value.trim()) {
-      const r = await authStore.apiGet('/api/rag/search', { query: query.value, category: '' })
+      const r = await searchRag({ query: query.value, category: '' })
       if (r.code === 200) documents.value = r.data
     } else {
-      const r = await authStore.apiGet('/api/rag/documents')
+      const r = await getRagDocuments()
       if (r.code === 200) documents.value = r.data
     }
   } catch (e) {}
@@ -125,14 +125,14 @@ async function handleSubmit() {
       fd.append('file', selectedFile.value)
       if (form.title_wsh) fd.append('title', form.title_wsh)
       if (form.category_wsh) fd.append('category', form.category_wsh)
-      const r = await authStore.apiPost('/api/rag/documents/upload', fd)
+      const r = await uploadRagDocument(fd)
       if (r.code === 200) {
         appStore.addToast('创建成功', 'success')
         showForm.value = false
         loadDocuments()
       }
     } else {
-      const r = await authStore.apiPost('/api/rag/documents', { ...form })
+      const r = await createRagDocument({ ...form })
       if (r.code === 200) {
         appStore.addToast('创建成功', 'success')
         showForm.value = false
@@ -146,7 +146,7 @@ async function handleSubmit() {
 async function handleDelete(id) {
   if (!confirm('确认删除此文档？')) return
   try {
-    const r = await authStore.apiDelete(`/api/rag/documents/${id}`)
+    const r = await deleteRagDocument(id)
     if (r.code === 200) {
       appStore.addToast('删除成功', 'success')
       loadDocuments()

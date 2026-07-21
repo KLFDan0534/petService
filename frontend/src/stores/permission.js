@@ -27,7 +27,7 @@ const ROLE_PERMISSIONS = {
   ],
   MERCHANT: [
     'pet:create', 'pet:read', 'pet:update', 'pet:delete',
-    'order:read', 'order:update', 'order:accept', 'order:reject',
+    'order:read', 'order:update', 'order:reject',
     'order:complete', 'order:start',
     'merchant:read', 'merchant:update',
     'service:create', 'service:read', 'service:update', 'service:delete',
@@ -37,9 +37,18 @@ const ROLE_PERMISSIONS = {
   CUSTOMER_SERVICE: [
     'ticket:read', 'ticket:assign', 'ticket:resolve', 'ticket:close',
     'complaint:read', 'complaint:resolve', 'complaint:reject',
-    'review:read', 'review:approve', 'review:reject',
   ],
-  USER: [
+  KEEPER: [
+    'order:read', 'order:update', 'order:accept', 'order:reject',
+    'order:start', 'order:complete',
+    'pet:read',
+    'care:create', 'care:read',
+    'chat:send',
+    'report:read', 'report:create',
+    'file:upload',
+    'keeper:update',
+  ],
+  OWNER: [
     'pet:create', 'pet:read', 'pet:update', 'pet:delete',
     'order:create', 'order:read', 'order:cancel',
     'address:create', 'address:read', 'address:update', 'address:delete',
@@ -60,8 +69,7 @@ export const usePermissionStore = defineStore('permission', () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || 'null')
       if (!user) return []
-      const roleMap = { 'OWNER': 'USER', 'KEEPER': 'USER' }
-      return (user.roles_wsh || []).map(r => roleMap[r.replace('ROLE_', '')] || r.replace('ROLE_', ''))
+      return (user.roles_wsh || []).map(r => r.replace('ROLE_', ''))
     } catch {
       return []
     }
@@ -85,8 +93,7 @@ export const usePermissionStore = defineStore('permission', () => {
 
   function hasRole(role) {
     const cleanRole = role.replace('ROLE_', '')
-    const roleMap = { 'OWNER': 'USER', 'KEEPER': 'USER' }
-    return userRoles.value.some(r => (roleMap[r] || r) === cleanRole)
+    return userRoles.value.includes(cleanRole)
   }
 
   function addCustomPermissions(perms) {

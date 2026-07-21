@@ -40,19 +40,37 @@ public class OrderFulfillmentSchemaMigrator implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         addColumnIfMissing("delivery_address_wsh", "VARCHAR(500)");
+        addColumnIfMissing("delivery_latitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("delivery_longitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("delivery_location_source_wsh", "VARCHAR(50)");
         addColumnIfMissing("delivery_time_wsh", "DATETIME");
         addColumnIfMissing("receiver_available_start_wsh", "DATETIME");
         addColumnIfMissing("receiver_available_end_wsh", "DATETIME");
+        addColumnIfMissing("emergency_contact_name_wsh", "VARCHAR(50)");
+        addColumnIfMissing("emergency_contact_phone_wsh", "VARCHAR(20)");
         addColumnIfMissing("pickup_address_wsh", "VARCHAR(500)");
+        addColumnIfMissing("pickup_latitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("pickup_longitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("pickup_location_source_wsh", "VARCHAR(50)");
         addColumnIfMissing("pickup_time_wsh", "DATETIME");
         addColumnIfMissing("handover_code_wsh", "VARCHAR(4)");
         addColumnIfMissing("delivered_at_wsh", "DATETIME");
+        addColumnIfMissing("delivered_address_wsh", "VARCHAR(500)");
+        addColumnIfMissing("delivered_latitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("delivered_longitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("delivered_accuracy_wsh", "DECIMAL(10, 2)");
         addColumnIfMissing("received_at_wsh", "DATETIME");
+        addColumnIfMissing("received_address_wsh", "VARCHAR(500)");
+        addColumnIfMissing("received_latitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("received_longitude_wsh", "DECIMAL(10, 7)");
+        addColumnIfMissing("received_accuracy_wsh", "DECIMAL(10, 2)");
+        addColumnIfMissing("received_distance_m_wsh", "DECIMAL(10, 1)");
         addColumnIfMissing("started_at_wsh", "DATETIME");
         addColumnIfMissing("start_photo_wsh", "VARCHAR(1000)");
         addColumnIfMissing("completed_at_wsh", "DATETIME");
         addColumnIfMissing("final_report_generated_wsh", "TINYINT DEFAULT 0");
         addColumnIfMissing("tip_wsh", "deleted_wsh", "TINYINT DEFAULT 0");
+        addColumnIfMissing("refund_wsh", "order_status_before_refund_wsh", "VARCHAR(30)");
         backfillMissingHandoverCodes();
     }
 

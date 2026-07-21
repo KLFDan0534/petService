@@ -1,1 +1,0 @@
-import{c as t,d as s,e as o,t as a,f as r}from"./index-Cp9aJKLp.js";const c={class:"page-hero"},i={key:0},m={__name:"PageHero",props:{title:String,subtitle:String},setup(e){return(n,l)=>(t(),s("div",c,[o("h3",null,a(e.title),1),e.subtitle?(t(),s("p",i,a(e.subtitle),1)):r("",!0)]))}};export{m as _};

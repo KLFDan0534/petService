@@ -29,7 +29,7 @@ public interface MerchantMapper extends BaseMapper<Merchant> {
             "id_wsh, user_id_wsh, name_wsh, phone_wsh, " +
             "address_wsh, latitude_wsh, longitude_wsh, " +
             "description_wsh, business_license_wsh, " +
-            "rating_wsh, status_wsh, deleted_wsh, " +
+            "rating_wsh, status_wsh, store_mode_wsh, store_status_wsh, deleted_wsh, " +
             "created_at_wsh, updated_at_wsh, " +
             "(6371 * acos(cos(radians(#{lat})) * cos(radians(latitude_wsh)) * " +
             "cos(radians(longitude_wsh) - radians(#{lng})) + sin(radians(#{lat})) * sin(radians(latitude_wsh)))) AS distance_wsh " +

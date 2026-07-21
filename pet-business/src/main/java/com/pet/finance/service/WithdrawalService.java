@@ -1,7 +1,8 @@
 package com.pet.finance.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.pet.common.PageParam;
+import com.pet.common.PageRequestDTO;
+import com.pet.finance.dto.WithdrawalDTO;
 import com.pet.finance.entity.Withdrawal;
 import java.math.BigDecimal;
 import java.util.List;
@@ -29,7 +30,7 @@ public interface WithdrawalService {
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
-    IPage<Withdrawal> listPage(PageParam pageParam);
+    IPage<Withdrawal> listPage(PageRequestDTO pageParam);
     /**
      * 申请提现
      * @param userId 用户ID
@@ -68,5 +69,7 @@ public interface WithdrawalService {
      * @date: 2026/6/24 11:05
      **/
     Withdrawal complete(Long id);
+
+    WithdrawalDTO toDTO(Withdrawal entity);
 }
 

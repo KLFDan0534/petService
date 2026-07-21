@@ -2,14 +2,23 @@ package com.pet.boarding.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
-import com.pet.boarding.entity.BusinessHours;
+import com.pet.boarding.dto.BusinessHoursUpsertRequestDTO;
+import com.pet.boarding.dto.BusinessHoursDTO;
 import com.pet.boarding.service.BusinessHoursService;
+import com.pet.boarding.service.MerchantService;
+import com.pet.security.JwtAuthenticationToken;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
@@ -20,14 +29,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  */
 @RestController
 @RequestMapping("/api/merchants/{merchantId}/hours")
-@Tag(name = "营业时间管理", description = "商家营业时间的增删改查管理")
+@Tag(name = "【用户端】营业时间管理", description = "商家营业时间查询和设置管理")
 @Slf4j
 public class BusinessHoursController {
 
     private final BusinessHoursService businessHoursService;
+    private final MerchantService merchantService;
 
-    public BusinessHoursController(BusinessHoursService businessHoursService) {
+    public BusinessHoursController(BusinessHoursService businessHoursService, MerchantService merchantService) {
         this.businessHoursService = businessHoursService;
+        this.merchantService = merchantService;
     }
 
     /**
@@ -39,9 +50,15 @@ public class BusinessHoursController {
      **/
     @GetMapping
     @Operation(summary = "获取营业时间", description = "获取商家的营业时间列表")
-    public Result<List<BusinessHours>> list(@PathVariable Long merchantId) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<BusinessHoursDTO>> list(@Parameter(description = "商家ID") @PathVariable Long merchantId) {
         log.info("list() called");
-        return Result.success(businessHoursService.getByMerchantId(merchantId));
+        return Result.success(businessHoursService.getByMerchantId(merchantId).stream().map(businessHoursService::toDTO).collect(Collectors.toList()));
     }
 
     /**
@@ -55,10 +72,20 @@ public class BusinessHoursController {
     @PostMapping
     @PreAuthorize("hasAnyRole('MERCHANT','ADMIN')")
     @Operation(summary = "设置营业时间", description = "设置或更新某天的营业时间")
-    public Result<BusinessHours> upsert(@PathVariable Long merchantId, @RequestBody BusinessHours hours) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<BusinessHoursDTO> upsert(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                           @Parameter(description = "商家ID") @PathVariable Long merchantId,
+                                           @RequestBody BusinessHoursUpsertRequestDTO dto) {
         log.info("upsert() called");
-        hours.setMerchant_id_wsh(merchantId);
-        return Result.success(businessHoursService.upsert(hours));
+        if (!isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
+            return Result.error(403, "无权修改此商家的营业时间");
+        }
+        return Result.success(businessHoursService.toDTO(businessHoursService.upsert(merchantId, dto)));
     }
 
     /**
@@ -72,9 +99,30 @@ public class BusinessHoursController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('MERCHANT','ADMIN')")
     @Operation(summary = "删除营业时间", description = "删除某一天的营业时间记录")
-    public Result<Void> delete(@PathVariable Long merchantId, @PathVariable Long id) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> delete(@AuthenticationPrincipal JwtAuthenticationToken token,
+                               @Parameter(description = "商家ID") @PathVariable Long merchantId,
+                               @Parameter(description = "营业时间记录ID") @PathVariable Long id) {
         log.info("delete() called");
-        businessHoursService.delete(id);
+        if (!isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
+            return Result.error(403, "无权修改此商家的营业时间");
+        }
+        businessHoursService.delete(merchantId, id);
         return Result.success();
+    }
+
+    private boolean isAdmin(JwtAuthenticationToken token) {
+        if (token == null) return false;
+        for (GrantedAuthority authority : token.getAuthorities()) {
+            if ("ROLE_ADMIN".equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

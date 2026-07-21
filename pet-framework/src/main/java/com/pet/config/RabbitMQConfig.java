@@ -17,10 +17,16 @@ public class RabbitMQConfig {
     public static final String EXCHANGE_DIRECT = "pet.direct";
     public static final String QUEUE_ORDER_CREATE = "order.create";
     public static final String QUEUE_ORDER_CANCEL = "order.cancel";
+    public static final String QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY = "order.payment.timeout.delay";
+    public static final String QUEUE_ORDER_PAYMENT_TIMEOUT = "order.payment.timeout";
+    public static final String QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY = "order.accept.timeout.delay";
+    public static final String QUEUE_ORDER_ACCEPT_TIMEOUT = "order.accept.timeout";
     public static final String QUEUE_ORDER_REFUND = "order.refund";
     public static final String QUEUE_MESSAGE_SEND = "message.send";
     public static final String QUEUE_AI_REPORT = "ai.report";
     public static final String QUEUE_COMPLAINT_PROCESS = "complaint.process";
+    public static final int ORDER_PAYMENT_TIMEOUT_TTL_MS = 15 * 60 * 1000;
+    public static final int ORDER_ACCEPT_TIMEOUT_TTL_MS = 30 * 60 * 1000;
 
     /**
      * Creates the pet.direct direct exchange.
@@ -50,6 +56,30 @@ public class RabbitMQConfig {
      */
     @Bean
     public Queue orderCancelQueue() { return new Queue(QUEUE_ORDER_CANCEL, true); }
+
+    @Bean
+    public Queue orderPaymentTimeoutDelayQueue() {
+        return QueueBuilder.durable(QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY)
+                .ttl(ORDER_PAYMENT_TIMEOUT_TTL_MS)
+                .deadLetterExchange(EXCHANGE_DIRECT)
+                .deadLetterRoutingKey(QUEUE_ORDER_PAYMENT_TIMEOUT)
+                .build();
+    }
+
+    @Bean
+    public Queue orderPaymentTimeoutQueue() { return new Queue(QUEUE_ORDER_PAYMENT_TIMEOUT, true); }
+
+    @Bean
+    public Queue orderAcceptTimeoutDelayQueue() {
+        return QueueBuilder.durable(QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY)
+                .ttl(ORDER_ACCEPT_TIMEOUT_TTL_MS)
+                .deadLetterExchange(EXCHANGE_DIRECT)
+                .deadLetterRoutingKey(QUEUE_ORDER_ACCEPT_TIMEOUT)
+                .build();
+    }
+
+    @Bean
+    public Queue orderAcceptTimeoutQueue() { return new Queue(QUEUE_ORDER_ACCEPT_TIMEOUT, true); }
 
     /**
      * Creates the order.refund durable queue.
@@ -107,6 +137,26 @@ public class RabbitMQConfig {
     @Bean
     public Binding orderCancelBinding() {
         return BindingBuilder.bind(orderCancelQueue()).to(directExchange()).with(QUEUE_ORDER_CANCEL);
+    }
+
+    @Bean
+    public Binding orderPaymentTimeoutDelayBinding() {
+        return BindingBuilder.bind(orderPaymentTimeoutDelayQueue()).to(directExchange()).with(QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY);
+    }
+
+    @Bean
+    public Binding orderPaymentTimeoutBinding() {
+        return BindingBuilder.bind(orderPaymentTimeoutQueue()).to(directExchange()).with(QUEUE_ORDER_PAYMENT_TIMEOUT);
+    }
+
+    @Bean
+    public Binding orderAcceptTimeoutDelayBinding() {
+        return BindingBuilder.bind(orderAcceptTimeoutDelayQueue()).to(directExchange()).with(QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY);
+    }
+
+    @Bean
+    public Binding orderAcceptTimeoutBinding() {
+        return BindingBuilder.bind(orderAcceptTimeoutQueue()).to(directExchange()).with(QUEUE_ORDER_ACCEPT_TIMEOUT);
     }
 
     /**

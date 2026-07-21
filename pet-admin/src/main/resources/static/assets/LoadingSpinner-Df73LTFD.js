@@ -1,1 +1,0 @@
-import{_ as s}from"./_plugin-vue_export-helper-DlAUqK2U.js";import{c as a,d as o,e,t as r}from"./index-Cp9aJKLp.js";const i={class:"loading"},p={__name:"LoadingSpinner",props:{text:String},setup(n){return(c,t)=>(a(),o("div",i,[t[0]||(t[0]=e("div",{class:"spinner"},null,-1)),e("p",null,r(n.text||"加载中..."),1)]))}},d=s(p,[["__scopeId","data-v-aa186653"]]);export{d as L};

@@ -69,6 +69,10 @@ public class JwtUtil {
         return Long.parseLong(parseToken(token).getSubject());
     }
 
+    public long getRefreshTokenExpiration() {
+        return refreshTokenExpiration;
+    }
+
     @SuppressWarnings("unchecked")
     public List<String> getRolesFromToken(String token) {
         return parseToken(token).get("roles", List.class);

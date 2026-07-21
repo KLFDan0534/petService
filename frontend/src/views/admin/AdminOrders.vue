@@ -1,72 +1,267 @@
 <template>
   <div>
-    <div style="display:flex;gap:8px;margin-bottom:16px">
-      <button v-for="t in tabs" :key="t.key" :class="['btn', activeTab === t.key ? 'btn-primary' : 'btn-outline', 'btn-sm']"
-        @click="activeTab = t.key">{{ t.label }}</button>
-      <button class="btn btn-sm btn-success" style="margin-left:auto" :disabled="seeding" @click="seedTestOrders">{{ seeding ? '生成中...' : '生成测试订单' }}</button>
+    <div class="admin-order-tabs">
+      <button
+        v-for="tab in tabs"
+        :key="tab.key"
+        :class="['btn', activeTab === tab.key ? 'btn-primary' : 'btn-outline', 'btn-sm']"
+        type="button"
+        @click="activeTab = tab.key"
+      >
+        {{ tab.label }}
+      </button>
     </div>
-    <DataTable :columns="[{label:'ID',key:'id_wsh'},{label:'用户',key:'owner_name_wsh'},{label:'服务',key:'service_name_wsh'},{label:'金额',key:'total_amount_wsh'},{label:'状态',key:'status_label_wsh'},{label:'时间',key:'created_at_wsh'},]" :data="filteredOrders">
+
+    <DataTable
+      :columns="columns"
+      :data="filteredOrders"
+    >
       <template #default="{ row }">
-        <select class="form-control" style="width:120px;display:inline-block" :value="row.status_wsh" @change="changeStatus(row, $event.target.value)">
-          <option v-for="s in statuses" :key="s" :value="s" :disabled="s === row.status_wsh">{{ statusLabels[s] || s }}</option>
+        <select
+          class="form-control order-status-select"
+          :value="row.status_wsh"
+          @change="changeStatus(row, $event.target.value)"
+        >
+          <option
+            v-for="status in statuses"
+            :key="status"
+            :value="status"
+            :disabled="status === row.status_wsh"
+          >
+            {{ statusLabels[status] || status }}
+          </option>
         </select>
-        <button class="btn btn-sm btn-danger" style="margin-left:4px" @click="cancelOrder(row.id_wsh)">取消</button>
+        <button class="btn btn-sm btn-info" type="button" @click="showDetail(row.id_wsh)">详情</button>
+        <button class="btn btn-sm btn-danger" type="button" @click="deleteOrder(row.id_wsh)">删除</button>
       </template>
     </DataTable>
+
+    <div v-if="showDetailModal && detailOrder" class="modal-overlay" @mousedown.self="showDetailModal = false">
+      <div class="modal order-detail-modal">
+        <h2>订单详情 #{{ detailOrder.id_wsh }}</h2>
+
+        <section class="detail-section">
+          <div class="detail-grid">
+            <div class="form-group"><label>订单编号</label><div>{{ detailOrder.order_no_wsh || '-' }}</div></div>
+            <div class="form-group">
+              <label>状态</label>
+              <div>
+                <span :class="['badge', detailStatus.badge]">{{ detailStatus.label }}</span>
+              </div>
+            </div>
+            <div class="form-group"><label>订单金额</label><div>¥{{ detailOrder.total_amount_wsh ?? '-' }}</div></div>
+            <div class="form-group"><label>优惠</label><div>¥{{ detailOrder.discount_wsh || 0 }}</div></div>
+            <div class="form-group"><label>实付金额</label><div>¥{{ detailOrder.final_amount_wsh ?? '-' }}</div></div>
+            <div class="form-group"><label>天数</label><div>{{ detailOrder.days_wsh ?? '-' }} 天</div></div>
+            <div class="form-group"><label>开始日期</label><div>{{ detailOrder.start_date_wsh || '-' }}</div></div>
+            <div class="form-group"><label>结束日期</label><div>{{ detailOrder.end_date_wsh || '-' }}</div></div>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <h3>用户信息</h3>
+          <div class="detail-grid">
+            <div class="form-group"><label>用户名</label><div>{{ detailOrder.owner_name_wsh || '-' }}</div></div>
+          </div>
+        </section>
+
+        <section v-if="detailOrder.service_name_wsh" class="detail-section">
+          <h3>服务信息</h3>
+          <div class="detail-grid">
+            <div class="form-group"><label>服务名称</label><div>{{ detailOrder.service_name_wsh }}</div></div>
+            <div class="form-group"><label>服务描述</label><div>{{ detailOrder.service_description_wsh || '-' }}</div></div>
+          </div>
+        </section>
+
+        <section v-if="detailOrder.pet_name_wsh" class="detail-section">
+          <h3>宠物信息</h3>
+          <div class="detail-grid detail-grid-three">
+            <div class="form-group"><label>名称</label><div>{{ detailOrder.pet_name_wsh }}</div></div>
+            <div class="form-group"><label>种类</label><div>{{ detailOrder.pet_type_wsh || '-' }}</div></div>
+            <div class="form-group"><label>品种</label><div>{{ detailOrder.pet_breed_wsh || '-' }}</div></div>
+            <div class="form-group"><label>年龄</label><div>{{ detailOrder.pet_age_wsh ?? '-' }} 岁</div></div>
+            <div class="form-group"><label>体重</label><div>{{ detailOrder.pet_weight_wsh ?? '-' }} kg</div></div>
+          </div>
+        </section>
+
+        <section v-if="detailOrder.keeper_name_wsh" class="detail-section">
+          <h3>看护人信息</h3>
+          <div class="detail-grid">
+            <div class="form-group"><label>姓名</label><div>{{ detailOrder.keeper_name_wsh }}</div></div>
+            <div class="form-group"><label>电话</label><div>{{ detailOrder.keeper_phone_wsh || '-' }}</div></div>
+          </div>
+        </section>
+
+        <section v-if="detailOrder.merchant_name_wsh" class="detail-section">
+          <h3>商家信息</h3>
+          <div class="detail-grid">
+            <div class="form-group"><label>名称</label><div>{{ detailOrder.merchant_name_wsh }}</div></div>
+            <div class="form-group"><label>电话</label><div>{{ detailOrder.merchant_phone_wsh || '-' }}</div></div>
+          </div>
+        </section>
+
+        <div class="modal-actions">
+          <button class="btn btn-secondary btn-sm" type="button" @click="showDetailModal = false">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { computed, onMounted, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { getOrders, getOrder, updateOrderStatus, deleteOrder as apiDeleteOrder } from '@/api/order'
+import { OrderStatus, enrichWithStatus, getStatusBadge, getStatusLabel, makeStatusBadge } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 const orders = ref([])
 const activeTab = ref('all')
-const seeding = ref(false)
-const tabs = [
-  { key: 'all', label: '全部' }, { key: 'pending', label: '待处理' },
-  { key: 'paid', label: '已支付' },
-  { key: 'confirmed', label: '已确认' }, { key: 'in_progress', label: '进行中' },
-  { key: 'completed', label: '已完成' }, { key: 'cancelled', label: '已取消' },
+const showDetailModal = ref(false)
+const detailOrder = ref(null)
+
+const columns = [
+  { label: 'ID', key: 'id_wsh' },
+  { label: '用户', key: 'owner_name_wsh' },
+  { label: '服务', key: 'service_name_wsh' },
+  { label: '金额', key: 'total_amount_wsh' },
+  { label: '状态', key: 'status_label_wsh' },
+  { label: '时间', key: 'created_at_wsh' },
 ]
-const statuses = ['pending', 'paid', 'confirmed', 'in_progress', 'completed', 'cancelled']
-const statusLabels = { pending: '待支付', paid: '已支付', confirmed: '已确认', in_progress: '进行中', completed: '已完成', cancelled: '已取消' }
 
-const orderStatusMap = { pending: { text: '待支付', cls: 'badge-warning' }, paid: { text: '已支付', cls: 'badge-info' }, confirmed: { text: '已确认', cls: 'badge-info' }, in_progress: { text: '进行中', cls: 'badge-info' }, completed: { text: '已完成', cls: 'badge-success' }, cancelled: { text: '已取消', cls: 'badge-danger' } }
+const tabs = [
+  { key: 'all', label: '全部' },
+  { key: 'pending', label: '待付款' },
+  { key: 'paid', label: '已支付' },
+  { key: 'confirmed', label: '待送达' },
+  { key: 'in_progress', label: '服务中' },
+  { key: 'completed', label: '已完成' },
+  { key: 'cancelled', label: '已取消' },
+]
 
-function enrichOrder(o) {
-  const s = orderStatusMap[o.status_wsh]
-  o.status_label_wsh = s ? `<span class="badge ${s.cls}">${s.text}</span>` : o.status_wsh
-  return o
+const statuses = Object.keys(OrderStatus)
+const statusLabels = Object.fromEntries(statuses.map(status => [status, getStatusLabel(OrderStatus, status)]))
+
+const filteredOrders = computed(() =>
+  activeTab.value === 'all'
+    ? orders.value
+    : orders.value.filter(order => order.status_wsh === activeTab.value)
+)
+
+const detailStatus = computed(() => ({
+  label: getStatusLabel(OrderStatus, detailOrder.value?.status_wsh),
+  badge: getStatusBadge(OrderStatus, detailOrder.value?.status_wsh),
+}))
+
+function enrichOrder(order) {
+  return enrichWithStatus(order, 'status_wsh', OrderStatus)
 }
 
-const filteredOrders = computed(() => activeTab.value === 'all' ? orders.value : orders.value.filter(o => o.status_wsh === activeTab.value))
-
-onMounted(async () => {
-  try { const r = await authStore.apiGet('/api/orders'); if (r.code === 200) orders.value = (Array.isArray(r.data) ? r.data : []).map(enrichOrder) }
-  catch (e) {}
-})
-
-async function seedTestOrders() {
-  seeding.value = true
-  try { const r = await authStore.apiPost('/api/orders/seed-test'); if (r.code === 200) { appStore.addToast('测试订单已生成', 'success'); location.reload() } else { appStore.addToast(r.message || '生成失败', 'error') } }
-  catch (e) { appStore.addToast('生成失败', 'error') }
-  finally { seeding.value = false }
+async function loadOrders() {
+  try {
+    const response = await getOrders()
+    if (response.code === 200) {
+      orders.value = (Array.isArray(response.data) ? response.data : []).map(enrichOrder)
+    }
+  } catch (_) {
+    appStore.addToast('获取订单列表失败', 'error')
+  }
 }
+
+onMounted(loadOrders)
 
 async function changeStatus(order, newStatus) {
   try {
-    const r = await authStore.apiPut(`/api/orders/${order.id_wsh}/status`, { status_wsh: newStatus })
-    if (r.code === 200) { appStore.addToast(`状态已变更为 ${statusLabels[newStatus] || newStatus}`, 'success'); order.status_wsh = newStatus }
-  } catch (e) { appStore.addToast('操作失败', 'error') }
+    const response = await updateOrderStatus(order.id_wsh, { status_wsh: newStatus })
+    if (response.code === 200) {
+      order.status_wsh = newStatus
+      order.status_label_wsh = makeStatusBadge(OrderStatus, newStatus)
+      appStore.addToast(`状态已变更为 ${statusLabels[newStatus] || newStatus}`, 'success')
+    }
+  } catch (_) {
+    appStore.addToast('操作失败', 'error')
+  }
 }
 
-async function cancelOrder(id) {
-  try { await authStore.apiPost('/api/orders/cancel', { order_id_wsh: id }); appStore.addToast('已取消', 'success'); location.reload() }
-  catch (e) { appStore.addToast('操作失败', 'error') }
+async function showDetail(id) {
+  try {
+    const response = await getOrder(id)
+    if (response.code === 200) {
+      detailOrder.value = response.data
+      showDetailModal.value = true
+    }
+  } catch (_) {
+    appStore.addToast('获取详情失败', 'error')
+  }
+}
+
+async function deleteOrder(id) {
+  if (!confirm('确定删除该订单？')) return
+  try {
+    await apiDeleteOrder(id)
+    appStore.addToast('已删除', 'success')
+    await loadOrders()
+  } catch (_) {
+    appStore.addToast('删除失败', 'error')
+  }
 }
 </script>
+
+<style scoped>
+.admin-order-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.order-status-select {
+  display: inline-block;
+  margin-right: 4px;
+  min-width: 128px;
+  width: auto;
+}
+
+.order-detail-modal {
+  max-width: 760px;
+}
+
+.detail-section {
+  border-top: 1px solid var(--color-border);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.detail-section:first-of-type {
+  border-top: 0;
+}
+
+.detail-section h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.detail-grid-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 768px) {
+  .detail-grid,
+  .detail-grid-three {
+    grid-template-columns: 1fr;
+  }
+
+  .order-status-select {
+    display: block;
+    margin: 0 0 8px;
+    width: 100%;
+  }
+}
+</style>

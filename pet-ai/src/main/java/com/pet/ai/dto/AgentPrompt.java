@@ -1,5 +1,7 @@
 package com.pet.ai.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public class AgentPrompt {
 
     public static final String SYSTEM_PROMPT = """

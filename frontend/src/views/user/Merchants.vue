@@ -1,78 +1,61 @@
 <template>
   <div>
-    <PageHero title="商家列表" subtitle="浏览所有宠物服务商家" />
-    <div class="form-group" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px">
-      <div>
-        <label>纬度</label>
-        <input v-model="lat" placeholder="纬度" class="input" style="width:120px" />
-      </div>
-      <div>
-        <label>经度</label>
-        <input v-model="lng" placeholder="经度" class="input" style="width:120px" />
-      </div>
+    <PageHero title="商家列表" subtitle="浏览宠物服务商家" />
+
+    <div class="toolbar">
       <div>
         <label>半径(km)</label>
-        <input v-model="radius" placeholder="半径" class="input" style="width:100px" />
+        <input v-model="radius" class="input radius-input" placeholder="半径" />
       </div>
-      <button class="btn btn-primary" @click="nearbySearch">附近搜索</button>
+      <button class="btn btn-primary" :disabled="locating" @click="nearbySearch">{{ locating ? '定位中...' : '附近搜索' }}</button>
       <button class="btn btn-outline" @click="resetSearch">重置</button>
-    </div>
-    <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center">
       <button class="btn btn-primary btn-sm" @click="openRegister">注册商家</button>
       <button class="btn btn-outline btn-sm" @click="openMyMerchant">我的商家</button>
     </div>
+
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else class="pet-grid">
-      <div v-for="m in merchants" :key="m.id_wsh" class="pet-card" style="cursor:pointer" @click="viewMerchant(m.id_wsh)">
-        <div class="pet-avatar">🏪</div>
+      <div v-for="m in merchants" :key="m.id_wsh" class="pet-card" @click="viewMerchant(m.id_wsh)">
+        <div class="merchant-badges">
+          <span :class="['badge', getStatusBadge(MerchantStoreStatus, m.store_status_wsh)]">
+            {{ getStatusLabel(MerchantStoreStatus, m.store_status_wsh) }}
+          </span>
+        </div>
+        <div class="pet-avatar"><span>店</span></div>
         <div class="pet-name">{{ m.name_wsh || m.username_wsh }}</div>
         <div class="pet-info">{{ m.description_wsh || '暂无介绍' }}</div>
-        <div class="pet-info">⭐ {{ m.rating_wsh || '暂无评分' }} · {{ m.orderCount || 0 }} 订单</div>
-        <div style="margin-top:12px"><button class="btn btn-sm btn-primary" @click.stop="$router.push('/dashboard')">查看服务</button></div>
-      </div>
-    </div>
-
-    <div v-if="detailMerchant" class="modal-overlay" @mousedown.self="detailMerchant = null">
-      <div class="modal" style="max-width:600px">
-        <h2>{{ detailMerchant.name_wsh || '商家详情' }}</h2>
-        <div class="card" style="padding:16px;margin-top:12px">
-          <div><strong>名称：</strong>{{ detailMerchant.name_wsh || '-' }}</div>
-          <div><strong>描述：</strong>{{ detailMerchant.description_wsh || '-' }}</div>
-          <div><strong>评分：</strong>⭐ {{ detailMerchant.rating_wsh || '暂无' }}</div>
-          <div><strong>联系电话：</strong>{{ detailMerchant.phone_wsh || '-' }}</div>
-          <div><strong>地址：</strong>{{ detailMerchant.address_wsh || '-' }}</div>
-          <div><strong>审核状态：</strong>
-            <span :class="['badge', detailMerchant.status_wsh === 1 ? 'badge-success' : detailMerchant.status_wsh === 0 ? 'badge-warning' : 'badge-danger']">
-              {{ detailMerchant.status_wsh === 1 ? '已通过' : detailMerchant.status_wsh === 0 ? '待审核' : '已拒绝' }}
-            </span>
-          </div>
-        </div>
-        <div style="margin-top:12px;display:flex;gap:8px">
-          <button class="btn btn-sm btn-outline" @click="openEditMerchant(detailMerchant)">编辑</button>
-          <button class="btn btn-sm btn-secondary" @click="detailMerchant = null">关闭</button>
+        <div class="pet-info">评分 {{ m.rating_wsh || '暂无' }}</div>
+        <div class="qualification-list">
+          <span v-for="q in m.qualifications_wsh || []" :key="q.id_wsh" class="badge badge-info">
+            {{ q.status_wsh === 'approved' ? '已认证' : '资质待审' }}
+          </span>
         </div>
       </div>
     </div>
 
     <div v-if="showMerchantForm" class="modal-overlay" @mousedown.self="showMerchantForm = false">
-      <div class="modal" style="max-width:600px">
+      <div class="modal detail-modal">
         <h2>{{ editingMerchantId ? '编辑商家' : '注册商家' }}</h2>
         <form @submit.prevent="saveMerchant">
+          <div class="form-group"><label>商家名称</label><input v-model="merchantForm.name_wsh" required></div>
+          <div class="form-group"><label>描述</label><textarea v-model="merchantForm.description_wsh" rows="3"></textarea></div>
+          <div class="form-group"><label>联系电话</label><input v-model="merchantForm.phone_wsh"></div>
           <div class="form-group">
-            <label>商家名称</label>
-            <input v-model="merchantForm.name_wsh" required placeholder="输入商家名称">
-          </div>
-          <div class="form-group">
-            <label>描述</label>
-            <textarea v-model="merchantForm.description_wsh" rows="3" placeholder="商家介绍"></textarea>
-          </div>
-          <div class="form-group">
-            <label>联系电话</label>
-            <input v-model="merchantForm.phone_wsh" placeholder="联系电话">
+            <label>资质照片</label>
+            <div class="upload-row">
+              <input ref="merchantQualificationInput" type="file" accept="image/*" class="hidden-input" @change="uploadMerchantQualification">
+              <button type="button" class="btn btn-outline btn-sm" @click="merchantQualificationInput?.click()">{{ qualificationUploading ? '上传中...' : '上传资质' }}</button>
+              <span>{{ merchantForm.qualification_image_wsh ? '已上传资质' : '未上传资质' }}</span>
+            </div>
           </div>
           <div class="form-group">
             <label>地址</label>
-            <input v-model="merchantForm.address_wsh" placeholder="商家地址">
+            <AmapAddressPicker
+              v-model="merchantForm.address_wsh"
+              v-model:latitude="merchantForm.latitude_wsh"
+              v-model:longitude="merchantForm.longitude_wsh"
+              placeholder="搜索地址或点选位置"
+            />
           </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-secondary btn-sm" @click="showMerchantForm = false">取消</button>
@@ -86,95 +69,149 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { getMerchants, getMyMerchant, getNearbyMerchants, createMerchant, updateMerchant } from '@/api/merchant'
+import { uploadFileToDirectory } from '@/api/file'
 import PageHero from '@/components/common/PageHero.vue'
+import AmapAddressPicker from '@/components/common/AmapAddressPicker.vue'
+import { getCurrentAddress } from '@/composables/useAmapLocation'
+import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
+import { MerchantStoreStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const merchants = ref([])
 const loading = ref(true)
-const lat = ref('')
-const lng = ref('')
+const locating = ref(false)
+const qualificationUploading = ref(false)
 const radius = ref('')
-const detailMerchant = ref(null)
 const showMerchantForm = ref(false)
 const editingMerchantId = ref(null)
-const merchantForm = reactive({ name_wsh: '', description_wsh: '', phone_wsh: '', address_wsh: '' })
+const merchantQualificationInput = ref(null)
+
+const merchantForm = reactive({
+  name_wsh: '',
+  description_wsh: '',
+  phone_wsh: '',
+  address_wsh: '',
+  latitude_wsh: null,
+  longitude_wsh: null,
+  qualification_image_wsh: '',
+  business_license_wsh: '',
+})
 
 async function loadMerchants() {
   loading.value = true
-  try { const r = await authStore.apiGet('/api/merchants'); if (r.code === 200) merchants.value = r.data }
-  catch (e) {}
-  finally { loading.value = false }
+  try {
+    const r = await getMerchants()
+    if (r.code === 200) merchants.value = r.data || []
+  } finally {
+    loading.value = false
+  }
 }
 
 async function nearbySearch() {
-  if (!lat.value || !lng.value) return
+  locating.value = true
   loading.value = true
   try {
-    const r = await authStore.apiGet('/api/merchants/nearby', { lat: lat.value, lng: lng.value, radius: radius.value || undefined })
-    if (r.code === 200) merchants.value = r.data
-  } catch (e) {}
-  finally { loading.value = false }
+    const location = await getCurrentAddress()
+    const r = await getNearbyMerchants({ lat: location.latitude_wsh, lng: location.longitude_wsh, radius: radius.value || undefined })
+    if (r.code === 200) merchants.value = r.data || []
+  } catch (e) {
+    appStore.addToast(e.message || '定位失败，无法搜索附近商家', 'warning')
+  } finally {
+    locating.value = false
+    loading.value = false
+  }
 }
 
 function resetSearch() {
-  lat.value = ''
-  lng.value = ''
   radius.value = ''
   loadMerchants()
 }
 
-function openRegister() {
+async function openRegister() {
+  const ok = await ensureProfileRequirement(PROFILE_ACTIONS.APPLY_MERCHANT, { authStore, appStore, router })
+  if (!ok) return
   editingMerchantId.value = null
-  merchantForm.name_wsh = ''; merchantForm.description_wsh = ''; merchantForm.phone_wsh = ''; merchantForm.address_wsh = ''
+  resetMerchantForm()
   showMerchantForm.value = true
 }
 
 async function openMyMerchant() {
+  const r = await getMyMerchant()
+  if (r.code === 200 && r.data) router.push(`/merchants/${r.data.id_wsh}`)
+  else appStore.addToast('您还没有注册商家', 'info')
+}
+
+function viewMerchant(id) {
+  router.push(`/merchants/${id}`)
+}
+
+function resetMerchantForm() {
+  merchantForm.name_wsh = ''
+  merchantForm.description_wsh = ''
+  merchantForm.phone_wsh = ''
+  merchantForm.address_wsh = ''
+  merchantForm.latitude_wsh = null
+  merchantForm.longitude_wsh = null
+  merchantForm.qualification_image_wsh = ''
+  merchantForm.business_license_wsh = ''
+}
+
+async function uploadMerchantQualification(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  qualificationUploading.value = true
   try {
-    const r = await authStore.apiGet('/api/merchants/my')
-    if (r.code === 200 && r.data) {
-      detailMerchant.value = r.data
-    } else {
-      appStore.addToast('您还没有注册商家', 'info')
+    const data = new FormData()
+    data.append('file', file)
+    const r = await uploadFileToDirectory('qualifications/merchants', data)
+    if (r.code === 200 && r.data?.url_wsh) {
+      merchantForm.qualification_image_wsh = r.data.url_wsh
+      merchantForm.business_license_wsh = r.data.url_wsh
+      appStore.addToast('资质上传成功', 'success')
     }
-  } catch (e) { appStore.addToast('查询失败', 'error') }
-}
-
-async function viewMerchant(id) {
-  try {
-    const r = await authStore.apiGet(`/api/merchants/${id}`)
-    if (r.code === 200) detailMerchant.value = r.data
-  } catch (e) { appStore.addToast('获取详情失败', 'error') }
-}
-
-function openEditMerchant(m) {
-  editingMerchantId.value = m.id_wsh
-  merchantForm.name_wsh = m.name_wsh || ''
-  merchantForm.description_wsh = m.description_wsh || ''
-  merchantForm.phone_wsh = m.phone_wsh || ''
-  merchantForm.address_wsh = m.address_wsh || ''
-  showMerchantForm.value = true
-  detailMerchant.value = null
+  } finally {
+    qualificationUploading.value = false
+    event.target.value = ''
+  }
 }
 
 async function saveMerchant() {
-  try {
-    let r
-    if (editingMerchantId.value) {
-      r = await authStore.apiPut(`/api/merchants/${editingMerchantId.value}`, merchantForm)
-    } else {
-      r = await authStore.apiPost('/api/merchants', merchantForm)
-    }
-    if (r.code === 200) {
-      appStore.addToast(editingMerchantId.value ? '更新成功' : '注册成功', 'success')
-      showMerchantForm.value = false
-      loadMerchants()
-    }
-  } catch (e) { appStore.addToast('保存失败', 'error') }
+  if (!editingMerchantId.value) {
+    const ok = await ensureProfileRequirement(PROFILE_ACTIONS.APPLY_MERCHANT, { authStore, appStore, router })
+    if (!ok) return
+  }
+  if (!merchantForm.address_wsh || merchantForm.latitude_wsh == null || merchantForm.longitude_wsh == null) {
+    appStore.addToast('请选择商家地址', 'warning')
+    return
+  }
+  const r = editingMerchantId.value
+    ? await updateMerchant(editingMerchantId.value, merchantForm)
+    : await createMerchant(merchantForm)
+  if (r.code === 200) {
+    appStore.addToast(editingMerchantId.value ? '更新成功' : '注册成功', 'success')
+    showMerchantForm.value = false
+    loadMerchants()
+  }
 }
 
 onMounted(loadMerchants)
 </script>
+
+<style scoped>
+.toolbar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px; }
+.radius-input { width: 100px; }
+.pet-card { cursor: pointer; }
+.merchant-badges { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.qualification-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.qualification-badge { margin-left: 6px; }
+.detail-modal { max-width: 640px; }
+.detail-grid { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--color-border); border-radius: 6px; }
+.upload-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--color-muted-foreground); font-size: 13px; }
+.hidden-input { display: none; }
+</style>
