@@ -11,6 +11,7 @@ const SUPPORT_AREA_ROLES = [ROLES.MERCHANT, ROLES.ADMIN, ROLES.CUSTOMER_SERVICE]
 export const constantRoutes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/dashboard', name: 'Dashboard', component: () => import('@/views/user/Dashboard.vue'), meta: { layout: 'user', requiresAuth: false } },
+  { path: '/services', name: 'Services', component: () => import('@/views/user/Services.vue'), meta: { layout: 'user', requiresAuth: false } },
   // Authenticated routes are always registered; the route guard redirects to /login if not logged in
   { path: '/login', name: 'Login', component: () => import('@/views/user/Login.vue') },
   { path: '/register', name: 'Register', component: () => import('@/views/user/Register.vue') },
@@ -27,7 +28,6 @@ export const constantRoutes = [
   { path: '/keepers/:id', name: 'KeeperDetail', component: () => import('@/views/user/KeeperDetail.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/keeper/profile', name: 'KeeperProfile', component: () => import('@/views/user/KeeperProfile.vue'), meta: { layout: 'user', requiresAuth: true, roles: [ROLES.KEEPER, ROLES.MERCHANT, ROLES.ADMIN] } },
   { path: '/services/:id', name: 'ServiceDetail', component: () => import('@/views/user/ServiceDetail.vue'), meta: { layout: 'user', requiresAuth: false } },
-  { path: '/services', redirect: '/dashboard' },
   { path: '/orders', name: 'Orders', component: () => import('@/views/user/Orders.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES, keepAlive: true } },
   { path: '/orders/:id', name: 'OrderDetail', component: () => import('@/views/order/OrderDetailView.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/coupons', name: 'Coupons', component: () => import('@/views/user/Coupons.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },

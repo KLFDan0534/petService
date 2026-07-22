@@ -15,6 +15,7 @@
           @click="closeMobileMenu"
         >
           <router-link to="/dashboard">首页</router-link>
+          <router-link to="/services">预约服务</router-link>
           <router-link v-if="!isSupportOnly" to="/pets">我的宠物</router-link>
           <router-link v-if="!isSupportOnly" to="/orders">订单</router-link>
           <router-link v-if="!isSupportOnly" to="/favorites">收藏</router-link>
@@ -61,12 +62,12 @@
 
         <div class="user-header-end" :class="{ 'is-open': mobileMenuOpen }">
           <router-link
-            :to="{ path: '/orders', query: { create: 'true' } }"
+            to="/services"
             class="btn btn-primary header-booking"
             @click="closeMobileMenu"
           >
             <el-icon aria-hidden="true"><Calendar /></el-icon>
-            立即预约
+            预约服务
           </router-link>
           <template v-if="authStore.isLoggedIn">
             <MessageIndicator />

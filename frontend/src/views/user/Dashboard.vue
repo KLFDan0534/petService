@@ -57,37 +57,7 @@
       </div>
     </section>
 
-    <section v-if="banners.length" class="notice-section" aria-labelledby="notice-title">
-      <div class="notice-media">
-        <MediaWithFallback
-          :src="currentBanner?.image_url_wsh"
-          :alt="currentBanner?.title_wsh || '平台通知图片'"
-          placeholder="平台通知"
-        />
-      </div>
-      <div class="notice-content">
-        <span class="section-kicker" id="notice-title">平台通知</span>
-        <h2>{{ currentBanner?.title_wsh || '照护服务有新消息' }}</h2>
-        <a
-          v-if="safeBannerLink"
-          class="text-link"
-          :href="safeBannerLink"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          查看详情
-          <el-icon aria-hidden="true"><ArrowRight /></el-icon>
-        </a>
-      </div>
-      <div v-if="banners.length > 1" class="notice-controls" aria-label="平台通知切换">
-        <button type="button" aria-label="上一条通知" @click="changeBanner(activeBanner - 1)">
-          <el-icon aria-hidden="true"><ArrowLeft /></el-icon>
-        </button>
-        <button type="button" aria-label="下一条通知" @click="changeBanner(activeBanner + 1)">
-          <el-icon aria-hidden="true"><ArrowRight /></el-icon>
-        </button>
-      </div>
-    </section>
+    <BannerCarousel v-if="banners.length" class="home-campaigns" :banners="banners" />
 
     <section id="services" class="landing-section services-section" aria-labelledby="services-title">
       <div class="section-heading">
@@ -95,7 +65,13 @@
           <span class="section-kicker">Services</span>
           <h2 id="services-title">为爱宠准备的服务方案</h2>
         </div>
-        <p>按宠物的节奏选择服务，价格和单位清楚呈现，预约前再确认照护细节。</p>
+        <div class="section-heading-action">
+          <p>按宠物的节奏选择服务，价格和单位清楚呈现，预约前再确认照护细节。</p>
+          <router-link class="all-services-link" to="/services">
+            查看全部 {{ services.length }} 项服务
+            <el-icon aria-hidden="true"><ArrowRight /></el-icon>
+          </router-link>
+        </div>
       </div>
 
       <div v-if="loading" class="service-grid" aria-label="服务加载中">
@@ -109,7 +85,7 @@
 
       <div v-else-if="services.length" class="service-grid">
         <article
-          v-for="(service, index) in services"
+          v-for="(service, index) in featuredServices"
           :key="service.id_wsh"
           class="service-package"
           :class="accentClass(index)"
@@ -295,7 +271,7 @@
           <p>让每一次托付，都有清晰的服务和温柔的回应。</p>
         </div>
         <nav class="footer-links" aria-label="平台导航">
-          <router-link to="/dashboard#services">浏览服务</router-link>
+          <router-link to="/services">预约服务</router-link>
           <router-link to="/merchants">附近商户</router-link>
           <router-link to="/orders">我的订单</router-link>
           <router-link to="/profile">个人中心</router-link>
@@ -310,7 +286,6 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ArrowLeft,
   ArrowRight,
   Calendar,
   ChatDotRound,
@@ -334,6 +309,7 @@ import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequir
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import request from '@/utils/request'
+import BannerCarousel from '@/components/dashboard/BannerCarousel.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 
 const router = useRouter()
@@ -348,8 +324,6 @@ const merchants = ref([])
 const loading = ref(true)
 const testimonialsLoading = ref(true)
 const selectedServiceId = ref('')
-const activeBanner = ref(0)
-let bannerTimer = null
 
 const serviceTypeLabels = {
   BOARDING_STANDARD: '标准寄养',
@@ -374,9 +348,8 @@ const iconByServiceType = {
   MEDICAL_CHECKUP: FirstAidKit,
 }
 
-const currentBanner = computed(() => banners.value[activeBanner.value] || null)
-const safeBannerLink = computed(() => toSafeUrl(currentBanner.value?.link_url_wsh))
 const selectedService = computed(() => services.value.find(service => String(service.id_wsh) === String(selectedServiceId.value)) || null)
+const featuredServices = computed(() => services.value.slice(0, 6))
 const galleryImages = computed(() => services.value
   .flatMap(service => service.imageUrls.map((url, imageIndex) => ({
     key: `${service.id_wsh}-${imageIndex}`,
@@ -384,7 +357,7 @@ const galleryImages = computed(() => services.value
     url,
   })))
   .slice(0, 6))
-const heroImage = computed(() => currentBanner.value?.image_url_wsh || galleryImages.value[0]?.url || '')
+const heroImage = computed(() => galleryImages.value[0]?.url || '')
 const serviceCountDisplay = computed(() => loading.value ? '--' : String(services.value.length))
 const providerCountDisplay = computed(() => testimonialsLoading.value ? '--' : String(providers.value.length + merchants.value.length))
 const averageRatingDisplay = computed(() => {
@@ -445,17 +418,6 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('zh-CN')
 }
 
-function toSafeUrl(value) {
-  const rawUrl = String(value || '').trim()
-  if (!rawUrl || typeof window === 'undefined') return ''
-  try {
-    const parsedUrl = new URL(rawUrl, window.location.origin)
-    return ['http:', 'https:'].includes(parsedUrl.protocol) ? parsedUrl.href : ''
-  } catch (_) {
-    return ''
-  }
-}
-
 async function loadDashboard() {
   loading.value = true
   try {
@@ -476,24 +438,9 @@ async function loadBanners() {
     const response = await request.get('/api/notices/active', { params: { type: 'banner' } })
     if (response.data.code !== 200) return
     banners.value = normalizeList(response.data.data)
-    activeBanner.value = 0
-    startBannerTimer()
   } catch (_) {
     banners.value = []
   }
-}
-
-function startBannerTimer() {
-  if (bannerTimer) clearInterval(bannerTimer)
-  if (banners.value.length > 1) {
-    bannerTimer = window.setInterval(() => changeBanner(activeBanner.value + 1), 6000)
-  }
-}
-
-function changeBanner(index) {
-  if (!banners.value.length) return
-  activeBanner.value = (index + banners.value.length) % banners.value.length
-  startBannerTimer()
 }
 
 async function loadCommunity() {
@@ -574,9 +521,6 @@ function scrollToServices() {
 function onVisibilityChange() {
   if (document.visibilityState === 'visible') {
     void loadBanners()
-  } else if (bannerTimer) {
-    clearInterval(bannerTimer)
-    bannerTimer = null
   }
 }
 
@@ -592,7 +536,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (bannerTimer) clearInterval(bannerTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
@@ -831,36 +774,8 @@ onUnmounted(() => {
   color: var(--landing-orange-deep);
 }
 
-.notice-section {
-  display: grid;
-  grid-template-columns: 176px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 20px;
-  margin: 32px auto 0;
-  padding: 14px;
-  background: var(--landing-surface);
-  border: 2px solid var(--landing-border);
-  border-radius: 18px;
-  box-shadow: 5px 6px 0 var(--landing-clay-shadow);
-}
-
-.notice-media {
-  height: 92px;
-  overflow: hidden;
-  border-radius: 12px;
-}
-
-.notice-content {
-  min-width: 0;
-}
-
-.notice-content h2 {
-  margin: 6px 0 10px;
-  overflow: hidden;
-  font-family: Fredoka, 'Nunito', 'Microsoft YaHei', sans-serif;
-  font-size: 22px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.home-campaigns {
+  margin-top: 32px;
 }
 
 .section-kicker {
@@ -869,28 +784,6 @@ onUnmounted(() => {
   font-weight: 900;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.notice-controls {
-  display: flex;
-  gap: 4px;
-}
-
-.notice-controls button {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  color: var(--landing-ink);
-  background: transparent;
-  border: 1px solid var(--landing-border);
-  border-radius: 10px;
-}
-
-.notice-controls button:hover {
-  color: var(--landing-orange-deep);
-  border-color: var(--landing-orange);
-  background: var(--landing-surface-alt);
 }
 
 .landing-section,
@@ -935,6 +828,28 @@ onUnmounted(() => {
   color: var(--landing-muted);
   font-size: 15px;
   line-height: 1.7;
+}
+
+.section-heading-action {
+  display: flex;
+  max-width: 430px;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.all-services-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 7px;
+  color: var(--landing-orange-deep);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.all-services-link:hover {
+  color: var(--landing-blue);
 }
 
 .service-grid {
@@ -1607,25 +1522,6 @@ onUnmounted(() => {
     max-width: none;
   }
 
-  .notice-section {
-    grid-template-columns: 94px minmax(0, 1fr);
-    gap: 14px;
-    margin-top: 24px;
-  }
-
-  .notice-media {
-    height: 72px;
-  }
-
-  .notice-content h2 {
-    font-size: 18px;
-  }
-
-  .notice-controls {
-    grid-column: 1 / -1;
-    justify-content: end;
-  }
-
   .section-heading {
     display: block;
     margin-bottom: 24px;
@@ -1637,6 +1533,10 @@ onUnmounted(() => {
 
   .section-heading p {
     margin-top: 12px;
+  }
+
+  .section-heading-action {
+    max-width: none;
   }
 
   .service-grid,
