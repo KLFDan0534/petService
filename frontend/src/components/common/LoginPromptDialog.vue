@@ -2,7 +2,9 @@
   <Teleport to="body">
     <div v-if="visible" class="modal-overlay" @click.self="$emit('close')">
       <div class="modal login-prompt-modal" role="dialog" aria-modal="true">
-        <div class="login-prompt-icon">🔒</div>
+        <div class="login-prompt-icon" aria-hidden="true">
+          <el-icon><Lock /></el-icon>
+        </div>
         <p>登录后即可使用该功能</p>
         <div class="modal-actions">
           <button class="btn btn-outline" @click="$emit('close')">暂不登录</button>
@@ -14,6 +16,7 @@
 </template>
 
 <script setup>
+import { Lock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 
@@ -36,8 +39,16 @@ function goLogin() {
   max-width: 400px;
 }
 .login-prompt-icon {
-  font-size: 40px;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
   margin-bottom: 12px;
+  margin-inline: auto;
+  color: var(--color-primary);
+  background: var(--color-muted);
+  border-radius: 14px;
+  font-size: 26px;
 }
 .login-prompt-modal p {
   color: var(--color-muted-foreground);
