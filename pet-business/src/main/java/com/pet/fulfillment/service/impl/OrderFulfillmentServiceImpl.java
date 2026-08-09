@@ -41,6 +41,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 订单履行服务实现，提供宠物寄养/照看服务履行阶段的护理记录管理、
+ * 订单参与者聊天通讯以及每日上传状态跟踪。
+ * <p>权限控制：宠物主、照看者、商家和管理员均可查看订单履行信息；
+ * 但仅照看者、商家和管理员可创建护理记录（照看者需在岗）。</p>
+ */
 @Service
 @Slf4j
 public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
@@ -81,6 +87,14 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         this.keeperAttendanceService = keeperAttendanceService;
     }
 
+    /**
+     * 获取订单履行概览，聚合订单信息、用户角色、护理时间线和每日上传状态。
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @return 订单履行概览视图对象
+     */
     @Override
     public OrderFulfillmentOverviewVO getOverview(Long userId, boolean admin, Long orderId) {
         OrderAccess access = requireAccess(userId, admin, orderId);
@@ -118,6 +132,14 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         return vo;
     }
 
+    /**
+     * 获取订单护理记录时间线。
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @return 护理记录列表，按记录时间和创建时间倒序
+     */
     @Override
     public List<CareRecord> listTimeline(Long userId, boolean admin, Long orderId) {
         requireAccess(userId, admin, orderId);
@@ -128,6 +150,16 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
                         .orderByDesc(CareRecord::getCreated_at_wsh));
     }
 
+    /**
+     * 获取每日护理记录上传状态。
+     * <p>遍历服务期间的每一天，检查是否有对应的护理记录上传，
+     * 返回已上传天集合、缺失天集合和完整度标识。</p>
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @return 每日上传状态DTO
+     */
     @Override
     public DailyStatusDTO getDailyUploadStatus(Long userId, boolean admin, Long orderId) {
         OrderAccess access = requireAccess(userId, admin, orderId);
@@ -164,6 +196,18 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         return status;
     }
 
+    /**
+     * 创建护理时间线记录。
+     * <p>校验写入权限（仅照看者/商家/管理员），检查记录日期在服务期间内，
+     * 并校验照看者当前在岗状态。创建后发送站内通知给宠物主。</p>
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @param request 创建护理记录请求
+     * @return 创建的护理记录实体
+     * @throws BusinessException 如果权限不足、日期越界或内容为空
+     */
     @Transactional
     @Override
     public CareRecord createTimelineRecord(Long userId, boolean admin, Long orderId, CreateCareRecordRequestDTO request) {
@@ -181,6 +225,21 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         return record;
     }
 
+    /**
+     * 创建护理时间线记录（含文件上传）。
+     * <p>上传图片到 MinIO 存储，将返回的URL拼接后创建记录。
+     * 仅支持图片类型文件上传。</p>
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @param type 记录类型
+     * @param content 记录文本内容
+     * @param recordTime 记录时间字符串
+     * @param files 上传的图片文件列表
+     * @return 创建的护理记录实体
+     * @throws BusinessException 如果图片为空或格式不正确
+     */
     @Transactional
     @Override
     public CareRecord createTimelineRecordWithFiles(Long userId, boolean admin, Long orderId,
@@ -197,6 +256,18 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         return record;
     }
 
+    /**
+     * 获取订单聊天会话列表（支持基于游标的分页）。
+     * <p>自动解析消息收发双方的用户ID。</p>
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @param otherUserId 对方用户ID（为空则自动推断）
+     * @param beforeId 游标ID
+     * @param size 返回条数上限
+     * @return 聊天消息DTO列表
+     */
     @Override
     public List<ChatMessageDTO> listConversation(Long userId, boolean admin, Long orderId, Long otherUserId,
                                                  Long beforeId, Integer size) {
@@ -222,6 +293,30 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         return saved;
     }
 
+    /**
+     * 发送订单聊天消息（含文件上传）。
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @param toUserId 接收方用户ID
+     * @param content 消息内容
+     * @param type 消息类型
+     * @param file 上传的图片文件
+     * @return 发送后的聊天消息DTO
+     */
+    /**
+     * 发送订单聊天消息（含文件上传）。
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @param toUserId 接收方用户ID
+     * @param content 消息内容
+     * @param type 消息类型
+     * @param file 上传的图片文件
+     * @return 发送后的聊天消息DTO
+     */
     @Transactional
     @Override
     public ChatMessageDTO sendMessageWithFile(Long userId, boolean admin, Long orderId,
@@ -239,6 +334,14 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         return saved;
     }
 
+    /**
+     * 将订单聊天会话中对方发来的消息全部标记为已读。
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @param otherUserId 对方用户ID
+     */
     @Transactional
     @Override
     public void markConversationAsRead(Long userId, boolean admin, Long orderId, Long otherUserId) {
@@ -248,6 +351,16 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         chatService.markConversationAsRead(currentUserId, resolvedOtherUserId, orderId);
     }
 
+    /**
+     * 校验并获取当前用户可读的订单。
+     * <p>宠物主、照看者（通过Keeper关联）、商家（通过Merchant关联）和管理员均有权限。</p>
+     *
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param orderId 订单ID
+     * @return 订单实体
+     * @throws BusinessException 如果订单不存在或用户无权限
+     */
     @Override
     public PetOrder requireReadableOrder(Long userId, boolean admin, Long orderId) {
         return requireAccess(userId, admin, orderId).order();

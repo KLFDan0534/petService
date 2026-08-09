@@ -10,6 +10,11 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
+/**
+ * RabbitMQ listener for order payment timeout events.
+ * When a payment timeout message is received from the dead-letter queue,
+ * cancels the pending order if it has not been paid within the allowed window.
+ */
 public class OrderPaymentTimeoutListener {
 
     private final OrderService orderService;
@@ -18,6 +23,15 @@ public class OrderPaymentTimeoutListener {
         this.orderService = orderService;
     }
 
+    /**
+     * Handles a payment timeout event for the given order.
+     * Attempts to cancel the order if it is still in pending status.
+     * Acknowledges the message on success, negatively acknowledges on failure.
+     *
+     * @param orderNo the order number
+     * @param message the AMQP message
+     * @param channel the RabbitMQ channel
+     */
     @RabbitListener(queues = RabbitMQConfig.QUEUE_ORDER_PAYMENT_TIMEOUT)
     public void handlePaymentTimeout(String orderNo, Message message, Channel channel) {
         long deliveryTag = message.getMessageProperties().getDeliveryTag();

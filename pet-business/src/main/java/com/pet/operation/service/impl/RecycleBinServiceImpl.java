@@ -31,6 +31,9 @@ public class RecycleBinServiceImpl implements RecycleBinService {
         this.recycleBinMapper = recycleBinMapper;
     }
 
+    /**
+     * 查询指定表中已软删除的记录
+     */
     @Override
     public List<Map<String, Object>> listDeleted(String tableName) {
         log.info("listDeleted() called");
@@ -38,6 +41,9 @@ public class RecycleBinServiceImpl implements RecycleBinService {
         return recycleBinMapper.selectDeleted(tableName);
     }
 
+    /**
+     * 恢复一条软删除记录
+     */
     @Override
     @Transactional
     public void restore(String tableName, Long id) {
@@ -49,6 +55,9 @@ public class RecycleBinServiceImpl implements RecycleBinService {
         }
     }
 
+    /**
+     * 软删除一条记录
+     */
     @Override
     @Transactional
     public void softDelete(String tableName, Long id) {
@@ -60,6 +69,9 @@ public class RecycleBinServiceImpl implements RecycleBinService {
         }
     }
 
+    /**
+     * 获取所有支持软删除的表名列表
+     */
     @Override
     public List<String> listSoftDeletableTables() {
         log.info("listSoftDeletableTables() called");

@@ -8,6 +8,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
+/**
+ * MinIO 文件存储服务，提供文件上传、获取访问 URL 和删除等基础操作。
+ * <p>
+ * 所有文件以 UUID 重命名后存入指定目录，目录不存在时自动创建 bucket。
+ */
 @Service
 public class MinIoService {
 
@@ -26,6 +31,16 @@ public class MinIoService {
         this.minioClient = minioClient;
     }
 
+    /**
+     * 上传文件到 MinIO 指定的目录。文件以 UUID 重命名，保留原始扩展名。
+     * <p>
+     * 如果 bucket 不存在则自动创建。上传成功返回 MinIO 上的对象路径。
+     *
+     * @param file      上传的多部分文件，不可为空
+     * @param directory 存储目录（例如 "avatar"、"report"），不能为 null
+     * @return MinIO 对象存储路径（格式：{directory}/{uuid}.{ext}）
+     * @throws com.pet.common.BusinessException 文件为空、文件名为空或上传失败时抛出
+     */
     public String uploadFile(MultipartFile file, String directory) {
         try {
             if (file == null || file.isEmpty()) {
@@ -56,10 +71,24 @@ public class MinIoService {
         }
     }
 
+    /**
+     * 获取文件的公开访问 URL
+     * <p>
+     * 拼接规则：{publicUrl}/{bucket}/{objectName}
+     *
+     * @param objectName MinIO 对象存储路径
+     * @return 完整的文件访问 URL
+     */
     public String getFileUrl(String objectName) {
         return publicUrl + "/" + bucket + "/" + objectName;
     }
 
+    /**
+     * 从 MinIO 删除指定的文件对象
+     *
+     * @param objectName MinIO 对象存储路径
+     * @throws com.pet.common.BusinessException 删除失败时抛出
+     */
     public void deleteFile(String objectName) {
         try {
             minioClient.removeObject(

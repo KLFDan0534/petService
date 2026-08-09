@@ -12,6 +12,12 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * 商家客服申请实体，记录用户向商家申请成为客服人员的信息。
+ * <p>状态流转：pending（待审核）-> approved（已通过）/ rejected（已拒绝）
+ * -> resigned（已辞职）/ terminated（已终止）。
+ * 审批通过后用户获得 CUSTOMER_SERVICE 角色。</p>
+ */
 @Getter
 @Setter
 @TableName("merchant_customer_service_wsh")

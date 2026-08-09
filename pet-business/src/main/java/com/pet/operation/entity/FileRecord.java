@@ -10,6 +10,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 文件上传记录实体，记录上传到 MinIO 的每个文件的元信息。
+ * <p>
+ * 包括原始文件名、MinIO 对象存储路径、文件大小、内容类型及所属用户。
+ * 不包含文件二进制数据，文件流存储在 MinIO 中。
+ */
 @Getter
 @Setter
 @TableName("file_record_wsh")

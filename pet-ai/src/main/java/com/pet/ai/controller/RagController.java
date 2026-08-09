@@ -36,11 +36,16 @@ public class RagController {
     }
 
     /**
-     * 获取所有知识文档列表
-     * @return 知识文档列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【业务名称】知识文档列表（接口）
+     * <p>业务作用：获取Chroma向量库中所有知识文档列表。</p>
+     * <p>调用场景：前端知识库管理页面展示全部文档。</p>
+     * <p>调用链：前端GET /api/rag/documents → listDocuments() → RagService.listAll() → ChromaService.get() → toDTO()</p>
+     * <p>数据处理：委托service查询全量文档；实体转DTO。</p>
+     * <p>业务规则：无需登录（公开接口），文档按创建时间倒序排列。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：Chroma不可用时返回空列表。</p>
+     * <p>注意事项：接口权限为公开，无需鉴权。</p>
+     */
     @GetMapping("/documents")
     @Operation(summary = "文档列表", description = "获取所有知识文档")
     @ApiResponses({
@@ -54,13 +59,16 @@ public class RagController {
     }
 
     /**
-     * 搜索知识文档
-     * @param query 查询关键词
-     * @param category 分类过滤（可选）
-     * @return 匹配的知识文档列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【业务名称】搜索知识文档（接口）
+     * <p>业务作用：根据关键词和分类搜索知识文档，双阶段检索：向量搜索优先，Term搜索降级。</p>
+     * <p>调用场景：用户在知识库页面搜索框输入关键词搜索。</p>
+     * <p>调用链：前端GET /api/rag/search → search() → RagService.search() → 向量搜索/Term搜索 → toDTO()</p>
+     * <p>数据处理：query和category参数从Query String获取；委托service双阶段检索；实体转DTO。</p>
+     * <p>业务规则：公开接口无需登录；query必填；category可选。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：query为空返回400错误。</p>
+     * <p>注意事项：category过滤在检索前执行。</p>
+     */
     @GetMapping("/search")
     @Operation(summary = "搜索知识", description = "通过分类过滤查找文档")
     @ApiResponses({
@@ -76,12 +84,16 @@ public class RagController {
     }
 
     /**
-     * 基于知识文档进行AI问答
-     * @param body 请求体，包含question和可选的petProfile/pet_profile_wsh
-     * @return AI问答结果
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【业务名称】AI知识库问答（接口）
+     * <p>业务作用：基于知识库内容进行AI问答，支持携带宠物档案信息以获取个性化回答。</p>
+     * <p>调用场景：用户在知识库页面提问，可关联宠物档案。</p>
+     * <p>调用链：前端POST /api/rag/ask → ask() → RagService.answer(question, petProfile) → 检索+AI问答 → 返回AskResult</p>
+     * <p>数据处理：从请求DTO解析question和pet_profile_wsh；委托service检索+AI生成；封装AskResult返回。</p>
+     * <p>业务规则：公开接口无需登录；请求体需通过@Valid校验。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：参数校验失败返回400。</p>
+     * <p>注意事项：AI不可用时自动降级为知识库模板或宠物档案模板。</p>
+     */
     @PostMapping("/ask")
     @Operation(summary = "AI问答", description = "基于知识文档进行问答")
     @ApiResponses({
@@ -98,12 +110,16 @@ public class RagController {
     }
 
     /**
-     * 创建知识文档
-     * @param doc 知识文档信息
-     * @return 创建的知识文档
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【业务名称】创建知识文档（接口）
+     * <p>业务作用：管理员新增知识文档，标题和内容保存到Chroma向量库并生成向量嵌入。</p>
+     * <p>调用场景：管理员在后台知识库管理页面手动添加文档。</p>
+     * <p>调用链：前端POST /api/rag/documents → create() → RagService.create() → HTML转义 → Chroma存储 → toDTO()</p>
+     * <p>数据处理：接收请求DTO；委托service创建（含HTML转义）；实体转DTO。</p>
+     * <p>业务规则：需要ADMIN角色权限；请求体需通过@Valid校验。</p>
+     * <p>状态影响：新增一条知识文档记录。</p>
+     * <p>异常情况：参数错误返回400；未登录返回401；非ADMIN返回403。</p>
+     * <p>注意事项：标题和内容会自动HTML转义防止XSS。</p>
+     */
     @PostMapping("/documents")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "创建文档", description = "新增知识文档")
@@ -120,12 +136,16 @@ public class RagController {
     }
 
     /**
-     * 删除知识文档
-     * @param id 文档ID
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【业务名称】删除知识文档（接口）
+     * <p>业务作用：管理员根据ID从Chroma向量库中删除知识文档。</p>
+     * <p>调用场景：管理员在后台知识库管理页面删除文档。</p>
+     * <p>调用链：前端DELETE /api/rag/documents/{id} → delete() → RagService.delete(id) → ChromaService.delete()</p>
+     * <p>数据处理：ID通过路径变量传入；委托service执行删除。</p>
+     * <p>业务规则：需要ADMIN角色权限。</p>
+     * <p>状态影响：从Chroma中删除一条文档记录。</p>
+     * <p>异常情况：未登录返回401；非ADMIN返回403；ID不存在时返回200（幂等）。</p>
+     * <p>注意事项：删除后不可恢复。</p>
+     */
     @DeleteMapping("/documents/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "删除文档", description = "删除知识文档")
@@ -144,14 +164,16 @@ public class RagController {
     }
 
     /**
-     * 上传文件并自动提取文本创建知识文档
-     * @param file 上传的文件（仅支持.txt和.docx格式）
-     * @param title 文档标题（可选）
-     * @param category 文档分类（可选）
-     * @return 创建的知识文档
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【业务名称】上传文件导入知识文档（接口）
+     * <p>业务作用：上传.txt或.docx文件，自动提取文本内容创建知识文档，文件名作为默认标题。</p>
+     * <p>调用场景：管理员在后台批量导入知识文档文件。</p>
+     * <p>调用链：前端POST /api/rag/documents/upload → uploadDocument() → 校验文件格式 → RagService.createFromFile() → Chroma存储 → toDTO()</p>
+     * <p>数据处理：从MultipartFile获取文件名和字节数据；前置校验文件格式和文件名；委托service创建。</p>
+     * <p>业务规则：需要ADMIN角色权限；仅支持.txt和.docx格式；文件名不能为空。</p>
+     * <p>状态影响：新增一条知识文档记录。</p>
+     * <p>异常情况：文件格式不支持返回400；文件名空返回400；未登录返回401；非ADMIN返回403。</p>
+     * <p>注意事项：文件内容不做HTML转义（信任上传来源）；大文件上传注意服务器内存限制。</p>
+     */
     @PostMapping("/documents/upload")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "上传文档文件", description = "上传 txt/docx 文件并自动提取文本创建知识文档")
@@ -179,6 +201,11 @@ public class RagController {
         return Result.success(toDTO(doc));
     }
 
+    /**
+     * 【业务名称】知识文档实体转DTO
+     * <p>业务作用：将KnowledgeDocument实体转换为前端展示的KnowledgeDocumentDTO。</p>
+     * <p>注意事项：字段一一映射，不涉及数据转换逻辑。</p>
+     */
     private KnowledgeDocumentDTO toDTO(KnowledgeDocument entity) {
         KnowledgeDocumentDTO dto = new KnowledgeDocumentDTO();
         dto.setId_wsh(entity.getId_wsh());

@@ -15,6 +15,14 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 看护者休假（KeeperLeave）实体，映射 keeper_leave_wsh 表。
+ * <p>
+ * 由商家为其旗下的看护者设置休假安排。休假以日期范围表示（开始日期 ~ 结束日期），
+ * 支持跨天休假。休假期间看护者不能签到打卡和接单。
+ * 系统提供日期重叠检测，防止同一看护者在同一时间段被重复设置休假。
+ * 记录中保存了创建人（商家用户ID），便于审计。
+ */
 @Getter
 @Setter
 @TableName("keeper_leave_wsh")

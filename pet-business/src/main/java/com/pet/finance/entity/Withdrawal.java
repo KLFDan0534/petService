@@ -10,6 +10,16 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 提现记录实体，映射数据库表 withdrawal_wsh。
+ * 管理用户提现申请的完整生命周期：
+ * pending（待审核）→ approved（审核通过）→ completed（已打款），
+ * 或 pending → rejected（驳回）。
+ * 提现时冻结用户余额，驳回时解冻，完成时从冻结区扣除。
+ *
+ * @author: wsh
+ * @date: 2026/06/24 11:05
+ */
 @Getter
 @Setter
 @TableName("withdrawal_wsh")

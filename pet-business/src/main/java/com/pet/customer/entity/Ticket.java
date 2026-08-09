@@ -9,6 +9,11 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 工单实体，记录用户提交的售后/客服工单信息。
+ * <p>工单生命周期：pending（待处理）-> processing（处理中）-> resolved（已解决）-> closed（已关闭）。
+ * 支持优先级、分类、分配处理人等功能。</p>
+ */
 @Getter
 @Setter
 @TableName("ticket_wsh")

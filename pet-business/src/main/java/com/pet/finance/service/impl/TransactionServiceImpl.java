@@ -21,6 +21,17 @@ public class TransactionServiceImpl implements TransactionService {
         this.transactionMapper = transactionMapper;
     }
 
+    /**
+     * 【业务名称】按用户查询交易记录（实现）
+     * 业务作用：查询用户全部交易流水，按创建时间倒序。
+     * 调用场景：用户端资金明细展示。
+     * 调用链：listByUser() → TransactionMapper.selectList()。
+     * 数据处理：按 user_id 精确匹配，按创建时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<Transaction> listByUser(Long userId) {
         log.info("调用 listByUser()");
@@ -30,6 +41,17 @@ public class TransactionServiceImpl implements TransactionService {
                         .orderByDesc(Transaction::getCreated_at_wsh));
     }
 
+    /**
+     * 【业务名称】查询全部交易记录（实现）
+     * 业务作用：查询全部交易流水，按创建时间倒序。
+     * 调用场景：后台管理对账审计。
+     * 调用链：listAll() → TransactionMapper.selectList()。
+     * 数据处理：无条件全量查询。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：全量查询。
+     */
     @Override
     public List<Transaction> listAll() {
         log.info("调用 listAll()");
@@ -37,6 +59,17 @@ public class TransactionServiceImpl implements TransactionService {
                 new LambdaQueryWrapper<Transaction>().orderByDesc(Transaction::getCreated_at_wsh));
     }
 
+    /**
+     * 【业务名称】交易记录转 DTO（实现）
+     * 业务作用：将交易实体转换为 DTO，拷贝全部字段。
+     * 调用场景：对外暴露交易记录。
+     * 调用链：toDTO() → 字段拷贝。
+     * 数据处理：字段逐一拷贝。
+     * 业务规则：入参为 null 时返回 null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public TransactionDTO toDTO(Transaction entity) {
         if (entity == null) return null;
@@ -61,6 +94,17 @@ public class TransactionServiceImpl implements TransactionService {
         return dto;
     }
 
+    /**
+     * 【业务名称】新增交易记录（实现）
+     * 业务作用：新增一条交易记录。
+     * 调用场景：由 AccountingService 在资金变动时自动调用。
+     * 调用链：add() → TransactionMapper.insert()。
+     * 数据处理：插入交易记录。
+     * 业务规则：记录余额/冻结快照。
+     * 状态影响：新增一条交易流水。
+     * 异常情况：无。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public void add(Transaction tx) {

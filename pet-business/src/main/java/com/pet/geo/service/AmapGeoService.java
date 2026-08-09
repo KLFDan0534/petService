@@ -32,6 +32,16 @@ public class AmapGeoService {
         this.restTemplate = new RestTemplate(requestFactory);
     }
 
+    /**
+     * Resolves an address string to geographic coordinates (longitude/latitude)
+     * using the AMap (Gaode Maps) geocoding API.
+     * Throws BusinessException if the address is empty, the API key is missing,
+     * the API call fails, or no matching location is found.
+     *
+     * @param address the address to geocode
+     * @param label   a human-readable label for the address (used in error messages)
+     * @return the resolved GeoPoint with formatted address and coordinates
+     */
     public GeoPoint geocodeRequired(String address, String label) {
         String text = trimToNull(address);
         if (text == null) {
@@ -85,6 +95,14 @@ public class AmapGeoService {
         }
     }
 
+    /**
+     * Calculates the great-circle distance in meters between two geographic points
+     * using the Haversine formula.
+     *
+     * @param first  the first point
+     * @param second the second point
+     * @return distance in meters
+     */
     public double distanceMeters(GeoPoint first, GeoPoint second) {
         return GeoDistanceUtils.distanceMeters(
                 first.latitude(), first.longitude(),

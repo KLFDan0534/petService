@@ -6,6 +6,12 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 收藏卡片 DTO，包含收藏目标的摘要展示信息。
+ * <p>
+ * 由 {@link com.pet.operation.service.FavoriteTargetResolver} 实现类组装，
+ * 包含标题、描述、图片、详情链接、主要/次要信息和价格等字段。
+ */
 @Data
 public class FavoriteCardDTO {
     @Schema(description = "收藏记录ID")

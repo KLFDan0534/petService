@@ -22,10 +22,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 地址管理控制器
- * 提供当前用户地址的增删改查及默认地址设置功能
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * 【地址管理控制器】
+ *
+ * 业务作用：
+ * 管理当前登录用户的收货/联系地址，包括地址的 CRUD
+ * 以及默认地址设置功能。
+ *
+ * 权限要求：
+ * 所有接口需登录（isAuthenticated），仅操作本人的地址。
+ *
+ * API 路由前缀：/api/addresses
  */
 @RestController
 @RequestMapping("/api/addresses")
@@ -40,12 +46,18 @@ public class AddressController {
     }
 
     /**
-     * 获取当前用户的地址列表
+     * 【获取当前用户的地址列表】
+     *
+     * API: GET /api/addresses
+     *
+     * 权限：需登录
+     *
+     * 场景：用户在个人中心管理地址簿。
+     * 返回当前用户的所有地址，默认地址排在首位。
+     *
      * @param token 当前用户认证信息
-     * @return 地址列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * @return 地址列表（默认地址排首位）
+     */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "获取地址列表", description = "获取当前用户的地址列表")
@@ -61,13 +73,15 @@ public class AddressController {
     }
 
     /**
-     * 根据ID获取地址详情
-     * @param token 当前用户认证信息
-     * @param id 地址ID
+     * 【获取地址详情】
+     *
+     * API: GET /api/addresses/{id}
+     *
+     * 权限：需登录
+     *
+     * @param id 地址 ID
      * @return 地址详情
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     */
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "获取地址详情", description = "根据ID获取地址详情")
@@ -84,13 +98,18 @@ public class AddressController {
     }
 
     /**
-     * 新增地址
-     * @param token 当前用户认证信息
-     * @param addr 地址信息
+     * 【新增地址】
+     *
+     * API: POST /api/addresses
+     *
+     * 权限：需登录
+     *
+     * 场景：用户在地址簿中添加新的收货地址。
+     * 如果当前用户无地址，则第一个地址自动设为默认地址。
+     *
+     * @param dto 地址创建信息
      * @return 创建的地址
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     */
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "新增地址", description = "新增用户地址")
@@ -107,14 +126,18 @@ public class AddressController {
     }
 
     /**
-     * 更新地址信息
-     * @param token 当前用户认证信息
-     * @param id 地址ID
-     * @param addr 地址信息
+     * 【更新地址信息】
+     *
+     * API: PUT /api/addresses/{id}
+     *
+     * 权限：需登录
+     *
+     * 业务校验：仅更新当前用户本人的地址。
+     *
+     * @param id  地址 ID
+     * @param dto 更新信息
      * @return 更新后的地址
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     */
     @PutMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "更新地址", description = "更新指定地址信息")
@@ -132,13 +155,17 @@ public class AddressController {
     }
 
     /**
-     * 删除地址
-     * @param token 当前用户认证信息
-     * @param id 地址ID
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【删除地址】
+     *
+     * API: DELETE /api/addresses/{id}
+     *
+     * 权限：需登录
+     *
+     * 业务校验：仅删除当前用户本人的地址。
+     * 若删除的是默认地址，则自动将剩余地址中最新的一条设为默认。
+     *
+     * @param id 地址 ID
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "删除地址", description = "删除指定地址")
@@ -156,13 +183,17 @@ public class AddressController {
     }
 
     /**
-     * 设置默认地址
-     * @param token 当前用户认证信息
-     * @param id 地址ID
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【设置默认地址】
+     *
+     * API: POST /api/addresses/{id}/default
+     *
+     * 权限：需登录
+     *
+     * 业务规则：同一用户只有一个默认地址。
+     * 设置新默认地址时，自动取消原默认地址的标记。
+     *
+     * @param id 地址 ID
+     */
     @PostMapping("/{id}/default")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "设置默认地址", description = "将指定地址设为默认地址")

@@ -15,6 +15,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 用户优惠券实体，记录发放给用户的优惠券实例。
+ * <p>状态流转：available（可用）-> locked（已锁定，下单时暂扣）-> used（已使用）；
+ * 或从 locked 回到 available（订单取消时释放）。
+ * 每个优惠券实例关联一个模板，继承其优惠规则。</p>
+ */
 @Getter
 @Setter
 @TableName("user_coupon_wsh")

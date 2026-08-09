@@ -9,6 +9,11 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 投诉实体，记录宠物主对商家或照看者的投诉信息。
+ * <p>关联订单、目标对象（商家/照看者），包含投诉标题、内容、图片证据，
+ * 以及处理状态和结果。投诉由管理员或商家进行处理。</p>
+ */
 @Getter
 @Setter
 @TableName("complaint_wsh")

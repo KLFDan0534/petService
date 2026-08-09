@@ -29,6 +29,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         this.accountingService = accountingService;
     }
 
+    /**
+     * 【业务名称】按用户查询提现记录（实现）
+     * 业务作用：查询用户的历史提现记录。
+     * 调用场景：用户查看提现记录。
+     * 调用链：listByUser() → WithdrawalMapper.selectList()。
+     * 数据处理：按 user_id 匹配，按创建时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<Withdrawal> listByUser(Long userId) {
         log.info("调用 listByUser()");
@@ -38,6 +49,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
                         .orderByDesc(Withdrawal::getCreated_at_wsh));
     }
 
+    /**
+     * 【业务名称】查询全部提现记录（实现）
+     * 业务作用：查询所有提现记录。
+     * 调用场景：后台管理。
+     * 调用链：listAll() → WithdrawalMapper.selectList()。
+     * 数据处理：按创建时间倒序全量查询。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<Withdrawal> listAll() {
         log.info("调用 listAll()");
@@ -45,6 +67,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
                 new LambdaQueryWrapper<Withdrawal>().orderByDesc(Withdrawal::getCreated_at_wsh));
     }
 
+    /**
+     * 【业务名称】分页查询提现记录（实现）
+     * 业务作用：分页查询提现记录。
+     * 调用场景：后台分页管理。
+     * 调用链：listPage() → WithdrawalMapper.selectPage()。
+     * 数据处理：分页查询，按创建时间倒序。
+     * 业务规则：支持分页参数。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public IPage<Withdrawal> listPage(PageRequestDTO pageParam) {
         log.info("调用 listPage()");
@@ -53,6 +86,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
                 new LambdaQueryWrapper<Withdrawal>().orderByDesc(Withdrawal::getCreated_at_wsh));
     }
 
+    /**
+     * 【业务名称】申请提现（实现）
+     * 业务作用：用户申请提现，创建记录并冻结金额。
+     * 调用场景：用户钱包提现。
+     * 调用链：apply() → 构造 Withdrawal → insert() → AccountingService.freeze()。
+     * 数据处理：创建 pending 状态记录 → 调用 AccountingService.freeze() 冻结金额。
+     * 业务规则：金额必须 > 0。
+     * 状态影响：新增提现记录；钱包冻结对应金额。
+     * 异常情况：金额不合法抛 BusinessException(400)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public Withdrawal apply(Long userId, BigDecimal amount, String bankName, String bankCard, String accountName) {
@@ -76,6 +120,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         return wd;
     }
 
+    /**
+     * 【业务名称】审批提现（实现）
+     * 业务作用：审批通过提现申请。
+     * 调用场景：后台审批。
+     * 调用链：approve() → getById() → 校验状态 → updateById()。
+     * 数据处理：更新状态为 approved，设置审批备注。
+     * 业务规则：仅 pending 状态可审批。
+     * 状态影响：提现状态 pending → approved。
+     * 异常情况：非 pending 抛 BusinessException(400)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public Withdrawal approve(Long id, String remark) {
@@ -90,6 +145,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         return wd;
     }
 
+    /**
+     * 【业务名称】驳回提现（实现）
+     * 业务作用：驳回提现申请，自动解冻金额。
+     * 调用场景：后台驳回。
+     * 调用链：reject() → getById() → 校验状态 → updateById() → AccountingService.unfreeze()。
+     * 数据处理：更新状态为 rejected → 调用解冻接口。
+     * 业务规则：仅 pending 状态可驳回。
+     * 状态影响：提现状态 pending → rejected；钱包解冻。
+     * 异常情况：非 pending 抛 BusinessException(400)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public Withdrawal reject(Long id, String remark) {
@@ -107,6 +173,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         return wd;
     }
 
+    /**
+     * 【业务名称】完成提现（实现）
+     * 业务作用：完成提现，消耗冻结金额。
+     * 调用场景：后台确认打款。
+     * 调用链：complete() → getById() → 校验状态 → updateById() → AccountingService.consumeFrozen()。
+     * 数据处理：更新状态为 completed → 调用消耗冻结接口。
+     * 业务规则：仅 approved 状态可完成。
+     * 状态影响：提现状态 approved → completed；冻结金额消耗。
+     * 异常情况：非 approved 抛 BusinessException(400)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public Withdrawal complete(Long id) {
@@ -123,6 +200,17 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         return wd;
     }
 
+    /**
+     * 【业务名称】提现转 DTO（实现）
+     * 业务作用：将提现实体转换为 DTO。
+     * 调用场景：对外暴露提现信息。
+     * 调用链：toDTO() → 字段拷贝。
+     * 数据处理：字段逐一拷贝。
+     * 业务规则：入参为 null 时返回 null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public WithdrawalDTO toDTO(Withdrawal entity) {
         if (entity == null) return null;

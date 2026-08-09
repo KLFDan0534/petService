@@ -25,13 +25,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * RAG（Retrieval-Augmented Generation）服务实现类
- * 提供基于知识库的语义搜索和问答功能
- * 主要功能包括：
- * 1. 知识文档管理（增删查）
- * 2. 向量搜索和关键词搜索
- * 3. 基于AI模型的智能问答
- * 4. 宠物档案个性化处理
+ * RAG 服务实现，集成 Chroma 向量数据库和 DeepSeek AI 模型。
+ * <p>
+ * 检索策略：双阶段降级 —— 先向量相似性搜索，未命中时使用字符级关键词评分。
+ * 问答策略：三阶段降级 —— AI 在线 -> 宠物档案模板 -> 知识库模板。
+ * 文档管理：支持 .txt / .docx 文件导入，HTML 转义防止 XSS，Chroma 存储含完整元数据。
  */
 
 @Service
@@ -106,6 +104,17 @@ public class RagServiceImpl implements RagService {
         return collectionId;
     }
 
+    /**
+     * 【业务名称】获取所有知识文档实现
+     * <p>业务作用：从Chroma向量库查询全部文档的元数据和文本内容，转换为KnowledgeDocument列表并按创建时间倒序排列。</p>
+     * <p>调用场景：管理员查看知识库列表、搜索前获取全量数据。</p>
+     * <p>调用链：Controller → listAll() → ChromaService.get(collectionId, null, null, ["metadatas","documents"]) → toDocuments()</p>
+     * <p>数据处理：调用ChromaService.get()不设过滤条件获取全部文档；toDocuments()解析ids/documents/metadatas为KnowledgeDocument对象列表；按created_at_wsh倒序排序。</p>
+     * <p>业务规则：数据只存储在Chroma中，无MySQL备份；Chroma为空时返回空列表。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：Chroma服务不可用时返回空列表。</p>
+     * <p>注意事项：文档ID解析异常时使用hashCode作为ID兜底。</p>
+     */
     @Override
     public List<KnowledgeDocument> listAll() {
         log.info("调用 listAll()");
@@ -115,10 +124,15 @@ public class RagServiceImpl implements RagService {
     }
 
     /**
-     * 根据查询条件和分类搜索知识文档
-     * @param query 查询条件
-     * @param category 分类过滤
-     * @return 匹配的知识文档列表
+     * 【业务名称】搜索知识文档实现
+     * <p>业务作用：先获取全量文档，按分类过滤，然后双阶段检索——向量搜索优先，未命中时关键词搜索降级。</p>
+     * <p>调用场景：用户搜索知识库或AI问答内部检索。</p>
+     * <p>调用链：Controller或answer() → search() → listAll() → 分类过滤 → vectorSearch()向量搜索 | termSearch()关键词文本匹配</p>
+     * <p>数据处理：listAll()获取全量文档；Java Stream按category过滤；query非空时先vectorSearch（EmbeddingService.embed→Chroma query API返回匹配ID列表），结果为空时termSearch（单字+词组在title/content中评分）。</p>
+     * <p>业务规则：分类过滤在检索前执行；向量搜索返回空时自动降级到关键词搜索。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：向量搜索异常返回空列表触发关键词降级。</p>
+     * <p>注意事项：向量搜索匹配到的文档ID需与candidateDocs取交集返回。</p>
      */
     @Override
     public List<KnowledgeDocument> search(String query, String category) {
@@ -202,9 +216,15 @@ public class RagServiceImpl implements RagService {
     }
 
     /**
-     * 基于知识库的AI问答接口（无宠物档案）
-     * @param question 用户问题
-     * @return AI回答结果
+     * 【业务名称】AI问答（无宠物档案）实现
+     * <p>业务作用：不带宠物档案信息的AI问答，委托给answer(question, null)执行。</p>
+     * <p>调用场景：用户在知识库页面提问但未关联宠物。</p>
+     * <p>调用链：Controller → answer(question) → answer(question, null)</p>
+     * <p>数据处理：petProfile传null，不加入宠物档案上下文。</p>
+     * <p>业务规则：无宠物档案时AI不可用降级到知识库模板。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：不直接抛出异常。</p>
+     * <p>注意事项：始终委托给双参数方法执行。</p>
      */
     @Override
     public String answer(String question) {
@@ -212,10 +232,15 @@ public class RagServiceImpl implements RagService {
     }
 
     /**
-     * 基于知识库的AI问答接口
-     * @param question 用户问题
-     * @param petProfile 宠物档案信息
-     * @return AI回答结果
+     * 【业务名称】AI问答（带宠物档案）实现
+     * <p>业务作用：检索相关知识文档，构建系统提示词和用户提示词，调用AI模型生成回答。三阶段降级策略：AI在线→AI回答、AI不可用且有宠物档案→宠物档案模板、AI不可用且知识库非空→知识库模板。</p>
+     * <p>调用场景：用户在知识库页面提问时关联了宠物，或AI报告生成等需要个性化回答的场景。</p>
+     * <p>调用链：Controller → answer(question, petProfile) → search()检索 → 构建systemPrompt+userPrompt → AiChatService.chat(systemPrompt, userPrompt) → AI成功返回 | AI失败且有宠物档案→buildPetProfileFallback() | 知识库非空→知识库模板 | 空→引导提示</p>
+     * <p>数据处理：search()检索相关内容；systemPrompt优先从classpath:rag-system-prompt.txt加载，失败使用英文默认提示词；buildUserPrompt()拼接petProfile+知识库上下文（最多5条）+问题+要求中文回答；AI返回null时降级处理。</p>
+     * <p>业务规则：AI返回优先；有宠物档案且AI不可用时使用5条通用护理建议模板+知识库参考（最多2条）；无宠物档案但知识库非空时使用最相关3条文档作为回答；都空时返回引导提示。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：AiChatService返回null时继续降级流程，不中断。</p>
+     * <p>注意事项：系统提示词文件覆盖默认英文prompt；回答控制在800字以内由AI保证。</p>
      */
     @Override
     public String answer(String question, String petProfile) {
@@ -323,9 +348,15 @@ public class RagServiceImpl implements RagService {
     }
 
     /**
-     * 创建新的知识文档
-     * @param doc 待创建的知识文档
-     * @return 创建后的知识文档
+     * 【业务名称】创建知识文档实现
+     * <p>业务作用：将传入的DTO转为KnowledgeDocument实体，标题和内容做HTML转义后，委托doCreateDocument存储到Chroma向量库。</p>
+     * <p>调用场景：管理员在后台手动新增知识文档。</p>
+     * <p>调用链：Controller → create() → HTML转义 → doCreateDocument() → storeInChroma() → EmbeddingService.embed() → ChromaService.add()</p>
+     * <p>数据处理：HtmlUtils.htmlEscape()转义title和content防止XSS；计算content.length()作为word_count；doCreateDocument设置时间戳并存储。</p>
+     * <p>业务规则：标题和内容必须做HTML转义；category不做转义（枚举值）。</p>
+     * <p>状态影响：新增一条知识文档记录。</p>
+     * <p>异常情况：Embedding失败仅记日志；Chroma存储失败抛出异常。</p>
+     * <p>注意事项：此方法不校验管理员权限（由Controller层负责）。</p>
      */
     @Override
     public KnowledgeDocument create(RagDocumentCreateRequestDTO request) {
@@ -338,6 +369,17 @@ public class RagServiceImpl implements RagService {
         return doCreateDocument(doc);
     }
 
+    /**
+     * 【业务名称】从文件导入知识文档实现
+     * <p>业务作用：解析上传的文件（.txt/.docx），提取文本内容，构建KnowledgeDocument并存储到Chroma。</p>
+     * <p>调用场景：管理员在后台通过文件上传导入知识文档。</p>
+     * <p>调用链：Controller → createFromFile() → extractText()提取文本 → 构造KnowledgeDocument → doCreateDocument() → storeInChroma()</p>
+     * <p>数据处理：extractText()根据文件后缀选择解析方式；title为空时从文件名截取（取.之前部分）；设置source_type="upload"、source_path=fileName；委托doCreateDocument存储。</p>
+     * <p>业务规则：仅支持.txt和.docx格式；title和category均可为空。</p>
+     * <p>状态影响：新增一条知识文档记录。</p>
+     * <p>异常情况：不支持的文件格式抛出RuntimeException；docx解析异常抛出RuntimeException。</p>
+     * <p>注意事项：不对此方法中的文本做HTML转义（信任上传文件）；Controller层已做文件格式的前置校验。</p>
+     */
     @Override
     public KnowledgeDocument createFromFile(String fileName, byte[] fileBytes, String title, String category) {
         String content = extractText(fileName, fileBytes);
@@ -379,8 +421,15 @@ public class RagServiceImpl implements RagService {
     }
 
     /**
-     * 删除知识文档
-     * @param id 待删除文档的ID
+     * 【业务名称】删除知识文档实现
+     * <p>业务作用：根据文档ID从Chroma向量库中删除文档及其向量嵌入和元数据。</p>
+     * <p>调用场景：管理员在后台删除知识文档。</p>
+     * <p>调用链：Controller → delete() → ChromaService.delete(collectionId, [id], null)</p>
+     * <p>数据处理：将Long id转为String单元素列表传递给ChromaService。</p>
+     * <p>业务规则：Controller层控制ADMIN权限。</p>
+     * <p>状态影响：从Chroma中删除一条文档记录。</p>
+     * <p>异常情况：Chroma删除失败记录warn日志，不抛出异常。</p>
+     * <p>注意事项：ID不存在时Chroma不报错；无MySQL备份数据，删除后不可恢复。</p>
      */
     @Override
     public void delete(Long id) {

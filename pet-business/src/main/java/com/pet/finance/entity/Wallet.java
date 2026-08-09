@@ -10,6 +10,14 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 钱包实体，映射数据库表 wallet_wsh。
+ * 每个用户拥有唯一钱包，记录当前余额和冻结金额。
+ * 余额变动必须通过 AccountingService，以保证流水审计和幂等一致性。
+ *
+ * @author: wsh
+ * @date: 2026/06/24 11:05
+ */
 @Getter
 @Setter
 @TableName("wallet_wsh")

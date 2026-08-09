@@ -33,14 +33,27 @@ public class OperationLogController {
 
     /**
      * 分页查询操作日志
-     * @param param 分页参数
-     * @param module 模块名称（可选）
-     * @param operation 操作类型（可选）
-     * @param status 状态（可选）
-     * @return 分页操作日志
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     *
+     * <p>API: GET /api/operation-logs</p>
+     * <p>请求来源：后台管理审计日志页，管理员查看系统操作日志，支持按模块、操作类型和状态筛选</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：
+     * <ul>
+     *   <li>@query PageRequestDTO - 分页参数（页码、每页大小）</li>
+     *   <li>@query module - 模块名称（可选，如user/order/merchant）</li>
+     *   <li>@query operation - 操作类型（可选，如create/update/delete）</li>
+     *   <li>@query status - 执行状态（可选，成功/失败）</li>
+     * </ul>
+     * </p>
+     * <p>返回数据：IPage&lt;OperationLogDTO&gt; - 分页的操作日志，包含操作人、IP、请求URL、执行时长等</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 分页参数错误</li>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping
     @Operation(summary = "分页查询操作日志")
     @ApiResponses({
@@ -59,11 +72,20 @@ public class OperationLogController {
 
     /**
      * 获取操作日志详情
-     * @param id 日志ID
-     * @return 操作日志详情
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     *
+     * <p>API: GET /api/operation-logs/{id}</p>
+     * <p>请求来源：后台管理审计日志详情页，管理员查看单条日志的详细信息</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：@path id - 日志ID</p>
+     * <p>返回数据：OperationLogDTO - 操作日志详情，含请求参数、响应结果等</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>404 - 日志不存在</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping("/{id}")
     @Operation(summary = "获取操作日志详情")
     @ApiResponses({

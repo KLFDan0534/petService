@@ -22,6 +22,19 @@ public class QualificationServiceImpl implements QualificationService {
         this.qualificationMapper = qualificationMapper;
     }
 
+    /**
+     * Creates a pending qualification record. Returns null if no file URL is provided.
+     * Sets default title based on qualType and default visibility to masked_public.
+     *
+     * @param ownerType the owner type
+     * @param ownerId   the owner ID
+     * @param userId    the submitting user ID
+     * @param qualType  the qualification type
+     * @param title     display title; auto-generated if null/blank
+     * @param fileUrl   URL to the uploaded file
+     * @param summary   optional summary
+     * @return the created DTO, or null if fileUrl is blank
+     */
     @Override
     public QualificationDTO createPending(String ownerType,
                                           Long ownerId,
@@ -47,6 +60,15 @@ public class QualificationServiceImpl implements QualificationService {
         return toDTO(q, false);
     }
 
+    /**
+     * Lists qualifications for a given owner, ordered by creation time descending.
+     * Returns empty list if ownerType or ownerId is invalid.
+     *
+     * @param ownerType the owner type
+     * @param ownerId   the owner ID
+     * @param publicView if true, masks the file URL for public display
+     * @return list of qualification DTOs
+     */
     @Override
     public List<QualificationDTO> listByOwner(String ownerType, Long ownerId, boolean publicView) {
         if (!StringUtils.hasText(ownerType) || ownerId == null) {
@@ -61,6 +83,15 @@ public class QualificationServiceImpl implements QualificationService {
                 .toList();
     }
 
+    /**
+     * Batch-queries qualifications for multiple owners, returning results
+     * grouped by owner ID. Returns empty map if inputs are invalid.
+     *
+     * @param ownerType the owner type
+     * @param ownerIds  set of owner IDs to query
+     * @param publicView if true, masks file URLs
+     * @return map of owner ID to their qualification DTOs
+     */
     @Override
     public Map<Long, List<QualificationDTO>> listMapByOwnerIds(String ownerType, Set<Long> ownerIds, boolean publicView) {
         if (!StringUtils.hasText(ownerType) || ownerIds == null || ownerIds.isEmpty()) {
@@ -75,6 +106,11 @@ public class QualificationServiceImpl implements QualificationService {
                 .collect(Collectors.groupingBy(QualificationDTO::getOwner_id_wsh));
     }
 
+    /**
+     * Lists all qualifications in "pending" review status, ordered by creation time descending.
+     *
+     * @return list of pending qualification DTOs
+     */
     @Override
     public List<QualificationDTO> listPending() {
         return qualificationMapper.selectList(
@@ -86,6 +122,14 @@ public class QualificationServiceImpl implements QualificationService {
                 .toList();
     }
 
+    /**
+     * Approves a pending qualification. Validates that the record exists
+     * and is currently in "pending" status before approving.
+     *
+     * @param id         the qualification ID
+     * @param reviewerId the admin reviewer ID
+     * @return the approved DTO
+     */
     @Override
     public QualificationDTO approve(Long id, Long reviewerId) {
         Qualification q = qualificationMapper.selectById(id);
@@ -101,6 +145,15 @@ public class QualificationServiceImpl implements QualificationService {
         return toDTO(q, false);
     }
 
+    /**
+     * Rejects a pending qualification with a review remark. Validates that
+     * the record exists and is in "pending" status before rejecting.
+     *
+     * @param id         the qualification ID
+     * @param reviewerId the admin reviewer ID
+     * @param remark     the rejection reason
+     * @return the rejected DTO
+     */
     @Override
     public QualificationDTO reject(Long id, Long reviewerId, String remark) {
         Qualification q = qualificationMapper.selectById(id);
@@ -117,6 +170,20 @@ public class QualificationServiceImpl implements QualificationService {
         return toDTO(q, false);
     }
 
+    /**
+     * Creates a new pending qualification or updates an existing pending one
+     * for the same owner and type. If a pending record already exists, only
+     * the file_url and summary are updated.
+     *
+     * @param ownerType the owner type
+     * @param ownerId   the owner ID
+     * @param userId    the submitting user ID
+     * @param qualType  the qualification type
+     * @param title     display title
+     * @param fileUrl   URL to the uploaded file
+     * @param summary   optional summary
+     * @return the created or updated DTO, or null if fileUrl is blank
+     */
     @Override
     public QualificationDTO createOrUpdatePending(String ownerType,
                                                   Long ownerId,

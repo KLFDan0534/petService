@@ -22,6 +22,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 【业务模块】评价管理（实现）
+ * 业务作用：提供用户评价和商家回复的完整业务逻辑。
+ * 支持三种评价目标类型：merchant（商家）、keeper（照看者）、service（服务）。
+ * 评价后商家或照看者可进行回复。
+ */
 @Service
 @Slf4j
 public class RatingServiceImpl implements RatingService {
@@ -41,6 +47,18 @@ public class RatingServiceImpl implements RatingService {
         this.keeperMapper = keeperMapper;
     }
 
+    /**
+     * 【业务名称】按目标查询评价列表（实现）
+     * 业务作用：根据目标对象 ID 和类型查询评价列表。
+     * 调用场景：用户或商家查看某目标的评价。
+     * 调用链：getRatingsByTarget() → RatingMapper.selectList()。
+     * 数据处理：按 targetId + targetType 匹配，按创建时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
+    @Override
     public List<RatingDTO> getRatingsByTarget(Long targetId, String targetType) {
         log.info("调用 getRatingsByTarget()");
         return toDTOList(ratingMapper.selectList(
@@ -50,7 +68,19 @@ public class RatingServiceImpl implements RatingService {
                         .orderByDesc(Rating::getCreated_at_wsh)));
     }
 
+    /**
+     * 【业务名称】创建评价（实现）
+     * 业务作用：用户为指定订单或服务创建评价。
+     * 调用场景：订单完成后用户评价。
+     * 调用链：createRating() → 校验订单状态和重复评价 → insert()。
+     * 数据处理：校验订单已完成且未重复评价 → 插入评价记录。
+     * 业务规则：service 类型自动查找最近已完成订单；评分 1-5；同一订单不可重复评价。
+     * 状态影响：新增一条评价记录。
+     * 异常情况：目标为空抛异常；评分越界抛异常；订单未完成抛异常；重复评价抛异常。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
+    @Override
     public RatingDTO createRating(Long userId, RatingCreateRequestDTO request) {
         log.info("调用 createRating()");
         Rating rating = new Rating();
@@ -110,7 +140,19 @@ public class RatingServiceImpl implements RatingService {
         return toDTO(rating);
     }
 
+    /**
+     * 【业务名称】回复评价（实现）
+     * 业务作用：商家或照看者回复一条评价。
+     * 调用场景：商家/照看者回复用户评价。
+     * 调用链：replyRating() → 权限校验 → updateById()。
+     * 数据处理：更新 reply 和 reply_at。
+     * 业务规则：商家只能回复 merchant 类型且归属自己商家的评价；照看者只能回复 keeper 类型且属于自己的评价。
+     * 状态影响：评价的 reply 和 reply_at 字段更新。
+     * 异常情况：评价不存在抛异常；无权回复抛 BusinessException(403)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
+    @Override
     public RatingDTO replyRating(Long id, String reply, Long userId) {
         log.info("调用 replyRating()");
         Rating rating = ratingMapper.selectById(id);
@@ -136,6 +178,17 @@ public class RatingServiceImpl implements RatingService {
         return toDTO(rating);
     }
 
+    /**
+     * 【业务名称】评价实体转DTO
+     * 业务作用：将评价实体转换为DTO。
+     * 调用场景：对外暴露评价信息。
+     * 调用链：toDTO()。
+     * 数据处理：字段拷贝。
+     * 业务规则：入参为null时返回null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     private RatingDTO toDTO(Rating rating) {
         if (rating == null) return null;
         RatingDTO dto = new RatingDTO();

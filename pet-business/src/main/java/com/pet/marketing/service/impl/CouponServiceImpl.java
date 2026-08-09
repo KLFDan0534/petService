@@ -40,17 +40,33 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * 优惠券服务实现，提供优惠券模板 CRUD、批量发放、用户领券、
+ * 订单优惠预览及优惠券锁定/使用/释放等全生命周期管理。
+ * <p>优惠券库存通过原子操作保障不超发；优惠券锁定/释放与订单状态联动；
+ * 条件发放支持按注册时间、消费金额、订单数、宠物数等多维度筛选用户。</p>
+ */
 @Service
 public class CouponServiceImpl implements CouponService {
+    /** 模板状态：启用 */
     private static final int STATUS_ENABLED = 1;
+    /** 模板状态：禁用 */
     private static final int STATUS_DISABLED = 0;
+    /** 优惠类型：固定金额减免 */
     private static final String TYPE_AMOUNT = "amount";
+    /** 优惠类型：折扣率减免 */
     private static final String TYPE_PERCENT = "percent";
+    /** 用户优惠券状态：可用 */
     private static final String STATUS_AVAILABLE = "available";
+    /** 用户优惠券状态：已锁定（下单占用） */
     private static final String STATUS_LOCKED = "locked";
+    /** 用户优惠券状态：已使用 */
     private static final String STATUS_USED = "used";
+    /** 优惠券来源：用户自行领取 */
     private static final String SOURCE_CLAIM = "claim";
+    /** 优惠券来源：管理员发放 */
     private static final String SOURCE_ADMIN = "admin";
+    /** 优惠金额承担方：平台 */
     private static final String FUNDING_PLATFORM = "platform";
 
     private final CouponTemplateMapper templateMapper;

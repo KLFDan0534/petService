@@ -9,6 +9,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+/**
+ * 【业务模块】投诉处理 MQ 消费者（实现）
+ * 业务作用：监听 RabbitMQ complaint.process 队列，处理投诉解决事件。
+ * 当投诉处理完成后，创建站内通知告知投诉人处理结果。
+ */
 @Component
 public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
 
@@ -23,6 +28,17 @@ public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
         this.notificationService = notificationService;
     }
 
+    /**
+     * 【业务名称】处理投诉事件
+     * 业务作用：处理投诉记录，向投诉人发送站内通知。
+     * 调用场景：RabbitMQ 异步消费投诉处理消息。
+     * 调用链：handle() → selectById() → create() 通知。
+     * 数据处理：查询投诉记录 → 创建站内通知写入。
+     * 业务规则：投诉ID为空或投诉不存在时静默跳过；投诉无主人时跳过。
+     * 状态影响：新增一条站内通知记录。
+     * 异常情况：通知创建失败仅记录日志，不影响主流程。
+     * 注意事项：异步处理，不抛异常。
+     */
     @Override
     public void handle(Long complaintId) {
         if (complaintId == null) {

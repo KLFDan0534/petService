@@ -30,10 +30,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 看护者（Keeper）管理服务实现。
+ * <p>
+ * 负责看护者从入驻申请 → 审核（平台/商家双通道）→ 在职（ACTIVE/OFFLINE/BUSY）→ 离职（辞职/解雇）的全生命周期管理。
+ * 同时维护看护者与商家之间的归属关系，以及看护者在系统中的角色权限。
+ */
 @Service
 @Slf4j
 public class KeeperServiceImpl implements KeeperService {
 
+    /**
+     * 阻碍离职/解雇操作的进行中订单状态集合。
+     * 包含：待付款、已付款、已确认、配送中、已接单、进行中、退款中
+     */
     private static final Set<String> BLOCKING_ORDER_STATUSES = Set.of(
             OrderStatus.PENDING,
             OrderStatus.PAID,
@@ -62,6 +72,16 @@ public class KeeperServiceImpl implements KeeperService {
         this.orderMapper = orderMapper;
     }
 
+    /**
+     * 【查询看护者列表】
+     *
+     * 业务作用：获取系统中所有看护者的全量列表。
+     * 调用场景：管理后台看护者管理页面加载时调用。
+     * 调用链：KeeperController → listAll → KeeperMapper.selectList（按创建时间倒序）
+     * 数据处理：直接查询 keeper 表全部数据，按创建时间倒序。
+     * 业务规则：返回所有状态的看护者（含待审核、已通过、已驳回等）。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<Keeper> listAll() {
         log.info("listAll() called");
@@ -69,6 +89,16 @@ public class KeeperServiceImpl implements KeeperService {
                 new LambdaQueryWrapper<Keeper>().orderByDesc(Keeper::getCreated_at_wsh));
     }
 
+    /**
+     * 【查询待审核看护者列表】
+     *
+     * 业务作用：查询所有待审核的看护者申请。
+     * 调用场景：平台管理员后台查看待审核看护者申请时调用。
+     * 调用链：AdminController → listPending → KeeperMapper.selectList（按 KEEPER_PENDING 过滤）
+     * 数据处理：查询 keeper 表中 status == KEEPER_PENDING 的所有记录。
+     * 业务规则：仅返回待审核状态的看护者。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<Keeper> listPending() {
         log.info("listPending() called");
@@ -76,16 +106,37 @@ public class KeeperServiceImpl implements KeeperService {
                 new LambdaQueryWrapper<Keeper>().eq(Keeper::getStatus_wsh, StatusCode.KEEPER_PENDING.getValue()));
     }
 
+    /**
+     * 【根据ID查询看护者】
+     *
+     * 业务作用：根据主键ID查询看护者信息，是其他业务方法的底层依赖。
+     * 调用场景：被 update、delete、resign 等业务方法内部调用。
+     * 调用链：上层业务方法 → getById → KeeperMapper.selectById
+     * 数据处理：按主键ID从 keeper 表查询单条记录。
+     * 业务规则：查询结果为 null 时抛出 BusinessException。
+     * 状态影响：只读操作。
+     * 异常情况：看护者不存在时抛 BusinessException("看护者不存在")。
+     */
     @Override
     public Keeper getById(Long id) {
         log.info("getById() called");
         Keeper keeper = keeperMapper.selectById(id);
         if (keeper == null) {
-            throw new BusinessException("瀵勫吇鍛樹笉瀛樺湪");
+            throw new BusinessException("看护者不存在");
         }
         return keeper;
     }
 
+    /**
+     * 【批量查询看护者】
+     *
+     * 业务作用：根据多个看护者ID批量查询。
+     * 调用场景：需要一次展示多个看护者详情的场景。
+     * 调用链：上层业务方法 → listByIds → KeeperMapper.selectBatchIds
+     * 数据处理：按ID集合批量查询，入参为空时返回空列表。
+     * 业务规则：ids 为 null 或空集合时返回空列表。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<Keeper> listByIds(Collection<Long> ids) {
         log.info("listByIds() called");
@@ -95,6 +146,16 @@ public class KeeperServiceImpl implements KeeperService {
         return keeperMapper.selectBatchIds(ids);
     }
 
+    /**
+     * 【根据商家ID查询看护者】
+     *
+     * 业务作用：查询指定商家旗下所有未逻辑删除的看护者。
+     * 调用场景：商家在后台查看自己名下的看护者列表时调用。
+     * 调用链：MerchantKeeperController → findByMerchantId → KeeperMapper.selectList（按 merchant_id + deleted=0）
+     * 数据处理：按 merchant_id 查询 keeper 表，过滤已逻辑删除的记录。
+     * 业务规则：仅返回未逻辑删除（deleted=0）的看护者。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<Keeper> findByMerchantId(Long merchantId) {
         log.info("findByMerchantId() called");
@@ -104,6 +165,16 @@ public class KeeperServiceImpl implements KeeperService {
                         .eq(Keeper::getDeleted_wsh, 0));
     }
 
+    /**
+     * 【搜索附近活跃看护者】
+     *
+     * 业务作用：基于用户地理位置搜索附近商家下的活跃看护者。
+     * 调用场景：用户端搜索附近可提供服务的看护者时调用。
+     * 调用链：KeeperController → searchNearby → MerchantMapper.searchNearby → KeeperMapper.selectList
+     * 数据处理：两阶段查询——先搜附近商家，再查这些商家下 KEEPER_ACTIVE 的看护者，附上距离。
+     * 业务规则：仅搜索已审核通过商家下的活跃看护者；距离使用 Haversine 公式。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<KeeperVO> searchNearby(double lat, double lng, double radius) {
         log.info("searchNearby() called");
@@ -134,16 +205,27 @@ public class KeeperServiceImpl implements KeeperService {
         }).collect(Collectors.toList());
     }
 
+    /**
+     * 【创建看护者入驻申请】
+     *
+     * 业务作用：提交看护者入驻申请，创建或复用看护者记录并同步提交资质审核材料。
+     * 调用场景：用户在看护者入驻页面提交时调用。
+     * 调用链：KeeperController → create @Transactional → KeeperMapper.insert/updateById + QualificationService.createOrUpdatePending
+     * 数据处理：校验商家存在；若用户已有被驳回/离职/解雇的历史记录则复用并更新，否则新建。初始状态 KEEPER_PENDING，评分 5.0。
+     * 业务规则：一个用户不可同时拥有多个待审核/已通过申请；创建后需审核才能 ACTIVE。
+     * 状态影响：新增/更新看护者记录（KEEPER_PENDING）；创建/更新资质审核记录。
+     * 事务边界：看护者写入 + 资质创建在同一 @Transactional 事务中。
+     */
     @Override
     @Transactional
     public Keeper create(KeeperCreateRequestDTO dto, Long userId) {
         log.info("create() called");
         if (dto.getMerchant_id_wsh() == null) {
-            throw new BusinessException("蹇呴』閫夋嫨鎵€灞炲晢瀹舵墠鑳芥垚涓虹湅鎶や汉");
+            throw new BusinessException("必须选择所属商家才能成为看护人");
         }
         Merchant merchant = merchantMapper.selectById(dto.getMerchant_id_wsh());
         if (merchant == null) {
-            throw new BusinessException("鎵€閫夊晢瀹朵笉瀛樺湪");
+            throw new BusinessException("所选商家不存在");
         }
         Keeper existing = keeperMapper.selectOne(
                 new LambdaQueryWrapper<Keeper>()
@@ -154,7 +236,7 @@ public class KeeperServiceImpl implements KeeperService {
             if (existing.getStatus_wsh() != StatusCode.KEEPER_REJECTED.getValue()
                     && existing.getStatus_wsh() != StatusCode.KEEPER_RESIGNED.getValue()
                     && existing.getStatus_wsh() != StatusCode.KEEPER_TERMINATED.getValue()) {
-                throw new BusinessException("鎮ㄥ凡鏈夊緟瀹℃牳鎴栧凡閫氳繃鐨勫瘎鍏诲憳鐢宠锛屼笉鑳介噸澶嶇敵璇?");
+                throw new BusinessException("您已有待审核或已通过的看护者申请，不能重复申请");
             }
             existing.setMerchant_id_wsh(dto.getMerchant_id_wsh());
             existing.setName_wsh(dto.getName_wsh());
@@ -172,9 +254,9 @@ public class KeeperServiceImpl implements KeeperService {
                     existing.getId_wsh(),
                     userId,
                     QualificationService.QUAL_TYPE_KEEPER_CERTIFICATE,
-                    "鐪嬫姢璧勮川",
+                    "看护资质",
                     dto.getQualification_image_wsh(),
-                    "瀵勫吇鍛樼敵璇疯祫璐?");
+                    "看护者申请资质");
             return existing;
         }
         Keeper keeper = new Keeper();
@@ -195,12 +277,23 @@ public class KeeperServiceImpl implements KeeperService {
                 keeper.getId_wsh(),
                 userId,
                 QualificationService.QUAL_TYPE_KEEPER_CERTIFICATE,
-                "鐪嬫姢璧勮川",
+                "看护资质",
                 dto.getQualification_image_wsh(),
-                "瀵勫吇鍛樼敵璇疯祫璐?");
+                "看护者申请资质");
         return keeper;
     }
 
+    /**
+     * 【更新看护者基础信息】
+     *
+     * 业务作用：修改看护者的基础信息（姓名、电话、头像、经验、定价等）。
+     * 调用场景：看护者在个人中心编辑基本信息时调用。
+     * 调用链：KeeperController → update @Transactional → KeeperMapper.updateById
+     * 数据处理：仅更新 DTO 中非 null 的字段，null 字段保持原值。
+     * 业务规则：仅更新非 null 字段，不修改审核状态。
+     * 状态影响：仅影响看护者基础信息字段。
+     * 事务边界：查询 + 更新在同一事务中。
+     */
     @Override
     @Transactional
     public Keeper update(Long id, KeeperUpdateRequestDTO dto) {
@@ -217,6 +310,17 @@ public class KeeperServiceImpl implements KeeperService {
         return existing;
     }
 
+    /**
+     * 【物理删除看护者】
+     *
+     * 业务作用：物理删除看护者记录并回收 KEEPER 角色。
+     * 调用场景：管理后台强制删除看护者时调用。
+     * 调用链：AdminController → delete @Transactional → KeeperMapper.deleteById + revokeKeeperRole
+     * 数据处理：先查询看护者存在，然后物理删除，最后回收 KEEPER 角色。
+     * 业务规则：物理删除不可恢复；删除后同步回收角色权限。
+     * 状态影响：删除 keeper 记录；删除 user_role 关联。
+     * 事务边界：删除 + 角色回收在同一事务中。
+     */
     @Override
     @Transactional
     public void delete(Long id) {
@@ -226,6 +330,17 @@ public class KeeperServiceImpl implements KeeperService {
         revokeKeeperRole(keeper.getUser_id_wsh());
     }
 
+    /**
+     * 【看护者主动辞职】
+     *
+     * 业务作用：看护者主动申请离职，状态变为辞职并回收 KEEPER 角色。
+     * 调用场景：看护者在个人中心点击辞职时调用。
+     * 调用链：KeeperController → resign @Transactional → assertEmploymentActionAllowed → KeeperMapper.updateById → revokeKeeperRole
+     * 数据处理：校验操作人须为本人；校验状态允许（ACTIVE/OFFLINE/BUSY）；校验无未完成订单；更新状态为 KEEPER_RESIGNED 并回收角色。
+     * 状态影响：status → KEEPER_RESIGNED；回收 KEEPER 角色。
+     * 事务边界：状态变更 + 角色回收在同一事务中。
+     * 异常情况：非本人抛 403；状态不允许抛 400；有未完成订单抛 400。
+     */
     @Override
     @Transactional
     public void resign(Long id, Long userId) {
@@ -240,6 +355,17 @@ public class KeeperServiceImpl implements KeeperService {
         revokeKeeperRole(keeper.getUser_id_wsh());
     }
 
+    /**
+     * 【商家解雇看护者】
+     *
+     * 业务作用：商家 owner 解雇旗下看护者，状态变为解雇并回收 KEEPER 角色。
+     * 调用场景：商家在后台管理看护者时执行解雇操作。
+     * 调用链：MerchantKeeperController → terminateByMerchant @Transactional → requireMerchantByUserId → assertEmploymentActionAllowed → KeeperMapper.updateById → revokeKeeperRole
+     * 数据处理：校验商家身份和归属权；校验状态允许（ACTIVE/OFFLINE/BUSY）；校验无未完成订单；更新为 KEEPER_TERMINATED 并回收角色。
+     * 状态影响：status → KEEPER_TERMINATED；回收 KEEPER 角色。
+     * 事务边界：状态变更 + 角色回收在同一事务中。
+     * 异常情况：非本商家抛 403；状态不允许抛 400；有未完成订单抛 400。
+     */
     @Override
     @Transactional
     public void terminateByMerchant(Long id, Long merchantUserId) {
@@ -255,51 +381,93 @@ public class KeeperServiceImpl implements KeeperService {
         revokeKeeperRole(keeper.getUser_id_wsh());
     }
 
+    /**
+     * 【平台审核通过看护者申请】
+     *
+     * 业务作用：平台管理员审核通过看护者入驻申请，授予 KEEPER 角色。
+     * 调用场景：平台管理员后台审核通过时调用。
+     * 调用链：AdminController → approve @Transactional → KeeperMapper.updateById → grantKeeperRole
+     * 数据处理：校验 PENDING 状态，更新为 KEEPER_ACTIVE，授予 KEEPER 角色。
+     * 状态影响：status: KEEPER_PENDING → KEEPER_ACTIVE；新增 user_role 记录。
+     * 事务边界：状态变更 + 角色授予在同一事务中。
+     * 异常情况：不是待审核状态抛 BusinessException。
+     */
     @Override
     @Transactional
     public void approve(Long id) {
         log.info("approve() called");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
-            throw new BusinessException("璇ョ湅鎶や汉涓嶅湪寰呭鏍哥姸鎬?");
+            throw new BusinessException("该看护者不在待审核状态");
         }
         keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
         keeperMapper.updateById(keeper);
         grantKeeperRole(keeper.getUser_id_wsh());
     }
 
+    /**
+     * 【平台驳回看护者申请】
+     *
+     * 业务作用：平台管理员驳回看护者入驻申请。
+     * 调用场景：平台管理员后台驳回时调用。
+     * 调用链：AdminController → reject @Transactional → KeeperMapper.updateById
+     * 数据处理：校验 PENDING 状态，更新为 KEEPER_REJECTED。
+     * 状态影响：status: KEEPER_PENDING → KEEPER_REJECTED。
+     * 异常情况：不是待审核状态抛 BusinessException。
+     */
     @Override
     @Transactional
     public void reject(Long id) {
         log.info("reject() called");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
-            throw new BusinessException("璇ョ湅鎶や汉涓嶅湪寰呭鏍哥姸鎬?");
+            throw new BusinessException("该看护者不在待审核状态");
         }
         keeper.setStatus_wsh(StatusCode.KEEPER_REJECTED.getValue());
         keeperMapper.updateById(keeper);
     }
 
+    /**
+     * 【设置看护者在线状态】
+     *
+     * 业务作用：看护者手动切换自己的在线/离线状态。
+     * 调用场景：看护者在 APP 上点击上线/下线时调用。
+     * 调用链：KeeperController → setOnlineStatus @Transactional → KeeperMapper.updateById
+     * 数据处理：校验状态值合法性；校验当前状态是否可切换；BUSY 状态禁止手动切换。
+     * 业务规则：仅 ACTIVE/OFFLINE/BUSY 状态可切换；BUSY 禁止手动切换。
+     * 状态影响：更新 keeper 的 status 字段。
+     * 异常情况：无效状态值抛 BusinessException；BUSY 状态抛 BusinessException。
+     */
     @Override
     @Transactional
     public void setOnlineStatus(Long id, int status) {
         log.info("setOnlineStatus() called");
         if (status != StatusCode.KEEPER_ACTIVE.getValue() && status != StatusCode.KEEPER_OFFLINE.getValue()
                 && status != StatusCode.KEEPER_BUSY.getValue()) {
-            throw new BusinessException("鏃犳晥鐨勫湪绾跨姸鎬?");
+            throw new BusinessException("无效的在线状态");
         }
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_ACTIVE.getValue() && keeper.getStatus_wsh() != StatusCode.KEEPER_OFFLINE.getValue()
                 && keeper.getStatus_wsh() != StatusCode.KEEPER_BUSY.getValue()) {
-            throw new BusinessException("褰撳墠鐘舵€佷笉鍙垏鎹㈠湪绾跨姸鎬?");
+            throw new BusinessException("当前状态不可切换在线状态");
         }
         if (keeper.getStatus_wsh() == StatusCode.KEEPER_BUSY.getValue()) {
-            throw new BusinessException("蹇欑鐘舵€佷笉鍙墜鍔ㄥ垏鎹紝璇风瓑寰呭綋鍓嶈鍗曞畬鎴愬悗鑷姩鎭㈠");
+            throw new BusinessException("忙碌状态不可手动切换，请等待当前订单完成后自动恢复");
         }
         keeper.setStatus_wsh(status);
         keeperMapper.updateById(keeper);
     }
 
+    /**
+     * 【同步商家店铺状态至看护者】
+     *
+     * 业务作用：商家店铺开门/关门时同步通知旗下所有看护者的在线状态。
+     * 调用场景：MerchantServiceImpl.refreshStoreState 在店铺状态变更时触发。
+     * 调用链：MerchantServiceImpl → syncMerchantStoreStatus @Transactional → 循环更新看护者在线状态
+     * 数据处理：遍历该商家下所有看护者，开门时 OFFLINE→ACTIVE，关门时 ACTIVE→OFFLINE，BUSY 保持不变。
+     * 业务规则：仅变更 OFFLINE↔ACTIVE，BUSY 状态不受影响。
+     * 状态影响：批量更新旗下看护者的在线状态。
+     */
     @Override
     @Transactional
     public void syncMerchantStoreStatus(Long merchantId, boolean storeOpen) {
@@ -327,12 +495,31 @@ public class KeeperServiceImpl implements KeeperService {
         }
     }
 
+    /**
+     * 【看护者实体转VO】
+     *
+     * 业务作用：将看护者实体转换为前端展示所需的 VO（含资质信息）。
+     * 调用场景：Controller 层返回看护者信息前调用。
+     * 调用链：各查询 Controller → toDTO → qualificationService.listByOwner
+     * 数据处理：字段拷贝 + 调用资质服务加载看护者资质列表。
+     * 状态影响：只读操作。
+     */
     @Override
     public KeeperVO toDTO(Keeper entity) {
         if (entity == null) return null;
         return toKeeperVO(entity);
     }
 
+    /**
+     * 【根据用户ID查找看护者】
+     *
+     * 业务作用：根据用户ID查询最新的看护者记录（支持多次申请场景）。
+     * 调用场景：用户登录后查询看护者身份；创建看护者时判断是否已有历史记录。
+     * 调用链：身份校验/入驻申请 → findByUserId → KeeperMapper.selectOne（按 user_id 倒序取最新）
+     * 数据处理：按 user_id 查询，按 ID 倒序取最新一条记录。
+     * 业务规则：一个用户可以有多次看护者申请记录，按 ID 倒序取最新。
+     * 状态影响：只读操作。
+     */
     @Override
     public Keeper findByUserId(Long userId) {
         log.info("findByUserId() called");
@@ -343,12 +530,22 @@ public class KeeperServiceImpl implements KeeperService {
                         .last("LIMIT 1"));
     }
 
+    /**
+     * 【商家查询旗下待审核看护者】
+     *
+     * 业务作用：商家 owner 查询归属本商家的所有待审核看护者申请。
+     * 调用场景：商家在后台审核看护者入驻申请时调用。
+     * 调用链：MerchantKeeperController → listPendingByMerchant → requireMerchantByUserId → KeeperMapper.selectList
+     * 数据处理：根据 merchantUserId 查询商家信息，再查该商家下所有 KEEPER_PENDING 的看护者。
+     * 业务规则：必须先校验商家身份；仅返回待审核状态的看护者。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<Keeper> listPendingByMerchant(Long merchantUserId) {
         log.info("listPendingByMerchant() called");
         Merchant merchant = requireMerchantByUserId(merchantUserId);
         if (merchant == null) {
-            throw new BusinessException("鎮ㄦ病鏈夊晢瀹朵俊鎭?");
+            throw new BusinessException("您没有商家信息");
         }
         return keeperMapper.selectList(
                 new LambdaQueryWrapper<Keeper>()
@@ -356,39 +553,73 @@ public class KeeperServiceImpl implements KeeperService {
                         .eq(Keeper::getStatus_wsh, StatusCode.KEEPER_PENDING.getValue()));
     }
 
+    /**
+     * 【商家审核通过看护者申请】
+     *
+     * 业务作用：商家 owner 审核通过归属本商家的看护者入驻申请。
+     * 调用场景：商家在后台审核通过看护者申请时调用。
+     * 调用链：MerchantKeeperController → approveByMerchant @Transactional → KeeperMapper.updateById → grantKeeperRole
+     * 数据处理：校验 PENDING 状态；校验商家归属权；更新为 KEEPER_ACTIVE 并授予角色。
+     * 状态影响：status: KEEPER_PENDING → KEEPER_ACTIVE；新增 user_role 记录。
+     * 事务边界：状态变更 + 角色授予在同一事务中。
+     * 异常情况：不是待审核状态抛 BusinessException；无权限审核抛 BusinessException。
+     */
     @Override
     @Transactional
     public void approveByMerchant(Long id, Long merchantUserId) {
         log.info("approveByMerchant() called");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
-            throw new BusinessException("璇ョ湅鎶や汉涓嶅湪寰呭鏍哥姸鎬?");
+            throw new BusinessException("该看护者不在待审核状态");
         }
         Merchant merchant = requireMerchantByUserId(merchantUserId);
         if (!merchant.getId_wsh().equals(keeper.getMerchant_id_wsh())) {
-            throw new BusinessException("鏃犳潈瀹℃牳姝ゅ瘎鍏诲憳鐢宠");
+            throw new BusinessException("无权审核此看护者申请");
         }
         keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
         keeperMapper.updateById(keeper);
         grantKeeperRole(keeper.getUser_id_wsh());
     }
 
+    /**
+     * 【商家驳回看护者申请】
+     *
+     * 业务作用：商家 owner 驳回归属本商家的看护者入驻申请。
+     * 调用场景：商家在后台驳回看护者申请时调用。
+     * 调用链：MerchantKeeperController → rejectByMerchant @Transactional → KeeperMapper.updateById
+     * 数据处理：校验 PENDING 状态；校验商家归属权；更新为 KEEPER_REJECTED。
+     * 状态影响：status: KEEPER_PENDING → KEEPER_REJECTED。
+     * 事务边界：状态变更在同一事务中。
+     * 异常情况：不是待审核状态抛 BusinessException；无权限审核抛 BusinessException。
+     */
     @Override
     @Transactional
     public void rejectByMerchant(Long id, Long merchantUserId) {
         log.info("rejectByMerchant() called");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
-            throw new BusinessException("璇ョ湅鎶や汉涓嶅湪寰呭鏍哥姸鎬?");
+            throw new BusinessException("该看护者不在待审核状态");
         }
         Merchant merchant = requireMerchantByUserId(merchantUserId);
         if (!merchant.getId_wsh().equals(keeper.getMerchant_id_wsh())) {
-            throw new BusinessException("鏃犳潈瀹℃牳姝ゅ瘎鍏诲憳鐢宠");
+            throw new BusinessException("无权审核此看护者申请");
         }
         keeper.setStatus_wsh(StatusCode.KEEPER_REJECTED.getValue());
         keeperMapper.updateById(keeper);
     }
 
+    /**
+     * 校验是否允许执行离职或解雇操作。
+     * <p>
+     * <b>前置条件：</b>
+     * <ul>
+     *   <li>看护者状态必须为 ACTIVE、OFFLINE 或 BUSY 之一</li>
+     *   <li>看护者名下没有未完成的订单（包含 PENDING / PAID / CONFIRMED 等阻塞状态）</li>
+     * </ul>
+     *
+     * @param keeper 看护者实体
+     * @throws BusinessException 如果状态不允许或有未完成订单
+     */
     private void assertEmploymentActionAllowed(Keeper keeper) {
         Integer status = keeper.getStatus_wsh();
         if (status == null
@@ -405,6 +636,13 @@ public class KeeperServiceImpl implements KeeperService {
         }
     }
 
+    /**
+     * 根据用户ID查询商家并校验其存在性。
+     *
+     * @param merchantUserId 商家的用户ID
+     * @return 商家实体
+     * @throws BusinessException 如果商家不存在
+     */
     private Merchant requireMerchantByUserId(Long merchantUserId) {
         Merchant merchant = merchantMapper.selectOne(
                 new LambdaQueryWrapper<Merchant>()
@@ -416,6 +654,17 @@ public class KeeperServiceImpl implements KeeperService {
         return merchant;
     }
 
+    /**
+     * 授予用户 KEEPER 角色。
+     * <p>
+     * <b>数据流：</b>
+     * <ol>
+     *   <li>查找角色表中 code = "KEEPER" 的角色</li>
+     *   <li>如果用户尚无此角色，先尝试恢复已软删除的角色记录，否则新建</li>
+     * </ol>
+     *
+     * @param userId 用户ID
+     */
     private void grantKeeperRole(Long userId) {
         Role keeperRole = findKeeperRole();
         if (keeperRole != null && userId != null) {
@@ -434,6 +683,11 @@ public class KeeperServiceImpl implements KeeperService {
         }
     }
 
+    /**
+     * 回收用户的 KEEPER 角色。
+     *
+     * @param userId 用户ID
+     */
     private void revokeKeeperRole(Long userId) {
         Role keeperRole = findKeeperRole();
         if (keeperRole != null && userId != null) {
@@ -443,10 +697,24 @@ public class KeeperServiceImpl implements KeeperService {
         }
     }
 
+    /**
+     * 查找系统中 KEEPER 角色的定义。
+     *
+     * @return 角色实体，未配置时返回 null
+     */
     private Role findKeeperRole() {
         return roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getCode_wsh, "KEEPER"));
     }
 
+    /**
+     * 使用 Haversine 公式计算两点之间的球面距离。
+     *
+     * @param lat1 起点纬度
+     * @param lng1 起点经度
+     * @param lat2 终点纬度
+     * @param lng2 终点经度
+     * @return 距离（公里）
+     */
     private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
         double radLat1 = Math.toRadians(lat1);
         double radLat2 = Math.toRadians(lat2);
@@ -458,6 +726,12 @@ public class KeeperServiceImpl implements KeeperService {
         return s * 6371;
     }
 
+    /**
+     * 将看护者实体转换为 VO（含资质信息）。
+     *
+     * @param k 看护者实体
+     * @return 看护者VO
+     */
     private KeeperVO toKeeperVO(Keeper k) {
         KeeperVO vo = new KeeperVO();
         vo.setId_wsh(k.getId_wsh());

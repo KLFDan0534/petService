@@ -11,10 +11,13 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 地址实体
- * 映射数据库表 address_wsh，存储用户地址信息
+ * 用户地址（Address）实体，映射 address_wsh 表。
+ * <p>
+ * 存储用户的收货/联系地址，支持多地址管理和默认地址设置。
+ * 每个地址包含标签（如"家"、"公司"）、联系人、联系电话、地理坐标等信息。
+ * 一个用户可以有多个地址，但最多只有一个默认地址。
+ *
  * @author: wsh
- * @date: 2026/06/24 11:05
  */
 @Getter
 @Setter

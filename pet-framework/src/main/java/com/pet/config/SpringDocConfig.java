@@ -7,8 +7,18 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+/**
+ * SpringDoc OpenAPI configuration.
+ * Defines the API info and groups API endpoints into logical groups:
+ * public, user-facing, admin, and AI interfaces.
+ */
 public class SpringDocConfig {
 
+    /**
+     * Creates the custom OpenAPI specification with title and version.
+     *
+     * @return the OpenAPI instance
+     */
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
@@ -17,6 +27,12 @@ public class SpringDocConfig {
                         .version("1.0.0"));
     }
 
+    /**
+     * Groups public-facing API endpoints under the "公共接口" group.
+     * Scans controllers in the system module.
+     *
+     * @return the GroupedOpenApi instance
+     */
     @Bean
     public GroupedOpenApi publicApi() {
         return GroupedOpenApi.builder()
@@ -26,6 +42,12 @@ public class SpringDocConfig {
                 .build();
     }
 
+    /**
+     * Groups user-facing API endpoints under the "用户端接口" group.
+     * Scans controllers across multiple business modules.
+     *
+     * @return the GroupedOpenApi instance
+     */
     @Bean
     public GroupedOpenApi userApi() {
         return GroupedOpenApi.builder()
@@ -46,6 +68,12 @@ public class SpringDocConfig {
                 .build();
     }
 
+    /**
+     * Groups admin API endpoints under the "后台管理接口" group.
+     * Scans the admin module controllers.
+     *
+     * @return the GroupedOpenApi instance
+     */
     @Bean
     public GroupedOpenApi adminApi() {
         return GroupedOpenApi.builder()
@@ -55,6 +83,12 @@ public class SpringDocConfig {
                 .build();
     }
 
+    /**
+     * Groups AI-related API endpoints under the "AI接口" group.
+     * Scans the AI module controllers.
+     *
+     * @return the GroupedOpenApi instance
+     */
     @Bean
     public GroupedOpenApi aiApi() {
         return GroupedOpenApi.builder()

@@ -26,6 +26,21 @@ public class NotificationEventController {
         this.sseTokenService = sseTokenService;
     }
 
+    /**
+     * 订阅通知事件流
+     *
+     * <p>API: GET /api/notification-events/stream (SSE, text/event-stream)</p>
+     * <p>请求来源：前端页面（全局），通过EventSource建立SSE连接，实时接收系统通知推送</p>
+     * <p>权限要求：需携带有效JWT Token进行身份验证</p>
+     * <p>输入参数：@query token - JWT认证令牌</p>
+     * <p>返回数据：SseEmitter - 持续推送通知事件，客户端可监听"notification"事件</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>401 - Token无效或已过期</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "订阅通知事件流", description = "通过SSE实时接收新通知推送")
     @ApiResponses(value = {

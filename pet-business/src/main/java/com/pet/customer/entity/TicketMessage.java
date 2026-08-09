@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 工单消息实体，记录工单处理过程中用户与处理人之间的留言交流。
+ */
 @Getter
 @Setter
 @TableName("ticket_message_wsh")

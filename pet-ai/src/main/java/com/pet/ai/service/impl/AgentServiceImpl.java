@@ -43,6 +43,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * AI 代理服务实现，通过多步骤流水线自动完成宠物寄养下单。
+ * <p>
+ * 核心设计：
+ * - 语义解析：正则提取宠物品种关键词和天数
+ * - 多品种匹配：内置 20+ 常用品种的中英文映射表
+ * - 评分算法：综合评分(40%) + 距离(20%) + 价格(20%) + 投诉率(10%) + 完成率(10%)
+ * - 异常处理：缺信息时抛出 NeedUserInputException 中断流程并提示用户
+ * - 事务回滚：任何步骤失败时回滚已创建的订单和支付
+ */
 @Service
 @Slf4j
 public class AgentServiceImpl implements AgentService {
@@ -114,6 +124,17 @@ public class AgentServiceImpl implements AgentService {
         this.messageSender = messageSender;
     }
 
+    /**
+     * 【业务名称】AI Agent自动下单执行实现
+     * <p>业务作用：实现9步Agent流水线：1-意图识别(正则提取宠物类型和天数) → 2-查询宠物档案(匹配用户宠物) → 3-搜索附近商家(5km) → 4-搜索附近看护人 → 5-多维度评分排序 → 6-生成推荐(按预算过滤) → 7-创建待支付订单 → 8-创建待支付记录 → 9-发送MQ通知。支持自动支付模式。</p>
+     * <p>调用场景：用户在前端通过自然语言让AI自动完成下单全流程。</p>
+     * <p>调用链：AgentController → execute() → step1~step9 → OrderService.createOrder() → PaymentService.createPayment() → (autoPay时) PaymentService.pay() → MessageSender.sendOrderCreate()</p>
+     * <p>数据处理：初始化AgentContext（userId/userInput/location）；正则抽取宠物品种关键词（中英文20+品种映射）和天数；fillLocation优先使用请求参数坐标，null时从User档案取；matchPet按品种/类型/名称模糊匹配；searchNearby按经纬度搜索5km内商家和看护人；rankKeepers综合评分算法排序；generateRecommendation按预算500/天过滤；buildResult构造返回结果。</p>
+     * <p>业务规则：缺信息时抛出NeedUserInputException中断流程并返回前端补充提示；autoPay=true时先verifyAutoPayAuthorization再payWithVerifiedAuthorization；@Transactional事务注解保证任意步骤失败回滚；天数范围1~365天；MQ通知失败非致命仅warn日志。</p>
+     * <p>状态影响：成功时新建一条订单（状态pending）和支付记录（状态pending）或直接变为paid；更新数据库多条记录（Order+Payment）。</p>
+     * <p>异常情况：NeedUserInputException（业务可控异常）→ 返回前端需用户补充信息；BusinessException（支付密码错误等）→ 回滚事务；DataAccessException → 返回"系统内部错误"安全提示；其他Exception → 返回异常消息并回滚。</p>
+     * <p>注意事项：所有步骤日志记录在ctx.logs中返回前端展示；返回的status字段驱动前端UI状态切换（success/pending_payment/needs_user_input/failed）；每次调用都会创建新AgentContext实例，无状态安全。</p>
+     */
     @Transactional
     @Override
     public AgentExecuteResult execute(Long userId, String userInput, Double latitude, Double longitude,

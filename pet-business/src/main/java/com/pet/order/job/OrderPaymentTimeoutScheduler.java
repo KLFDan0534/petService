@@ -7,6 +7,11 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
+/**
+ * Scheduled task that periodically cancels pending orders whose payment
+ * window has expired. Runs every 60 seconds as a fallback mechanism
+ * alongside the RabbitMQ delayed message approach.
+ */
 public class OrderPaymentTimeoutScheduler {
 
     private final OrderService orderService;
@@ -15,6 +20,10 @@ public class OrderPaymentTimeoutScheduler {
         this.orderService = orderService;
     }
 
+    /**
+     * Scheduled method that cancels all pending orders that have exceeded
+     * the payment timeout threshold. Logs the count of cancelled orders.
+     */
     @Scheduled(fixedDelay = 60000)
     public void cancelTimeoutPendingOrders() {
         try {

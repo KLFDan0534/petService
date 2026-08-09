@@ -5,9 +5,11 @@ import com.pet.order.entity.Refund;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 退款数据访问层
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * MyBatis-Plus mapper for {@link Refund} entity.
+ * <p>
+ * Provides CRUD operations on the {@code refund_wsh} table.
+ * Refunds track the lifecycle of returning funds to pet owners
+ * when orders are cancelled or disputed.
  */
 @Mapper
 public interface RefundMapper extends BaseMapper<Refund> {

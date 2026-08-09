@@ -5,9 +5,11 @@ import com.pet.order.entity.Tip;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 小费数据访问层
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * MyBatis-Plus mapper for {@link Tip} entity.
+ * <p>
+ * Provides CRUD operations on the {@code tip_wsh} table.
+ * Tips represent gratuities sent from pet owners to keepers
+ * after an order is completed.
  */
 @Mapper
 public interface TipMapper extends BaseMapper<Tip> {

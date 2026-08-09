@@ -27,6 +27,21 @@ public class ChatEventController {
         this.sseTokenService = sseTokenService;
     }
 
+    /**
+     * 订阅聊天事件流
+     *
+     * <p>API: GET /api/chat-events/stream (SSE, text/event-stream)</p>
+     * <p>请求来源：前端聊天页面，通过EventSource建立SSE连接，实时接收新消息推送</p>
+     * <p>权限要求：需携带有效JWT Token进行身份验证</p>
+     * <p>输入参数：@query token - JWT认证令牌</p>
+     * <p>返回数据：SseEmitter - 持续推送聊天消息事件，客户端可监听"chat-message"事件</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>401 - Token无效或已过期</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "订阅聊天事件流", description = "通过SSE实时接收聊天消息推送")
     @ApiResponses(value = {

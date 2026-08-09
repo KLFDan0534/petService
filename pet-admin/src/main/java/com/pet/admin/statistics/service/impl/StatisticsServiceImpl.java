@@ -76,6 +76,21 @@ public class StatisticsServiceImpl implements StatisticsService {
         this.tipMapper = tipMapper;
     }
 
+    /**
+     * Computes the admin dashboard with aggregated platform statistics
+     * including user, pet, merchant, and keeper counts, total orders,
+     * total revenue, pending orders, and completed orders.
+     *
+     * @return the admin dashboard VO
+     */
+    /**
+     * 【业务名称】管理员全局数据看板实现
+     * <p>业务作用：从各Service获取全量数据，聚合计算平台运营概览指标。</p>
+     * <p>数据来源：UserService.listAll() / PetService.listAll() / MerchantService.listAll() / KeeperService.listAll() / OrderService.listAll()</p>
+     * <p>数据处理：listAll()获取全量数据后用size()计数；订单流式filter(isRevenueOrder)+map(finalAmount)+reduce求和；按状态filter统计pending/completed。</p>
+     * <p>业务规则：isRevenueOrder判断——订单状态在REVENUE_STATUSES集合中（PAID/CONFIRMED/DELIVERED/RECEIVED/IN_PROGRESS/COMPLETED）。</p>
+     * <p>注意事项：TODO 前端返回数据太久了，需要优化——全量listAll在大数据量下存在性能瓶颈。</p>
+     */
     @Override
     public AdminDashboardVO getAdminDashboard() {
         AdminDashboardVO stats = new AdminDashboardVO();
@@ -104,6 +119,21 @@ public class StatisticsServiceImpl implements StatisticsService {
         return stats;
     }
 
+    /**
+     * Computes the user dashboard showing pet count, active/completed
+     * orders, and total spending across all orders.
+     *
+     * @param userId the user ID
+     * @return the user dashboard VO
+     */
+    /**
+     * 【业务名称】用户个人数据看板实现
+     * <p>业务作用：统计用户个人数据——宠物数、进行中订单、已完成订单、累计消费。</p>
+     * <p>数据来源：PetService.getPetsByOwner() / OrderService.listByOwner()</p>
+     * <p>数据处理：getPetsByOwner获取宠物列表size()；listByOwner获取订单列表；isActiveOrder过滤进行中订单；isRevenueOrder+finalAmount计算累计消费。</p>
+     * <p>业务规则：isActiveOrder判断——订单状态在ACTIVE_ORDER_STATUSES集合中（PAID/CONFIRMED/DELIVERED/RECEIVED/IN_PROGRESS）。</p>
+     * <p>注意事项：仅限本人数据查询，Service层不跨用户。</p>
+     */
     @Override
     public UserDashboardVO getUserDashboard(Long userId) {
         UserDashboardVO stats = new UserDashboardVO();
@@ -129,6 +159,21 @@ public class StatisticsServiceImpl implements StatisticsService {
         return stats;
     }
 
+    /**
+     * Computes the merchant dashboard showing total orders, revenue,
+     * pending/active/completed breakdown, and distinct pets served.
+     *
+     * @param merchantId the merchant ID
+     * @return the merchant dashboard VO
+     */
+    /**
+     * 【业务名称】商家数据看板实现
+     * <p>业务作用：统计商家经营数据——总订单数、总营收、待处理/进行中/已完成订单数、服务过的宠物种类数。</p>
+     * <p>数据来源：OrderService.listByMerchant(merchantId)</p>
+     * <p>数据处理：listByMerchant获取商家关联订单；isRevenueOrder过滤+finalAmount求和统计营收；按订单状态分组统计pending/active/completed；distinct pet_id统计宠物种类数。</p>
+     * <p>业务规则：营收状态集=REVENUE_STATUSES；进行中状态集=ACTIVE_ORDER_STATUSES。</p>
+     * <p>注意事项：merchantId需与登录用户关联，Controller层做权限控制。</p>
+     */
     @Override
     public MerchantDashboardVO getMerchantDashboard(Long merchantId) {
         MerchantDashboardVO stats = new MerchantDashboardVO();
@@ -153,6 +198,23 @@ public class StatisticsServiceImpl implements StatisticsService {
         return stats;
     }
 
+    /**
+     * Computes reputation statistics for a merchant or keeper including
+     * average rating, total ratings, completion rate, complaint rate,
+     * and total tip count.
+     *
+     * @param targetType the target type ("merchant" or "keeper")
+     * @param targetId   the target ID
+     * @return the reputation stats VO
+     */
+    /**
+     * 【业务名称】信誉统计看板实现
+     * <p>业务作用：统计商家或看护人的信誉数据——评价数/平均分、完成订单数/完成率、投诉率、打赏数。</p>
+     * <p>数据来源：RatingMapper/OrderMapper/ComplaintMapper/TipMapper</p>
+     * <p>数据处理：normalizeTargetType校验并标准化targetType；Rating表按targetType+targetId查询计算平均分；Order表按merchant_id或keeper_id统计总订单数和已完成数计算完成率；Complaint表统计投诉数计算投诉率；Tip表通过订单ID关联统计打赏总数。</p>
+     * <p>业务规则：targetType仅支持"merchant"或"keeper"；百分比计算使用HALF_UP四舍五入保留1位小数；total=0时百分比返回0.0。</p>
+     * <p>注意事项：打赏统计需先查询该目标的所有订单ID，再关联Tip表count。</p>
+     */
     @Override
     public ReputationStatsVO getReputationStats(String targetType, Long targetId) {
         String normalizedType = normalizeTargetType(targetType);

@@ -14,6 +14,11 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * User membership entity representing the current membership status of a user.
+ * Tracks the active plan, validity period (started_at / expires_at), auto-renew flag,
+ * source of activation, and a benefit snapshot of the plan at time of purchase.
+ */
 @Getter
 @Setter
 @TableName("user_membership_wsh")

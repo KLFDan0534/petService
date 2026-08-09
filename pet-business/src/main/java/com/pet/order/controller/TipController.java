@@ -39,12 +39,21 @@ public class TipController {
 
     /**
      * 给小费
-     * @param token 当前用户认证信息
-     * @param tip 小费信息
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     *
+     * <p>API: POST /api/tips</p>
+     * <p>请求来源：前端订单完成页或评价页，用户对看护者的服务满意后可额外给予小费</p>
+     * <p>权限要求：已登录用户（@PreAuthorize("isAuthenticated()")）</p>
+     * <p>输入参数：@body TipCreateRequestDTO - 包含订单ID、小费金额、收款看护者/商家ID等</p>
+     * <p>返回数据：无（Result.success()）</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 小费金额不合法或订单状态不支持打赏</li>
+     *   <li>401 - 未登录</li>
+     *   <li>403 - 无权限（非订单所属用户）</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "给小费", description = "为指定的订单添加小费")
@@ -62,11 +71,20 @@ public class TipController {
     }
 
     /**
-     * 根据订单ID获取小费列表
-     * @param orderId 订单ID
-     * @return 小费列表
-     * @author: wsh
-     * @date: 2026/06/24 11:05
+     * 根据订单获取小费
+     *
+     * <p>API: GET /api/tips/order/{orderId}</p>
+     * <p>请求来源：前端订单详情页，查看该订单的小费记录</p>
+     * <p>权限要求：已登录用户（@PreAuthorize("isAuthenticated()")）</p>
+     * <p>输入参数：@path orderId - 订单ID</p>
+     * <p>返回数据：List&lt;TipDTO&gt; - 该订单的小费记录列表</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>401 - 未登录</li>
+     *   <li>403 - 无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
      */
     @GetMapping("/order/{orderId}")
     @PreAuthorize("isAuthenticated()")
@@ -82,11 +100,19 @@ public class TipController {
     }
 
     /**
-     * 获取当前用户的小费列表
-     * @param token 当前用户认证信息
-     * @return 小费列表
-     * @author: wsh
-     * @date: 2026/06/24 11:05
+     * 获取我的小费列表
+     *
+     * <p>API: GET /api/tips/me</p>
+     * <p>请求来源：前端个人中心-我的打赏页，用户查看自己送出的小费记录</p>
+     * <p>权限要求：已登录用户（@PreAuthorize("isAuthenticated()")）</p>
+     * <p>输入参数：无（从token中提取用户ID）</p>
+     * <p>返回数据：List&lt;TipDTO&gt; - 当前用户送出的所有小费记录</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>401 - 未登录</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
      */
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")

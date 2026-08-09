@@ -11,6 +11,10 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 聊天消息实体，记录用户之间或用户与商家/照看者之间的即时通讯消息。
+ * <p>支持文本、图片、视频、文件四种消息类型，包含已读未读标记和关联订单维度。</p>
+ */
 @Getter
 @Setter
 @TableName("chat_message_wsh")

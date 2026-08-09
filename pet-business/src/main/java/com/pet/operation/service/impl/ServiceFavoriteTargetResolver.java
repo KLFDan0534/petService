@@ -17,6 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 服务（ServiceItem）收藏目标解析器，将收藏的服务项解析为卡片展示信息。
+ * <p>
+ * 组装信息包括：服务名称、描述、首张图片、所属商家、服务分类、单价及单位。
+ */
 @Component
 public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
 
@@ -32,11 +37,17 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
         this.serviceCategoryService = serviceCategoryService;
     }
 
+    /**
+     * 返回目标类型编码 {@link FavoriteTargetType#SERVICE}
+     */
     @Override
     public String targetType() {
         return FavoriteTargetType.SERVICE;
     }
 
+    /**
+     * 批量解析服务收藏卡片数据
+     */
     @Override
     public Map<Long, FavoriteCardDTO> resolve(Collection<Long> targetIds) {
         Map<Long, FavoriteCardDTO> result = new LinkedHashMap<>();

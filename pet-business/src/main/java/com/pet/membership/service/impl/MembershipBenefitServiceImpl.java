@@ -48,6 +48,15 @@ public class MembershipBenefitServiceImpl implements MembershipBenefitService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * Previews the membership discount for a given order amount.
+     * Looks up the user's active membership, resolves the discount rate
+     * from the plan or benefit snapshot, and computes the discounted amount.
+     *
+     * @param userId     the user ID
+     * @param baseAmount the original order amount
+     * @return the discount preview DTO (with eligible=false if no active membership)
+     */
     @Override
     public MembershipDiscountDTO previewOrderDiscount(Long userId, BigDecimal baseAmount) {
         BigDecimal amount = money(baseAmount);
@@ -80,6 +89,16 @@ public class MembershipBenefitServiceImpl implements MembershipBenefitService {
         return dto;
     }
 
+    /**
+     * Locks the membership discount for a specific order by creating a usage record
+     * in "locked" status. Idempotent — if a lock already exists for the order,
+     * the operation is silently skipped.
+     *
+     * @param userId   the user ID
+     * @param discount the discount details from preview
+     * @param orderId  the order ID
+     * @param orderNo  the order number
+     */
     @Override
     @Transactional
     public void lockForOrder(Long userId, MembershipDiscountDTO discount, Long orderId, String orderNo) {
@@ -110,6 +129,13 @@ public class MembershipBenefitServiceImpl implements MembershipBenefitService {
         }
     }
 
+    /**
+     * Marks the locked benefit as actually used for a completed order.
+     * Transitions the usage record from "locked" to "used" status.
+     *
+     * @param orderId the order ID
+     * @param orderNo the order number
+     */
     @Override
     @Transactional
     public void markUsedForOrder(Long orderId, String orderNo) {
@@ -125,6 +151,12 @@ public class MembershipBenefitServiceImpl implements MembershipBenefitService {
                 .eq(MembershipBenefitUsage::getUsage_status_wsh, USAGE_LOCKED));
     }
 
+    /**
+     * Releases the benefit lock for a cancelled or failed order.
+     * Transitions the usage record to "released" so the discount can be reused.
+     *
+     * @param orderId the order ID
+     */
     @Override
     @Transactional
     public void releaseForOrder(Long orderId) {
@@ -139,6 +171,12 @@ public class MembershipBenefitServiceImpl implements MembershipBenefitService {
                 .in(MembershipBenefitUsage::getUsage_status_wsh, List.of(USAGE_LOCKED, USAGE_USED)));
     }
 
+    /**
+     * Lists benefit usage records for the given user, newest first.
+     *
+     * @param userId the user ID
+     * @return list of benefit usage records
+     */
     @Override
     public List<MembershipBenefitUsage> listUsageByUser(Long userId) {
         return membershipBenefitUsageMapper.selectList(new LambdaQueryWrapper<MembershipBenefitUsage>()
@@ -147,6 +185,12 @@ public class MembershipBenefitServiceImpl implements MembershipBenefitService {
                 .orderByDesc(MembershipBenefitUsage::getId_wsh));
     }
 
+    /**
+     * Lists benefit usage records for admin with optional user filter.
+     *
+     * @param userId optional user ID filter; null returns all records
+     * @return list of benefit usage records
+     */
     @Override
     public List<MembershipBenefitUsage> listUsageForAdmin(Long userId) {
         return membershipBenefitUsageMapper.selectList(new LambdaQueryWrapper<MembershipBenefitUsage>()

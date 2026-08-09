@@ -46,12 +46,18 @@ public class NoticeServiceImpl implements NoticeService {
         this.userMapper = userMapper;
     }
 
+    /**
+     * 获取所有公告列表，委托给 {@link #listAll(String)}
+     */
     @Override
     public List<Notice> listAll() {
         log.info("listAll() called");
         return listAll(null);
     }
 
+    /**
+     * 根据类型筛选公告列表，类型不区分大小写
+     */
     @Override
     public List<Notice> listAll(String type) {
         log.info("listAll(type) called");
@@ -63,6 +69,9 @@ public class NoticeServiceImpl implements NoticeService {
                         .orderByDesc(Notice::getCreated_at_wsh));
     }
 
+    /**
+     * 获取指定类型下所有已启用的有效公告
+     */
     @Override
     public List<Notice> listActive(String type) {
         log.info("listActive() called");
@@ -75,18 +84,27 @@ public class NoticeServiceImpl implements NoticeService {
                         .orderByDesc(Notice::getCreated_at_wsh));
     }
 
+    /**
+     * 获取用户未读的公告列表（仅 "notice" 类型）
+     */
     @Override
     public List<Notice> listUnread(Long userId) {
         log.info("listUnread() called");
         return noticeMapper.selectUnreadByUser(userId, TYPE_NOTICE, StatusCode.NOTICE_ACTIVE.getValue());
     }
 
+    /**
+     * 获取用户尚未关闭的弹窗公告列表（投递方式含 "popup"）
+     */
     @Override
     public List<Notice> listPopup(Long userId) {
         log.info("listPopup() called");
         return noticeMapper.selectPopupByUser(userId, StatusCode.NOTICE_ACTIVE.getValue());
     }
 
+    /**
+     * 记录用户已关闭弹窗公告，如果已有记录则忽略
+     */
     @Override
     public void dismissPopup(Long id, Long userId) {
         log.info("dismissPopup() called");
@@ -107,6 +125,9 @@ public class NoticeServiceImpl implements NoticeService {
         }
     }
 
+    /**
+     * 根据主键获取公告，不存在时抛出异常
+     */
     @Override
     public Notice getById(Long id) {
         log.info("getById() called");
@@ -115,6 +136,9 @@ public class NoticeServiceImpl implements NoticeService {
         return n;
     }
 
+    /**
+     * 创建公告，校验类型与投递方式，并按投递方式为用户生成通知
+     */
     @Transactional
     @Override
     public Notice create(NoticeCreateRequestDTO request) {
@@ -146,6 +170,9 @@ public class NoticeServiceImpl implements NoticeService {
         return notice;
     }
 
+    /**
+     * 更新公告，清空旧已读记录并重新同步通知
+     */
     @Transactional
     @Override
     public Notice update(Long id, NoticeUpdateRequestDTO request) {
@@ -177,6 +204,9 @@ public class NoticeServiceImpl implements NoticeService {
         return existing;
     }
 
+    /**
+     * 标记公告为已读，仅 "notice" 类型支持此操作
+     */
     @Transactional
     @Override
     public void markAsRead(Long id, Long userId) {
@@ -203,6 +233,9 @@ public class NoticeServiceImpl implements NoticeService {
         }
     }
 
+    /**
+     * 物理删除公告及其关联的已读记录和通知
+     */
     @Transactional
     @Override
     public void delete(Long id) {

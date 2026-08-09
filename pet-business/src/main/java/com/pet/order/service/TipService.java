@@ -7,35 +7,74 @@ import com.pet.order.entity.Tip;
 import java.util.List;
 
 /**
- * 小费服务接口
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * Service interface for tipping (gratuity) operations.
+ * <p>
+ * Tipping allows pet owners to reward keepers after an order is completed.
+ * Tips are transferred directly from the owner's account to the keeper's account
+ * in real-time via the accounting system. Only COMPLETED orders are eligible for tipping.
  */
 public interface TipService {
+
     /**
-     * 创建小费
-     * @param userId 用户ID
-     * @param tip 小费信息
-     * @author: wsh
-     * @date: 2026/06/24 11:05
+     * 【创建打赏】
+     *
+     * 业务作用：
+     * 宠物主人在订单完成后打赏看护者，金额通过财务系统从主人账户实时转账到接收人账户。
+     *
+     * 调用场景：
+     * 宠物主人在已完成的订单中点击"打赏"。
+     *
+     * 调用链：
+     * 主人端/Controller
+     * ↓
+     * create(userId, request)
+     * ↓
+     * 校验订单归属/状态 → insert打赏记录 → accountingService.transfer(主人→接收人)
+     *
+     * 业务规则：
+     * 1. 仅订单主人可打赏
+     * 2. 仅COMPLETED状态的订单可打赏
+     * 3. 未指定接收人时默认看护者关联的用户
+     * 4. 实时转账到接收人账户
+     *
+     * 状态影响：
+     * 创建打赏记录并执行实时转账。
+     *
+     * @param userId  宠物主人用户ID
+     * @param request 打赏请求
      */
     void create(Long userId, TipCreateRequestDTO request);
+
     /**
-     * 根据订单ID获取小费列表
+     * 【查询订单的打赏记录】
+     *
+     * 业务作用：
+     * 查询指定订单的所有打赏记录。
+     *
      * @param orderId 订单ID
-     * @return 小费列表
-     * @author: wsh
-     * @date: 2026/06/24 11:05
+     * @return 打赏记录列表
      */
     List<Tip> listByOrder(Long orderId);
+
     /**
-     * 获取当前用户的小费列表
+     * 【查询用户的打赏记录】
+     *
+     * 业务作用：
+     * 查询用户相关的所有打赏（包括发出的和收到的）。
+     *
      * @param userId 用户ID
-     * @return 小费列表
-     * @author: wsh
-     * @date: 2026/06/24 11:05
+     * @return 打赏记录列表
      */
     List<Tip> listMyTips(Long userId);
 
+    /**
+     * 【打赏实体转DTO】
+     *
+     * 业务作用：
+     * 将打赏实体映射为打赏DTO。
+     *
+     * @param entity 打赏实体
+     * @return 打赏DTO
+     */
     TipDTO toDTO(Tip entity);
 }

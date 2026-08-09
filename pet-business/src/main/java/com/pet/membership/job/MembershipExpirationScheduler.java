@@ -14,6 +14,10 @@ public class MembershipExpirationScheduler {
         this.membershipService = membershipService;
     }
 
+    /**
+     * Scheduled task that runs every 60 seconds to expire memberships
+     * whose validity period has ended. Logs the count of expired memberships.
+     */
     @Scheduled(fixedDelay = 60000)
     public void expireMemberships() {
         try {

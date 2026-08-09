@@ -9,6 +9,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 用户通知实体，每个通知归属于单个用户。
+ * <p>
+ * 通知可由系统公告推送、订单状态变更等事件触发创建，
+ * 创建后通过 SSE {@link NotificationBroadcaster} 实时推送给用户。
+ */
 @Getter
 @Setter
 @TableName("notification_wsh")

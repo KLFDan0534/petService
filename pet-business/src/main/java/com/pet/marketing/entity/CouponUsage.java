@@ -15,6 +15,11 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 优惠券使用记录实体，记录每张优惠券被实际使用时的详细快照。
+ * <p>包含关联的用户优惠券、模板、订单信息以及实际优惠金额和承担方。
+ * 作为对账和审计的不可变历史记录。</p>
+ */
 @Getter
 @Setter
 @TableName("coupon_usage_wsh")

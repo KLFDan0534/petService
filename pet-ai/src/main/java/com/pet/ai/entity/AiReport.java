@@ -9,6 +9,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * AI 报告实体，记录 AI 模型生成的护理建议和寄养总结报告。
+ * <p>
+ * 报告类型包括：care（护理建议）、final（寄养总结）。
+ * 数据同时保存到 MySQL（主存储）和 Chroma 向量数据库（辅助检索）。
+ */
 @Getter
 @Setter
 @TableName("ai_report_wsh")

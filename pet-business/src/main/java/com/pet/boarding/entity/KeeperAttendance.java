@@ -15,6 +15,15 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 看护者考勤签到（KeeperAttendance）实体，映射 keeper_attendance_wsh 表。
+ * <p>
+ * 记录看护者每天上下班的签到/签退信息，包含签到/签退的时间、地理位置（经纬度）、
+ * 地址文本、定位精度、与商家的距离等。
+ * 签到/签退时系统会校验看护者是否在商家设定的打卡半径范围内（地理围栏）。
+ * 一条记录代表一个完整的班次：check_in_at（签到时间）→ check_out_at（签退时间）。
+ * check_out_at 为 null 表示当前班次尚未结束（在岗）。
+ */
 @Getter
 @Setter
 @TableName("keeper_attendance_wsh")

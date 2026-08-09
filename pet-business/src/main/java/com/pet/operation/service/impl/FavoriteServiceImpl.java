@@ -40,6 +40,9 @@ public class FavoriteServiceImpl implements FavoriteService {
         }
     }
 
+    /**
+     * 查询用户的收藏列表，支持按类型筛选
+     */
     @Override
     public List<Favorite> listByUser(Long userId, String targetType) {
         log.info("listByUser() called");
@@ -52,6 +55,9 @@ public class FavoriteServiceImpl implements FavoriteService {
         return favoriteMapper.selectList(wrapper);
     }
 
+    /**
+     * 判断用户是否已收藏指定目标
+     */
     @Override
     public boolean isFavorited(Long userId, Long targetId, String targetType) {
         log.info("isFavorited() called");
@@ -64,6 +70,9 @@ public class FavoriteServiceImpl implements FavoriteService {
         return count > 0;
     }
 
+    /**
+     * 切换收藏状态：已收藏则取消，未收藏则新增
+     */
     @Override
     @Transactional
     public void toggle(Long userId, Long targetId, String targetType) {
@@ -85,6 +94,9 @@ public class FavoriteServiceImpl implements FavoriteService {
         favoriteMapper.insert(favorite);
     }
 
+    /**
+     * 分页查询收藏卡片，通过对应类型的 Resolver 组装摘要信息
+     */
     @Override
     public PageResult<FavoriteCardDTO> pageByUser(Long userId, String targetType, int page, int size) {
         log.info("pageByUser() called");
@@ -110,6 +122,9 @@ public class FavoriteServiceImpl implements FavoriteService {
         return result;
     }
 
+    /**
+     * 获取所有支持的收藏目标类型列表
+     */
     @Override
     public List<FavoriteTargetTypeDTO> listTargetTypes() {
         List<FavoriteTargetTypeDTO> list = new ArrayList<>();

@@ -29,6 +29,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * 看护者签到/签退服务实现。
+ * <p>
+ * 基于地理围栏（Geo-fence）技术的考勤系统，看护者必须在商家附近指定半径内才能完成打卡。
+ * 打卡半径通过配置 {@code gao.map.attendance-radius-meters} 控制，默认 300 米。
+ * 签到前会校验看护者状态、商家状态、当日是否休假、是否存在未签退班次等业务规则。
+ */
 @Service
 public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
 
@@ -50,6 +57,13 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         this.keeperLeaveService = keeperLeaveService;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>事务边界：</b>签到记录插入在事务中。
+     * <p>
+     * <b>校验顺序：</b>看护者状态 → 商家状态 → 休假校验 → 重复签到校验 → 位置校验
+     */
     @Transactional
     @Override
     public KeeperAttendanceDTO checkIn(Long userId, AttendanceCheckRequestDTO request) {
@@ -77,6 +91,13 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return toDTO(attendance, keeper, merchant);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>事务边界：</b>签退记录更新在事务中。
+     * <p>
+     * <b>校验顺序：</b>看护者状态 → 商家状态 → 活跃班次存在性校验 → 位置校验
+     */
     @Transactional
     @Override
     public KeeperAttendanceDTO checkOut(Long userId, AttendanceCheckRequestDTO request) {
@@ -97,6 +118,11 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return toDTO(attendance, keeper, merchant);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>实现细节：</b>通过查询 check_out_at IS NULL 的记录定位当前活跃班次。
+     */
     @Override
     public KeeperAttendanceDTO current(Long userId) {
         Keeper keeper = requireKeeperByUser(userId);
@@ -108,6 +134,11 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return toDTO(attendance, keeper, merchant);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>实现细节：</b>时间范围：[当天00:00, 次日00:00)，确保覆盖当天所有签到记录。
+     */
     @Override
     public List<KeeperAttendanceDTO> today(Long userId) {
         Keeper keeper = requireKeeperByUser(userId);
@@ -123,6 +154,11 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return records.stream().map(record -> toDTO(record, keeper, merchant)).toList();
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>实现细节：</b>先查出勤记录，再批量加载看护者信息到 Map 中提高性能。
+     */
     @Override
     public List<KeeperAttendanceDTO> listMerchantToday(Long merchantUserId) {
         Merchant merchant = requireMerchantByUser(merchantUserId);
@@ -140,6 +176,9 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
                 .toList();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasActiveShift(Long keeperId, Long merchantId) {
         if (keeperId == null || merchantId == null) {
@@ -155,6 +194,11 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return attendance != null;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>校验顺序：</b>先查活跃班次（在岗），再查休假状态。
+     */
     @Override
     public void requireKeeperOnDuty(Long keeperId, Long merchantId) {
         if (!hasActiveShift(keeperId, merchantId)) {
@@ -165,6 +209,13 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         }
     }
 
+    /**
+     * 根据用户ID查询看护者，并校验其状态是否允许打卡。
+     *
+     * @param userId 用户ID
+     * @return 看护者实体
+     * @throws BusinessException 如果用户未登录、看护者不存在或未通过审核
+     */
     private Keeper requireKeeperByUser(Long userId) {
         if (userId == null) {
             throw new BusinessException(401, "请先登录");
@@ -183,6 +234,13 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return keeper;
     }
 
+    /**
+     * 根据用户ID查询商家并校验存在性。
+     *
+     * @param userId 用户ID（商家用户）
+     * @return 商家实体
+     * @throws BusinessException 如果用户未登录或商家不存在
+     */
     private Merchant requireMerchantByUser(Long userId) {
         if (userId == null) {
             throw new BusinessException(401, "请先登录");
@@ -197,6 +255,13 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return merchant;
     }
 
+    /**
+     * 根据看护者查询其所属商家，并校验商家状态是否允许打卡。
+     *
+     * @param keeper 看护者实体
+     * @return 商家实体
+     * @throws BusinessException 如果看护者未绑定商家、商家不存在或未通过审核
+     */
     private Merchant requireMerchantForKeeper(Keeper keeper) {
         if (keeper.getMerchant_id_wsh() == null) {
             throw new BusinessException(400, "看护者未绑定商家，不能打卡");
@@ -211,6 +276,12 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return merchant;
     }
 
+    /**
+     * 查找看护者当前活跃的班次（已签到但未签退）。
+     *
+     * @param keeperId 看护者ID
+     * @return 活跃的签到记录，不存在时返回 null
+     */
     private KeeperAttendance findActiveShift(Long keeperId) {
         return attendanceMapper.selectOne(
                 new LambdaQueryWrapper<KeeperAttendance>()
@@ -220,6 +291,22 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
                         .last("LIMIT 1"));
     }
 
+    /**
+     * 校验打卡位置是否在商家指定的打卡范围内。
+     * <p>
+     * <b>校验流程：</b>
+     * <ol>
+     *   <li>检查请求中的定位坐标是否合法</li>
+     *   <li>检查商家的坐标是否已配置</li>
+     *   <li>计算两者之间的球面距离</li>
+     *   <li>判断是否在打卡半径内</li>
+     * </ol>
+     *
+     * @param request 打卡请求（含用户经纬度）
+     * @param merchant 商家实体（含商家坐标）
+     * @return 用户与商家的距离（米，保留两位小数）
+     * @throws BusinessException 如果定位为空、坐标无效或超出打卡范围
+     */
     private BigDecimal validateLocation(AttendanceCheckRequestDTO request, Merchant merchant) {
         if (request == null) {
             throw new BusinessException(400, "定位信息不能为空");
@@ -241,14 +328,32 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return BigDecimal.valueOf(meters).setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 获取当前配置的打卡半径（优先取配置值，默认 300 米）。
+     *
+     * @return 打卡半径（米）
+     */
     private int currentRadius() {
         return attendanceRadiusMeters > 0 ? attendanceRadiusMeters : 300;
     }
 
+    /**
+     * 对 BigDecimal 值进行指定精度缩放。
+     *
+     * @param value 原始值
+     * @param scale 精度位数
+     * @return 缩放后的值，入参为 null 时返回 null
+     */
     private BigDecimal scale(BigDecimal value, int scale) {
         return value == null ? null : value.setScale(scale, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 去掉字符串首尾空格，超长时截断到 500 字符，空字符串转为 null。
+     *
+     * @param value 原始字符串
+     * @return 处理后的字符串或 null
+     */
     private String trimToNull(String value) {
         if (value == null || value.trim().isEmpty()) {
             return null;
@@ -257,6 +362,12 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return trimmed.length() > 500 ? trimmed.substring(0, 500) : trimmed;
     }
 
+    /**
+     * 根据考勤记录集合批量加载看护者信息到 Map。
+     *
+     * @param records 考勤记录列表
+     * @return keeperId → Keeper 实体的 Map
+     */
     private Map<Long, Keeper> loadKeeperMap(List<KeeperAttendance> records) {
         Set<Long> keeperIds = records.stream()
                 .map(KeeperAttendance::getKeeper_id_wsh)
@@ -270,6 +381,14 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
                 .collect(Collectors.toMap(Keeper::getId_wsh, Function.identity()));
     }
 
+    /**
+     * 将考勤实体转换为 DTO（含看护者名称和商家名称以及是否在岗标志）。
+     *
+     * @param entity   考勤实体
+     * @param keeper   看护者实体（可为 null）
+     * @param merchant 商家实体（可为 null）
+     * @return 考勤DTO
+     */
     private KeeperAttendanceDTO toDTO(KeeperAttendance entity, Keeper keeper, Merchant merchant) {
         if (entity == null) {
             return null;

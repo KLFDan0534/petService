@@ -23,9 +23,12 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 小费实体
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * Entity representing a tip/gratuity from a pet owner to a keeper.
+ * <p>
+ * Tips are voluntary payments made after an order is completed. They are
+ * transferred immediately in real-time via the accounting system. Only the
+ * pet owner of a COMPLETED order can send a tip. The tip amount is validated
+ * to be between 0.01 and 10,000, with an optional message up to 500 characters.
  */
 @Getter
 @Setter

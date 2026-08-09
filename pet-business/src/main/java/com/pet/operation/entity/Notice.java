@@ -10,6 +10,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 系统公告实体，支持普通公告（notice）和其他自定义类型。
+ * <p>
+ * 普通公告支持多种投递方式（弹窗 popup / 通知 notification / 广播 broadcast），
+ * 通过 delivery_type_wsh 字段以逗号分隔存储。可设置排序权重、图片和链接。
+ */
 @Getter
 @Setter
 @TableName("notice_wsh")

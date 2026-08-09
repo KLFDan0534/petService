@@ -15,7 +15,11 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 宠物实体
+ * 宠物实体，映射数据库表 pet_wsh。
+ * 包含宠物的基础信息（名称、类型、品种、年龄、体重、性别）、
+ * 健康状态（绝育、疫苗）、外观（头像）和个性化信息（描述、过敏、习惯）。
+ * 通过 owner_id 关联宠物主人（User 表），支持逻辑删除。
+ *
  * @author: wsh
  * @date: 2026/06/24 11:05
  */
@@ -132,76 +136,152 @@ public class Pet {
     @Schema(description = "更新时间")
     private LocalDateTime updated_at_wsh;
 
+    /**
+     * 获取宠物 ID（JSON 别名 "id"）。
+     *
+     * @return 宠物 ID
+     */
     @JsonGetter("id")
     public Long getId() {
         return id_wsh;
     }
 
+    /**
+     * 获取宠物主人用户 ID（JSON 别名 "ownerId"）。
+     *
+     * @return 主人用户 ID
+     */
     @JsonGetter("ownerId")
     public Long getOwnerId() {
         return owner_id_wsh;
     }
 
+    /**
+     * 获取宠物名称（JSON 别名 "name"）。
+     *
+     * @return 宠物名称
+     */
     @JsonGetter("name")
     public String getName() {
         return name_wsh;
     }
 
+    /**
+     * 获取宠物类型（狗/猫/其他）（JSON 别名 "type"）。
+     *
+     * @return 宠物类型
+     */
     @JsonGetter("type")
     public String getType() {
         return type_wsh;
     }
 
+    /**
+     * 获取宠物品种（JSON 别名 "breed"）。
+     *
+     * @return 品种
+     */
     @JsonGetter("breed")
     public String getBreed() {
         return breed_wsh;
     }
 
+    /**
+     * 获取宠物年龄（JSON 别名 "age"）。
+     *
+     * @return 年龄
+     */
     @JsonGetter("age")
     public Integer getAge() {
         return age_wsh;
     }
 
+    /**
+     * 获取宠物体重（kg）（JSON 别名 "weight"）。
+     *
+     * @return 体重
+     */
     @JsonGetter("weight")
     public BigDecimal getWeight() {
         return weight_wsh;
     }
 
+    /**
+     * 获取宠物性别（JSON 别名 "gender"）。
+     *
+     * @return 性别编码
+     */
     @JsonGetter("gender")
     public Integer getGender() {
         return gender_wsh;
     }
 
+    /**
+     * 获取绝育状态（JSON 别名 "sterilized"）。
+     *
+     * @return 绝育状态（1 是 / 0 否）
+     */
     @JsonGetter("sterilized")
     public Integer getSterilized() {
         return sterilized_wsh;
     }
 
+    /**
+     * 获取疫苗接种状态（JSON 别名 "vaccinated"）。
+     *
+     * @return 疫苗接种状态（1 是 / 0 否）
+     */
     @JsonGetter("vaccinated")
     public Integer getVaccinated() {
         return vaccinated_wsh;
     }
 
+    /**
+     * 获取宠物头像 URL（JSON 别名 "avatar"）。
+     *
+     * @return 头像 URL
+     */
     @JsonGetter("avatar")
     public String getAvatar() {
         return avatar_wsh;
     }
 
+    /**
+     * 获取宠物描述（JSON 别名 "description"）。
+     *
+     * @return 描述文本
+     */
     @JsonGetter("description")
     public String getDescription() {
         return description_wsh;
     }
 
+    /**
+     * 获取宠物过敏信息（JSON 别名 "allergies"）。
+     *
+     * @return 过敏信息
+     */
     @JsonGetter("allergies")
     public String getAllergies() {
         return allergies_wsh;
     }
 
+    /**
+     * 获取宠物生活习惯（JSON 别名 "habits"）。
+     *
+     * @return 生活习惯
+     */
     @JsonGetter("habits")
     public String getHabits() {
         return habits_wsh;
     }
 
+    /**
+     * 获取宠物主人姓名（JSON 别名 "ownerName"）。
+     * 此字段为冗余展示字段，非数据库列。
+     *
+     * @return 主人姓名
+     */
     @JsonGetter("ownerName")
     public String getOwnerName() {
         return owner_name_wsh;

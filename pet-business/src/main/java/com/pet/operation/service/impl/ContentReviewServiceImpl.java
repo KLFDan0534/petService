@@ -25,6 +25,10 @@ public class ContentReviewServiceImpl implements ContentReviewService {
         this.contentReviewMapper = contentReviewMapper;
     }
 
+    /**
+     * 查询所有待审核的举报记录
+     */
+    @Override
     public List<ContentReview> listPending() {
         log.info("listPending() called");
         return contentReviewMapper.selectList(
@@ -33,12 +37,20 @@ public class ContentReviewServiceImpl implements ContentReviewService {
                         .orderByDesc(ContentReview::getCreated_at_wsh));
     }
 
+    /**
+     * 查询全部内容审核记录
+     */
+    @Override
     public List<ContentReview> listAll() {
         log.info("listAll() called");
         return contentReviewMapper.selectList(
                 new LambdaQueryWrapper<ContentReview>().orderByDesc(ContentReview::getCreated_at_wsh));
     }
 
+    /**
+     * 分页查询待审核的举报记录
+     */
+    @Override
     public IPage<ContentReview> listPendingPage(PageRequestDTO pageParam) {
         log.info("listPendingPage() called");
         Page<ContentReview> page = new Page<>(pageParam.getPage(), pageParam.getSize());
@@ -48,6 +60,10 @@ public class ContentReviewServiceImpl implements ContentReviewService {
                         .orderByDesc(ContentReview::getCreated_at_wsh));
     }
 
+    /**
+     * 分页查询全部内容审核记录
+     */
+    @Override
     public IPage<ContentReview> listPage(PageRequestDTO pageParam) {
         log.info("listPage() called");
         Page<ContentReview> page = new Page<>(pageParam.getPage(), pageParam.getSize());
@@ -55,6 +71,10 @@ public class ContentReviewServiceImpl implements ContentReviewService {
                 new LambdaQueryWrapper<ContentReview>().orderByDesc(ContentReview::getCreated_at_wsh));
     }
 
+    /**
+     * 用户举报内容，创建一条 PENDING 状态的审核记录
+     */
+    @Override
     @Transactional
     public ContentReview report(String targetType, Long targetId, Long reporterId, String reason) {
         log.info("report() called");
@@ -68,6 +88,10 @@ public class ContentReviewServiceImpl implements ContentReviewService {
         return cr;
     }
 
+    /**
+     * 审核通过，将状态置为 APPROVED
+     */
+    @Override
     @Transactional
     public ContentReview approve(Long id, Long reviewerId, String remark) {
         log.info("approve() called");
@@ -79,6 +103,10 @@ public class ContentReviewServiceImpl implements ContentReviewService {
         return cr;
     }
 
+    /**
+     * 驳回审核，将状态置为 REJECTED
+     */
+    @Override
     @Transactional
     public ContentReview reject(Long id, Long reviewerId, String remark) {
         log.info("reject() called");

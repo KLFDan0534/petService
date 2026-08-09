@@ -54,6 +54,21 @@ public class RoleController {
         this.userRoleMapper = userRoleMapper;
     }
 
+    /**
+     * 获取角色列表
+     *
+     * <p>API: GET /api/roles</p>
+     * <p>请求来源：后台管理角色管理页，管理员查看所有角色</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：无</p>
+     * <p>返回数据：List&lt;RoleVO&gt; - 角色列表，每个角色包含ID、名称、编码、描述、创建时间和关联用户数量</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping("/roles")
     @Operation(summary = "获取角色列表", description = "管理员获取所有角色及其用户数量")
     @ApiResponses(value = {
@@ -88,6 +103,22 @@ public class RoleController {
         return Result.success(result);
     }
 
+    /**
+     * 创建角色
+     *
+     * <p>API: POST /api/roles</p>
+     * <p>请求来源：后台管理角色管理页，管理员添加新角色</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：@body RoleCreateRequestDTO - 包含角色名称、编码和描述（不允许创建CUSTOMER_SERVICE编码的角色）</p>
+     * <p>返回数据：无（Result.success()）</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 参数错误或尝试创建CUSTOMER_SERVICE角色（需通过商家申请流程管理）</li>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @PostMapping("/roles")
     @Operation(summary = "创建角色", description = "管理员创建新角色")
     @ApiResponses(value = {
@@ -109,6 +140,27 @@ public class RoleController {
         return Result.success();
     }
 
+    /**
+     * 更新角色信息
+     *
+     * <p>API: PUT /api/roles/{id}</p>
+     * <p>请求来源：后台管理角色管理页，管理员编辑角色信息</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：
+     * <ul>
+     *   <li>@path id - 角色ID</li>
+     *   <li>@body RoleUpdateRequestDTO - 包含角色名称、编码和描述</li>
+     * </ul>
+     * </p>
+     * <p>返回数据：无（Result.success()），不允许修改CUSTOMER_SERVICE角色</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 角色不存在或尝试修改CUSTOMER_SERVICE角色</li>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @PutMapping("/roles/{id}")
     @Operation(summary = "更新角色信息", description = "管理员更新角色信息")
     @ApiResponses(value = {
@@ -134,6 +186,22 @@ public class RoleController {
         return Result.success();
     }
 
+    /**
+     * 删除角色
+     *
+     * <p>API: DELETE /api/roles/{id}</p>
+     * <p>请求来源：后台管理角色管理页，管理员删除角色</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：@path id - 角色ID</p>
+     * <p>返回数据：无（Result.success()），自动清理该角色的所有用户关联记录。不允许删除CUSTOMER_SERVICE角色</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 尝试删除CUSTOMER_SERVICE角色（需通过商家管理）</li>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @DeleteMapping("/roles/{id}")
     @Operation(summary = "删除角色", description = "管理员删除角色（客服角色由商家管理）")
     @ApiResponses(value = {
@@ -153,6 +221,21 @@ public class RoleController {
         return Result.success();
     }
 
+    /**
+     * 获取用户角色
+     *
+     * <p>API: GET /api/users/{userId}/roles</p>
+     * <p>请求来源：后台管理用户详情页，管理员查看指定用户的角色分配</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：@path userId - 用户ID</p>
+     * <p>返回数据：List&lt;Long&gt; - 该用户关联的角色ID列表</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping("/users/{userId}/roles")
     @Operation(summary = "获取用户角色", description = "管理员获取用户分配的所有角色ID")
     @ApiResponses(value = {
@@ -167,6 +250,27 @@ public class RoleController {
         return Result.success(urs.stream().map(UserRole::getRole_id_wsh).collect(Collectors.toList()));
     }
 
+    /**
+     * 设置用户角色
+     *
+     * <p>API: PUT /api/users/{userId}/roles</p>
+     * <p>请求来源：后台管理用户编辑角色分配页，管理员修改用户的角色</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：
+     * <ul>
+     *   <li>@path userId - 用户ID</li>
+     *   <li>@body SetUserRolesRequestDTO - 包含role_ids_wsh角色ID列表（CUSTOMER_SERVICE角色需通过商家审批管理）</li>
+     * </ul>
+     * </p>
+     * <p>返回数据：无（Result.success()）。替换用户的全部角色分配（保留CUSTOMER_SERVICE角色）</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 尝试分配CUSTOMER_SERVICE角色但用户尚未通过商家审批</li>
+     *   <li>403 - 非管理员无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @PutMapping("/users/{userId}/roles")
     @Operation(summary = "设置用户角色", description = "管理员设置用户的非客服角色")
     @ApiResponses(value = {

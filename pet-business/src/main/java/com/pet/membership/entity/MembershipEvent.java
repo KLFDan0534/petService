@@ -12,6 +12,12 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * Membership lifecycle event entity that records significant events
+ * in a user's membership journey, such as order creation, payment,
+ * activation, renewal, and cancellation. Stores event type, status,
+ * operator info, and a JSON snapshot for auditing.
+ */
 @Getter
 @Setter
 @TableName("membership_event_wsh")

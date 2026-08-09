@@ -19,6 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Implementation of {@link TipService} for tip/gratuity processing.
+ * <p>
+ * Tips allow pet owners to reward keepers after order completion. Tips are
+ * transferred directly in real-time via the accounting system. Only the pet
+ * owner of a COMPLETED order can send a tip. If no recipient is specified,
+ * the tip defaults to the keeper's associated user account.
+ */
 @Service
 @Slf4j
 public class TipServiceImpl implements TipService {
@@ -38,10 +46,25 @@ public class TipServiceImpl implements TipService {
         this.accountingService = accountingService;
     }
 
+    /**
+     * 【创建打赏（实现）】
+     *
+     * 业务作用：
+     * 创建打赏记录并实时转账：校验订单归属和完成状态 → insert打赏记录 → accountingService.transfer实时转账。
+     *
+     * 调用链：
+     * TipService.create()
+     * ↓
+     * 查询订单 → 校验归属/状态 → insert打赏记录 → resolveReceiverUserId()
+     * → accountingService.transfer(主人→接收人, 即时转账)
+     *
+     * @param userId  主人用户ID
+     * @param request 打赏请求
+     */
     @Transactional
     @Override
     public void create(Long userId, TipCreateRequestDTO request) {
-        log.info("调用 create()");
+        log.info("Create tip for order: {}", request.getOrder_id_wsh());
         PetOrder order = orderMapper.selectById(request.getOrder_id_wsh());
         if (order == null) throw new BusinessException(404, "订单不存在");
         if (!userId.equals(order.getOwner_id_wsh())) throw new BusinessException(403, "只有宠物主人可以打赏此订单");
@@ -60,16 +83,29 @@ public class TipServiceImpl implements TipService {
                 "tip:" + tip.getId_wsh(), "订单打赏 - " + order.getOrder_no_wsh());
     }
 
+    /**
+     * Retrieves all tips associated with a specific order.
+     *
+     * @param orderId the order ID
+     * @return list of tips for this order
+     */
     @Override
     public List<Tip> listByOrder(Long orderId) {
-        log.info("调用 listByOrder()");
+        log.info("Query tips for order: {}", orderId);
         return tipMapper.selectList(
                 new LambdaQueryWrapper<Tip>().eq(Tip::getOrder_id_wsh, orderId));
     }
 
+    /**
+     * Retrieves all tips where the user is either the sender (from_user_id)
+     * or the recipient (to_user_id).
+     *
+     * @param userId the user ID
+     * @return list of tips involving this user
+     */
     @Override
     public List<Tip> listMyTips(Long userId) {
-        log.info("调用 listMyTips()");
+        log.info("Query tips for user: {}", userId);
         return tipMapper.selectList(
                 new LambdaQueryWrapper<Tip>()
                         .eq(Tip::getFrom_user_id_wsh, userId)
@@ -77,6 +113,12 @@ public class TipServiceImpl implements TipService {
                         .eq(Tip::getTo_user_id_wsh, userId));
     }
 
+    /**
+     * Converts a Tip entity to a TipDTO.
+     *
+     * @param entity the Tip entity, may be null
+     * @return the corresponding TipDTO, or null if input is null
+     */
     @Override
     public TipDTO toDTO(Tip entity) {
         if (entity == null) return null;
@@ -91,6 +133,16 @@ public class TipServiceImpl implements TipService {
         return dto;
     }
 
+    /**
+     * Resolves the recipient user ID for a tip. If the caller specified a
+     * recipient, returns it directly. Otherwise, defaults to the keeper's
+     * associated user account.
+     *
+     * @param order          the order (used to look up the keeper)
+     * @param requestedUserId the user-specified recipient, may be null
+     * @return the resolved recipient user ID
+     * @throws BusinessException if no recipient specified and keeper cannot be determined
+     */
     private Long resolveReceiverUserId(PetOrder order, Long requestedUserId) {
         if (requestedUserId != null) return requestedUserId;
         Keeper keeper = keeperMapper.selectById(order.getKeeper_id_wsh());

@@ -30,11 +30,33 @@ public class AccountingServiceImpl implements AccountingService {
         this.transactionMapper = transactionMapper;
     }
 
+    /**
+     * 【业务名称】获取系统用户 ID（实现）
+     * 业务作用：返回系统用户 ID 常量 0L。
+     * 调用场景：平台账户资金操作。
+     * 调用链：systemUserId() → 返回 0L。
+     * 数据处理：固定常量。
+     * 业务规则：系统用户 ID 固定为 0。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：用于标识平台账户。
+     */
     @Override
     public Long systemUserId() {
         return SYSTEM_USER_ID;
     }
 
+    /**
+     * 【业务名称】入账（实现）
+     * 业务作用：增加用户余额，校验幂等，记录交易流水。
+     * 调用场景：充值、收款、退款入账。
+     * 调用链：credit() → positive() → alreadyPosted() → WalletService.getByUserId() → WalletMapper.addBalance() → saveTransaction()。
+     * 数据处理：金额 > 0 校验 → 幂等校验 → 入账前快照 → SQL 加余额 → 入账后快照 → 记录流水。
+     * 业务规则：金额必须 > 0；requestId 重复则跳过。
+     * 状态影响：增加 wallet.balance。
+     * 异常情况：加余额失败抛 BusinessException("钱包入账失败")。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public Wallet credit(Long userId, BigDecimal amount, String type, Long orderId,
@@ -50,6 +72,17 @@ public class AccountingServiceImpl implements AccountingService {
         return after;
     }
 
+    /**
+     * 【业务名称】出账（实现）
+     * 业务作用：扣除用户余额，校验幂等和可用余额，记录流水。
+     * 调用场景：消费扣款等。
+     * 调用链：debit() → positive() → alreadyPosted() → WalletMapper.deductBalance() → saveTransaction()。
+     * 数据处理：金额 > 0 校验 → 幂等校验 → SQL 扣余额 → 记录流水。
+     * 业务规则：可用余额 (balance - frozen) 必须充足。
+     * 状态影响：减少 wallet.balance。
+     * 异常情况：余额不足抛 BusinessException("可用余额不足")。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,
@@ -69,6 +102,17 @@ public class AccountingServiceImpl implements AccountingService {
         return after;
     }
 
+    /**
+     * 【业务名称】转账（实现）
+     * 业务作用：从付款方转账到收款方，等价于 debit + credit。
+     * 调用场景：平台代扣代发、服务费结算。
+     * 调用链：transfer() → debit() → credit()。
+     * 数据处理：先扣付款方，后加收款方，使用不同 requestId 后缀。
+     * 业务规则：金额必须 > 0。
+     * 状态影响：付款方余额减少，收款方余额增加。
+     * 异常情况：同 debit()/credit()。
+     * 注意事项：出账和入账使用 :out/:in 后缀确保幂等。
+     */
     @Transactional
     @Override
     public void transfer(Long fromUserId, Long toUserId, BigDecimal amount, String type, Long orderId,
@@ -82,6 +126,17 @@ public class AccountingServiceImpl implements AccountingService {
         credit(toUserId, money, type, orderId, businessType, businessId, baseRequestId + ":in", description + " - in");
     }
 
+    /**
+     * 【业务名称】冻结余额（实现）
+     * 业务作用：从可用余额转入冻结金额。
+     * 调用场景：提现锁定。
+     * 调用链：freeze() → alreadyPosted() → WalletMapper.freeze() → saveTransaction()。
+     * 数据处理：校验幂等 → 冻结 SQL → 记录流水。
+     * 业务规则：可用余额必须充足。
+     * 状态影响：frozen_amount 增加，可用余额减少。
+     * 异常情况：不足时抛 BusinessException("可用余额不足")。
+     * 注意事项：不改变 balance 总额。
+     */
     @Transactional
     @Override
     public Wallet freeze(Long userId, BigDecimal amount, String type, Long orderId,
@@ -97,6 +152,17 @@ public class AccountingServiceImpl implements AccountingService {
         return after;
     }
 
+    /**
+     * 【业务名称】解冻余额（实现）
+     * 业务作用：将冻结金额释放回可用余额。
+     * 调用场景：驳回提现。
+     * 调用链：unfreeze() → alreadyPosted() → WalletMapper.unfreeze() → saveTransaction()。
+     * 数据处理：校验幂等 → 解冻 SQL → 记录流水。
+     * 业务规则：冻结余额必须充足。
+     * 状态影响：frozen_amount 减少，可用余额增加。
+     * 异常情况：不足时抛 BusinessException("冻结余额不足")。
+     * 注意事项：对应 freeze 的反向操作。
+     */
     @Transactional
     @Override
     public Wallet unfreeze(Long userId, BigDecimal amount, String type, Long orderId,
@@ -112,6 +178,17 @@ public class AccountingServiceImpl implements AccountingService {
         return after;
     }
 
+    /**
+     * 【业务名称】消耗冻结金额（实现）
+     * 业务作用：从冻结区扣除，同时减少 balance 和 frozen_amount。
+     * 调用场景：提现打款完成。
+     * 调用链：consumeFrozen() → alreadyPosted() → WalletMapper.transferFrozenToBalance() → saveTransaction()。
+     * 数据处理：校验幂等 → 消耗冻结 SQL → 记录流水。
+     * 业务规则：冻结余额必须充足。
+     * 状态影响：balance 和 frozen_amount 同时减少。
+     * 异常情况：不足时抛 BusinessException("冻结余额不足")。
+     * 注意事项：freeze → consumeFrozen 完整链路。
+     */
     @Transactional
     @Override
     public Wallet consumeFrozen(Long userId, BigDecimal amount, String type, Long orderId,
@@ -127,6 +204,17 @@ public class AccountingServiceImpl implements AccountingService {
         return after;
     }
 
+    /**
+     * 【业务名称】管理员调账（实现）
+     * 业务作用：管理员直接设置用户余额，记录 admin_adjust 流水。
+     * 调用场景：后台手动调账。
+     * 调用链：setBalanceByAdmin() → alreadyPosted() → WalletMapper.setBalance() → saveTransaction()。
+     * 数据处理：校验幂等 → 调账前快照 → SQL 设置余额 → 调账后快照 → 计算差值 → 记录流水。
+     * 业务规则：设置后的余额不可小于冻结金额。
+     * 状态影响：强制覆盖 wallet.balance。
+     * 异常情况：用户 ID 为空抛 400；余额小于冻结金额抛异常；设余额失败抛异常。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public Wallet setBalanceByAdmin(Long adminId, Long userId, BigDecimal balance, String requestId, String description) {

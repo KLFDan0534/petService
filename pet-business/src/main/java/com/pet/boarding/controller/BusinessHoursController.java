@@ -22,10 +22,20 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * 营业时间管理控制器
- * 提供商家营业时间的查询、设置和删除功能
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * 【营业时间管理控制器】
+ *
+ * 业务作用：
+ * 管理商家各天的营业时间配置，用于驱动店铺的自动开关店逻辑。
+ *
+ * 权限要求：
+ * - GET 查询：公开（任意用户可查看商家营业时间）
+ * - POST/DELETE 设置：MERCHANT 或 ADMIN
+ *
+ * API 路由前缀：/api/merchants/{merchantId}/hours
+ *
+ * 关联逻辑：
+ * 营业时间数据影响 MerchantService.resolveStoreStatus()，
+ * 在 MODE_AUTO 模式下自动判断店铺是否应开门。
  */
 @RestController
 @RequestMapping("/api/merchants/{merchantId}/hours")
@@ -42,12 +52,17 @@ public class BusinessHoursController {
     }
 
     /**
-     * 获取商家的营业时间列表
-     * @param merchantId 商家ID
-     * @return 营业时间列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【获取商家营业时间列表】
+     *
+     * API: GET /api/merchants/{merchantId}/hours
+     *
+     * 权限：公开
+     *
+     * 场景：用户在商家详情页查看营业时间安排，判断当前是否营业。
+     *
+     * @param merchantId 商家 ID
+     * @return 营业时间列表（周一至周日各一条记录）
+     */
     @GetMapping
     @Operation(summary = "获取营业时间", description = "获取商家的营业时间列表")
     @ApiResponses({
@@ -62,13 +77,20 @@ public class BusinessHoursController {
     }
 
     /**
-     * 设置或更新某天的营业时间
-     * @param merchantId 商家ID
-     * @param hours 营业时间信息
-     * @return 更新的营业时间
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【设置或更新营业时间】
+     *
+     * API: POST /api/merchants/{merchantId}/hours
+     *
+     * 权限：MERCHANT 或 ADMIN
+     *
+     * 业务规则：
+     * - 根据 dayOfWeek 判断是新增还是更新已有的记录
+     * - 如果商家模式为 MODE_AUTO 则会触发店铺状态刷新
+     *
+     * @param merchantId 商家 ID
+     * @param dto        营业时间信息（星期几、开始时间、结束时间）
+     * @return 更新后的营业时间记录
+     */
     @PostMapping
     @PreAuthorize("hasAnyRole('MERCHANT','ADMIN')")
     @Operation(summary = "设置营业时间", description = "设置或更新某天的营业时间")
@@ -89,13 +111,18 @@ public class BusinessHoursController {
     }
 
     /**
-     * 删除某一天的营业时间记录
-     * @param merchantId 商家ID
-     * @param id 营业时间记录ID
-     * @return 无返回值
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 【删除营业时间记录】
+     *
+     * API: DELETE /api/merchants/{merchantId}/hours/{id}
+     *
+     * 权限：MERCHANT 或 ADMIN
+     *
+     * 场景：商家删除某天的营业时间配置。
+     * 删除后若商家模式为 MODE_AUTO，店铺在该天不再自动营业。
+     *
+     * @param merchantId 商家 ID
+     * @param id         营业时间记录 ID
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('MERCHANT','ADMIN')")
     @Operation(summary = "删除营业时间", description = "删除某一天的营业时间记录")

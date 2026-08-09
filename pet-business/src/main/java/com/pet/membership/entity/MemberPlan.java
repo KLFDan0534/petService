@@ -15,6 +15,12 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Member plan entity representing a purchasable membership tier.
+ * Each plan defines a code, name, level, price, duration, discount rate,
+ * and configuration for monthly coupons and other benefits.
+ * Plans can be enabled or disabled for sale via the status field.
+ */
 @Getter
 @Setter
 @TableName("member_plan_wsh")

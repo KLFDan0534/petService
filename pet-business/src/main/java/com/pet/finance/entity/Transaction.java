@@ -10,6 +10,15 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 交易记录实体，映射数据库表 wallet_transaction_wsh。
+ * 记录每次钱包余额或冻结金额变动的完整快照（变动前/后），
+ * 包含交易类型、方向、金额、业务关联信息和幂等请求 ID。
+ * 是资金审计和对账的核心数据源。
+ *
+ * @author: wsh
+ * @date: 2026/06/24 11:05
+ */
 @Getter
 @Setter
 @TableName("wallet_transaction_wsh")

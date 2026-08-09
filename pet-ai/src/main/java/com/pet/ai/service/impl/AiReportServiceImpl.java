@@ -27,6 +27,21 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * AI 报告服务实现类，集成 DeepSeek AI 模型和 Chroma 向量数据库。
+ * <p>
+ * 核心流程：
+ * 1. 查询宠物、看护人、订单和护理动态数据
+ * 2. 构建 AI 提示词（含宠物档案和护理记录上下文）
+ * 3. 调用 AiChatService 获取 AI 生成内容
+ * 4. AI 不可用时降级为模板填充
+ * 5. 保存报告到 MySQL 和 Chroma 向量数据库
+ * <p>
+ * 关键业务规则：
+ * - 报告访问鉴权：仅宠物主、关联看护人、关联商家和 ADMIN 可查看
+ * - 报告类型：care（护理建议）、final（寄养总结）
+ * - Chroma 存储失败不影响 MySQL 主记录
+ */
 @Service
 @Slf4j
 public class AiReportServiceImpl implements AiReportService {
@@ -71,6 +86,17 @@ public class AiReportServiceImpl implements AiReportService {
         return collectionId;
     }
 
+    /**
+     * 【业务名称】按订单查询AI报告实现
+     * <p>业务作用：根据订单ID查询AI报告列表，先查MySQL（AiReportMapper），未命中时降级到Chroma向量库按order_id_wsh元数据查询。</p>
+     * <p>调用场景：用户在前端查看某订单的AI报告列表。</p>
+     * <p>调用链：Controller → getReportsByOrder() → requireOrderAccess()鉴权 → MySQL查询 → 有数据直接返回 | 无数据 → ChromaService.get() → toAiReports()转换</p>
+     * <p>数据处理：safeId()处理null→0L；LambdaQueryWrapper按order_id_wsh匹配+created_at_wsh倒序；Chroma查询设置where条件为order_id_wsh。</p>
+     * <p>业务规则：MySQL数据优先；Chroma查询结果通过toAiReports()解析并按创建时间倒序。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：requireOrderAccess内部可能抛出400/404/403异常。</p>
+     * <p>注意事项：Chroma中order_id_wsh以字符串形式存储于metadata。</p>
+     */
     @Override
     public List<AiReport> getReportsByOrder(Long userId, Long orderId) {
         log.info("调用 getReportsByOrder()");
@@ -88,6 +114,17 @@ public class AiReportServiceImpl implements AiReportService {
         return toAiReports(result);
     }
 
+    /**
+     * 【业务名称】按宠物查询AI报告实现
+     * <p>业务作用：根据宠物ID查询AI报告列表，优先MySQL，未命中时从Chroma按pet_id_wsh查询。</p>
+     * <p>调用场景：用户在宠物详情页查看所有历史AI报告。</p>
+     * <p>调用链：Controller → getReportsByPet() → requirePetAccess()鉴权 → MySQL查询 → 有数据直接返回 | 无数据 → ChromaService.get() → toAiReports()</p>
+     * <p>数据处理：LambdaQueryWrapper按pet_id_wsh过滤+创建时间倒序；Chroma查询设置where条件pet_id_wsh。</p>
+     * <p>业务规则：仅宠物主可查看；MySQL > Chroma 降级。</p>
+     * <p>状态影响：只读操作。</p>
+     * <p>异常情况：requirePetAccess抛出400/404/403。</p>
+     * <p>注意事项：Chroma中pet_id_wsh以字符串形式存储。</p>
+     */
     @Override
     public List<AiReport> getReportsByPet(Long userId, Long petId) {
         log.info("调用 getReportsByPet()");
@@ -105,6 +142,17 @@ public class AiReportServiceImpl implements AiReportService {
         return toAiReports(result);
     }
 
+    /**
+     * 【业务名称】手动创建AI报告实现
+     * <p>业务作用：看护人/管理员直接提交报告内容，绕过AI模型，手动创建一条AI报告记录。</p>
+     * <p>调用场景：看护人完成线下服务后手动录入总结报告。</p>
+     * <p>调用链：Controller → createReport() → requireReportWriteAccess()鉴权 → 构造AiReport → saveReport() → MySQL插入 + Chroma存储</p>
+     * <p>数据处理：从request提取order_id_wsh/pet_id_wsh/keeper_id_wsh/content_wsh/type_wsh设入新AiReport实体。</p>
+     * <p>业务规则：ADMIN或关联订单/宠物有写权限；不调用AI。</p>
+     * <p>状态影响：新增一条AI报告（MySQL+Chroma）。</p>
+     * <p>异常情况：request为null或内容为空抛出400；无权限抛出403。</p>
+     * <p>注意事项：Chroma存储失败不影响MySQL主记录，仅warn日志。</p>
+     */
     @Override
     public AiReport createReport(Long userId, AiReportCreateRequestDTO request) {
         log.info("调用 createReport()");
@@ -119,6 +167,17 @@ public class AiReportServiceImpl implements AiReportService {
         return report;
     }
 
+    /**
+     * 【业务名称】AI生成护理建议报告实现
+     * <p>业务作用：查询宠物/看护人/订单/护理动态数据，构建AI提示词，调用AiChatService生成护理建议，AI不可用时降级为模板填充。</p>
+     * <p>调用场景：用户点击"生成护理建议"按钮。</p>
+     * <p>调用链：Controller → generateCareSuggestion() → 参数校验 → requireAccess()鉴权 → 查询Pet/Keeper/Order/CareRecord → 构建Prompt → AiChatService.chat() → useAiOrFallback() → saveReport()</p>
+     * <p>数据处理：order推导petId/keeperId；findPet/findKeeper/findOrder/findCareRecords查询关联数据；buildCarePrompt构建AI提示词；buildCareSuggestion构建降级模板；AI内容优先于模板。</p>
+     * <p>业务规则：petId或orderId至少提供一个；type固定为"care"；AI返回null/blank时使用模板。</p>
+     * <p>状态影响：新增一条type=care的AI报告。</p>
+     * <p>异常情况：petId和orderId均为null抛出400；orderId指定但order不存在抛出404；鉴权失败抛出403。</p>
+     * <p>注意事项：护理动态最多取最近30条（LIMIT 30）；AI提示词限定800字以内。</p>
+     */
     @Override
     public AiReport generateCareSuggestion(Long userId, Long petId, Long keeperId, Long orderId) {
         log.info("调用 generateCareSuggestion()");
@@ -158,6 +217,17 @@ public class AiReportServiceImpl implements AiReportService {
         return report;
     }
 
+    /**
+     * 【业务名称】AI生成寄养总结报告（用户调用）
+     * <p>业务作用：用户触发生成寄养总结报告，校验订单存在性和用户权限，委托generateBoardingReportUnchecked执行核心逻辑。</p>
+     * <p>调用场景：用户在完成订单后点击"查看寄养总结"。</p>
+     * <p>调用链：Controller → generateBoardingReport() → 校验orderId → findOrder() → requireOrderAccess()鉴权 → generateBoardingReportUnchecked()</p>
+     * <p>数据处理：校验orderId不为null；查询PetOrder；校验用户对该订单的访问权限；委托无校验方法执行。</p>
+     * <p>业务规则：orderId必填；仅宠物主、看护人、商家和ADMIN可访问。</p>
+     * <p>状态影响：新增一条type=final的AI报告。</p>
+     * <p>异常情况：orderId为null抛出400；订单不存在抛出404；无权限抛出403。</p>
+     * <p>注意事项：校验通过后实际处理在generateBoardingReportUnchecked中。</p>
+     */
     @Override
     public AiReport generateBoardingReport(Long userId, Long petId, Long keeperId, Long orderId) {
         log.info("调用 generateBoardingReport()");
@@ -172,6 +242,17 @@ public class AiReportServiceImpl implements AiReportService {
         return generateBoardingReportUnchecked(petId, keeperId, orderId, order);
     }
 
+    /**
+     * 【业务名称】内部AI生成寄养总结报告（事件驱动）
+     * <p>业务作用：订单完成事件触发后内部调用，不校验用户权限，直接生成寄养总结报告。</p>
+     * <p>调用场景：OrderCompletedReportListener在事务提交后异步调用。</p>
+     * <p>调用链：OrderCompletedReportListener → generateBoardingReportInternal() → 校验orderId → generateBoardingReportUnchecked()</p>
+     * <p>数据处理：校验orderId；不鉴权直接委托。</p>
+     * <p>业务规则：orderId必填；无鉴权。</p>
+     * <p>状态影响：新增一条type=final的AI报告。</p>
+     * <p>异常情况：orderId为null抛出400；订单不存在抛出404。</p>
+     * <p>注意事项：内部调用信任所有请求；监听器层面捕获异常不会传播到主事务。</p>
+     */
     @Override
     public AiReport generateBoardingReportInternal(Long petId, Long keeperId, Long orderId) {
         log.info("调用 generateBoardingReportInternal()");

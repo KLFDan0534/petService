@@ -12,6 +12,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 商家（Merchant）收藏目标解析器，将收藏的商家解析为卡片展示信息。
+ * <p>
+ * 组装信息包括：商家名称、描述/地址、评分、地址详情。
+ */
 @Component
 public class MerchantFavoriteTargetResolver implements FavoriteTargetResolver {
 
@@ -21,11 +26,17 @@ public class MerchantFavoriteTargetResolver implements FavoriteTargetResolver {
         this.merchantService = merchantService;
     }
 
+    /**
+     * 返回目标类型编码 {@link FavoriteTargetType#MERCHANT}
+     */
     @Override
     public String targetType() {
         return FavoriteTargetType.MERCHANT;
     }
 
+    /**
+     * 批量解析商家收藏卡片数据
+     */
     @Override
     public Map<Long, FavoriteCardDTO> resolve(Collection<Long> targetIds) {
         Map<Long, FavoriteCardDTO> result = new LinkedHashMap<>();

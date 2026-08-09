@@ -57,7 +57,7 @@
       </div>
     </section>
 
-    <BannerCarousel v-if="banners.length" class="home-campaigns" :banners="banners" />
+<!--    <BannerCarousel v-if="banners.length" class="home-campaigns" :banners="banners" />-->
 
     <section id="services" class="landing-section services-section" aria-labelledby="services-title">
       <div class="section-heading">

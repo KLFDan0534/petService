@@ -24,6 +24,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+/**
+ * 【业务模块】会员套餐管理（实现）
+ * 业务作用：提供会员套餐的模板 CRUD 管理，含完整的字段校验和业务规则。
+ */
 @Service
 public class MemberPlanServiceImpl implements MemberPlanService {
     private static final int STATUS_DISABLED = 0;
@@ -45,6 +49,17 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 【业务名称】查询套餐列表（实现）
+     * 业务作用：查询会员套餐列表，支持状态和 activeOnly 筛选。
+     * 调用场景：套餐列表展示。
+     * 调用链：listPlans() → selectList() → toDTO()。
+     * 数据处理：按状态过滤，按 sort_order、level、id 排序。
+     * 业务规则：activeOnly=true 忽略 status 参数。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<MemberPlanDTO> listPlans(Integer status, boolean activeOnly) {
         LambdaQueryWrapper<MemberPlan> wrapper = new LambdaQueryWrapper<MemberPlan>()
@@ -56,11 +71,33 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return memberPlanMapper.selectList(wrapper).stream().map(this::toDTO).toList();
     }
 
+    /**
+     * 【业务名称】查询套餐详情（实现）
+     * 业务作用：根据ID查询单个套餐。
+     * 调用场景：套餐详情展示。
+     * 调用链：getPlan() → requirePlan() → toDTO()。
+     * 数据处理：按ID查询。
+     * 业务规则：套餐不存在抛异常。
+     * 状态影响：无。
+     * 异常情况：套餐不存在抛 BusinessException(404)。
+     * 注意事项：无。
+     */
     @Override
     public MemberPlanDTO getPlan(Long id) {
         return toDTO(requirePlan(id));
     }
 
+    /**
+     * 【业务名称】创建套餐（实现）
+     * 业务作用：创建新的会员套餐，含完整的字段校验。
+     * 调用场景：管理员新增套餐。
+     * 调用链：createPlan() → normalizeCode() → ensureCodeAvailable() → 校验→ insert()。
+     * 数据处理：校验各字段 → 插入记录。
+     * 业务规则：code 唯一；名称必填；等级大于0；价格非负；时长大于0；折扣率0-1之间；JSON配置合法。
+     * 状态影响：新增一条套餐记录。
+     * 异常情况：code 重复抛 400；校验失败抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MemberPlanDTO createPlan(MemberPlanCreateRequestDTO request) {
@@ -88,6 +125,17 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return toDTO(plan);
     }
 
+    /**
+     * 【业务名称】更新套餐（实现）
+     * 业务作用：更新已有套餐的信息，仅更新非 null 字段。
+     * 调用场景：管理员编辑套餐。
+     * 调用链：updatePlan() → requirePlan() → 按需更新 → updateById()。
+     * 数据处理：校验各字段 → 按需设置 → 更新。
+     * 业务规则：code 变更时校验唯一性。
+     * 状态影响：更新套餐记录。
+     * 异常情况：code 重复抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MemberPlanDTO updatePlan(Long id, MemberPlanUpdateRequestDTO request) {
@@ -138,6 +186,17 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return toDTO(plan);
     }
 
+    /**
+     * 【业务名称】更新套餐状态（实现）
+     * 业务作用：启用或禁用会员套餐。
+     * 调用场景：管理员上架/下架套餐。
+     * 调用链：updateStatus() → requirePlan() → updateById()。
+     * 数据处理：更新状态字段。
+     * 业务规则：状态仅支持 0（禁用）和 1（启用）。
+     * 状态影响：套餐启用/禁用状态变更。
+     * 异常情况：不支持的 status 抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MemberPlanDTO updateStatus(Long id, Integer status) {
@@ -147,6 +206,17 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return toDTO(plan);
     }
 
+    /**
+     * 【业务名称】删除套餐（实现）
+     * 业务作用：删除会员套餐，有关联记录时禁止删除。
+     * 调用场景：管理员删除套餐。
+     * 调用链：deletePlan() → requirePlan() → 检查关联 → deleteById()。
+     * 数据处理：检查会员和订单关联表是否存在该套餐的记录。
+     * 业务规则：有关联时抛出异常，应改为禁用。
+     * 状态影响：物理删除套餐记录。
+     * 异常情况：有关联记录抛 BusinessException(400)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public void deletePlan(Long id) {
@@ -164,6 +234,17 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         memberPlanMapper.deleteById(id);
     }
 
+    /**
+     * 【业务名称】套餐实体转DTO（实现）
+     * 业务作用：将套餐实体转换为DTO。
+     * 调用场景：内部转换。
+     * 调用链：toDTO()。
+     * 数据处理：字段拷贝。
+     * 业务规则：入参为null时返回null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public MemberPlanDTO toDTO(MemberPlan plan) {
         if (plan == null) {

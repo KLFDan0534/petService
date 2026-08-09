@@ -9,6 +9,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 内容审核实体，记录用户对平台内容的举报及管理员的审核处理结果。
+ * <p>
+ * 审核流程：用户举报 -> 状态 PENDING -> 管理员审核通过(APPROVED) 或驳回(REJECTED)。
+ * 审核记录包含举报人、审核人、原因和备注信息。
+ */
 @Getter
 @Setter
 @TableName("content_review_wsh")

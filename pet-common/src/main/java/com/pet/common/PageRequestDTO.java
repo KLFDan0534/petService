@@ -6,6 +6,29 @@ import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * 【通用分页请求参数】
+ *
+ * 业务作用：
+ * 统一分页查询的请求参数封装，所有分页接口继承/使用此 DTO。
+ * 提供默认值：page=1, size=10，前端可选择性覆盖。
+ *
+ * 调用场景：
+ * 所有 GET 请求的分页查询参数，与 PageResult 配合使用。
+ *
+ * 校验规则：
+ * - page 最小为 1
+ * - size 范围 1~100
+ *
+ * 调用链：
+ * 前端请求
+ *   ↓
+ * Controller(@Valid PageRequestDTO)
+ *   ↓
+ * Service → new Page<>(page, size)
+ *   ↓
+ * Mapper.selectPage()
+ */
 @Getter
 @Setter
 public class PageRequestDTO {

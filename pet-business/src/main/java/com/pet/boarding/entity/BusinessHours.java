@@ -11,10 +11,14 @@ import java.time.LocalTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 营业时间实体
- * 映射数据库表 business_hours_wsh，存储商家每日营业时间信息
+ * 商家营业时间（BusinessHours）实体，映射 business_hours_wsh 表。
+ * <p>
+ * 存储商家一周每天的营业时间配置，支持设置营业时段（开门/关门时间）和全天休息标记。
+ * 营业时间配置在自动模式下（MODE_AUTO）决定了店铺的实时营业状态。
+ * 如果某天标记为休息（is_closed = 1），则当天店铺自动关闭。
+ * 支持跨天营业（如 22:00 开门到次日 02:00 关门）。
+ *
  * @author: wsh
- * @date: 2026/06/24 11:05
  */
 @Getter
 @Setter

@@ -21,6 +21,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 【业务模块】会员管理（实现）
+ * 业务作用：提供用户会员状态查询、管理端列表查询和会员到期自动过期处理。
+ * 会员到期自动刷新状态，保证数据实时准确。
+ */
 @Service
 public class MembershipServiceImpl implements MembershipService {
     private static final String STATUS_ACTIVE = "active";
@@ -39,6 +44,17 @@ public class MembershipServiceImpl implements MembershipService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 【业务名称】获取当前会员信息（实现）
+     * 业务作用：获取指定用户的当前会员信息。
+     * 调用场景：用户查看会员状态。
+     * 调用链：getCurrentMembership() → selectOne() → refreshIfExpired() → toDTO()。
+     * 数据处理：查询一条会员记录 → 过期自动刷新 → 转为 DTO。
+     * 业务规则：无会员时返回默认 inactive DTO；过期自动刷新。
+     * 状态影响：会员过期时自动更新数据库状态。
+     * 异常情况：用户ID为空抛 BusinessException(401)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Override
     @Transactional
     public UserMembershipDTO getCurrentMembership(Long userId) {
@@ -61,6 +77,17 @@ public class MembershipServiceImpl implements MembershipService {
         return toDTO(membership);
     }
 
+    /**
+     * 【业务名称】管理端查询会员列表（实现）
+     * 业务作用：按状态筛选查询会员列表，查询前自动过期。
+     * 调用场景：后台会员管理。
+     * 调用链：listMembershipsForAdmin() → expireMemberships() → selectList() → toDTO()。
+     * 数据处理：过期处理后按状态筛选查询。
+     * 业务规则：查询前自动过期保证数据准确。
+     * 状态影响：查询前触发过期处理。
+     * 异常情况：不支持的状态抛 BusinessException(400)。
+     * 注意事项：无。
+     */
     @Override
     @Transactional
     public List<UserMembershipDTO> listMembershipsForAdmin(String status) {
@@ -75,6 +102,17 @@ public class MembershipServiceImpl implements MembershipService {
                 .toList();
     }
 
+    /**
+     * 【业务名称】批量过期会员（实现）
+     * 业务作用：将所有已过期的活跃会员标记为 expired。
+     * 调用场景：定时任务或管理端查询前自动调用。
+     * 调用链：expireMemberships() → update()。
+     * 数据处理：批量更新 expires_at < now 且 status=active 的记录。
+     * 业务规则：仅处理活跃已过期会员。
+     * 状态影响：符合条件的会员状态 active → expired。
+     * 异常情况：无。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Override
     @Transactional
     public int expireMemberships() {
@@ -85,6 +123,17 @@ public class MembershipServiceImpl implements MembershipService {
                 .le(UserMembership::getExpires_at_wsh, LocalDateTime.now()));
     }
 
+    /**
+     * 【业务名称】会员实体转DTO（实现）
+     * 业务作用：将会员实体转换为 DTO，丰富套餐名称、折扣率、有效状态和剩余天数。
+     * 调用场景：内部转换。
+     * 调用链：toDTO()。
+     * 数据处理：字段拷贝 → 关联套餐 → 解析快照 → 计算有效状态和剩余天数。
+     * 业务规则：折扣率为 null 时默认为 1。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public UserMembershipDTO toDTO(UserMembership membership) {
         if (membership == null) {

@@ -32,6 +32,22 @@ public class KeeperAttendanceController {
         this.attendanceService = attendanceService;
     }
 
+    /**
+     * 看护者签到
+     *
+     * <p>API: POST /api/keeper-attendance/check-in</p>
+     * <p>请求来源：看护者端上下班打卡页，点击"签到"按钮</p>
+     * <p>权限要求：KEEPER角色（@PreAuthorize("hasRole('KEEPER')")）</p>
+     * <p>输入参数：@body AttendanceCheckRequestDTO - 包含签到位置经纬度（用于地理围栏校验）</p>
+     * <p>返回数据：KeeperAttendanceDTO - 签到记录，包含签到时间、位置和状态</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 签到参数错误或不在允许的签到范围内</li>
+     *   <li>403 - 非看护者无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @PostMapping("/check-in")
     @PreAuthorize("hasRole('KEEPER')")
     @Operation(summary = "看护者签到", description = "看护者进行上班签到打卡")
@@ -46,6 +62,22 @@ public class KeeperAttendanceController {
         return Result.success(attendanceService.checkIn(token.getUserId(), request));
     }
 
+    /**
+     * 看护者签退
+     *
+     * <p>API: POST /api/keeper-attendance/check-out</p>
+     * <p>请求来源：看护者端上下班打卡页，点击"签退"按钮</p>
+     * <p>权限要求：KEEPER角色（@PreAuthorize("hasRole('KEEPER')")）</p>
+     * <p>输入参数：@body AttendanceCheckRequestDTO - 包含签退位置经纬度</p>
+     * <p>返回数据：KeeperAttendanceDTO - 签退记录，包含签到和签退时间</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 尚未签到或不在允许的签退范围内</li>
+     *   <li>403 - 非看护者无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @PostMapping("/check-out")
     @PreAuthorize("hasRole('KEEPER')")
     @Operation(summary = "看护者签退", description = "看护者进行下班签退打卡")
@@ -60,6 +92,21 @@ public class KeeperAttendanceController {
         return Result.success(attendanceService.checkOut(token.getUserId(), request));
     }
 
+    /**
+     * 获取当前签到状态
+     *
+     * <p>API: GET /api/keeper-attendance/me/current</p>
+     * <p>请求来源：看护者端首页状态栏，显示当前是否已签到</p>
+     * <p>权限要求：KEEPER角色（@PreAuthorize("hasRole('KEEPER')")）</p>
+     * <p>输入参数：无（从token中提取用户ID）</p>
+     * <p>返回数据：KeeperAttendanceDTO - 当前签到状态，包含最近签到记录（若已签退则返回null或已签退状态）</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>403 - 非看护者无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping("/me/current")
     @PreAuthorize("hasRole('KEEPER')")
     @Operation(summary = "获取当前签到状态", description = "获取看护者当前的签到/签退状态")
@@ -72,6 +119,21 @@ public class KeeperAttendanceController {
         return Result.success(attendanceService.current(token.getUserId()));
     }
 
+    /**
+     * 获取今日打卡记录
+     *
+     * <p>API: GET /api/keeper-attendance/me/today</p>
+     * <p>请求来源：看护者端考勤统计页，查看今日签到/签退记录</p>
+     * <p>权限要求：KEEPER角色（@PreAuthorize("hasRole('KEEPER')")）</p>
+     * <p>输入参数：无（从token中提取用户ID）</p>
+     * <p>返回数据：List&lt;KeeperAttendanceDTO&gt; - 今日的签到/签退记录列表</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>403 - 非看护者无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping("/me/today")
     @PreAuthorize("hasRole('KEEPER')")
     @Operation(summary = "获取今日打卡记录", description = "获取看护者今日的打卡记录列表")
@@ -84,6 +146,21 @@ public class KeeperAttendanceController {
         return Result.success(attendanceService.today(token.getUserId()));
     }
 
+    /**
+     * 商家获取今日考勤
+     *
+     * <p>API: GET /api/keeper-attendance/merchant/today</p>
+     * <p>请求来源：商家后台考勤管理页，查看今日所有看护者的考勤统计</p>
+     * <p>权限要求：MERCHANT角色（@PreAuthorize("hasRole('MERCHANT')")）</p>
+     * <p>输入参数：无（从token中提取用户ID，关联到商家）</p>
+     * <p>返回数据：List&lt;KeeperAttendanceDTO&gt; - 今日该商家下所有看护者的考勤记录</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>403 - 非商家无权限</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
     @GetMapping("/merchant/today")
     @PreAuthorize("hasRole('MERCHANT')")
     @Operation(summary = "获取商家今日考勤", description = "商家查看今日所有看护者的考勤记录")

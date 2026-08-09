@@ -4,50 +4,60 @@ import com.pet.operation.entity.Notification;
 
 import java.util.List;
 
+/**
+ * 用户通知服务接口，提供通知的增删查及已读状态管理功能。
+ * <p>
+ * 通知与公告不同，通知面向单个用户产生（如某个公告推送触发一条通知），
+ * 创建后通过 SSE {@link NotificationBroadcaster} 实时推送给用户。
+ */
 public interface NotificationService {
     /**
-     * 根据用户ID获取通知列表
+     * 查询用户的所有通知，按创建时间倒序排列
+     * <p>
+     * 自动过滤并清理关联公告已被删除或停用的通知记录。
+     *
      * @param userId 用户ID
-     * @return 通知列表
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * @return 用户通知列表
+     */
     List<Notification> listByUser(Long userId);
+
     /**
-     * 统计用户未读通知数量
+     * 统计用户未读通知的数量
+     *
      * @param userId 用户ID
      * @return 未读通知数量
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     */
     long countUnread(Long userId);
+
     /**
-     * 创建通知
-     * @param notification 通知实体
-     * @return 创建后的通知
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     * 创建一条通知，同时通过 SSE 实时推送给目标用户
+     *
+     * @param notification 待创建的通知实体
+     * @return 创建完成后的通知实体（含自增 ID）
+     */
     Notification create(Notification notification);
+
     /**
-     * 标记通知为已读
-     * @param id 通知ID
+     * 将指定通知标记为已读。仅当通知属于该用户时才执行更新
+     *
+     * @param id     通知ID
      * @param userId 用户ID
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     */
     void markAsRead(Long id, Long userId);
+
     /**
-     * 标记所有通知为已读
+     * 将用户的所有未读通知一次性标记为已读
+     *
      * @param userId 用户ID
-     * @author: wsh
-     * @date: 2026/6/24 11:05
-     **/
+     */
     void markAllAsRead(Long userId);
 
     /**
-     * 根据关联业务ID删除通知
-     * @param relatedId 关联业务ID
+     * 根据关联业务 ID 删除所有相关的通知记录
+     * <p>
+     * 用于公告更新或删除时同步清理已下发的通知。
+     *
+     * @param relatedId 关联业务ID（如公告ID）
      */
     void deleteByRelatedId(Long relatedId);
 }

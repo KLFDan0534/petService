@@ -120,6 +120,7 @@ import { createOrder } from '@/api/order'
 import { getAvailableCoupons, quoteCoupon } from '@/api/coupon'
 import { quoteMembershipOrderDiscount } from '@/api/membership'
 
+// 创建订单参数对象
 const props = defineProps({
   visible: Boolean,
   initialServiceName: { type: String, default: '' },
@@ -128,6 +129,8 @@ const props = defineProps({
   initialMerchantId: { type: String, default: '' },
   initialKeeperId: { type: String, default: '' },
 })
+
+// 订单状态
 const emit = defineEmits(['close', 'created'])
 
 const router = useRouter()

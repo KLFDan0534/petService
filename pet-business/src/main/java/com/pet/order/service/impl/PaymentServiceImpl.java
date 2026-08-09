@@ -30,6 +30,17 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of {@link PaymentService} for payment processing.
+ * <p>
+ * Handles payment record creation and execution. Supported payment methods:
+ * balance (internal account), wechat, and alipay. Payment execution transitions
+ * the order from PENDING to PAID, performs accounting entries (debiting the
+ * owner or crediting the system), and schedules accept-timeout monitoring.
+ * <p>
+ * <b>Payment timeout:</b> Orders must be paid within a configured window
+ * (default 15 minutes). Expired payments trigger automatic order cancellation.
+ */
 @Service
 @Slf4j
 public class PaymentServiceImpl implements PaymentService {
@@ -66,9 +77,19 @@ public class PaymentServiceImpl implements PaymentService {
         this.orderService = orderService;
     }
 
+    /**
+     * 【查询支付记录（实现）】
+     *
+     * 业务作用：
+     * 按订单号和主人ID查询支付记录，先校验订单归属再查支付。
+     *
+     * @param ownerId 主人ID
+     * @param orderNo 订单号
+     * @return 支付记录
+     */
     @Override
     public Payment getByOrderNo(Long ownerId, String orderNo) {
-        log.info("调用 getByOrderNo()");
+        log.info("Query payment by orderNo: {}", orderNo);
         PetOrder order = orderMapper.selectOne(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOrder_no_wsh, orderNo)
@@ -83,9 +104,26 @@ public class PaymentServiceImpl implements PaymentService {
                         .last("LIMIT 1"));
     }
 
+    /**
+     * 【查询用户支付记录列表（实现）】
+     *
+     * 业务作用：
+     * 通过用户订单ID批量查询关联支付记录，按创建时间降序排列。
+     *
+     * 调用链：
+     * PaymentService.listByUser()
+     * ↓
+     * orderMapper查询用户所有订单ID → paymentMapper批量查询支付记录
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param userId 用户ID
+     * @return 支付记录列表
+     */
     @Override
     public List<Payment> listByUser(Long userId) {
-        log.info("调用 listByUser()");
+        log.info("Query payments for user: {}", userId);
         List<PetOrder> orders = orderMapper.selectList(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOwner_id_wsh, userId)
@@ -98,20 +136,58 @@ public class PaymentServiceImpl implements PaymentService {
                         .orderByDesc(Payment::getCreated_at_wsh));
     }
 
+    /**
+     * 【根据订单ID创建支付记录（实现）】
+     *
+     * 业务作用：
+     * 校验订单存在性和归属后，取订单号委托createPayment处理。
+     *
+     * 调用链：
+     * PaymentService.createPaymentByOrderId()
+     * ↓
+     * orderMapper查询校验 → createPayment(ownerId, orderNo, method)
+     *
+     * @param ownerId 主人ID
+     * @param orderId 订单ID
+     * @param method  支付方式
+     * @return 支付记录
+     */
     @Transactional
     @Override
     public Payment createPaymentByOrderId(Long ownerId, Long orderId, String method) {
-        log.info("调用 createPaymentByOrderId()");
+        log.info("Create payment for order: {}, method: {}", orderId, method);
         PetOrder order = orderMapper.selectById(orderId);
         if (order == null) throw new BusinessException(404, "订单不存在");
         if (!ownerId.equals(order.getOwner_id_wsh())) throw new BusinessException(403, "无权操作此订单");
         return createPayment(ownerId, order.getOrder_no_wsh(), method);
     }
 
+    /**
+     * 【创建支付记录（实现）】
+     *
+     * 业务作用：
+     * 核心创建支付逻辑：校验状态/超时 → 复用已有待支付记录 → 生成新支付记录。
+     *
+     * 调用链：
+     * PaymentService.createPayment()
+     * ↓
+     * 查询订单 → 校验(已支付/状态/超时) → 查已有待支付记录
+     * → 存在则更新支付方式 → 不存在则生成PAY+UUID编号 → insert
+     *
+     * 业务规则：
+     * 1. 订单必须PENDING且未支付
+     * 2. 支付超时检查：ensureOrderPaymentNotExpired()
+     * 3. 支付方式标准化：normalizeMethod()（online→wechat，null→balance）
+     *
+     * @param ownerId 主人ID
+     * @param orderNo 订单号
+     * @param method  支付方式
+     * @return 支付记录
+     */
     @Transactional
     @Override
     public Payment createPayment(Long ownerId, String orderNo, String method) {
-        log.info("调用 createPayment()");
+        log.info("Create payment for order: {}, method: {}", orderNo, method);
         PetOrder order = orderMapper.selectOne(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOrder_no_wsh, orderNo)
@@ -146,10 +222,34 @@ public class PaymentServiceImpl implements PaymentService {
         return payment;
     }
 
+    /**
+     * 【执行支付（实现）】
+     *
+     * 业务作用：
+     * 支付执行核心逻辑：支付记录success→订单PAID→账务处理→后续流程触发。
+     *
+     * 调用链：
+     * PaymentService.pay()
+     * ↓
+     * 查询支付记录 → 查询订单 → 校验(归属/状态/超时/支付方式)
+     * → 乐观锁更新支付success → [余额支付]主人扣款 → 系统入账 → 平台补贴入账
+     * → 乐观锁更新订单PAID → 标记券已使用 → 标记会员已使用 → SSE广播 → scheduleAcceptTimeoutCheck()
+     *
+     * 账务处理：
+     * 1. 余额支付：accountingService.debit(主人, 金额, "payment")
+     * 2. 支付入账：accountingService.credit(系统用户, 金额, "payment")
+     * 3. 补贴入账：accountingService.credit(系统用户, 补贴, "coupon_subsidy")
+     *
+     * 事务一致性：
+     * 支付记录乐观锁失败时重新查询，若已成功则幂等返回。
+     *
+     * @param userId 用户ID
+     * @param payNo  支付编号
+     */
     @Transactional
     @Override
     public void pay(Long userId, String payNo) {
-        log.info("调用 pay()");
+        log.info("Execute payment: {}", payNo);
         Payment payment = paymentMapper.selectOne(
                 new LambdaQueryWrapper<Payment>().eq(Payment::getPay_no_wsh, payNo).last("LIMIT 1"));
         if (payment == null) throw new BusinessException(404, "支付记录不存在");
@@ -216,8 +316,18 @@ public class PaymentServiceImpl implements PaymentService {
         scheduleAcceptTimeoutCheck(order);
     }
 
+    /**
+     * 【支付实体转DTO（实现）】
+     *
+     * 业务作用：
+     * 手动映射Payment实体字段到PaymentDTO。
+     *
+     * @param entity 支付实体，可为null
+     * @return 支付DTO
+     */
     @Override
     public PaymentDTO toDTO(Payment entity) {
+        log.info("Convert Payment entity to DTO");
         if (entity == null) return null;
         PaymentDTO dto = new PaymentDTO();
         dto.setId_wsh(entity.getId_wsh());
@@ -232,6 +342,15 @@ public class PaymentServiceImpl implements PaymentService {
         return dto;
     }
 
+    /**
+     * Normalizes a payment method string to a supported internal value.
+     * Defaults to "balance" if null/blank. Maps "online" to "wechat".
+     * "mock" payments are no longer supported.
+     *
+     * @param method the raw payment method string
+     * @return the normalized method (balance, wechat, or alipay)
+     * @throws BusinessException if the method is unsupported or mock (deprecated)
+     */
     private String normalizeMethod(String method) {
         if (method == null || method.isBlank()) return METHOD_BALANCE;
         String value = method.trim().toLowerCase();
@@ -243,6 +362,14 @@ public class PaymentServiceImpl implements PaymentService {
         throw new BusinessException(400, "不支持的支付方式");
     }
 
+    /**
+     * Validates that the payment method can be executed by the user directly.
+     * Currently only "balance" is executable; wechat/alipay require external
+     * payment platform confirmation and cannot be executed via this API.
+     *
+     * @param method the normalized payment method
+     * @throws BusinessException if the method requires external confirmation or is mock
+     */
     private void ensureUserExecutableMethod(String method) {
         if (METHOD_BALANCE.equals(method)) {
             return;
@@ -257,6 +384,14 @@ public class PaymentServiceImpl implements PaymentService {
         return amount == null ? BigDecimal.ZERO : amount;
     }
 
+    /**
+     * Checks whether the order's payment window has expired. If expired, attempts
+     * to cancel the order via {@link OrderService#cancelPendingOrderIfPaymentTimeout}
+     * and throws an exception with an appropriate message.
+     *
+     * @param order the order to check
+     * @throws BusinessException if the payment window has expired
+     */
     private void ensureOrderPaymentNotExpired(PetOrder order) {
         LocalDateTime createdAt = order.getCreated_at_wsh();
         if (createdAt == null || createdAt.plus(PAYMENT_TIMEOUT).isAfter(LocalDateTime.now())) {
@@ -267,6 +402,14 @@ public class PaymentServiceImpl implements PaymentService {
         throw new BusinessException(400, message);
     }
 
+    /**
+     * Sends a delayed message to check the accept timeout after payment succeeds.
+     * Uses {@link TransactionSynchronization#afterCommit()} to schedule the check
+     * only after the current transaction commits. If no transaction is active,
+     * sends immediately.
+     *
+     * @param order the newly paid order whose accept timeout should be monitored
+     */
     private void scheduleAcceptTimeoutCheck(PetOrder order) {
         String orderNo = order.getOrder_no_wsh();
         if (orderNo == null || orderNo.isBlank()) {

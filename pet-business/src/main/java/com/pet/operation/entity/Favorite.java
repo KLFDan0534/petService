@@ -9,6 +9,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 用户收藏实体，记录用户对平台内各类目标的收藏关系。
+ * <p>
+ * 支持收藏的目标类型包括服务（service）、商家（merchant）、看护人（keeper）等，
+ * 每种类型有独立的解析器 {@link FavoriteTargetResolver} 来提供卡片展示信息。
+ */
 @Getter
 @Setter
 @TableName("favorite_wsh")

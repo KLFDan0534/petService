@@ -14,9 +14,37 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 宠物订单实体
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * Core domain entity representing a pet boarding order.
+ * <p>
+ * This is the central entity of the pet boarding platform. An order tracks
+ * the full lifecycle of a pet boarding service from creation through completion.
+ * <p>
+ * <b>State machine:</b>
+ * <pre>
+ * PENDING → PAID → CONFIRMED → DELIVERED → RECEIVED → IN_PROGRESS → COMPLETED
+ *   │         │
+ *   └→ CANCELLED  └→ CANCELLED (reject with refund)
+ * </pre>
+ * <ul>
+ *   <li><b>PENDING:</b> Order created, awaiting payment (15-min timeout)</li>
+ *   <li><b>PAID:</b> Payment successful, awaiting keeper acceptance</li>
+ *   <li><b>CONFIRMED:</b> Keeper accepted, awaiting pet delivery</li>
+ *   <li><b>DELIVERED:</b> Owner delivered the pet to the keeper/merchant</li>
+ *   <li><b>RECEIVED:</b> Keeper/merchant received the pet (handover code verified)</li>
+ *   <li><b>IN_PROGRESS:</b> Service started with start photo documentation</li>
+ *   <li><b>COMPLETED:</b> Service ended, triggers settlement and AI report generation</li>
+ *   <li><b>CANCELLED:</b> Order cancelled before payment or rejected after payment</li>
+ *   <li><b>REFUNDING:</b> Refund application in progress</li>
+ *   <li><b>REFUNDED:</b> Refund completed, funds returned to owner</li>
+ * </ul>
+ * <p>
+ * <b>Key business fields:</b>
+ * <ul>
+ *   <li>{@code handover_code} - 4-digit code used for pet delivery verification</li>
+ *   <li>{@code final_amount} - the amount actually paid after all discounts</li>
+ *   <li>{@code settlement_amount} - the amount settled to the merchant on completion</li>
+ *   <li>{@code platform_subsidy} - coupon subsidy paid by the platform</li>
+ * </ul>
  */
 @Getter
 @Setter

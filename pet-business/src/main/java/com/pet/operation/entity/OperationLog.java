@@ -8,6 +8,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 操作日志实体，记录管理员在后台的关键操作行为。
+ * <p>
+ * 包括操作模块、操作类型、请求详情（URL、参数、请求体、响应体）、
+ * 操作人信息、IP 地址、执行耗时和状态，用于安全审计和问题追溯。
+ */
 @Getter
 @Setter
 @TableName("operation_log_wsh")

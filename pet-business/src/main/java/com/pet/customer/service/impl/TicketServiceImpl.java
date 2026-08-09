@@ -31,6 +31,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 【业务模块】工单售后管理（实现）
+ * 业务作用：提供工单从创建、分配、处理到关闭的完整生命周期管理。
+ * 以商家为维度进行权限隔离：管理员可管理所有工单，商家只能管理自己商家的工单，客服可管理其授权服务商家的工单。
+ */
 @Service
 @Slf4j
 public class TicketServiceImpl implements TicketService {
@@ -59,6 +64,17 @@ public class TicketServiceImpl implements TicketService {
         this.merchantCustomerServiceService = merchantCustomerServiceService;
     }
 
+    /**
+     * 【业务名称】查询用户发起的工单列表（实现）
+     * 业务作用：查询指定用户发起的工单列表。
+     * 调用场景：用户查看自己的工单。
+     * 调用链：listByUser() → ticketMapper.selectList()。
+     * 数据处理：按 user_id 匹配，按创建时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<TicketDTO> listByUser(Long userId) {
         return toDTOList(ticketMapper.selectList(
@@ -67,12 +83,34 @@ public class TicketServiceImpl implements TicketService {
                         .orderByDesc(Ticket::getCreated_at_wsh)));
     }
 
+    /**
+     * 【业务名称】查询全部工单列表（实现）
+     * 业务作用：获取全部工单列表，按创建时间倒序。
+     * 调用场景：后台管理。
+     * 调用链：listAll() → ticketMapper.selectList()。
+     * 数据处理：无条件全量查询。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<TicketDTO> listAll() {
         return toDTOList(ticketMapper.selectList(
                 new LambdaQueryWrapper<Ticket>().orderByDesc(Ticket::getCreated_at_wsh)));
     }
 
+    /**
+     * 【业务名称】分页查询全部工单（实现）
+     * 业务作用：分页查询全部工单列表。
+     * 调用场景：后台分页管理。
+     * 调用链：listPage() → ticketMapper.selectPage()。
+     * 数据处理：分页查询，按创建时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public IPage<TicketDTO> listPage(PageRequestDTO pageParam) {
         Page<Ticket> page = new Page<>(pageParam.getPage(), pageParam.getSize());
@@ -83,6 +121,17 @@ public class TicketServiceImpl implements TicketService {
         return dtoPage;
     }
 
+    /**
+     * 【业务名称】按角色分页查询工单（实现）
+     * 业务作用：按角色权限分页查询工单列表。
+     * 调用场景：不同角色查看工单。
+     * 调用链：listPageForStaff() → staffMerchantIds() → ticketMapper.selectPage()。
+     * 数据处理：管理员查全部；商家和客服按商家ID范围过滤。
+     * 业务规则：角色权限隔离。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public IPage<TicketDTO> listPageForStaff(PageRequestDTO pageParam, Long staffUserId,
                                              boolean admin, boolean merchant, boolean customerService) {
@@ -105,11 +154,33 @@ public class TicketServiceImpl implements TicketService {
         return dtoPage;
     }
 
+    /**
+     * 【业务名称】查询工单详情（实现）
+     * 业务作用：根据ID查询工单详情。
+     * 调用场景：查看工单详细信息。
+     * 调用链：getById() → getByIdRaw() → toDTO()。
+     * 数据处理：按ID精确查询。
+     * 业务规则：工单不存在抛异常。
+     * 状态影响：无。
+     * 异常情况：工单不存在抛 BusinessException(404)。
+     * 注意事项：无。
+     */
     @Override
     public TicketDTO getById(Long id) {
         return toDTO(getByIdRaw(id));
     }
 
+    /**
+     * 【业务名称】按角色查询工单详情（实现）
+     * 业务作用：根据ID和角色权限查询工单详情。
+     * 调用场景：内部人员查看工单详情。
+     * 调用链：getByIdForUser() → getByIdRaw() → assertVisible() → toDTO()。
+     * 数据处理：同 getById()，增加权限校验。
+     * 业务规则：权限校验。
+     * 状态影响：无。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：无。
+     */
     @Override
     public TicketDTO getByIdForUser(Long id, Long userId, boolean admin, boolean merchant, boolean customerService) {
         Ticket ticket = getByIdRaw(id);
@@ -117,6 +188,17 @@ public class TicketServiceImpl implements TicketService {
         return toDTO(ticket);
     }
 
+    /**
+     * 【业务名称】创建工单（实现）
+     * 业务作用：用户提交售后/客服工单，可关联订单或直接指定商家。
+     * 调用场景：用户提交工单。
+     * 调用链：create() → validateOrderTicket() → resolveMerchantId() → validateMerchantIfProvided() → insert()。
+     * 数据处理：校验订单归属→解析商家ID→校验商家→创建 pending 工单。
+     * 业务规则：订单需存在且归用户所属；商家需存在。
+     * 状态影响：新增一条 pending 工单。
+     * 异常情况：订单不存在抛 404；非订单主人抛 403；商家不存在抛 404。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketDTO create(Long userId, TicketCreateRequestDTO request) {
@@ -139,6 +221,17 @@ public class TicketServiceImpl implements TicketService {
         return toDTO(ticket);
     }
 
+    /**
+     * 【业务名称】分配工单（实现）
+     * 业务作用：分配工单给处理人，状态变为 processing，通过站内通知告知用户。
+     * 调用场景：后台分配工单。
+     * 调用链：assign() → getByIdRaw() → 校验状态 → updateById() → sendTicketNotification()。
+     * 数据处理：更新 assignee_id 和状态为 processing。
+     * 业务规则：仅 pending 状态可分配；处理人需存在。
+     * 状态影响：工单状态 pending → processing。
+     * 异常情况：状态不匹配抛 400；处理人不存在抛 404。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketDTO assign(Long id, Long assigneeId) {
@@ -159,6 +252,17 @@ public class TicketServiceImpl implements TicketService {
         return toDTO(ticket);
     }
 
+    /**
+     * 【业务名称】按角色分配工单（实现）
+     * 业务作用：按角色权限分配工单给处理人。
+     * 调用场景：内部人员分配工单。
+     * 调用链：assignForStaff() → assertStaffCanManage() → assign()。
+     * 数据处理：同 assign()，增加权限校验。
+     * 业务规则：权限隔离。
+     * 状态影响：同 assign()。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketDTO assignForStaff(Long id, Long assigneeId, Long staffUserId,
@@ -168,6 +272,17 @@ public class TicketServiceImpl implements TicketService {
         return assign(id, assigneeId);
     }
 
+    /**
+     * 【业务名称】解决工单（实现）
+     * 业务作用：解决 pending 或 processing 状态的工单，状态变为 resolved，自动添加解决消息。
+     * 调用场景：客服完成工单处理。
+     * 调用链：resolve() → getByIdRaw() → 校验状态 → updateById() → addMessage() → sendTicketNotification()。
+     * 数据处理：更新 status=resolved，设置 result，自动添加一条系统解决消息。
+     * 业务规则：仅 pending 或 processing 状态可解决。
+     * 状态影响：工单状态 → resolved。
+     * 异常情况：状态不匹配抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketDTO resolve(Long id, String result) {
@@ -187,6 +302,17 @@ public class TicketServiceImpl implements TicketService {
         return toDTO(ticket);
     }
 
+    /**
+     * 【业务名称】按角色解决工单（实现）
+     * 业务作用：按角色权限解决工单。
+     * 调用场景：内部人员解决工单。
+     * 调用链：resolveForStaff() → assertStaffCanManage() → resolve()。
+     * 数据处理：同 resolve()，增加权限校验。
+     * 业务规则：权限隔离。
+     * 状态影响：同 resolve()。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketDTO resolveForStaff(Long id, String result, Long staffUserId,
@@ -196,6 +322,17 @@ public class TicketServiceImpl implements TicketService {
         return resolve(id, result);
     }
 
+    /**
+     * 【业务名称】关闭工单（实现）
+     * 业务作用：关闭已解决的工单，状态变为 closed。
+     * 调用场景：用户或管理员关闭工单。
+     * 调用链：close() → getByIdRaw() → 校验状态 → updateById() → sendTicketNotification()。
+     * 数据处理：更新 status=closed。
+     * 业务规则：仅 resolved 状态可关闭。
+     * 状态影响：工单状态 resolved → closed。
+     * 异常情况：非 resolved 状态抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketDTO close(Long id) {
@@ -211,6 +348,17 @@ public class TicketServiceImpl implements TicketService {
         return toDTO(ticket);
     }
 
+    /**
+     * 【业务名称】按角色关闭工单（实现）
+     * 业务作用：按角色权限关闭工单。
+     * 调用场景：内部人员关闭工单。
+     * 调用链：closeForStaff() → assertStaffCanManage() → close()。
+     * 数据处理：同 close()，增加权限校验。
+     * 业务规则：权限隔离。
+     * 状态影响：同 close()。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketDTO closeForStaff(Long id, Long staffUserId, boolean admin, boolean merchant, boolean customerService) {
@@ -219,6 +367,17 @@ public class TicketServiceImpl implements TicketService {
         return close(id);
     }
 
+    /**
+     * 【业务名称】添加工单消息（实现）
+     * 业务作用：向工单中添加一条留言消息。
+     * 调用场景：用户或客服在工单中留言。
+     * 调用链：addMessage() → ticketMessageMapper.insert()。
+     * 数据处理：插入消息记录。
+     * 业务规则：无。
+     * 状态影响：新增一条消息记录。
+     * 异常情况：无。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketMessageDTO addMessage(Long ticketId, Long userId, String content) {
@@ -230,6 +389,17 @@ public class TicketServiceImpl implements TicketService {
         return toMessageDTO(msg);
     }
 
+    /**
+     * 【业务名称】按角色添加工单消息（实现）
+     * 业务作用：按角色权限向工单中添加留言消息。
+     * 调用场景：内部人员在工单中留言。
+     * 调用链：addMessageForUser() → assertVisible() → addMessage()。
+     * 数据处理：同 addMessage()，增加权限校验。
+     * 业务规则：权限校验。
+     * 状态影响：同 addMessage()。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public TicketMessageDTO addMessageForUser(Long ticketId, Long userId, boolean admin,
@@ -239,6 +409,17 @@ public class TicketServiceImpl implements TicketService {
         return addMessage(ticketId, userId, content);
     }
 
+    /**
+     * 【业务名称】获取工单留言列表（实现）
+     * 业务作用：获取工单的所有留言，按创建时间正序排列。
+     * 调用场景：查看工单沟通记录。
+     * 调用链：listMessages() → ticketMessageMapper.selectList()。
+     * 数据处理：按 ticket_id 匹配，按创建时间正序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<TicketMessageDTO> listMessages(Long ticketId) {
         return toMessageDTOList(ticketMessageMapper.selectList(
@@ -247,6 +428,17 @@ public class TicketServiceImpl implements TicketService {
                         .orderByAsc(TicketMessage::getCreated_at_wsh)));
     }
 
+    /**
+     * 【业务名称】按角色获取工单留言列表（实现）
+     * 业务作用：按角色权限获取工单留言列表。
+     * 调用场景：内部人员查看工单沟通记录。
+     * 调用链：listMessagesForUser() → assertVisible() → listMessages()。
+     * 数据处理：同 listMessages()，增加权限校验。
+     * 业务规则：权限校验。
+     * 状态影响：无。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：无。
+     */
     @Override
     public List<TicketMessageDTO> listMessagesForUser(Long ticketId, Long userId,
                                                       boolean admin, boolean merchant, boolean customerService) {
@@ -338,6 +530,17 @@ public class TicketServiceImpl implements TicketService {
         return ticket;
     }
 
+    /**
+     * 【业务名称】工单实体转DTO
+     * 业务作用：将工单实体转换为DTO。
+     * 调用场景：对外暴露工单信息。
+     * 调用链：toDTO()。
+     * 数据处理：字段拷贝。
+     * 业务规则：入参为null时返回null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     private TicketDTO toDTO(Ticket ticket) {
         if (ticket == null) {
             return null;

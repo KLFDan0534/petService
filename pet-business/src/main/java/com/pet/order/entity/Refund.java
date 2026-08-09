@@ -12,9 +12,16 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 退款实体
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * Entity representing a refund transaction for a pet boarding order.
+ * <p>
+ * A refund is initiated when a pet owner requests their money back for an order
+ * that is in a refundable status (PAID through IN_PROGRESS). The refund lifecycle
+ * follows: PENDING → APPROVED → COMPLETED (or PENDING → REJECTED).
+ * <p>
+ * On completion, funds are transferred from the system account back to the owner
+ * and the order status transitions to REFUNDED. The pre-refund order status is
+ * saved in {@code order_status_before_refund} so it can be restored if the
+ * refund is rejected.
  */
 @Getter
 @Setter

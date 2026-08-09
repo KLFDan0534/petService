@@ -15,6 +15,12 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Membership benefit usage record entity.
+ * Tracks the lifecycle of a benefit applied to a business order:
+ * locked (reserved) -> used (consumed) / released (cancelled).
+ * Records the benefit type, amount, quantity, and a snapshot for auditing.
+ */
 @Getter
 @Setter
 @TableName("membership_benefit_usage_wsh")

@@ -11,7 +11,10 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 宠物分类实体
+ * 宠物分类实体，映射数据库表 category_wsh。
+ * 支持多级树形分类结构（通过 parent_id 自关联），
+ * 用于对宠物服务项目进行层级归类，sort_order 控制同级展示顺序。
+ *
  * @author: wsh
  * @date: 2026/06/24 11:05
  */

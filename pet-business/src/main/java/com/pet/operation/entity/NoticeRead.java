@@ -15,6 +15,11 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 公告阅读记录实体，记录用户对公告的阅读/关闭行为。
+ * <p>
+ * 用于追踪用户是否已读某条公告，以及弹窗公告的关闭状态。
+ */
 @Getter
 @Setter
 @TableName("notice_read_wsh")

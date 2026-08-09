@@ -17,6 +17,11 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 评价实体，记录用户对商家、照看者或服务的评分与评价内容。
+ * <p>评分范围为 1-5 分，支持商家或照看者对评价进行回复。
+ * 同一订单或同一服务不可重复评价。</p>
+ */
 @Getter
 @Setter
 @TableName("rating_wsh")

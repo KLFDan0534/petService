@@ -5,6 +5,11 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * DeepSeek AI 配置属性类，从 application.yml 的 ai.deepseek 前缀读取配置。
+ * <p>
+ * 可配置项包括 API Key、模型名称、端点地址、最大 Token 数、温度参数和思考类型。
+ */
 @Configuration
 @ConfigurationProperties(prefix = "ai.deepseek")
 @Getter

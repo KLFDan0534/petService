@@ -32,6 +32,9 @@ public class NotificationServiceImpl implements NotificationService {
         this.notificationBroadcaster = notificationBroadcaster;
     }
 
+    /**
+     * 查询用户的所有通知，创建时间倒序。自动清理已失效的公告类通知
+     */
     @Override
     public List<Notification> listByUser(Long userId) {
         log.info("listByUser() called");
@@ -75,6 +78,9 @@ public class NotificationServiceImpl implements NotificationService {
         return list;
     }
 
+    /**
+     * 统计用户未读通知数量
+     */
     @Override
     public long countUnread(Long userId) {
         log.info("countUnread() called");
@@ -84,6 +90,9 @@ public class NotificationServiceImpl implements NotificationService {
                         .eq(Notification::getIs_read_wsh, 0));
     }
 
+    /**
+     * 创建通知，默认未读，并通过 SSE 实时推送给目标用户
+     */
     @Transactional
     @Override
     public Notification create(Notification notification) {
@@ -94,6 +103,9 @@ public class NotificationServiceImpl implements NotificationService {
         return notification;
     }
 
+    /**
+     * 标记指定通知为已读。仅该通知属于当前用户时才生效
+     */
     @Transactional
     @Override
     public void markAsRead(Long id, Long userId) {
@@ -105,6 +117,9 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
+    /**
+     * 将用户所有未读通知一次性标记为已读
+     */
     @Transactional
     @Override
     public void markAllAsRead(Long userId) {
@@ -116,6 +131,9 @@ public class NotificationServiceImpl implements NotificationService {
                         .eq(Notification::getIs_read_wsh, 0));
     }
 
+    /**
+     * 根据关联业务 ID 删除所有通知（如公告更新时清理旧通知）
+     */
     @Transactional
     @Override
     public void deleteByRelatedId(Long relatedId) {

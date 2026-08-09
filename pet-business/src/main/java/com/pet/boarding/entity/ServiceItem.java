@@ -11,10 +11,14 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 服务项目实体
- * 映射数据库表 pet_service_wsh，存储商家提供的宠物服务项目信息
+ * 服务项目（ServiceItem）实体，映射 pet_service_wsh 表。
+ * <p>
+ * 服务项目是商家提供的具体宠物服务，例如"标准洗浴 80元/次"、"全天寄养 100元/天"。
+ * 每个服务项目归属于一个商家，并关联到一个服务分类（ServiceCategory）。
+ * 分类的编码（code）会自动同步到服务项目的 type 字段，便于前端进行归类展示。
+ * 服务项目可以独立启用/禁用，禁用后客户不可见。
+ *
  * @author: wsh
- * @date: 2026/06/24 11:05
  */
 @Getter
 @Setter

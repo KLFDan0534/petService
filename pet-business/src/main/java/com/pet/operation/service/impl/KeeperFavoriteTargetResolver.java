@@ -15,6 +15,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 看护人（Keeper）收藏目标解析器，将收藏的看护人解析为卡片展示信息。
+ * <p>
+ * 组装信息包括：看护人姓名、简介、从业年限、所属商家、每日价格、头像。
+ */
 @Component
 public class KeeperFavoriteTargetResolver implements FavoriteTargetResolver {
 
@@ -26,11 +31,17 @@ public class KeeperFavoriteTargetResolver implements FavoriteTargetResolver {
         this.merchantService = merchantService;
     }
 
+    /**
+     * 返回目标类型编码 {@link FavoriteTargetType#KEEPER}
+     */
     @Override
     public String targetType() {
         return FavoriteTargetType.KEEPER;
     }
 
+    /**
+     * 批量解析看护人收藏卡片数据
+     */
     @Override
     public Map<Long, FavoriteCardDTO> resolve(Collection<Long> targetIds) {
         Map<Long, FavoriteCardDTO> result = new LinkedHashMap<>();

@@ -23,6 +23,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 【业务模块】商家客服申请管理（实现）
+ * 业务作用：管理用户申请成为商家客服的完整流程。
+ * 状态机设计：pending → approved/rejected → resigned/terminated。
+ * 审批通过后自动授予 CUSTOMER_SERVICE 角色，辞职或终止后若用户不再有任一商家的客服身份则自动回收该角色。
+ */
 @Service
 public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServiceService {
     private final MerchantCustomerServiceMapper mapper;
@@ -40,6 +46,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         this.roleGrantService = roleGrantService;
     }
 
+    /**
+     * 【业务名称】申请成为客服（实现）
+     * 业务作用：用户申请成为指定商家的客服。
+     * 调用场景：用户向商家提交客服申请。
+     * 调用链：apply() → 校验商家 → 查重 → insert/update。
+     * 数据处理：校验商家存在且已批准 → 查重已有记录 → 复用或新建 pending 状态记录。
+     * 业务规则：用户不可为商家主人本人；用户不可重复申请已生效的客服；仅已批准的商家可接收申请。
+     * 状态影响：新增或复用一条 pending 申请记录。
+     * 异常情况：未登录抛 401；商家不存在抛 404；商家主人无需申请抛 400；商家未批准抛 400；已是客服抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MerchantCustomerServiceDTO apply(Long userId, MerchantCustomerServiceApplyRequestDTO request) {
@@ -87,6 +104,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return toDTO(entity);
     }
 
+    /**
+     * 【业务名称】查询我的申请记录（实现）
+     * 业务作用：查询当前用户的所有客服申请记录。
+     * 调用场景：用户查看自己的申请记录。
+     * 调用链：listMine() → mapper.selectList()。
+     * 数据处理：按 user_id 匹配，按创建时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<MerchantCustomerServiceDTO> listMine(Long userId) {
         return toDTOList(mapper.selectList(new LambdaQueryWrapper<MerchantCustomerService>()
@@ -94,6 +122,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .orderByDesc(MerchantCustomerService::getCreated_at_wsh)));
     }
 
+    /**
+     * 【业务名称】商家查询待审核申请（实现）
+     * 业务作用：商家查询自己商铺待审核的客服申请列表。
+     * 调用场景：商家审核客服申请。
+     * 调用链：listPendingForMerchant() → requireMerchantOwner() → mapper.selectList()。
+     * 数据处理：按商家ID和 pending 状态匹配。
+     * 业务规则：仅商家主人可查询。
+     * 状态影响：无。
+     * 异常情况：非商家主人抛异常。
+     * 注意事项：无。
+     */
     @Override
     public List<MerchantCustomerServiceDTO> listPendingForMerchant(Long merchantUserId) {
         Merchant merchant = requireMerchantOwner(merchantUserId);
@@ -103,6 +142,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .orderByDesc(MerchantCustomerService::getCreated_at_wsh)));
     }
 
+    /**
+     * 【业务名称】商家查询已通过客服（实现）
+     * 业务作用：商家查询自己商铺已通过的客服列表。
+     * 调用场景：商家管理客服团队。
+     * 调用链：listApprovedForMerchant() → requireMerchantOwner() → mapper.selectList()。
+     * 数据处理：按商家ID和 approved 状态匹配，按审核时间倒序。
+     * 业务规则：仅商家主人可查询。
+     * 状态影响：无。
+     * 异常情况：非商家主人抛异常。
+     * 注意事项：无。
+     */
     @Override
     public List<MerchantCustomerServiceDTO> listApprovedForMerchant(Long merchantUserId) {
         Merchant merchant = requireMerchantOwner(merchantUserId);
@@ -112,6 +162,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .orderByDesc(MerchantCustomerService::getReviewed_at_wsh)));
     }
 
+    /**
+     * 【业务名称】通过客服申请（实现）
+     * 业务作用：商家通过客服申请，自动授予 CUSTOMER_SERVICE 角色。
+     * 调用场景：商家审批通过客服申请。
+     * 调用链：approve() → requirePendingOwnedApplication() → update() → roleGrantService.grantRoleToUser()。
+     * 数据处理：更新状态为 approved，记录审核信息；授予角色。
+     * 业务规则：仅 pending 状态可审批；仅商家主人可操作。
+     * 状态影响：申请状态 approved；用户新增 CUSTOMER_SERVICE 角色。
+     * 异常情况：申请不存在或状态不对抛异常。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MerchantCustomerServiceDTO approve(Long id, Long merchantUserId, MerchantCustomerServiceReviewRequestDTO request) {
@@ -125,6 +186,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return toDTO(entity);
     }
 
+    /**
+     * 【业务名称】拒绝客服申请（实现）
+     * 业务作用：商家拒绝客服申请。
+     * 调用场景：商家拒绝客服申请。
+     * 调用链：reject() → requirePendingOwnedApplication() → update()。
+     * 数据处理：更新状态为 rejected，记录审核信息。
+     * 业务规则：仅 pending 状态可拒绝；仅商家主人可操作。
+     * 状态影响：申请状态 rejected。
+     * 异常情况：申请不存在或状态不对抛异常。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MerchantCustomerServiceDTO reject(Long id, Long merchantUserId, MerchantCustomerServiceReviewRequestDTO request) {
@@ -137,6 +209,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return toDTO(entity);
     }
 
+    /**
+     * 【业务名称】客服辞职（实现）
+     * 业务作用：客服辞职，自动回收 CUSTOMER_SERVICE 角色。
+     * 调用场景：客服主动辞职。
+     * 调用链：resign() → requireApprovedApplication() → 校验身份 → update() → revokeCustomerServiceRoleIfNoApprovedMerchant()。
+     * 数据处理：更新状态为 resigned；如果用户再无其他商家客服角色则回收。
+     * 业务规则：仅申请者本人可操作。
+     * 状态影响：申请状态 resigned；可能回收 CUSTOMER_SERVICE 角色。
+     * 异常情况：非本人抛 403。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MerchantCustomerServiceDTO resign(Long id, Long userId) {
@@ -152,6 +235,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return toDTO(entity);
     }
 
+    /**
+     * 【业务名称】商家终止客服（实现）
+     * 业务作用：商家终止客服的合作关系，自动回收 CUSTOMER_SERVICE 角色。
+     * 调用场景：商家终止客服。
+     * 调用链：terminateByMerchant() → requireOwnedApplication() → 校验状态 → update() → revokeCustomerServiceRoleIfNoApprovedMerchant()。
+     * 数据处理：更新状态为 terminated；如果用户再无其他商家客服角色则回收。
+     * 业务规则：仅已批准的客服可被终止；仅商家主人可操作。
+     * 状态影响：申请状态 terminated；可能回收 CUSTOMER_SERVICE 角色。
+     * 异常情况：非 approved 状态抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MerchantCustomerServiceDTO terminateByMerchant(Long id, Long merchantUserId) {
@@ -167,6 +261,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return toDTO(entity);
     }
 
+    /**
+     * 【业务名称】获取用户已通过的商家ID（实现）
+     * 业务作用：获取用户所有已通过审核的商家ID集合。
+     * 调用场景：查询用户可管理商家范围。
+     * 调用链：getApprovedMerchantIds() → mapper.selectList()。
+     * 数据处理：按 user_id 和 approved 筛选。
+     * 业务规则：用户ID为空返回空集合。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：用于权限判断。
+     */
     @Override
     public Set<Long> getApprovedMerchantIds(Long userId) {
         if (userId == null) {
@@ -180,6 +285,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 【业务名称】判断是否指定商家的客服（实现）
+     * 业务作用：判断用户是否为指定商家的已授权客服。
+     * 调用场景：权限校验。
+     * 调用链：isMerchantCustomerService() → getApprovedMerchantIds()。
+     * 数据处理：通过已通过的商家ID集合判断。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：用于权限判断。
+     */
     @Override
     public boolean isMerchantCustomerService(Long userId, Long merchantId) {
         return merchantId != null && getApprovedMerchantIds(userId).contains(merchantId);
@@ -244,6 +360,17 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         }
     }
 
+    /**
+     * 【业务名称】申请记录实体转DTO
+     * 业务作用：将申请记录实体转换为DTO，关联商家名称和用户昵称。
+     * 调用场景：对外暴露申请记录信息。
+     * 调用链：toDTO()。
+     * 数据处理：字段拷贝，关联查询商家名称和用户名。
+     * 业务规则：入参为null时返回null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：关联查询商家和用户表。
+     */
     private MerchantCustomerServiceDTO toDTO(MerchantCustomerService entity) {
         if (entity == null) {
             return null;

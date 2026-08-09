@@ -15,6 +15,11 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 优惠券模板实体，定义优惠券的发行规则和优惠策略。
+ * <p>支持两种优惠类型：amount（固定金额减免）和 percent（折扣率减免，需配套 maxDiscountAmount 封顶）。
+ * 可通过适用范围（scopeType）控制是平台通用还是指定商家专用。</p>
+ */
 @Getter
 @Setter
 @TableName("coupon_template_wsh")

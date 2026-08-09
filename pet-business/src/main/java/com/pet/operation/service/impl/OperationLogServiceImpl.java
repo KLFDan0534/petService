@@ -23,6 +23,9 @@ public class OperationLogServiceImpl implements OperationLogService {
         this.operationLogMapper = operationLogMapper;
     }
 
+    /**
+     * 分页查询操作日志，支持按模块、操作类型和状态筛选
+     */
     @Override
     public IPage<OperationLog> page(PageRequestDTO param, String module, String operation, Integer status) {
         log.info("page() called");
@@ -35,12 +38,18 @@ public class OperationLogServiceImpl implements OperationLogService {
         return operationLogMapper.selectPage(page, wrapper);
     }
 
+    /**
+     * 根据主键获取单条操作日志
+     */
     @Override
     public OperationLog getById(Long id) {
         log.info("getById() called");
         return operationLogMapper.selectById(id);
     }
 
+    /**
+     * 保存操作日志
+     */
     @Override
     @Transactional
     public void save(OperationLog log) {
@@ -48,6 +57,9 @@ public class OperationLogServiceImpl implements OperationLogService {
         operationLogMapper.insert(log);
     }
 
+    /**
+     * 清理创建时间早于指定天数的历史日志
+     */
     @Override
     @Transactional
     public void cleanOlderThan(int days) {

@@ -12,6 +12,17 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * Entity representing an immutable snapshot of order-related entity data.
+ * <p>
+ * At the moment an order is created, a snapshot is taken of all related entities
+ * (owner, pet, merchant, keeper, service, address, pricing) and stored as JSON
+ * blobs. This ensures that historical order records remain accurate even if the
+ * referenced entities are later updated (e.g., a keeper changes their name or price).
+ * <p>
+ * Each snapshot field stores a JSON string containing key fields from the
+ * corresponding entity at the time of order creation.
+ */
 @Getter
 @Setter
 @TableName("order_snapshot_wsh")

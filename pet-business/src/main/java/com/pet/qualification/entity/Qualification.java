@@ -14,6 +14,12 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * Qualification entity representing a certification or license document
+ * (e.g., business license, keeper certificate) uploaded by a merchant or keeper.
+ * Records undergo a review lifecycle: pending -> approved / rejected.
+ * The file URL may be masked for public display.
+ */
 @Getter
 @Setter
 @TableName("qualification_wsh")

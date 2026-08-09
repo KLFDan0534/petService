@@ -15,6 +15,12 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * Membership purchase or renewal order entity.
+ * Records the order number, user, selected plan, payment amount and method,
+ * order status lifecycle (pending -> paid / cancelled), and the membership
+ * period this order covers. A plan snapshot is stored for historical reference.
+ */
 @Getter
 @Setter
 @TableName("membership_order_wsh")

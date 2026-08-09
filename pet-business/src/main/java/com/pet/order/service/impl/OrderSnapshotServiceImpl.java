@@ -24,6 +24,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Implementation of {@link OrderSnapshotService} that creates immutable JSON snapshots
+ * of all related entities at order creation time. Snapshots preserve the exact state
+ * of owner, pet, merchant, keeper, service, address, and pricing data so that historical
+ * order records remain accurate even if the underlying entities change later.
+ */
 @Service
 public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
@@ -36,6 +42,22 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 【创建订单快照（实现）】
+     *
+     * 业务作用：
+     * 组装各实体关键字段快照（owner/pet/merchant/keeper/service/address/price），
+     * 序列化为JSON后写入order_snapshot表。
+     *
+     * @param order    订单
+     * @param owner    主人
+     * @param pet      宠物
+     * @param merchant 商家
+     * @param keeper   看护者
+     * @param service  服务
+     * @param request  创建请求
+     * @return 快照实体
+     */
     @Override
     public OrderSnapshot createForOrder(PetOrder order,
                                         User owner,
@@ -58,6 +80,12 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
         return snapshot;
     }
 
+    /**
+     * 【查询订单快照（实现）】
+     *
+     * @param orderId 订单ID
+     * @return 快照DTO，不存在返回null
+     */
     @Override
     public OrderSnapshotDTO getByOrderId(Long orderId) {
         OrderSnapshot snapshot = orderSnapshotMapper.selectOne(
@@ -67,6 +95,15 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
         return toDTO(snapshot);
     }
 
+    /**
+     * 【批量查询订单快照（实现）】
+     *
+     * 业务作用：
+     * 用于批量订单列表加载快照，避免N+1查询问题。
+     *
+     * @param orderIds 订单ID集合
+     * @return 订单ID → 快照DTO 的映射
+     */
     @Override
     public Map<Long, OrderSnapshotDTO> findDTOMapByOrderIds(Set<Long> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
@@ -229,6 +266,12 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    /**
+     * Masks the middle digits of a phone number for privacy (e.g., 138****1234).
+     *
+     * @param phone the raw phone number
+     * @return the masked phone number, or the original if too short to mask
+     */
     private String maskPhone(String phone) {
         if (phone == null || phone.length() < 7) {
             return phone;

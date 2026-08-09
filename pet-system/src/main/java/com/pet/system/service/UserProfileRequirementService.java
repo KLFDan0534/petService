@@ -17,6 +17,25 @@ public class UserProfileRequirementService {
         this.userMapper = userMapper;
     }
 
+    /**
+     * 【确保用户具备操作所需资料】
+     *
+     * 业务作用：在执行需要实名认证或手机绑定的操作前进行前置条件检查
+     *
+     * 调用场景：发起发帖、接单等需要实名/手机绑定的业务操作前
+     *
+     * 调用链：XxxController/bizService ↓ ensureAllowed() → UserMapper.selectById → 判读action是否需要实名认证(且用户是否已完成) → 判读是否需要手机绑定(且用户是否已绑定)
+     *
+     * 数据处理：userId + action(UserProfileAction枚举) → 查询用户 → 若action.requireRealName且用户未实名 → 403 → 若action.requireBoundPhone且用户无手机号 → 403
+     *
+     * 业务规则：动作是否需要实名/手机绑定由UserProfileAction枚举定义；认证状态必须为REAL_NAME_VERIFIED才算已认证
+     *
+     * 状态影响：无
+     *
+     * 异常情况：用户不存在/未登录 → 401 BusinessException；需要实名但未认证 → 403 BusinessException(action.label + "前需要先完成实名认证")；需要手机但未绑定 → 403 BusinessException(action.label + "前需要先绑定手机号")
+     *
+     * 注意事项：后续新增需要前置条件的操作只需在UserProfileAction枚举中添加并设置相应标志即可
+     */
     public void ensureAllowed(Long userId, UserProfileAction action) {
         User user = userMapper.selectById(userId);
         if (user == null) {

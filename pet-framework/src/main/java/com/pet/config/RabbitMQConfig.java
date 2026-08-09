@@ -57,6 +57,13 @@ public class RabbitMQConfig {
     @Bean
     public Queue orderCancelQueue() { return new Queue(QUEUE_ORDER_CANCEL, true); }
 
+    /**
+     * Creates the order.payment.timeout.delay queue with a TTL of 15 minutes.
+     * Expired messages are dead-lettered to the order.payment.timeout queue
+     * on the same exchange.
+     *
+     * @return the configured Queue instance
+     */
     @Bean
     public Queue orderPaymentTimeoutDelayQueue() {
         return QueueBuilder.durable(QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY)
@@ -66,9 +73,22 @@ public class RabbitMQConfig {
                 .build();
     }
 
+    /**
+     * Creates the order.payment.timeout durable queue that receives
+     * dead-lettered messages from the delay queue after the TTL expires.
+     *
+     * @return the Queue instance
+     */
     @Bean
     public Queue orderPaymentTimeoutQueue() { return new Queue(QUEUE_ORDER_PAYMENT_TIMEOUT, true); }
 
+    /**
+     * Creates the order.accept.timeout.delay queue with a TTL of 30 minutes.
+     * Expired messages are dead-lettered to the order.accept.timeout queue
+     * on the same exchange.
+     *
+     * @return the configured Queue instance
+     */
     @Bean
     public Queue orderAcceptTimeoutDelayQueue() {
         return QueueBuilder.durable(QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY)
@@ -78,6 +98,12 @@ public class RabbitMQConfig {
                 .build();
     }
 
+    /**
+     * Creates the order.accept.timeout durable queue that receives
+     * dead-lettered messages from the accept delay queue after the TTL expires.
+     *
+     * @return the Queue instance
+     */
     @Bean
     public Queue orderAcceptTimeoutQueue() { return new Queue(QUEUE_ORDER_ACCEPT_TIMEOUT, true); }
 
@@ -139,21 +165,45 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(orderCancelQueue()).to(directExchange()).with(QUEUE_ORDER_CANCEL);
     }
 
+    /**
+     * Binds the order.payment.timeout.delay queue to the direct exchange
+     * with the order.payment.timeout.delay routing key.
+     *
+     * @return the Binding instance
+     */
     @Bean
     public Binding orderPaymentTimeoutDelayBinding() {
         return BindingBuilder.bind(orderPaymentTimeoutDelayQueue()).to(directExchange()).with(QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY);
     }
 
+    /**
+     * Binds the order.payment.timeout queue to the direct exchange
+     * with the order.payment.timeout routing key.
+     *
+     * @return the Binding instance
+     */
     @Bean
     public Binding orderPaymentTimeoutBinding() {
         return BindingBuilder.bind(orderPaymentTimeoutQueue()).to(directExchange()).with(QUEUE_ORDER_PAYMENT_TIMEOUT);
     }
 
+    /**
+     * Binds the order.accept.timeout.delay queue to the direct exchange
+     * with the order.accept.timeout.delay routing key.
+     *
+     * @return the Binding instance
+     */
     @Bean
     public Binding orderAcceptTimeoutDelayBinding() {
         return BindingBuilder.bind(orderAcceptTimeoutDelayQueue()).to(directExchange()).with(QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY);
     }
 
+    /**
+     * Binds the order.accept.timeout queue to the direct exchange
+     * with the order.accept.timeout routing key.
+     *
+     * @return the Binding instance
+     */
     @Bean
     public Binding orderAcceptTimeoutBinding() {
         return BindingBuilder.bind(orderAcceptTimeoutQueue()).to(directExchange()).with(QUEUE_ORDER_ACCEPT_TIMEOUT);

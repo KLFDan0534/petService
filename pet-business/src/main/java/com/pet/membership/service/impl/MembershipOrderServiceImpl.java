@@ -34,6 +34,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * 【业务模块】会员订单管理（实现）
+ * 业务作用：提供会员购买订单的创建、支付、取消、确认等全流程管理。
+ * 支持幂等创建、余额支付、续费自动衔接、管理员确认和会员激活。
+ * 会员激活使用分片锁防止并发续费出错。
+ */
 @Service
 public class MembershipOrderServiceImpl implements MembershipOrderService {
     private static final int PLAN_ENABLED = 1;
@@ -68,6 +74,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 【业务名称】创建会员订单（实现）
+     * 业务作用：用户创建会员购买订单，含幂等处理。
+     * 调用场景：用户购买/续费会员。
+     * 调用链：createOrder() → 幂等校验 → requireUsablePlan() → resolveStartAt() → insert() → createEvent()。
+     * 数据处理：幂等校验 → 校验套餐 → 计算有效期 → 插入 pending 订单 → 记录订单事件。
+     * 业务规则：request_id 防重复；续费从现有到期日顺延；仅启用的套餐可购买。
+     * 状态影响：新增 pending 订单；记录 order_created 事件。
+     * 异常情况：未登录抛 401；请求为空抛 400；套餐不可用抛 404/400；幂等冲突抛 400/403。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MembershipOrderDTO createOrder(Long userId, MembershipOrderCreateRequestDTO request) {
@@ -117,6 +134,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return toDTO(order);
     }
 
+    /**
+     * 【业务名称】查询我的订单列表（实现）
+     * 业务作用：查询用户的所有会员订单，按时间倒序。
+     * 调用场景：用户查看购买记录。
+     * 调用链：listMyOrders() → selectList() → toDTO()。
+     * 数据处理：按 user_id 查询，按时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<MembershipOrderDTO> listMyOrders(Long userId) {
         return membershipOrderMapper.selectList(new LambdaQueryWrapper<MembershipOrder>()
@@ -128,6 +156,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
                 .toList();
     }
 
+    /**
+     * 【业务名称】管理端查询订单列表（实现）
+     * 业务作用：管理端查询会员订单，可选按状态筛选。
+     * 调用场景：后台订单管理。
+     * 调用链：listOrdersForAdmin() → selectList() → toDTO()。
+     * 数据处理：按状态筛选（可选），按创建时间倒序。
+     * 业务规则：状态支持 pending/paid/cancelled/refunded。
+     * 状态影响：无。
+     * 异常情况：不支持的状态抛 BusinessException(400)。
+     * 注意事项：无。
+     */
     @Override
     public List<MembershipOrderDTO> listOrdersForAdmin(String status) {
         String normalizedStatus = normalizeStatusOrNull(status);
@@ -140,6 +179,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
                 .toList();
     }
 
+    /**
+     * 【业务名称】查询我的订单详情（实现）
+     * 业务作用：根据订单号查询订单详情，含归属校验。
+     * 调用场景：用户查看订单详情。
+     * 调用链：getMyOrder() → requireOrderByNo() → toDTO()。
+     * 数据处理：按订单号查询，校验用户归属。
+     * 业务规则：仅订单所属用户可查看。
+     * 状态影响：无。
+     * 异常情况：订单不存在抛 404；非本人抛 403。
+     * 注意事项：无。
+     */
     @Override
     public MembershipOrderDTO getMyOrder(Long userId, String orderNo) {
         MembershipOrder order = requireOrderByNo(orderNo);
@@ -149,6 +199,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return toDTO(order);
     }
 
+    /**
+     * 【业务名称】取消待支付订单（实现）
+     * 业务作用：取消待支付的会员订单，使用乐观锁防并发。
+     * 调用场景：用户取消未支付订单。
+     * 调用链：cancelPendingOrder() → 校验归属和状态 → 乐观锁更新 → createEvent()。
+     * 数据处理：乐观锁更新 status=cancelled（条件：id 和 status=pending）。
+     * 业务规则：仅订单主人可取消；仅 pending 状态可取消。
+     * 状态影响：订单 pending → cancelled；记录 order_cancelled 事件。
+     * 异常情况：非本人抛 403；状态不可取消抛 400；并发冲突抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MembershipOrderDTO cancelPendingOrder(Long userId, String orderNo) {
@@ -172,6 +233,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return toDTO(order);
     }
 
+    /**
+     * 【业务名称】支付会员订单（实现）
+     * 业务作用：用户支付会员订单，余额扣款后激活会员。
+     * 调用场景：用户使用余额支付。
+     * 调用链：payOrder() → 校验 → payOrderInternal() → settleBalancePayment() → 乐观锁更新 → activateMembership()。
+     * 数据处理：校验 → 余额扣款 → 更新订单 → 会员激活。
+     * 业务规则：仅 pending 状态可支付；余额扣款通过 AccountingService.debit/credit。
+     * 状态影响：订单 paid；会员 active 更新/新增；记录资金流水和事件。
+     * 异常情况：非本人抛 403；状态不对抛 400；并发冲突抛 400。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MembershipOrderDTO payOrder(Long userId, String orderNo) {
@@ -182,6 +254,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return payOrderInternal(order, userId, false);
     }
 
+    /**
+     * 【业务名称】管理端确认付费（实现）
+     * 业务作用：管理员手动确认订单已付费，跳过余额扣款直接激活会员。
+     * 调用场景：后台确认线下转账。
+     * 调用链：confirmPaidForAdmin() → payOrderInternal()（adminOperation=true）。
+     * 数据处理：跳过扣款 → 更新订单 → 激活会员。
+     * 业务规则：仅管理员调用（adminOperation=true 跳过扣款）。
+     * 状态影响：订单 paid；会员 active 更新/新增。
+     * 异常情况：订单不存在抛异常。
+     * 注意事项：@Transactional 保证事务一致性。
+     */
     @Transactional
     @Override
     public MembershipOrderDTO confirmPaidForAdmin(Long operatorId, String orderNo) {
@@ -189,6 +272,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return payOrderInternal(order, operatorId, true);
     }
 
+    /**
+     * 【业务名称】订单实体转DTO（实现）
+     * 业务作用：将订单实体转换为 DTO，关联套餐快照。
+     * 调用场景：内部转换。
+     * 调用链：toDTO() → BeanUtils.copyProperties() → applySnapshot()。
+     * 数据处理：字段拷贝 → 解析 plan_snapshot JSON。
+     * 业务规则：入参为 null 时返回 null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：快照用于展示历史套餐名称和等级。
+     */
     @Override
     public MembershipOrderDTO toDTO(MembershipOrder order) {
         if (order == null) {
@@ -221,6 +315,17 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return plan;
     }
 
+    /**
+     * 【业务名称】内部支付处理
+     * 业务作用：支付订单内部逻辑，含余额扣款、乐观锁更新、会员激活。
+     * 调用场景：用户支付或管理员确认。
+     * 调用链：payOrderInternal() → settleBalancePayment() → 乐观锁更新 → activateMembership()。
+     * 数据处理：管理端跳过扣款 → 更新 paid → 激活会员。
+     * 业务规则：仅 pending 状态可支付；管理员操作跳过扣款。
+     * 状态影响：订单 paid；会员激活；记录事件。
+     * 异常情况：状态不对或并发冲突抛异常。
+     * 注意事项：已支付订单直接激活（幂等修复）。
+     */
     private MembershipOrderDTO payOrderInternal(MembershipOrder order, Long operatorId, boolean adminOperation) {
         if (STATUS_PAID.equals(order.getStatus_wsh())) {
             activateMembership(order, operatorId, adminOperation, false);
@@ -255,14 +360,34 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return toDTO(order);
     }
 
+    /**
+     * 【业务名称】激活会员（分片锁）
+     * 业务作用：激活或续费会员，使用分片锁防止并发续费数据不一致。
+     * 调用场景：支付成功后激活。
+     * 调用链：activateMembership() → synchronized(分片锁) → activateMembershipLocked()。
+     * 数据处理：分片锁保护 userId 粒度串行。
+     * 业务规则：同一用户并发支付两笔订单时串行处理。
+     * 状态影响：会员记录创建或更新。
+     * 异常情况：无。
+     * 注意事项：分片锁减少锁竞争。
+     */
     private void activateMembership(MembershipOrder order, Long operatorId, boolean adminOperation, boolean statusChanged) {
-        // 教学注释：会员续费是“读当前到期时间 -> 计算新到期时间 -> 写回”的流程。
-        // 同一用户并发支付两笔订单时必须串行，否则两边都会基于旧到期时间计算，导致少续一次。
         synchronized (activationLock(order.getUser_id_wsh())) {
             activateMembershipLocked(order, operatorId, adminOperation, statusChanged);
         }
     }
 
+    /**
+     * 【业务名称】激活会员（锁内执行）
+     * 业务作用：在分片锁内执行会员激活逻辑。
+     * 调用场景：分片锁获得后。
+     * 调用链：activateMembershipLocked() → 查询/创建会员 → 更新 → 记录事件。
+     * 数据处理：查询现有会员 → 计算有效期 → 创建/更新会员 → 更新订单有效期（如变更）→ 记录事件。
+     * 业务规则：已激活且订单已关联的会员跳过；续费从现有到期日顺延。
+     * 状态影响：会员创建或更新；订单有效期可能更新。
+     * 异常情况：无。
+     * 注意事项：幂等性保护。
+     */
     private void activateMembershipLocked(MembershipOrder order, Long operatorId, boolean adminOperation, boolean statusChanged) {
         UserMembership existing = userMembershipMapper.selectOne(new LambdaQueryWrapper<UserMembership>()
                 .eq(UserMembership::getUser_id_wsh, order.getUser_id_wsh())

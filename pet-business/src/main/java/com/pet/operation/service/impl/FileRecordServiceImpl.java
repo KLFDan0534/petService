@@ -19,6 +19,9 @@ public class FileRecordServiceImpl implements FileRecordService {
         this.fileRecordMapper = fileRecordMapper;
     }
 
+    /**
+     * 查询指定用户的所有文件上传记录，按创建时间倒序排列
+     */
     @Override
     public List<FileRecord> listByUser(Long userId) {
         log.info("listByUser() called");
@@ -28,18 +31,27 @@ public class FileRecordServiceImpl implements FileRecordService {
                         .orderByDesc(FileRecord::getCreated_at_wsh));
     }
 
+    /**
+     * 根据主键ID获取单条文件上传记录
+     */
     @Override
     public FileRecord getById(Long id) {
         log.info("getById() called");
         return fileRecordMapper.selectById(id);
     }
 
+    /**
+     * 创建一条新的文件上传记录
+     */
     @Override
     public void create(FileRecord record) {
         log.info("create() called");
         fileRecordMapper.insert(record);
     }
 
+    /**
+     * 根据主键ID物理删除文件上传记录
+     */
     @Override
     public void deleteById(Long id) {
         log.info("deleteById() called");

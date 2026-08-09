@@ -8,6 +8,15 @@ import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * 服务分类（ServiceCategory）实体，映射 service_category_wsh 表。
+ * <p>
+ * 采用树形结构，支持多级分类（通过 parent_id 关联父分类）。
+ * 用于对商家提供的宠物服务项目进行归类，如"洗澡"、"美容"、"寄养"等一级分类下可以设立子分类。
+ * 分类有启用/禁用状态，启用的分类才能被服务项目引用。
+ *
+ * @author: wsh
+ */
 @Getter
 @Setter
 @TableName("service_category_wsh")

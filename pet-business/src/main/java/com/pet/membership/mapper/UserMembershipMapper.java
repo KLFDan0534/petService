@@ -4,6 +4,10 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.pet.membership.entity.UserMembership;
 import org.apache.ibatis.annotations.Mapper;
 
+/**
+ * MyBatis-Plus mapper for the {@link UserMembership} entity.
+ * Provides CRUD operations for the user_membership_wsh table.
+ */
 @Mapper
 public interface UserMembershipMapper extends BaseMapper<UserMembership> {
 }

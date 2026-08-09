@@ -18,6 +18,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * 服务项目管理服务实现。
+ * <p>
+ * 负责商家服务项目的 CRUD、启用/禁用切换、图片更新等。
+ * 创建和更新时根据分类ID自动关联分类编码（code）写入 type 字段，用于前端归类展示。
+ */
 @Service
 @Slf4j
 public class ServiceItemServiceImpl implements ServiceItemService {
@@ -30,6 +36,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         this.categoryMapper = categoryMapper;
     }
 
+    /**
+     * 【查询所有已启用服务项目】
+     *
+     * 业务作用：获取全系统已启用的服务项目列表。
+     * 调用场景：用户端浏览全部可预约服务时调用。
+     * 调用链：ServiceItemController → listAll → ServiceItemMapper.selectList（按 status=ENABLED）
+     * 数据处理：仅返回已启用的服务项目。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<ServiceItem> listAll() {
         log.info("listAll() called");
@@ -38,6 +53,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                         .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
     }
 
+    /**
+     * 【查询商家下已启用服务项目】
+     *
+     * 业务作用：查询某个商家下所有已启用的服务项目（对外展示）。
+     * 调用场景：用户端查看商家详情页的服务列表时调用。
+     * 调用链：ServiceItemController → listByMerchant → ServiceItemMapper.selectList
+     * 数据处理：按 merchant_id + status=ENABLED 查询。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<ServiceItem> listByMerchant(Long merchantId) {
         log.info("listByMerchant() called");
@@ -47,6 +71,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                         .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
     }
 
+    /**
+     * 【查询商家下所有服务项目（含禁用）】
+     *
+     * 业务作用：查询某个商家下所有服务项目（商家后台管理用）。
+     * 调用场景：商家在后台管理服务项目列表时调用。
+     * 调用链：ServiceItemController → listByMerchantForManage → ServiceItemMapper.selectList
+     * 数据处理：按 merchant_id 查询全部，按创建时间倒序。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<ServiceItem> listByMerchantForManage(Long merchantId) {
         log.info("listByMerchantForManage() called");
@@ -56,16 +89,35 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                         .orderByDesc(ServiceItem::getCreated_at_wsh));
     }
 
+    /**
+     * 【根据ID查询服务项目】
+     *
+     * 业务作用：根据主键ID查询服务项目。
+     * 调用场景：被 update、delete 等业务方法内部调用。
+     * 调用链：上层业务方法 → getById → ServiceItemMapper.selectById
+     * 数据处理：按主键ID查询单条记录。
+     * 业务规则：查询结果为 null 时抛 BusinessException。
+     * 状态影响：只读操作。
+     * 异常情况：服务项目不存在时抛 BusinessException。
+     */
     @Override
     public ServiceItem getById(Long id) {
         log.info("getById() called");
         ServiceItem item = serviceItemMapper.selectById(id);
         if (item == null) {
-            throw new BusinessException("鏈嶅姟椤圭洰涓嶅瓨鍦?");
+            throw new BusinessException("服务项目不存在");
         }
         return item;
     }
 
+    /**
+     * 【批量查询服务项目】
+     *
+     * 业务作用：根据多个ID批量查询服务项目。
+     * 调用链：上层方法 → listByIds → ServiceItemMapper.selectBatchIds
+     * 数据处理：按ID集合批量查询，参为空返回空列表。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<ServiceItem> listByIds(Collection<Long> ids) {
         log.info("listByIds() called");
@@ -75,6 +127,16 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return serviceItemMapper.selectBatchIds(ids);
     }
 
+    /**
+     * 【创建服务项目】
+     *
+     * 业务作用：商家新增一个服务项目，自动关联分类编码。
+     * 调用场景：商家在后台新增服务项目时调用。
+     * 调用链：ServiceItemController → create @Transactional → ServiceItemMapper.insert
+     * 数据处理：按 DTO 构建实体；指定分类则自动获取其 code 作为 type；默认状态已启用。
+     * 业务规则：分类编码自动同步到 type；默认启用。
+     * 状态影响：新增服务项目记录。
+     */
     @Override
     @Transactional
     public ServiceItem create(ServiceItemCreateRequestDTO dto) {
@@ -100,6 +162,16 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return item;
     }
 
+    /**
+     * 【更新服务项目】
+     *
+     * 业务作用：修改服务项目信息，更新分类时同步更新 type 编码。
+     * 调用场景：商家在后台编辑服务项目时调用。
+     * 调用链：ServiceItemController → update @Transactional → ServiceItemMapper.updateById
+     * 数据处理：仅更新非 null 字段；更新 category_id 时同步从分类表读取 code 更新 type。
+     * 业务规则：更新分类时同步更新 type。
+     * 状态影响：更新服务项目字段。
+     */
     @Override
     @Transactional
     public ServiceItem update(Long id, ServiceItemUpdateRequestDTO dto) {
@@ -122,6 +194,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return existing;
     }
 
+    /**
+     * 【删除服务项目】
+     *
+     * 业务作用：物理删除服务项目。
+     * 调用场景：商家在后台删除服务项目时调用。
+     * 调用链：ServiceItemController → delete @Transactional → ServiceItemMapper.deleteById
+     * 数据处理：先查询存在性，再物理删除。
+     * 状态影响：物理删除服务项目记录。
+     */
     @Override
     @Transactional
     public void delete(Long id) {
@@ -130,6 +211,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         serviceItemMapper.deleteById(id);
     }
 
+    /**
+     * 【切换服务项目启用/禁用】
+     *
+     * 业务作用：切换服务项目的上架/下架状态。
+     * 调用场景：商家在后台启用或禁用服务项目时调用。
+     * 调用链：ServiceItemController → toggleStatus @Transactional → ServiceItemMapper.updateById
+     * 数据处理：ENABLED ↔ DISABLED 相互切换。
+     * 状态影响：更新服务项目的 status 字段。
+     */
     @Override
     @Transactional
     public void toggleStatus(Long id) {
@@ -141,6 +231,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         serviceItemMapper.updateById(item);
     }
 
+    /**
+     * 【更新服务项目图片】
+     *
+     * 业务作用：更新服务项目的展示图片列表。
+     * 调用场景：商家在后台编辑服务项目图片时调用。
+     * 调用链：ServiceItemController → updateImages @Transactional → ServiceItemMapper.updateById
+     * 数据处理：直接替换 images 字段。
+     * 状态影响：更新 images 字段。
+     */
     @Override
     @Transactional
     public ServiceItem updateImages(Long id, String images) {
@@ -151,6 +250,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return item;
     }
 
+    /**
+     * 【根据分类查询服务项目】
+     *
+     * 业务作用：查询指定分类下所有已启用的服务项目。
+     * 调用场景：用户端按分类筛选服务时调用。
+     * 调用链：ServiceItemController → listByCategory → ServiceItemMapper.selectList
+     * 数据处理：按 category_id + status=ENABLED 查询。
+     * 状态影响：只读操作。
+     */
     @Override
     public List<ServiceItem> listByCategory(Long categoryId) {
         log.info("listByCategory() called");
@@ -160,6 +268,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                         .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
     }
 
+    /**
+     * 【服务项目实体转DTO】
+     *
+     * 业务作用：转换为前端展示 DTO（含分类名称）。
+     * 调用场景：Controller 层返回服务项目信息前调用。
+     * 调用链：各查询 Controller → toDTO → ServiceCategoryMapper.selectById
+     * 数据处理：字段拷贝 + 查询分类名称。
+     * 状态影响：只读操作。
+     */
     @Override
     public ServiceItemDTO toDTO(ServiceItem entity) {
         if (entity == null) return null;

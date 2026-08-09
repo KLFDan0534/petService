@@ -45,6 +45,17 @@ public class CareRecordServiceImpl implements CareRecordService {
         this.keeperAttendanceService = keeperAttendanceService;
     }
 
+    /**
+     * 【业务名称】按订单查询护理记录（实现-无权限）
+     * 业务作用：根据订单 ID 查询全部护理记录，按记录时间倒序。
+     * 调用场景：内部、管理员查询。
+     * 调用链：listByOrder(Long) → CareRecordMapper.selectList() → toDTOList()。
+     * 数据处理：按 order_id 精确匹配，按 record_time 倒序。
+     * 业务规则：无权限校验。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Override
     public List<CareRecordDTO> listByOrder(Long orderId) {
         return toDTOList(careRecordMapper.selectList(
@@ -53,6 +64,17 @@ public class CareRecordServiceImpl implements CareRecordService {
                         .orderByDesc(CareRecord::getRecord_time_wsh)));
     }
 
+    /**
+     * 【业务名称】按订单查询护理记录（实现-带权限）
+     * 业务作用：查询护理记录，非管理员时校验用户可读权限。
+     * 调用场景：用户查看订单护理记录。
+     * 调用链：listByOrder(Long, boolean, Long) → requireOrder() → requireReadableAccess() → listByOrder(orderId)。
+     * 数据处理：委派给无权限版本。
+     * 业务规则：非管理员时，宠物主人、分配看护者或商家可读取。
+     * 状态影响：无。
+     * 异常情况：无权限时抛 BusinessException(403)。
+     * 注意事项：管理员跳过权限校验。
+     */
     @Override
     public List<CareRecordDTO> listByOrder(Long actorUserId, boolean admin, Long orderId) {
         PetOrder order = requireOrder(orderId);
@@ -62,6 +84,17 @@ public class CareRecordServiceImpl implements CareRecordService {
         return listByOrder(orderId);
     }
 
+    /**
+     * 【业务名称】护理记录详情查询（实现-无权限）
+     * 业务作用：根据 ID 查询单条护理记录。
+     * 调用场景：内部调用。
+     * 调用链：getById(Long) → CareRecordMapper.selectById() → toDTO()。
+     * 数据处理：主键查询。
+     * 业务规则：不存在时抛异常。
+     * 状态影响：无。
+     * 异常情况：不存在时抛出 BusinessException("记录不存在")。
+     * 注意事项：无。
+     */
     @Override
     public CareRecordDTO getById(Long id) {
         CareRecord record = careRecordMapper.selectById(id);
@@ -71,6 +104,17 @@ public class CareRecordServiceImpl implements CareRecordService {
         return toDTO(record);
     }
 
+    /**
+     * 【业务名称】护理记录详情查询（实现-带权限）
+     * 业务作用：根据 ID 查询单条护理记录，非管理员时校验权限。
+     * 调用场景：用户查看护理记录详情。
+     * 调用链：getById(Long, boolean, Long) → getByIdRaw() → requireReadableAccess() → toDTO()。
+     * 数据处理：主键查询，权限校验。
+     * 业务规则：非管理员时需满足可读权限（主人、看护者或商家）。
+     * 状态影响：无。
+     * 异常情况：无权限时抛 BusinessException(403)。
+     * 注意事项：管理员跳过权限校验。
+     */
     @Override
     public CareRecordDTO getById(Long actorUserId, boolean admin, Long id) {
         CareRecord record = getByIdRaw(id);
@@ -81,6 +125,17 @@ public class CareRecordServiceImpl implements CareRecordService {
         return toDTO(record);
     }
 
+    /**
+     * 【业务名称】创建护理记录（实现-无权限）
+     * 业务作用：创建护理记录，自动从订单继承宠物 ID 和看护者 ID。
+     * 调用场景：内部、管理员创建。
+     * 调用链：create(CareRecordCreateRequestDTO) → 校验订单 → 构造 → CareRecordMapper.insert() → toDTO()。
+     * 数据处理：订单 ID 必填；宠物 ID 和看护者 ID 优先取请求，未指定时从订单继承；记录时间默认当前时间。
+     * 业务规则：无权限校验。
+     * 状态影响：新增一条护理记录。
+     * 异常情况：订单 ID 为空抛 BusinessException；订单不存在抛 BusinessException。
+     * 注意事项：无权限校验。
+     */
     @Transactional
     @Override
     public CareRecordDTO create(CareRecordCreateRequestDTO request) {
@@ -103,6 +158,17 @@ public class CareRecordServiceImpl implements CareRecordService {
         return toDTO(record);
     }
 
+    /**
+     * 【业务名称】创建护理记录（实现-带权限与考勤）
+     * 业务作用：创建护理记录，非管理员时校验权限和考勤状态。
+     * 调用场景：看护者提交日常护理记录。
+     * 调用链：create(Long, boolean, CareRecordCreateRequestDTO) → 校验订单 → requireWritableAccess() → requireKeeperOnDuty() → 插入 → toDTO()。
+     * 数据处理：同无权限版本。
+     * 业务规则：非管理员时仅分配看护者或商家可创建；看护者需处于值班状态。
+     * 状态影响：新增一条护理记录。
+     * 异常情况：无权限抛 BusinessException(403)；考勤不通过抛异常。
+     * 注意事项：管理员跳过权限和考勤校验。
+     */
     @Transactional
     @Override
     public CareRecordDTO create(Long actorUserId, boolean admin, CareRecordCreateRequestDTO request) {
@@ -175,6 +241,17 @@ public class CareRecordServiceImpl implements CareRecordService {
         return "received".equals(status) || "in_progress".equals(status);
     }
 
+    /**
+     * 【业务名称】更新护理记录（实现-无权限）
+     * 业务作用：更新护理记录，仅更新非 null 字段。
+     * 调用场景：内部、管理员更新。
+     * 调用链：update(Long, CareRecordUpdateRequestDTO) → getByIdRaw() → applyUpdate() → updateById() → toDTO()。
+     * 数据处理：仅更新类型、内容、图片、记录时间中非 null 字段。
+     * 业务规则：无权限校验。
+     * 状态影响：更新护理记录。
+     * 异常情况：记录不存在时抛 BusinessException。
+     * 注意事项：无。
+     */
     @Transactional
     @Override
     public CareRecordDTO update(Long id, CareRecordUpdateRequestDTO request) {
@@ -184,6 +261,17 @@ public class CareRecordServiceImpl implements CareRecordService {
         return toDTO(existing);
     }
 
+    /**
+     * 【业务名称】更新护理记录（实现-带权限与考勤）
+     * 业务作用：更新护理记录，非管理员时校验权限和考勤状态。
+     * 调用场景：看护者修改护理记录。
+     * 调用链：update(Long, boolean, Long, CareRecordUpdateRequestDTO) → getByIdRaw() → requireWritableAccess() → requireKeeperOnDuty() → applyUpdate() → updateById() → toDTO()。
+     * 数据处理：同无权限版本。
+     * 业务规则：非管理员时仅分配看护者或商家可更新，且需处于值班状态。
+     * 状态影响：更新护理记录。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：管理员跳过权限和考勤校验。
+     */
     @Transactional
     @Override
     public CareRecordDTO update(Long actorUserId, boolean admin, Long id, CareRecordUpdateRequestDTO request) {
@@ -205,12 +293,34 @@ public class CareRecordServiceImpl implements CareRecordService {
         if (request.getRecord_time_wsh() != null) existing.setRecord_time_wsh(request.getRecord_time_wsh());
     }
 
+    /**
+     * 【业务名称】删除护理记录（实现-无权限）
+     * 业务作用：删除护理记录。
+     * 调用场景：内部、管理员删除。
+     * 调用链：delete(Long) → CareRecordMapper.deleteById()。
+     * 数据处理：物理删除。
+     * 业务规则：无权限校验。
+     * 状态影响：删除护理记录。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
     @Transactional
     @Override
     public void delete(Long id) {
         careRecordMapper.deleteById(id);
     }
 
+    /**
+     * 【业务名称】删除护理记录（实现-带权限与考勤）
+     * 业务作用：删除护理记录，非管理员时校验权限和考勤状态。
+     * 调用场景：看护者删除护理记录。
+     * 调用链：delete(Long, boolean, Long) → getByIdRaw() → requireWritableAccess() → requireKeeperOnDuty() → deleteById()。
+     * 数据处理：物理删除。
+     * 业务规则：非管理员时仅分配看护者或商家可删除，且需处于值班状态。
+     * 状态影响：删除护理记录。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：管理员跳过权限校验。
+     */
     @Transactional
     @Override
     public void delete(Long actorUserId, boolean admin, Long id) {

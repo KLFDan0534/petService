@@ -12,9 +12,16 @@ import java.time.LocalDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * 支付实体
- * @author: wsh
- * @date: 2026/06/24 11:05
+ * Entity representing a payment transaction for a pet boarding order.
+ * <p>
+ * A payment is created when a pet owner initiates a payment for a PENDING order.
+ * Once executed ({@code status = "success"}), the associated order transitions
+ * from PENDING to PAID. Supported payment methods are balance (internal),
+ * wechat, and alipay.
+ * <p>
+ * <b>Payment lifecycle:</b> pending → success
+ * <p>
+ * Each payment has a unique pay_no (PAY-prefixed) for external reference.
  */
 @Getter
 @Setter

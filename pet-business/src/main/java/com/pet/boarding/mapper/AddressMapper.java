@@ -5,9 +5,13 @@ import com.pet.boarding.entity.Address;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 地址数据访问层
+ * 地址（Address）数据访问层。
+ * <p>
+ * 继承 MyBatis-Plus 的 {@link BaseMapper}，提供地址表的基础 CRUD 操作。
+ * <p>
+ * <b>映射表：</b>address_wsh
+ *
  * @author: wsh
- * @date: 2026/06/24 11:05
  */
 @Mapper
 public interface AddressMapper extends BaseMapper<Address> {

@@ -172,7 +172,27 @@ public class OrderServiceImpl implements OrderService {
 
 
     /**
-     * 获取所有订单列表
+     * 【查询全部订单（实现）】
+     *
+     * 业务作用：
+     * 查询所有订单记录，批量加载关联实体并组装为增强DTO，避免N+1查询问题。
+     *
+     * 调用场景：
+     * 管理后台全量订单查询。
+     *
+     * 调用链：
+     * OrderService.listAll()
+     * ↓
+     * orderMapper.selectList() → toDTOEnrichedList()（批量加载）
+     *
+     * 数据处理：
+     * 使用MyBatis-Plus LambdaQueryWrapper按创建时间降序查询，然后通过toDTOEnrichedList
+     * 批量加载关联的服务、用户、宠物、看护者、商家和快照数据。
+     *
+     * 状态影响：
+     * 只读操作，@Transactional(readOnly = true)。
+     *
+     * @return 增强订单DTO列表
      */
     @Override
     @Transactional(readOnly = true)
@@ -183,7 +203,24 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 根据主人ID获取订单列表
+     * 【查询宠物主人订单列表（实现）】
+     *
+     * 业务作用：
+     * 根据主人ID查询其名下所有订单，用于主人端"我的订单"功能。
+     *
+     * 调用链：
+     * OrderService.listByOwner()
+     * ↓
+     * orderMapper.selectList(ownerId过滤 + 时间降序) → toDTOEnrichedList()
+     *
+     * 数据处理：
+     * 按owner_id_wsh字段过滤，按created_at_wsh降序排列。
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param ownerId 宠物主人用户ID
+     * @return 该主人的增强订单DTO列表
      */
     @Override
     @Transactional(readOnly = true)
@@ -196,7 +233,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 根据商家ID获取订单列表
+     * 【查询商家订单列表（实现）】
+     *
+     * 业务作用：
+     * 根据商家ID查询该商家相关订单，用于商家端订单管理。
+     *
+     * 调用链：
+     * OrderService.listByMerchant()
+     * ↓
+     * orderMapper.selectList(merchantId过滤 + 时间降序) → toDTOEnrichedList()
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param merchantId 商家ID
+     * @return 该商家的增强订单DTO列表
      */
     @Override
     @Transactional(readOnly = true)
@@ -209,7 +260,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 根据看护人ID获取订单列表
+     * 【查询看护者活跃订单（实现）】
+     *
+     * 业务作用：
+     * 查询看护者的履约中订单（排除待付款和已支付），用于看护者端"我的任务"。
+     *
+     * 调用链：
+     * OrderService.listByKeeper()
+     * ↓
+     * orderMapper.selectList(keeperId + notIn(PENDING,PAID) + 时间降序) → toDTOEnrichedList()
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param keeperId 看护者ID
+     * @return 活跃订单DT列表
      */
     @Override
     @Transactional(readOnly = true)
@@ -223,7 +288,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 获取看护人待处理订单列表
+     * 【查询看护者待处理订单（实现）】
+     *
+     * 业务作用：
+     * 查询看护者待接单/待处理的订单（PENDING或PAID），用于看护者端接单入口。
+     *
+     * 调用链：
+     * OrderService.listPendingByKeeper()
+     * ↓
+     * orderMapper.selectList(keeperId + in(PENDING,PAID) + 时间降序) → toDTOEnrichedList()
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param keeperId 看护者ID
+     * @return 待处理订单DTO列表
      */
     @Override
     @Transactional(readOnly = true)
@@ -236,6 +315,18 @@ public class OrderServiceImpl implements OrderService {
         return toDTOEnrichedList(orders);
     }
 
+    /**
+     * 【实体转基础DTO（实现）】
+     *
+     * 业务作用：
+     * 使用BeanUtils.copyProperties浅拷贝属性，不含关联实体信息。
+     *
+     * 状态影响：
+     * 纯内存操作。
+     *
+     * @param entity 订单实体
+     * @return 基础DTO
+     */
     @Override
     public OrderDTO toDTO(PetOrder entity) {
         if (entity == null) return null;
@@ -244,21 +335,67 @@ public class OrderServiceImpl implements OrderService {
         return dto;
     }
 
+    /**
+     * 【实体转增强DTO（实现）】
+     *
+     * 业务作用：
+     * 委托给toDTOEnrichedList批量增强方法，加载关联实体名称和订单快照。
+     *
+     * 调用链：
+     * → toDTOEnrichedList(List.of(entity))
+     *
+     * @param entity 订单实体
+     * @return 增强DTO
+     */
+    @Override
     public OrderDTO toDTOEnriched(PetOrder entity) {
         if (entity == null) return null;
         return toDTOEnrichedList(List.of(entity)).get(0);
     }
 
+    /**
+     * 【根据ID查询增强DTO（实现）】
+     *
+     * 业务作用：
+     * getById() + toDTOEnriched()组合，先查实体再增强。
+     *
+     * @param id 订单ID
+     * @return 增强DTO
+     */
+    @Override
     @Transactional(readOnly = true)
     public OrderDTO getDTOById(Long id) {
         return toDTOEnriched(getById(id));
     }
 
+    /**
+     * 【根据订单号查询增强DTO（实现）】
+     *
+     * 业务作用：
+     * getByOrderNo() + toDTOEnriched()组合。
+     *
+     * @param orderNo 订单编号
+     * @return 增强DTO
+     */
+    @Override
     @Transactional(readOnly = true)
     public OrderDTO getDTOByOrderNo(String orderNo) {
         return toDTOEnriched(getByOrderNo(orderNo));
     }
 
+    /**
+     * 【根据订单号查询实体（实现）】
+     *
+     * 业务作用：
+     * 使用LambdaQueryWrapper按订单号精确匹配查询订单实体。
+     *
+     * 异常情况：
+     * 订单号为空抛400；订单不存在抛BusinessException。
+     *
+     * @param orderNo 订单编号
+     * @return 订单实体
+     */
+    @Override
     @Transactional(readOnly = true)
     public PetOrder getByOrderNo(String orderNo) {
         if (isBlank(orderNo)) {
@@ -273,11 +410,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 根据ID获取订单
+     * 【根据ID查询实体（实现）】
+     *
+     * 业务作用：
+     * 使用MyBatis-Plus selectById查询订单实体，不存在则抛异常。
+     *
      * @param id 订单ID
      * @return 订单实体
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Override
     @Transactional(readOnly = true)
@@ -290,12 +429,43 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 创建订单
+     * 【创建订单（实现）】
+     *
+     * 业务作用：
+     * 完整的订单创建流程：校验→计算金额→插入订单→锁定优惠券/会员权益→创建快照→刷新容量→发送超时检查。
+     *
+     * 调用链：
+     * OrderService.createOrder()
+     * ↓
+     * [synchronized] requirePet() → requireExistingKeeper() → requireMerchant()
+     * → validateKeeperMerchant() → validateKeeperQualification() → validateService()
+     * → validateDateRange() → validateFulfillmentWindow()
+     * → ensureNoPetDateConflict() → ensureKeeperCapacity() → keeperLeaveService.requireKeeperAvailable()
+     * → 计算金额(discount + coupon + member) → orderMapper.insert()
+     * → couponService.lockForOrder() → membershipBenefitService.lockForOrder()
+     * → orderSnapshotService.createForOrder() → refreshKeeperCurrentPets()
+     * → broadcastOrderChange() → schedulePaymentTimeoutCheck()
+     *
+     * 数据处理：
+     * 1. 计算总价：price_per_day × days
+     * 2. 长住折扣：≥30天10% off，7-29天5% off
+     * 3. 优惠券和会员折扣通过各自服务预览并锁定
+     * 4. 最终金额 = 总价 - 折扣 - 优惠券减免 - 会员折扣
+     * 5. 平台补贴 = 优惠券平台补贴 + 会员折扣
+     * 6. 结算金额 = 优惠券结算价（商家实际收入）
+     *
+     * 并发控制：
+     * 使用synchronized(CREATE_ORDER_LOCK)在单JVM内串行化创建，防止并发导致的容量/冲突检查失效。
+     *
+     * 业务规则：
+     * 同接口定义。
+     *
+     * 状态影响：
+     * 创建后订单状态为PENDING。
+     *
      * @param ownerId 主人ID
      * @param request 创建订单请求体
-     * @return 创建后的订单
-     * @author: wsh
-     * @date: 2026/06/24 11:05
+     * @return 创建后的增强订单DTO
      */
     @Transactional
     @Override
@@ -399,11 +569,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 根据ID取消订单
+     * 【根据ID取消订单（实现）】
+     *
+     * 业务作用：
+     * 取消待付款订单，释放优惠券和会员权益，刷新看护者容量。
+     *
+     * 数据处理：
+     * 使用乐观锁（WHERE status=PENDING）更新，防止并发取消。
+     *
+     * 业务规则：
+     * 1. 校验订单归属
+     * 2. 校验订单状态为PENDING
+     * 3. 乐观锁更新失败则说明状态已变化
+     *
      * @param ownerId 主人ID
      * @param orderId 订单ID
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Transactional
     @Override
@@ -434,12 +614,11 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 根据订单编号取消订单
+     * 【根据订单号取消订单（已废弃）】
+     *
      * @deprecated 请使用 cancelOrderById
      * @param ownerId 主人ID
      * @param orderNo 订单编号
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Deprecated
     @Transactional
@@ -450,11 +629,20 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 接受订单
+     * 【接受订单（实现）】
+     *
+     * 业务作用：
+     * 看护者接单，校验资质、容量、请假状态后推进到CONFIRMED。
+     *
+     * 调用链：
+     * OrderService.acceptOrder()
+     * ↓
+     * getByOrderNo() → requireKeeper() → requireAssignedKeeperOrderAccess()
+     * → validateKeeperQualification() → ensureKeeperCapacity() → requireKeeperAvailable()
+     * → 乐观锁更新CONFIRMED → refreshKeeperCurrentPets() → broadcastOrderChange()
+     *
      * @param userId 用户ID
      * @param orderNo 订单编号
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Transactional
     @Override
@@ -483,11 +671,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 拒绝订单
+     * 【拒绝订单（实现）】
+     *
+     * 业务作用：
+     * 看护者或商家拒单，触发全额退款、回冲平台补贴、释放优惠券/会员权益。
+     *
+     * 调用链：
+     * OrderService.rejectOrder()
+     * ↓
+     * getByOrderNo() → checkMerchantOrKeeperOrderAccess()
+     * → 乐观锁更新CANCELLED → accountingService.transfer(全额退款) → accountingService.debit(回冲补贴)
+     * → couponService.releaseForOrder() → membershipBenefitService.releaseForOrder()
+     * → refreshKeeperCurrentPets() → broadcastOrderChange()
+     *
      * @param userId 用户ID
      * @param orderNo 订单编号
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Transactional
     @Override
@@ -531,6 +729,20 @@ public class OrderServiceImpl implements OrderService {
         broadcastOrderChange(order);
     }
 
+    /**
+     * 【自动接单超时处理（实现）】
+     *
+     * 业务作用：
+     * 在独立事务（REQUIRES_NEW）中处理MQ接单超时消息，查询订单并尝试自动确认。
+     *
+     * 调用链：
+     * OrderService.autoAcceptPaidOrderIfTimeout()
+     * ↓
+     * [REQUIRES_NEW] → orderMapper查询 → confirmPaidOrder()
+     *
+     * @param orderNo 订单编号
+     * @return 是否自动接单成功
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
     public boolean autoAcceptPaidOrderIfTimeout(String orderNo) {
@@ -549,6 +761,19 @@ public class OrderServiceImpl implements OrderService {
         return accepted;
     }
 
+    /**
+     * 【批量自动接单兜底（实现）】
+     *
+     * 业务作用：
+     * 定时任务兜底，扫描已超时未接单的已支付订单并自动确认。单次上限100条。
+     *
+     * 调用链：
+     * OrderService.autoAcceptPaidOrdersIfTimeout()
+     * ↓
+     * 查询超时payment记录 → 关联order → 遍历confirmPaidOrder()
+     *
+     * @return 自动接单数量
+     */
     @Transactional
     @Override
     public int autoAcceptPaidOrdersIfTimeout() {
@@ -587,6 +812,20 @@ public class OrderServiceImpl implements OrderService {
         return accepted;
     }
 
+    /**
+     * 【取消超时未支付订单（实现）】
+     *
+     * 业务作用：
+     * 在独立事务中处理MQ支付超时消息，取消超时未支付订单。
+     *
+     * 调用链：
+     * OrderService.cancelPendingOrderIfPaymentTimeout()
+     * ↓
+     * [REQUIRES_NEW] → orderMapper查询 → cancelPaymentTimeoutOrder()
+     *
+     * @param orderNo 订单编号
+     * @return 是否取消成功
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
     public boolean cancelPendingOrderIfPaymentTimeout(String orderNo) {
@@ -601,6 +840,19 @@ public class OrderServiceImpl implements OrderService {
         return cancelPaymentTimeoutOrder(order, LocalDateTime.now().minus(PAYMENT_TIMEOUT));
     }
 
+    /**
+     * 【批量取消超时未支付订单（实现）】
+     *
+     * 业务作用：
+     * 定时任务兜底，扫描超时PENDING订单并取消。单次上限100条。
+     *
+     * 调用链：
+     * OrderService.cancelPaymentTimeoutOrders()
+     * ↓
+     * 查询超时PENDING订单 → 遍历cancelPaymentTimeoutOrder()
+     *
+     * @return 取消的订单数量
+     */
     @Transactional
     @Override
     public int cancelPaymentTimeoutOrders() {
@@ -621,11 +873,13 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 标记订单已送达
-     * @param userId 用户ID
+     * 【标记已送达（实现-无参数版本）】
+     *
+     * 业务作用：
+     * 构建空的OrderDeliveredRequestDTO委托给带DTO的重载方法。
+     *
+     * @param userId  用户ID
      * @param orderNo 订单编号
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Transactional
     @Override
@@ -635,6 +889,23 @@ public class OrderServiceImpl implements OrderService {
         markDelivered(userId, request);
     }
 
+    /**
+     * 【标记已送达（实现-完整参数版本）】
+     *
+     * 业务作用：
+     * 主人标记送达，校验归属和状态后更新订单为DELIVERED并记录送达位置信息。
+     *
+     * 调用链：
+     * OrderService.markDelivered()
+     * ↓
+     * getByOrderNo() → 校验主人/状态 → 乐观锁更新DELIVERED + 位置/时间 → broadcastOrderChange()
+     *
+     * 数据处理：
+     * 保存送达地址、经纬度、精度和送达时间。
+     *
+     * @param userId  用户ID
+     * @param request 送达请求DTO
+     */
     @Transactional
     @Override
     public void markDelivered(Long userId, OrderDeliveredRequestDTO request) {
@@ -672,12 +943,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 标记订单已接收
-     * @param userId 用户ID
-     * @param orderNo 订单编号
+     * 【标记已接收（实现-简易参数版本）】
+     *
+     * 业务作用：
+     * 构建OrderReceivedRequestDTO委托给带DTO的重载方法。
+     *
+     * @param userId       用户ID
+     * @param orderNo      订单编号
      * @param handoverCode 交接码
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Transactional
     @Override
@@ -688,6 +961,24 @@ public class OrderServiceImpl implements OrderService {
         markReceived(userId, request);
     }
 
+    /**
+     * 【标记已接收（实现-完整参数版本）】
+     *
+     * 业务作用：
+     * 看护者/商家接收宠物，校验交接码、GPS距离、在岗状态后更新为RECEIVED。
+     *
+     * 调用链：
+     * OrderService.markReceived()
+     * ↓
+     * getByOrderNo() → checkMerchantOrKeeperOrderAccess() → requireKeeperOnDuty()
+     * → 校验交接码/计算距离 → 乐观锁更新RECEIVED + 位置 → broadcastOrderChange()
+     *
+     * 数据处理：
+     * 计算送达坐标与接收坐标之间的距离，必须在配置的交接半径内（默认500米）。
+     *
+     * @param userId  用户ID
+     * @param request 接收请求DTO
+     */
     @Transactional
     @Override
     public void markReceived(Long userId, OrderReceivedRequestDTO request) {
@@ -732,6 +1023,16 @@ public class OrderServiceImpl implements OrderService {
         broadcastOrderChange(order);
     }
 
+    /**
+     * Calculates the distance in meters between the delivery coordinates and the
+     * receive coordinates. Validates both coordinate pairs and enforces a maximum
+     * handover radius (configured via {@code gao.map.handover-radius-meters}).
+     *
+     * @param order   the order containing delivery coordinates
+     * @param request the receive request containing receive coordinates
+     * @return the distance in meters (1 decimal place), or null if coordinates are missing
+     * @throws BusinessException if coordinates are invalid or exceed the handover radius
+     */
     private BigDecimal calculateReceivedDistance(PetOrder order, OrderReceivedRequestDTO request) {
         if (order.getDelivery_latitude_wsh() == null || order.getDelivery_longitude_wsh() == null
                 || request.getReceived_latitude_wsh() == null || request.getReceived_longitude_wsh() == null) {
@@ -753,12 +1054,20 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 开始服务
-     * @param userId 用户ID
-     * @param orderNo 订单编号
+     * 【开始服务（实现）】
+     *
+     * 业务作用：
+     * 看护者/商家在接收宠物后开始照护，记录开始时间和宠物状态照片。
+     *
+     * 调用链：
+     * OrderService.startService()
+     * ↓
+     * getByOrderNo() → checkMerchantOrKeeperOrderAccess() → requireKeeperOnDuty()
+     * → 乐观锁更新IN_PROGRESS + started_at + start_photo → refreshKeeperCurrentPets() → broadcastOrderChange()
+     *
+     * @param userId     用户ID
+     * @param orderNo    订单编号
      * @param startPhoto 开始照片URL
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Transactional
     @Override
@@ -791,6 +1100,15 @@ public class OrderServiceImpl implements OrderService {
         broadcastOrderChange(order);
     }
 
+    /**
+     * 【预校验开始服务权限（实现）】
+     *
+     * 业务作用：
+     * 只读预校验，不修改数据库。校验逻辑与startService相同。
+     *
+     * @param userId  用户ID
+     * @param orderNo 订单编号
+     */
     @Override
     @Transactional(readOnly = true)
     public void validateStartServiceAccess(Long userId, String orderNo) {
@@ -803,11 +1121,20 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 完成订单
-     * @param userId 用户ID
+     * 【完成订单（实现）】
+     *
+     * 业务作用：
+     * 完成服务，触发商家结算（settleOrderToMerchant）、AI报告事件发布和看护者容量刷新。
+     *
+     * 调用链：
+     * OrderService.completeOrder()
+     * ↓
+     * getByOrderNo() → checkMerchantOrKeeperOrderAccess() → requireKeeperOnDuty()
+     * → 乐观锁更新COMPLETED + completed_at → settleOrderToMerchant()
+     * → refreshKeeperCurrentPets() → publishCompletedEvent() → broadcastOrderChange()
+     *
+     * @param userId  用户ID
      * @param orderNo 订单编号
-     * @author: wsh
-     * @date: 2026/06/24 11:05
      */
     @Transactional
     @Override
@@ -837,11 +1164,19 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 更新订单状态
+     * 【手动更新订单状态（实现）】
+     *
+     * 业务作用：
+     * 通用状态修正接口，带安全防护禁止操作资金相关状态。
+     *
+     * 调用链：
+     * OrderService.updateOrderStatus()
+     * ↓
+     * 校验状态合法性 → guardManualStatusUpdate() → 预订状态时检查冲突/容量
+     * → 乐观锁更新 → 取消时释放券/会员 → 完成时结算/发事件 → refreshKeeperCurrentPets() → broadcastOrderChange()
+     *
      * @param orderNo 订单编号
-     * @param status 新状态
-     * @author: wsh
-     * @date: 2026/06/24 11:05
+     * @param status  目标状态
      */
     @Transactional
     @Override
@@ -881,6 +1216,16 @@ public class OrderServiceImpl implements OrderService {
         broadcastOrderChange(order);
     }
 
+    /**
+     * Guard rails for manual status updates. Prevents direct status transitions that
+     * involve accounting-sensitive states (PAID, COMPLETED, CANCELLED, REFUNDING, REFUNDED).
+     * Only allows transitions within the fulfillment flow statuses.
+     *
+     * @param order        the current order
+     * @param targetStatus the proposed target status
+     * @throws BusinessException if the target status is accounting-managed or outside
+     *                           the fulfillment flow
+     */
     private void guardManualStatusUpdate(PetOrder order, String targetStatus) {
         if (Objects.equals(order.getStatus_wsh(), targetStatus)) {
             return;
@@ -893,6 +1238,14 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * Validates that the pet exists and belongs to the specified owner.
+     *
+     * @param ownerId the pet owner's user ID
+     * @param petId   the pet ID to validate
+     * @return the validated Pet entity
+     * @throws BusinessException if pet not found (404) or not owned by user (403)
+     */
     private Pet requirePet(Long ownerId, Long petId) {
         Pet pet = petMapper.selectById(petId);
         if (pet == null) {
@@ -904,6 +1257,13 @@ public class OrderServiceImpl implements OrderService {
         return pet;
     }
 
+    /**
+     * Validates that the keeper exists and is in ACTIVE status.
+     *
+     * @param keeperId the keeper ID to validate
+     * @return the validated Keeper entity
+     * @throws BusinessException if keeper not found (404) or not activated (400)
+     */
     private Keeper requireKeeper(Long keeperId) {
         Keeper keeper = keeperMapper.selectById(keeperId);
         if (keeper == null) {
@@ -926,6 +1286,14 @@ public class OrderServiceImpl implements OrderService {
         return keeper;
     }
 
+    /**
+     * Validates that the merchant exists, has been approved, and is currently open
+     * for business. Refreshes the store state before validation.
+     *
+     * @param merchantId the merchant ID to validate
+     * @return the validated Merchant entity
+     * @throws BusinessException if merchant not found, not approved, or currently closed
+     */
     private Merchant requireMerchant(Long merchantId) {
         merchantService.refreshStoreState(merchantId);
         Merchant merchant = merchantMapper.selectById(merchantId);
@@ -943,12 +1311,25 @@ public class OrderServiceImpl implements OrderService {
         return merchant;
     }
 
+    /**
+     * Validates that the keeper belongs to the given merchant's organization.
+     *
+     * @param keeper   the keeper entity
+     * @param merchant the merchant entity
+     * @throws BusinessException if the keeper is not affiliated with the merchant
+     */
     private void validateKeeperMerchant(Keeper keeper, Merchant merchant) {
         if (keeper.getMerchant_id_wsh() == null || !keeper.getMerchant_id_wsh().equals(merchant.getId_wsh())) {
             throw new BusinessException(400, "看护者不属于所选商户");
         }
     }
 
+    /**
+     * Validates that the keeper has at least one approved qualification.
+     *
+     * @param keeperId the keeper ID
+     * @throws BusinessException if no approved qualification exists
+     */
     private void validateKeeperQualification(Long keeperId) {
         List<com.pet.qualification.dto.QualificationDTO> quals = qualificationService.listByOwner(
                 QualificationService.OWNER_TYPE_KEEPER, keeperId, false);
@@ -959,6 +1340,15 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * Validates that the service item exists, belongs to the specified merchant,
+     * and is currently enabled (on-shelf).
+     *
+     * @param serviceId  the service item ID (may be null)
+     * @param merchantId the merchant ID for ownership verification
+     * @return the validated ServiceItem, or null if serviceId is null
+     * @throws BusinessException if service not found, not owned by merchant, or disabled
+     */
     private ServiceItem validateService(Long serviceId, Long merchantId) {
         if (serviceId == null) {
             return null;
@@ -976,6 +1366,15 @@ public class OrderServiceImpl implements OrderService {
         return service;
     }
 
+    /**
+     * Validates the service date range: start date must be today or later,
+     * end date must be after start date, and the duration must not exceed 365 days.
+     *
+     * @param startDate the service start date
+     * @param endDate   the service end date
+     * @return the number of days between start and end
+     * @throws BusinessException if dates are invalid or out of range
+     */
     private int validateDateRange(LocalDate startDate, LocalDate endDate) {
         if (startDate == null || endDate == null) {
             throw new BusinessException(400, "开始日期和结束日期为必填项");
@@ -993,6 +1392,18 @@ public class OrderServiceImpl implements OrderService {
         return (int) days;
     }
 
+    /**
+     * Calculates a long-stay discount based on the number of service days.
+     * <ul>
+     *   <li>30+ days: 10% discount</li>
+     *   <li>7-29 days: 5% discount</li>
+     *   <li>Below 7 days: no discount</li>
+     * </ul>
+     *
+     * @param totalAmount the total amount before discount
+     * @param days        the number of service days
+     * @return the discount amount, or zero if not eligible
+     */
     private BigDecimal calculateDiscount(BigDecimal totalAmount, int days) {
         if (days >= 30) {
             return totalAmount.multiply(BigDecimal.valueOf(0.1));
@@ -1163,6 +1574,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
 
+    /**
+     * Verifies that the given user is either the assigned keeper (by user mapping)
+     * or the merchant owner of this order. Throws a 403 exception if neither matches.
+     *
+     * @param order  the order to check access against
+     * @param userId the user ID to verify
+     * @throws BusinessException if the user has no permission (403)
+     */
     private void checkMerchantOrKeeperOrderAccess(PetOrder order, Long userId) {
         if (order == null || userId == null) {
             throw new BusinessException(403, "无权限操作此订单");
@@ -1184,6 +1603,16 @@ public class OrderServiceImpl implements OrderService {
         throw new BusinessException(403, "无权限操作此订单");
     }
 
+    /**
+     * Strict access check that ensures the user is <em>exactly</em> the keeper
+     * assigned to this order. Used for operations that only the designated keeper
+     * can perform (e.g., acceptOrder).
+     *
+     * @param order  the order to check
+     * @param keeper the keeper entity (must match the order's keeper_id)
+     * @param userId the user ID trying to act
+     * @throws BusinessException if the user is not the assigned keeper (403)
+     */
     private void requireAssignedKeeperOrderAccess(PetOrder order, Keeper keeper, Long userId) {
         if (order == null || keeper == null || userId == null
                 || order.getKeeper_id_wsh() == null
@@ -1216,7 +1645,15 @@ public class OrderServiceImpl implements OrderService {
     }
 
 
-    // 订单详情
+    /**
+     * Transfers the settlement amount from the system account to the merchant's
+     * account upon order completion. The settlement amount is determined by
+     * {@link #settlementAmount}. Throws if the merchant or its user ID cannot be resolved.
+     *
+     * @param order the completed order to settle
+     * @throws BusinessException if the merchant or merchant user ID is not found,
+     *                           or the settlement amount is not positive
+     */
     private void settleOrderToMerchant(PetOrder order) {
         Merchant merchant = merchantMapper.selectById(order.getMerchant_id_wsh());
         if (merchant == null || merchant.getUser_id_wsh() == null) {
@@ -1229,6 +1666,14 @@ public class OrderServiceImpl implements OrderService {
                 "订单完成结算 - " + order.getOrder_no_wsh());
     }
 
+    /**
+     * Returns the settlement amount for an order, defaulting to the settlement_amount_wsh
+     * field, or falling back to final_amount_wsh. The amount must be positive.
+     *
+     * @param order the order to compute settlement for
+     * @return the positive settlement amount
+     * @throws BusinessException if the resolved amount is zero or negative
+     */
     private BigDecimal settlementAmount(PetOrder order) {
         BigDecimal amount = order.getSettlement_amount_wsh();
         if (amount == null) {
@@ -1259,6 +1704,15 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * Batch-enriches a list of PetOrder entities into enriched OrderDTOs.
+     * Loads all associated entities (service, user, pet, keeper, merchant) and
+     * order snapshots in bulk queries, then assembles the DTOs in memory to
+     * avoid N+1 SQL problems.
+     *
+     * @param orders the list of PetOrder entities to enrich
+     * @return the list of enriched OrderDTOs, or an empty list if input is null/empty
+     */
     private List<OrderDTO> toDTOEnrichedList(List<PetOrder> orders) {
         if (orders == null || orders.isEmpty()) {
             return List.of();
@@ -1382,6 +1836,14 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * Stamps the current timestamp onto the order's status-specific time field
+     * (delivered_at, received_at, started_at, completed_at) only if that field
+     * is not already set and the status matches.
+     *
+     * @param order  the order to stamp
+     * @param status the target status that determines which field to set
+     */
     private void stampStatusTime(PetOrder order, String status) {
         LocalDateTime now = LocalDateTime.now();
         if (OrderStatus.DELIVERED.equals(status) && order.getDelivered_at_wsh() == null) {
@@ -1395,6 +1857,13 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * Publishes an {@link OrderCompletedEvent} to trigger downstream processes
+     * such as AI-generated boarding report creation and merchant settlement
+     * confirmation. Failures are logged but swallowed to avoid rollback.
+     *
+     * @param order the completed order
+     */
     private void publishCompletedEvent(PetOrder order) {
         try {
             eventPublisher.publishEvent(new OrderCompletedEvent(
@@ -1404,6 +1873,14 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * Sends a delayed message to check payment timeout after the transaction commits.
+     * Uses {@link TransactionSynchronization#afterCommit()} to schedule the check
+     * only after the current transaction succeeds. If no transaction is active,
+     * sends immediately.
+     *
+     * @param order the newly created order whose payment timeout should be monitored
+     */
     private void schedulePaymentTimeoutCheck(PetOrder order) {
         String orderNo = order.getOrder_no_wsh();
         if (isBlank(orderNo)) {
@@ -1449,6 +1926,15 @@ public class OrderServiceImpl implements OrderService {
         return true;
     }
 
+    /**
+     * Cancels a single order if it is still PENDING and was created before the cutoff
+     * time. Releases locked coupons and membership benefits. Skips silently if the
+     * order is null, not PENDING, or was created after the cutoff.
+     *
+     * @param order  the order to evaluate and possibly cancel
+     * @param cutoff the time threshold: orders created before this are eligible
+     * @return true if the order was cancelled; false otherwise
+     */
     private boolean cancelPaymentTimeoutOrder(PetOrder order, LocalDateTime cutoff) {
         if (order == null || order.getId_wsh() == null || order.getCreated_at_wsh() == null) {
             return false;
@@ -1474,6 +1960,13 @@ public class OrderServiceImpl implements OrderService {
         return true;
     }
 
+    /**
+     * Broadcasts the order's current status to all relevant recipients
+     * (owner, keeper, merchant) via SSE. Failures are logged but swallowed
+     * to avoid disrupting the transaction.
+     *
+     * @param order the order whose status change to broadcast
+     */
     private void broadcastOrderChange(PetOrder order) {
         try {
             orderStatusBroadcaster.broadcast(order);
@@ -1482,13 +1975,24 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    // 订单编号生成
+    /**
+     * Generates a unique order number in the format {@code ORDyyyyMMddXXXXXXXX}
+     * where the suffix is an 8-character uppercase UUID segment.
+     *
+     * @return a unique order number
+     */
     private String generateOrderNo() {
         String date = LocalDate.now().toString().replace("-", "");
         String uuid = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         return "ORD" + date + uuid;
     }
 
+    /**
+     * Generates a random 4-digit handover code used for pet delivery verification.
+     * The owner provides this code to the keeper/merchant at drop-off to confirm receipt.
+     *
+     * @return a 4-digit numeric string (0000-9999)
+     */
     private String generateHandoverCode() {
         synchronized (HANDOVER_CODE_RANDOM) {
             return String.format("%04d", HANDOVER_CODE_RANDOM.nextInt(10000));
