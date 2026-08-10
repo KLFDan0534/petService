@@ -35,11 +35,20 @@
                 <el-icon><Star /></el-icon>
                 <span>{{ isFavorited ? '已收藏' : '收藏' }}</span>
               </button>
-              <button class="btn btn-primary" @click="goToChat">联系商家</button>
+              <button class="btn btn-primary" @click="goToOwnerHome">联系商家</button>
             </div>
           </div>
 
           <dl class="info-grid">
+            <div>
+              <dt>店主</dt>
+              <dd class="owner-cell">
+                <img v-if="merchant.owner_avatar_wsh" :src="merchant.owner_avatar_wsh" class="owner-avatar" alt="店主头像">
+                <span v-else class="owner-avatar owner-avatar-fallback">{{ (merchant.owner_name_wsh || '店').charAt(0) }}</span>
+                <button v-if="ownerHomeId" class="link-btn" @click="goToOwnerHome">{{ merchant.owner_name_wsh || '-' }}</button>
+                <span v-else>{{ merchant.owner_name_wsh || '-' }}</span>
+              </dd>
+            </div>
             <div>
               <dt>联系电话</dt>
               <dd>{{ merchant.phone_wsh || '-' }}</dd>
@@ -107,8 +116,8 @@
               </div>
               <div class="service-action">
                 <span class="price">&yen;{{ money(svc.price_wsh) }}<small>/{{ svc.unit_wsh || '次' }}</small></span>
-                <button class="btn btn-sm btn-primary" :disabled="!isOpen" @click="bookService(svc)">
-                  {{ isOpen ? '预约' : '休息中' }}
+                <button class="btn btn-sm btn-primary" :disabled="bookDisabled" @click="bookService(svc)">
+                  {{ isOpen ? '预约' : '休息中·可预约' }}
                 </button>
               </div>
             </div>
@@ -138,7 +147,7 @@
       <aside class="detail-sidebar">
         <section class="panel">
           <h4>快捷操作</h4>
-          <button class="btn btn-primary btn-block" @click="goToChat">联系商家</button>
+          <button class="btn btn-primary btn-block" @click="goToOwnerHome">联系商家</button>
           <button class="btn btn-outline btn-block" @click="goBack">返回列表</button>
         </section>
       </aside>
@@ -185,6 +194,9 @@ const {
 } = useFavoriteState(favoriteTargetId, FAVORITE_TARGET_TYPES.MERCHANT)
 
 const isOpen = computed(() => Number(merchant.value?.store_status_wsh) === 1)
+const futureBookable = computed(() => Number(merchant.value?.future_booking_enabled_wsh) === 1)
+const ownerHomeId = computed(() => merchant.value?.owner_keeper_id_wsh || null)
+const bookDisabled = computed(() => !futureBookable.value)
 
 function renderStars(score) {
   const n = Math.max(0, Math.round(Number(score) || 0))
@@ -230,7 +242,10 @@ function bookService(svc) {
     appStore.showLoginPrompt = true
     return
   }
-  if (!isOpen.value) return
+  if (!futureBookable.value) {
+    appStore.addToast('该商家未开放未来预约', 'info')
+    return
+  }
   router.push({
     path: '/orders',
     query: {
@@ -243,18 +258,16 @@ function bookService(svc) {
   })
 }
 
-function goToChat() {
+function goToOwnerHome() {
   if (!authStore.isLoggedIn) {
     appStore.showLoginPrompt = true
     return
   }
-  router.push({
-    path: '/orders',
-    query: {
-      create: 'true',
-      merchantId: merchant.value.id_wsh,
-    },
-  })
+  if (!ownerHomeId.value) {
+    appStore.addToast('该商家暂未开通店主主页', 'info')
+    return
+  }
+  router.push(`/keepers/${ownerHomeId.value}`)
 }
 
 function goBack() {
@@ -342,6 +355,36 @@ onMounted(load)
 }
 .info-grid dd {
   margin: 4px 0 0;
+}
+.owner-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.owner-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.owner-avatar-fallback {
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  text-decoration: underline;
 }
 .desc-block {
   margin-top: 16px;

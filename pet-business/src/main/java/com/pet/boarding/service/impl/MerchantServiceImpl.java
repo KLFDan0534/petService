@@ -5,6 +5,7 @@ import com.pet.boarding.dto.MerchantCreateRequestDTO;
 import com.pet.boarding.dto.MerchantDTO;
 import com.pet.boarding.dto.MerchantUpdateRequestDTO;
 import com.pet.boarding.entity.BusinessHours;
+import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.mapper.BusinessHoursMapper;
 import com.pet.boarding.mapper.MerchantMapper;
@@ -14,6 +15,8 @@ import com.pet.boarding.constant.MerchantStoreConstants;
 import com.pet.common.BusinessException;
 import com.pet.common.StatusCode;
 import com.pet.qualification.service.QualificationService;
+import com.pet.system.entity.User;
+import com.pet.system.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,15 +40,18 @@ public class MerchantServiceImpl implements MerchantService {
     private final QualificationService qualificationService;
     private final BusinessHoursMapper businessHoursMapper;
     private final KeeperService keeperService;
+    private final UserMapper userMapper;
 
     public MerchantServiceImpl(MerchantMapper merchantMapper,
                                QualificationService qualificationService,
                                BusinessHoursMapper businessHoursMapper,
-                               KeeperService keeperService) {
+                               KeeperService keeperService,
+                               UserMapper userMapper) {
         this.merchantMapper = merchantMapper;
         this.qualificationService = qualificationService;
         this.businessHoursMapper = businessHoursMapper;
         this.keeperService = keeperService;
+        this.userMapper = userMapper;
     }
 
     /**
@@ -293,6 +299,8 @@ public class MerchantServiceImpl implements MerchantService {
         merchant.setStatus_wsh(StatusCode.MERCHANT_PENDING.getValue());
         merchant.setStore_mode_wsh(MerchantStoreConstants.MODE_AUTO);
         merchant.setStore_status_wsh(MerchantStoreConstants.STATUS_CLOSED);
+        merchant.setFuture_booking_enabled_wsh(dto.getFuture_booking_enabled_wsh() == null
+                ? 1 : dto.getFuture_booking_enabled_wsh());
         merchantMapper.insert(merchant);
         qualificationService.createPending(
                 QualificationService.OWNER_TYPE_MERCHANT,
@@ -344,6 +352,13 @@ public class MerchantServiceImpl implements MerchantService {
         if (dto.getLatitude_wsh() != null) existing.setLatitude_wsh(dto.getLatitude_wsh());
         if (dto.getLongitude_wsh() != null) existing.setLongitude_wsh(dto.getLongitude_wsh());
         if (dto.getDescription_wsh() != null) existing.setDescription_wsh(dto.getDescription_wsh());
+        if (dto.getFuture_booking_enabled_wsh() != null) {
+            Integer enabled = dto.getFuture_booking_enabled_wsh();
+            if (enabled != 0 && enabled != 1) {
+                throw new BusinessException(400, "future_booking_enabled_wsh 仅允许 0 或 1");
+            }
+            existing.setFuture_booking_enabled_wsh(enabled);
+        }
         merchantMapper.updateById(existing);
         return existing;
     }
@@ -390,10 +405,39 @@ public class MerchantServiceImpl implements MerchantService {
         dto.setStatus_wsh(entity.getStatus_wsh());
         dto.setStore_mode_wsh(entity.getStore_mode_wsh());
         dto.setStore_status_wsh(resolveStoreStatus(entity));
+        dto.setFuture_booking_enabled_wsh(entity.getFuture_booking_enabled_wsh() == null ? 1 : entity.getFuture_booking_enabled_wsh());
+        fillOwnerInfo(dto, entity);
         dto.setQualifications_wsh(qualificationService.listByOwner(
                 QualificationService.OWNER_TYPE_MERCHANT, entity.getId_wsh(), true));
         dto.setCreated_at_wsh(entity.getCreated_at_wsh());
         return dto;
+    }
+
+    /**
+     * 【填充店主信息】
+     *
+     * 业务作用：
+     * 查询该店铺归属用户（店主）的昵称、头像，并在店主同时是看护者时
+     * 填充其看护者主页ID，便于前端展示“这家店铺属于谁”并提供店主主页入口。
+     *
+     * 业务规则：
+     * 店主用户不存在时静默跳过；店主没有看护者档案时 owner_keeper_id_wsh 保持为空。
+     */
+    private void fillOwnerInfo(MerchantDTO dto, Merchant entity) {
+        Long ownerUserId = entity.getUser_id_wsh();
+        if (ownerUserId == null) {
+            return;
+        }
+        User owner = userMapper.selectById(ownerUserId);
+        if (owner != null) {
+            dto.setOwner_name_wsh(owner.getNickname_wsh() != null && !owner.getNickname_wsh().isBlank()
+                    ? owner.getNickname_wsh() : owner.getUsername_wsh());
+            dto.setOwner_avatar_wsh(owner.getAvatar_wsh());
+        }
+        Keeper ownerKeeper = keeperService.findByUserId(ownerUserId);
+        if (ownerKeeper != null) {
+            dto.setOwner_keeper_id_wsh(ownerKeeper.getId_wsh());
+        }
     }
 
     /**

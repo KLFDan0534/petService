@@ -25,6 +25,16 @@ import java.util.List;
 public interface KeeperService {
 
     /**
+     * 离线来源：店铺同步 / 系统自动（如关店同步、订单完成后的容量刷新）。
+     */
+    int OFFLINE_SOURCE_SYSTEM = 0;
+
+    /**
+     * 离线来源：看护员主动离线。此来源在店铺开门同步时不会被覆盖回在线。
+     */
+    int OFFLINE_SOURCE_MANUAL = 1;
+
+    /**
      * 【查询看护者列表】
      *
      * 业务作用：

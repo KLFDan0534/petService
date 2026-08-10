@@ -252,6 +252,75 @@ class KeeperEmploymentServiceTest {
                 orderMapper);
     }
 
+    @Test
+    void setOnlineStatusToOfflineRecordsManualSource() {
+        Keeper keeper = activeKeeper();
+        when(keeperMapper.selectById(KEEPER_ID)).thenReturn(keeper);
+
+        service().setOnlineStatus(KEEPER_ID, StatusCode.KEEPER_OFFLINE.getValue());
+
+        assertEquals(KeeperServiceImpl.OFFLINE_SOURCE_MANUAL, keeper.getOffline_source_wsh());
+        verify(keeperMapper).updateById(keeper);
+    }
+
+    @Test
+    void setOnlineStatusToActiveClearsManualSource() {
+        Keeper keeper = activeKeeper();
+        keeper.setStatus_wsh(StatusCode.KEEPER_OFFLINE.getValue());
+        keeper.setOffline_source_wsh(KeeperServiceImpl.OFFLINE_SOURCE_MANUAL);
+        when(keeperMapper.selectById(KEEPER_ID)).thenReturn(keeper);
+
+        service().setOnlineStatus(KEEPER_ID, StatusCode.KEEPER_ACTIVE.getValue());
+
+        assertEquals(KeeperServiceImpl.OFFLINE_SOURCE_SYSTEM, keeper.getOffline_source_wsh());
+        assertEquals(StatusCode.KEEPER_ACTIVE.getValue(), keeper.getStatus_wsh());
+        verify(keeperMapper).updateById(keeper);
+    }
+
+    @Test
+    void storeOpenSyncDoesNotResetManualOfflineKeeper() {
+        Keeper keeper = activeKeeper();
+        keeper.setStatus_wsh(StatusCode.KEEPER_OFFLINE.getValue());
+        keeper.setOffline_source_wsh(KeeperServiceImpl.OFFLINE_SOURCE_MANUAL);
+        when(keeperMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(java.util.List.of(keeper));
+
+        service().syncMerchantStoreStatus(MERCHANT_ID, true);
+
+        assertEquals(StatusCode.KEEPER_OFFLINE.getValue(), keeper.getStatus_wsh());
+        assertEquals(KeeperServiceImpl.OFFLINE_SOURCE_MANUAL, keeper.getOffline_source_wsh());
+        verify(keeperMapper, never()).updateById(any(Keeper.class));
+    }
+
+    @Test
+    void storeOpenSyncResetsSystemOfflineKeeperToActive() {
+        Keeper keeper = activeKeeper();
+        keeper.setStatus_wsh(StatusCode.KEEPER_OFFLINE.getValue());
+        keeper.setOffline_source_wsh(KeeperServiceImpl.OFFLINE_SOURCE_SYSTEM);
+        when(keeperMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(java.util.List.of(keeper));
+
+        service().syncMerchantStoreStatus(MERCHANT_ID, true);
+
+        assertEquals(StatusCode.KEEPER_ACTIVE.getValue(), keeper.getStatus_wsh());
+        assertEquals(KeeperServiceImpl.OFFLINE_SOURCE_SYSTEM, keeper.getOffline_source_wsh());
+        verify(keeperMapper).updateById(keeper);
+    }
+
+    @Test
+    void storeCloseSyncMarksActiveKeeperOfflineWithSystemSource() {
+        Keeper keeper = activeKeeper();
+        keeper.setOffline_source_wsh(KeeperServiceImpl.OFFLINE_SOURCE_MANUAL);
+        when(keeperMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(java.util.List.of(keeper));
+
+        service().syncMerchantStoreStatus(MERCHANT_ID, false);
+
+        assertEquals(StatusCode.KEEPER_OFFLINE.getValue(), keeper.getStatus_wsh());
+        assertEquals(KeeperServiceImpl.OFFLINE_SOURCE_SYSTEM, keeper.getOffline_source_wsh());
+        verify(keeperMapper).updateById(keeper);
+    }
+
     private Keeper activeKeeper() {
         Keeper keeper = new Keeper();
         keeper.setId_wsh(KEEPER_ID);

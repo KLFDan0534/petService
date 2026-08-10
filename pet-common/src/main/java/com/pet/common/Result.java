@@ -37,10 +37,18 @@ import lombok.Getter;
 public class Result<T> {
     private int code;
     private String message;
+    private String errorCode;
     private T data;
 
     private Result(int code, String message, T data) {
         this.code = code;
+        this.message = message;
+        this.data = data;
+    }
+
+    private Result(int code, String errorCode, String message, T data) {
+        this.code = code;
+        this.errorCode = errorCode;
         this.message = message;
         this.data = data;
     }
@@ -64,6 +72,10 @@ public class Result<T> {
      */
     public static <T> Result<T> error(int code, String message) {
         return new Result<>(code, message, null);
+    }
+
+    public static <T> Result<T> error(int code, String errorCode, String message) {
+        return new Result<>(code, errorCode, message, null);
     }
 
     /**

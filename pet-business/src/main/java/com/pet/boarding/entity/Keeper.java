@@ -118,6 +118,18 @@ public class Keeper {
     @Schema(description = "状态")
     private Integer status_wsh;
 
+    /**
+     * 离线来源：0-店铺同步/系统 1-看护员主动离线。
+     * <p>
+     * 用于保留"关店同步看护员离线"语义的同时，禁止店铺开门同步覆盖看护员主动设置的离线状态
+     * （主动离线看护员依然可接未来预约，仅不恢复实时在线展示）。
+     */
+    @JsonProperty("offline_source_wsh")
+    @JsonAlias({"offlineSource", "offline_source"})
+    @TableField(value = "offline_source_wsh")
+    @Schema(description = "离线来源: 0-店铺同步/系统 1-看护员主动离线")
+    private Integer offline_source_wsh;
+
     @JsonIgnore
     @TableLogic
     @TableField(value = "deleted_wsh")
@@ -284,5 +296,15 @@ public class Keeper {
     @JsonGetter("status")
     public Integer getStatus() {
         return status_wsh;
+    }
+
+    /**
+     * 获取离线来源，JSON 序列化时输出为 "offlineSource"。
+     *
+     * @return 离线来源：0-店铺同步/系统，1-看护员主动离线
+     */
+    @JsonGetter("offlineSource")
+    public Integer getOfflineSource() {
+        return offline_source_wsh;
     }
 }

@@ -92,7 +92,8 @@ CREATE TABLE IF NOT EXISTS `merchant_wsh` (
     `rating_wsh` DECIMAL(3, 2) DEFAULT 5.00,
     `status_wsh` TINYINT DEFAULT 0 COMMENT '0-pending 1-approved 2-rejected',
     `store_mode_wsh` TINYINT DEFAULT 0 COMMENT '0-auto 1-manual-open 2-manual-close',
-    `store_status_wsh` TINYINT DEFAULT 0 COMMENT '0-closed 1-open',
+`store_status_wsh` TINYINT DEFAULT 0 COMMENT '0-closed 1-open',
+    `future_booking_enabled_wsh` TINYINT NOT NULL DEFAULT 1 COMMENT '0-disabled 1-enabled future booking',
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -114,6 +115,7 @@ CREATE TABLE IF NOT EXISTS `keeper_wsh` (
     `max_pets_wsh` INT DEFAULT 5,
     `current_pets_wsh` INT DEFAULT 0,
     `status_wsh` TINYINT DEFAULT 1 COMMENT '0-offline 1-online',
+    `offline_source_wsh` TINYINT DEFAULT 0 COMMENT 'offline source: 0-store/system 1-keeper manual',
     `bio_wsh` TEXT COMMENT '简介',
     `deleted_wsh` TINYINT DEFAULT 0,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -7,6 +7,8 @@ import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
+import com.pet.boarding.service.BusinessHoursService;
+import com.pet.boarding.service.BusinessHoursTargetResolver;
 import com.pet.boarding.service.KeeperAttendanceService;
 import com.pet.boarding.service.KeeperLeaveService;
 import com.pet.boarding.service.MerchantService;
@@ -89,6 +91,8 @@ class FinanceLedgerTest {
     @Mock private QualificationService qualificationService;
     @Mock private KeeperAttendanceService keeperAttendanceService;
     @Mock private KeeperLeaveService keeperLeaveService;
+    @Mock private BusinessHoursService businessHoursService;
+    @Mock private BusinessHoursTargetResolver businessHoursTargetResolver;
 
     private PaymentServiceImpl paymentService;
     private RefundServiceImpl refundService;
@@ -126,7 +130,9 @@ class FinanceLedgerTest {
                 keeperLeaveService,
                 couponService,
                 membershipBenefitService,
-                new ObjectMapper());
+                new ObjectMapper(),
+                businessHoursService,
+                businessHoursTargetResolver);
         walletController = new WalletController(walletService, accountingService);
     }
 

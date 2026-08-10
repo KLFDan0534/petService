@@ -43,6 +43,14 @@ public class MerchantDTO {
     private Integer store_mode_wsh;
     @Schema(description = "店铺状态")
     private Integer store_status_wsh;
+    @Schema(description = "是否接受未来预约: 0-关闭 1-开启")
+    private Integer future_booking_enabled_wsh;
+    @Schema(description = "店主昵称(店铺归属人)")
+    private String owner_name_wsh;
+    @Schema(description = "店主头像URL")
+    private String owner_avatar_wsh;
+    @Schema(description = "店主看护者主页ID(店主同时是看护者时非空)")
+    private Long owner_keeper_id_wsh;
     @Schema(description = "资质列表")
     private List<QualificationDTO> qualifications_wsh;
     @Schema(description = "创建时间")

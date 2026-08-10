@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
             case 404 -> HttpStatus.NOT_FOUND.value();
             default -> HttpStatus.INTERNAL_SERVER_ERROR.value();
         };
-        return ResponseEntity.status(httpStatus).body(Result.error(e.getCode(), e.getMessage()));
+        return ResponseEntity.status(httpStatus).body(Result.error(e.getCode(), e.getErrorCode(), e.getMessage()));
     }
 
     /**

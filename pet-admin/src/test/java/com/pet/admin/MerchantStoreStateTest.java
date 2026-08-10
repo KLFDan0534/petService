@@ -9,6 +9,7 @@ import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.service.impl.MerchantServiceImpl;
 import com.pet.common.StatusCode;
 import com.pet.qualification.service.QualificationService;
+import com.pet.system.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,6 +30,7 @@ class MerchantStoreStateTest {
     @Mock private QualificationService qualificationService;
     @Mock private BusinessHoursMapper businessHoursMapper;
     @Mock private KeeperService keeperService;
+    @Mock private UserMapper userMapper;
 
     @Test
     void approvedMerchantWithoutBusinessHoursStaysClosedByDefault() {
@@ -49,6 +51,6 @@ class MerchantStoreStateTest {
     }
 
     private MerchantServiceImpl service() {
-        return new MerchantServiceImpl(merchantMapper, qualificationService, businessHoursMapper, keeperService);
+        return new MerchantServiceImpl(merchantMapper, qualificationService, businessHoursMapper, keeperService, userMapper);
     }
 }

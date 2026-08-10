@@ -272,10 +272,13 @@
 | 9 | business_license_wsh | varchar(500) | YES | NULL | 营业执照URL |
 | 10 | rating_wsh | decimal(3,2) | YES | 5.00 | 评分 |
 | 11 | status_wsh | tinyint | YES | 0 | 状态: 0-待审核 1-已通过 2-已驳回 |
-| 12 | deleted_wsh | tinyint | YES | 0 | 逻辑删除 |
-| 13 | created_at_wsh | datetime | YES | CURRENT_TIMESTAMP | 创建时间 |
-| 14 | updated_at_wsh | datetime | YES | CURRENT_TIMESTAMP ON UPDATE | 更新时间 |
-| 15 | avatar_wsh | varchar(500) | YES | NULL | ⚠️ 商家头像(Entity缺少映射) |
+| 12 | store_mode_wsh | tinyint | YES | 0 | 营业模式: 0-自动 1-手动开 2-手动关 |
+| 13 | store_status_wsh | tinyint | YES | 0 | 实时营业状态: 0-休息 1-营业 |
+| 14 | future_booking_enabled_wsh | tinyint | NO | 1 | 是否接受未来预约: 0-关闭 1-开启(默认开启) |
+| 15 | deleted_wsh | tinyint | YES | 0 | 逻辑删除 |
+| 16 | created_at_wsh | datetime | YES | CURRENT_TIMESTAMP | 创建时间 |
+| 17 | updated_at_wsh | datetime | YES | CURRENT_TIMESTAMP ON UPDATE | 更新时间 |
+| 18 | avatar_wsh | varchar(500) | YES | NULL | 商家头像 |
 
 ---
 
@@ -292,6 +295,7 @@
 | **Controller** | `KeeperController.java` |
 
 字段省略(17个字段) - 详见基线SQL
+- **`offline_source_wsh`** tinyint DEFAULT 0：离线来源，0-店铺同步/系统，1-看护员主动离线（关店同步禁止覆盖主动离线）
 
 ---
 

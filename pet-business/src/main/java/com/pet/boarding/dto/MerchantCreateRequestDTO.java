@@ -41,4 +41,8 @@ public class MerchantCreateRequestDTO {
     @Schema(description = "资质图片")
     @JsonAlias("qualificationImage")
     private String qualification_image_wsh;
+
+    @Schema(description = "是否接受未来预约: 0-关闭 1-开启(缺省默认开启)")
+    @JsonAlias("futureBookingEnabled")
+    private Integer future_booking_enabled_wsh;
 }

@@ -455,6 +455,13 @@ public class KeeperServiceImpl implements KeeperService {
             throw new BusinessException("忙碌状态不可手动切换，请等待当前订单完成后自动恢复");
         }
         keeper.setStatus_wsh(status);
+        // 记录离线来源：主动离线标记为人工（offline_source_wsh=1），上线则清除来源，
+        // 保证关店同步不会把主动离线覆盖回在线。
+        if (status == StatusCode.KEEPER_OFFLINE.getValue()) {
+            keeper.setOffline_source_wsh(OFFLINE_SOURCE_MANUAL);
+        } else {
+            keeper.setOffline_source_wsh(OFFLINE_SOURCE_SYSTEM);
+        }
         keeperMapper.updateById(keeper);
     }
 
@@ -466,6 +473,8 @@ public class KeeperServiceImpl implements KeeperService {
      * 调用链：MerchantServiceImpl → syncMerchantStoreStatus @Transactional → 循环更新看护者在线状态
      * 数据处理：遍历该商家下所有看护者，开门时 OFFLINE→ACTIVE，关门时 ACTIVE→OFFLINE，BUSY 保持不变。
      * 业务规则：仅变更 OFFLINE↔ACTIVE，BUSY 状态不受影响。
+     * 来源保护：开门时仅恢复"非主动离线"（offline_source_wsh != 1）的看护者；主动离线看护者保持离线，
+     * 避免店铺同步覆盖看护员主动离线的意图。关门置 OFFLINE 时来源统一标记为系统同步（0）。
      * 状态影响：批量更新旗下看护者的在线状态。
      */
     @Override
@@ -479,16 +488,26 @@ public class KeeperServiceImpl implements KeeperService {
         for (Keeper keeper : keepers) {
             Integer currentStatus = keeper.getStatus_wsh();
             Integer targetStatus = currentStatus;
+            boolean changed = false;
             if (storeOpen) {
                 if (currentStatus == null || currentStatus == StatusCode.KEEPER_OFFLINE.getValue()) {
-                    targetStatus = StatusCode.KEEPER_ACTIVE.getValue();
+                    // 主动离线（offline_source_wsh == 1）不被店铺开门同步覆盖
+                    boolean manualOffline = keeper.getOffline_source_wsh() != null
+                            && keeper.getOffline_source_wsh() == OFFLINE_SOURCE_MANUAL;
+                    if (!manualOffline) {
+                        targetStatus = StatusCode.KEEPER_ACTIVE.getValue();
+                        keeper.setOffline_source_wsh(OFFLINE_SOURCE_SYSTEM);
+                        changed = true;
+                    }
                 }
             } else {
                 if (currentStatus == null || currentStatus == StatusCode.KEEPER_ACTIVE.getValue()) {
                     targetStatus = StatusCode.KEEPER_OFFLINE.getValue();
+                    keeper.setOffline_source_wsh(OFFLINE_SOURCE_SYSTEM);
+                    changed = true;
                 }
             }
-            if (targetStatus != null && !targetStatus.equals(currentStatus)) {
+            if (changed && targetStatus != null && !targetStatus.equals(currentStatus)) {
                 keeper.setStatus_wsh(targetStatus);
                 keeperMapper.updateById(keeper);
             }

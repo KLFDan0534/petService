@@ -25,6 +25,7 @@ public class MerchantSchemaMigrator implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         addColumnIfMissing("avatar_wsh", "VARCHAR(500)");
+        addColumnIfMissing("future_booking_enabled_wsh", "TINYINT NOT NULL DEFAULT 1");
     }
 
     private void addColumnIfMissing(String column, String definition) {

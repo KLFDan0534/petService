@@ -33,10 +33,17 @@ package com.pet.common;
  */
 public class BusinessException extends RuntimeException {
     private int code;
+    private String errorCode;
 
     public BusinessException(int code, String message) {
         super(message);
         this.code = code;
+    }
+
+    public BusinessException(int code, String errorCode, String message) {
+        super(message);
+        this.code = code;
+        this.errorCode = errorCode;
     }
 
     public BusinessException(String message) {
@@ -45,4 +52,6 @@ public class BusinessException extends RuntimeException {
     }
 
     public int getCode() { return code; }
+
+    public String getErrorCode() { return errorCode; }
 }

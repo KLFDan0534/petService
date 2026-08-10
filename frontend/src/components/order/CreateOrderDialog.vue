@@ -246,7 +246,7 @@ const keeperSelectPlaceholder = computed(() => {
   return '请选择看护人'
 })
 const merchantHint = computed(() => {
-  if (merchantLoading.value) return '正在校验商家是否有已通过资质并在线的看护人'
+  if (merchantLoading.value) return '正在校验商家是否有资质通过的在职看护人'
   if (merchants.value.length === 0) return '当前没有满足接单条件的商家，请稍后再试'
   return '仅展示有合格看护人的商家'
 })
@@ -254,7 +254,7 @@ const keeperHint = computed(() => {
   if (!form.merchant_id_wsh) return '选择商家后再选择看护人'
   if (keeperLoading.value) return '正在同步该商家的可接单看护人'
   if (keepers.value.length === 0) return '该商家暂无可接单看护人'
-  return '仅展示已通过资质审核且在线的看护人'
+  return '仅展示资质通过且在职的看护人（休息中也接受未来预约）'
 })
 
 watch(
@@ -387,7 +387,9 @@ async function fetchOrderableKeepers(merchantId) {
 }
 
 function isOrderableKeeper(keeper) {
-  return Number(keeper?.status_wsh) === 1
+  const status = Number(keeper?.status_wsh)
+  const inService = status === 1 || status === 3 || status === 4
+  return inService
     && Array.isArray(keeper.qualifications_wsh)
     && keeper.qualifications_wsh.some(item => item?.status_wsh === 'approved')
 }
@@ -518,12 +520,38 @@ async function submitOrder() {
     const res = await createOrder(payload)
     if (res.code === 200) {
       emit('created', res.data)
+      return
     }
+    handleCreateError(res)
   } catch (e) {
-    appStore.addToast('订单提交失败', 'error')
+    const res = e?.response?.data
+    if (res && typeof res === 'object') {
+      handleCreateError(res)
+      return
+    }
+    appStore.addToast('订单提交失败，请稍后重试', 'error')
   } finally {
     submitting.value = false
   }
+}
+
+const BOOKING_ERROR_MESSAGES = {
+  FUTURE_BOOKING_DISABLED: '该商家当前未开放未来预约',
+  FULFILLMENT_OUTSIDE_BUSINESS_HOURS: '送达或接回时间不在商家营业时段内',
+  CAPACITY_EXCEEDED: '该时段看护人已预约满，请更换时段',
+  KEEPER_NOT_BOOKABLE: '该看护人当前不可接单',
+  MERCHANT_NOT_APPROVED: '商家未通过审核，暂不能预约',
+}
+
+function handleCreateError(res) {
+  const { errorCode, error_code_wsh, message } = res || {}
+  const code = errorCode || error_code_wsh
+  const messageKey = code ? BOOKING_ERROR_MESSAGES[code] : null
+  if (messageKey) {
+    appStore.addToast(messageKey, 'error')
+    return
+  }
+  appStore.addToast(message || '订单提交失败', 'error')
 }
 
 function hasDeliveryLocation() {

@@ -100,11 +100,17 @@ public class Merchant {
     @Schema(description = "店铺模式")
     private Integer store_mode_wsh;
 
-    @JsonProperty("store_status_wsh")
+@JsonProperty("store_status_wsh")
     @JsonAlias({"storeStatus", "store_status"})
     @TableField(value = "store_status_wsh")
     @Schema(description = "店铺状态")
     private Integer store_status_wsh;
+
+    @JsonProperty("future_booking_enabled_wsh")
+    @JsonAlias({"futureBookingEnabled", "future_booking_enabled"})
+    @TableField(value = "future_booking_enabled_wsh")
+    @Schema(description = "是否接受未来预约: 0-关闭 1-开启(默认开启)")
+    private Integer future_booking_enabled_wsh;
 
     @JsonIgnore
     @TableLogic

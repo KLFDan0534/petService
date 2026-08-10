@@ -4,9 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.boarding.entity.Keeper;
+import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
+import com.pet.boarding.service.BusinessHoursService;
+import com.pet.boarding.service.BusinessHoursTargetResolver;
 import com.pet.boarding.service.KeeperAttendanceService;
 import com.pet.boarding.service.KeeperLeaveService;
 import com.pet.boarding.service.MerchantService;
@@ -78,6 +81,8 @@ class OrderAutoAcceptTimeoutTest {
     @Mock private KeeperAttendanceService keeperAttendanceService;
     @Mock private KeeperLeaveService keeperLeaveService;
     @Mock private OrderService orderService;
+    @Mock private BusinessHoursService businessHoursService;
+    @Mock private BusinessHoursTargetResolver businessHoursTargetResolver;
     @Mock private Channel channel;
 
     @Test
@@ -149,6 +154,7 @@ class OrderAutoAcceptTimeoutTest {
     void autoAcceptTimeoutConfirmsOnlyStillPaidOrders() {
         PetOrder order = order(100L, "ORD002", OrderStatus.PAID);
         order.setKeeper_id_wsh(20L);
+        order.setMerchant_id_wsh(10L);
         Keeper keeper = new Keeper();
         keeper.setId_wsh(20L);
         keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
@@ -159,6 +165,7 @@ class OrderAutoAcceptTimeoutTest {
 
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
         when(keeperMapper.selectById(20L)).thenReturn(keeper);
+        when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
         when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
                 .thenReturn(List.of(qualification));
         when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
@@ -193,6 +200,7 @@ class OrderAutoAcceptTimeoutTest {
 
         PetOrder order = order(103L, "ORD_TIMEOUT", OrderStatus.PAID);
         order.setKeeper_id_wsh(20L);
+        order.setMerchant_id_wsh(10L);
 
         Keeper keeper = new Keeper();
         keeper.setId_wsh(20L);
@@ -205,6 +213,7 @@ class OrderAutoAcceptTimeoutTest {
         when(paymentMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(payment));
         when(orderMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(order));
         when(keeperMapper.selectById(20L)).thenReturn(keeper);
+        when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
         when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
                 .thenReturn(List.of(qualification));
         when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
@@ -249,6 +258,7 @@ class OrderAutoAcceptTimeoutTest {
     void autoAcceptUsesConditionalPaidToConfirmedUpdate() {
         PetOrder order = order(100L, "ORD006", OrderStatus.PAID);
         order.setKeeper_id_wsh(20L);
+        order.setMerchant_id_wsh(10L);
         Keeper keeper = new Keeper();
         keeper.setId_wsh(20L);
         keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
@@ -258,6 +268,7 @@ class OrderAutoAcceptTimeoutTest {
 
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
         when(keeperMapper.selectById(20L)).thenReturn(keeper);
+        when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
         when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
                 .thenReturn(List.of(qualification));
         when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
@@ -297,6 +308,7 @@ class OrderAutoAcceptTimeoutTest {
 
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
         when(keeperMapper.selectById(20L)).thenReturn(keeper);
+        when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
         when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
                 .thenReturn(List.of(approvedQualification()));
         when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
@@ -318,6 +330,7 @@ class OrderAutoAcceptTimeoutTest {
 
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
         when(keeperMapper.selectById(20L)).thenReturn(keeper);
+        when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
         when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
                 .thenReturn(List.of(approvedQualification()));
         when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
@@ -349,7 +362,9 @@ class OrderAutoAcceptTimeoutTest {
                 keeperLeaveService,
                 couponService,
                 membershipBenefitService,
-                new ObjectMapper());
+                new ObjectMapper(),
+                businessHoursService,
+                businessHoursTargetResolver);
     }
 
     private Payment payment(String payNo, Long id, Long orderId, BigDecimal amount) {
@@ -381,6 +396,14 @@ class OrderAutoAcceptTimeoutTest {
         keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
         keeper.setMax_pets_wsh(3);
         return keeper;
+    }
+
+    private Merchant futureBookingMerchant() {
+        Merchant merchant = new Merchant();
+        merchant.setId_wsh(10L);
+        merchant.setStatus_wsh(StatusCode.MERCHANT_APPROVED.getValue());
+        merchant.setFuture_booking_enabled_wsh(1);
+        return merchant;
     }
 
     private QualificationDTO approvedQualification() {

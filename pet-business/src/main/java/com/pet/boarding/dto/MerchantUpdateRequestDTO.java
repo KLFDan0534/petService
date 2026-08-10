@@ -1,5 +1,6 @@
 package com.pet.boarding.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -26,4 +27,8 @@ public class MerchantUpdateRequestDTO {
 
     @Schema(description = "描述")
     private String description_wsh;
+
+    @Schema(description = "是否接受未来预约: 0-关闭 1-开启(仅商家本人或管理员可修改)")
+    @JsonAlias("futureBookingEnabled")
+    private Integer future_booking_enabled_wsh;
 }

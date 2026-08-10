@@ -5,15 +5,20 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.boarding.entity.Keeper;
+import com.pet.boarding.entity.BusinessHours;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
+import com.pet.boarding.service.BusinessHoursService;
+import com.pet.boarding.service.BusinessHoursTargetResolver;
 import com.pet.boarding.service.KeeperAttendanceService;
 import com.pet.boarding.service.KeeperLeaveService;
+import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.service.MerchantService;
 import com.pet.qualification.service.QualificationService;
+import com.pet.common.BookingErrorCode;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.common.StatusCode;
@@ -129,6 +134,8 @@ public class OrderServiceImpl implements OrderService {
     private final CouponService couponService;
     private final MembershipBenefitService membershipBenefitService;
     private final ObjectMapper objectMapper;
+    private final BusinessHoursService businessHoursService;
+    private final BusinessHoursTargetResolver businessHoursTargetResolver;
 
     public OrderServiceImpl(OrderMapper orderMapper,
                             PaymentMapper paymentMapper,
@@ -146,9 +153,11 @@ public class OrderServiceImpl implements OrderService {
                             AccountingService accountingService,
                             KeeperAttendanceService keeperAttendanceService,
                             KeeperLeaveService keeperLeaveService,
-                            CouponService couponService,
-                            MembershipBenefitService membershipBenefitService,
-                            ObjectMapper objectMapper) {
+CouponService couponService,
+                             MembershipBenefitService membershipBenefitService,
+                             ObjectMapper objectMapper,
+                             BusinessHoursService businessHoursService,
+                             BusinessHoursTargetResolver businessHoursTargetResolver) {
         this.orderMapper = orderMapper;
         this.paymentMapper = paymentMapper;
         this.petMapper = petMapper;
@@ -168,6 +177,8 @@ public class OrderServiceImpl implements OrderService {
         this.couponService = couponService;
         this.membershipBenefitService = membershipBenefitService;
         this.objectMapper = objectMapper;
+        this.businessHoursService = businessHoursService;
+        this.businessHoursTargetResolver = businessHoursTargetResolver;
     }
 
 
@@ -437,7 +448,7 @@ public class OrderServiceImpl implements OrderService {
      * 调用链：
      * OrderService.createOrder()
      * ↓
-     * [synchronized] requirePet() → requireExistingKeeper() → requireMerchant()
+     * [synchronized] requirePet() → requireFutureBookableKeeper() → requireFutureBookingEligibleMerchant()
      * → validateKeeperMerchant() → validateKeeperQualification() → validateService()
      * → validateDateRange() → validateFulfillmentWindow()
      * → ensureNoPetDateConflict() → ensureKeeperCapacity() → keeperLeaveService.requireKeeperAvailable()
@@ -479,9 +490,9 @@ public class OrderServiceImpl implements OrderService {
         synchronized (CREATE_ORDER_LOCK) {
         Pet pet = requirePet(ownerId, request.getPet_id_wsh());
         // 获取到当前用户的下单宠物的keeper
-        Keeper keeper = requireExistingKeeper(request.getKeeper_id_wsh());
+        Keeper keeper = requireFutureBookableKeeper(request.getKeeper_id_wsh());
         // 获取到当前用户的下单宠物所属的merchant
-        Merchant merchant = requireMerchant(request.getMerchant_id_wsh());
+        Merchant merchant = requireFutureBookingEligibleMerchant(request.getMerchant_id_wsh());
 
         // 服务判断
         validateKeeperMerchant(keeper, merchant);
@@ -495,7 +506,8 @@ public class OrderServiceImpl implements OrderService {
         LocalDateTime receiverEnd = defaultReceiverEnd(deliveryTime);
         LocalDateTime pickupTime = defaultPickupTime(request);
         validateFulfillmentWindow(request.getStart_date_wsh(), request.getEnd_date_wsh(),
-                deliveryTime, receiverStart, receiverEnd, pickupTime);
+                deliveryTime, receiverStart, receiverEnd, pickupTime,
+                merchant.getId_wsh());
 
         // 冲突判断
         ensureNoPetDateConflict(pet.getId_wsh(), request.getStart_date_wsh(), request.getEnd_date_wsh(), null);
@@ -637,7 +649,7 @@ public class OrderServiceImpl implements OrderService {
      * 调用链：
      * OrderService.acceptOrder()
      * ↓
-     * getByOrderNo() → requireKeeper() → requireAssignedKeeperOrderAccess()
+     * getByOrderNo() → requireFutureBookableKeeper() → requireAssignedKeeperOrderAccess()
      * → validateKeeperQualification() → ensureKeeperCapacity() → requireKeeperAvailable()
      * → 乐观锁更新CONFIRMED → refreshKeeperCurrentPets() → broadcastOrderChange()
      *
@@ -648,11 +660,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public void acceptOrder(Long userId, String orderNo) {
         PetOrder order = getByOrderNo(orderNo);
-        Keeper keeper = requireKeeper(order.getKeeper_id_wsh());
+        Keeper keeper = requireFutureBookableKeeper(order.getKeeper_id_wsh());
         requireAssignedKeeperOrderAccess(order, keeper, userId);
         if (!OrderStatus.PAID.equals(order.getStatus_wsh())) {
             throw new BusinessException(400, "订单状态为 " + order.getStatus_wsh() + "，未支付订单不能接单");
         }
+        requireFutureBookingEligibleMerchant(order.getMerchant_id_wsh());
         validateKeeperQualification(keeper.getId_wsh());
         ensureKeeperCapacity(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh(),
                 order.getId_wsh(), keeper.getMax_pets_wsh());
@@ -1258,55 +1271,55 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * Validates that the keeper exists and is in ACTIVE status.
+     * Validates that the keeper is bookable for a future appointment.
+     *
+     * <p>Employment is the hard gate: ACTIVE, OFFLINE and BUSY are all still
+     * employed and schedulable for future dates. OFFLINE/BUSY reflect the current
+     * live presence (which may be set by store close), not the ability to serve a
+     * future booking. PENDING, REJECTED, RESIGNED and TERMINATED are not bookable.
      *
      * @param keeperId the keeper ID to validate
      * @return the validated Keeper entity
-     * @throws BusinessException if keeper not found (404) or not activated (400)
+     * @throws BusinessException if keeper not found (404) or not bookable (400)
      */
-    private Keeper requireKeeper(Long keeperId) {
+    private Keeper requireFutureBookableKeeper(Long keeperId) {
         Keeper keeper = keeperMapper.selectById(keeperId);
         if (keeper == null) {
             throw new BusinessException(404, "看护者不存在");
         }
-        if (keeper.getStatus_wsh() == null || keeper.getStatus_wsh() != StatusCode.KEEPER_ACTIVE.getValue()) {
-            throw new BusinessException(400, "看护者未激活");
+        Integer status = keeper.getStatus_wsh();
+        boolean inService = status != null
+                && (status == StatusCode.KEEPER_ACTIVE.getValue()
+                || status == StatusCode.KEEPER_OFFLINE.getValue()
+                || status == StatusCode.KEEPER_BUSY.getValue());
+        if (!inService) {
+            throw new BusinessException(400, BookingErrorCode.KEEPER_NOT_BOOKABLE, "看护者当前不可接单");
         }
         return keeper;
     }
 
     /**
-     * 获取一个keeper对象，如果keeper不存在则返回null
-     */
-    private Keeper requireExistingKeeper(Long keeperId) {
-        Keeper keeper = keeperMapper.selectById(keeperId);
-        if (keeper == null) {
-            throw new BusinessException(404, "看护者不存在");
-        }
-        return keeper;
-    }
-
-    /**
-     * Validates that the merchant exists, has been approved, and is currently open
-     * for business. Refreshes the store state before validation.
+     * Validates that the merchant is eligible to accept future bookings.
+     * This is the split successor to requireMerchant: it keeps the base approval
+     * check but drops the real-time store_status gate, and instead enforces the
+     * merchant's future-booking policy flag. Both creating an order and re-checking
+     * eligibility during payment confirmation must use this path.
      *
      * @param merchantId the merchant ID to validate
      * @return the validated Merchant entity
-     * @throws BusinessException if merchant not found, not approved, or currently closed
      */
-    private Merchant requireMerchant(Long merchantId) {
-        merchantService.refreshStoreState(merchantId);
+    private Merchant requireFutureBookingEligibleMerchant(Long merchantId) {
         Merchant merchant = merchantMapper.selectById(merchantId);
         if (merchant == null) {
             throw new BusinessException(404, "商户不存在");
         }
         if (merchant.getStatus_wsh() == null
                 || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
-            throw new BusinessException(400, "商家未通过审核");
+            throw new BusinessException(400, BookingErrorCode.MERCHANT_NOT_APPROVED, "商家未通过审核");
         }
-        if (merchant.getStore_status_wsh() == null
-                || merchant.getStore_status_wsh() != 1) {
-            throw new BusinessException(400, "商家休息中，暂不接受订单");
+        if (merchant.getFuture_booking_enabled_wsh() == null
+                || merchant.getFuture_booking_enabled_wsh() != 1) {
+            throw new BusinessException(400, BookingErrorCode.FUTURE_BOOKING_DISABLED, "商家未开放未来预约");
         }
         return merchant;
     }
@@ -1423,13 +1436,15 @@ public class OrderServiceImpl implements OrderService {
      * @param receiverStart  接单开始时间
      * @param receiverEnd    接单结束时间
      * @param pickupTime     取货时间
+     * @param merchantId     商家ID（用于解析目标日期营业时段）
      */
     private void validateFulfillmentWindow(LocalDate startDate,
                                            LocalDate endDate,
                                            LocalDateTime deliveryTime,
                                            LocalDateTime receiverStart,
                                            LocalDateTime receiverEnd,
-                                           LocalDateTime pickupTime) {
+                                           LocalDateTime pickupTime,
+                                           Long merchantId) {
         LocalDateTime serviceStart = startDate.atStartOfDay();
         LocalDateTime serviceEndExclusive = endDate.plusDays(1).atStartOfDay();
         if (deliveryTime.isBefore(LocalDateTime.now())) {
@@ -1446,6 +1461,17 @@ public class OrderServiceImpl implements OrderService {
         }
         if (pickupTime != null && !pickupTime.isAfter(deliveryTime)) {
             throw new BusinessException(400, "接宠时间必须在送宠时间之后");
+        }
+        List<BusinessHours> hours = businessHoursService.getByMerchantId(merchantId);
+        if (hours != null && !hours.isEmpty()) {
+            if (!businessHoursTargetResolver.isWithinBusinessHours(hours, deliveryTime)) {
+                throw new BusinessException(400, BookingErrorCode.FULFILLMENT_OUTSIDE_BUSINESS_HOURS,
+                        "送达时间不在目标日期营业时段内");
+            }
+            if (pickupTime != null && !businessHoursTargetResolver.isWithinBusinessHours(hours, pickupTime)) {
+                throw new BusinessException(400, BookingErrorCode.FULFILLMENT_OUTSIDE_BUSINESS_HOURS,
+                        "接回时间不在目标日期营业时段内");
+            }
         }
     }
 
@@ -1512,6 +1538,9 @@ public class OrderServiceImpl implements OrderService {
         if (capacity <= 0) {
             throw new BusinessException(400, "看护者容量不足");
         }
+        // 数据库行级锁：在事务内锁定看护者行，使同一看护者的容量校验+订单落库在
+        // 数据库层面串行化，避免多实例并发下 selectCount 然后 insert 之间的超卖窗口。
+        keeperMapper.selectByIdForUpdate(keeperId);
         LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<PetOrder>()
                 .eq(PetOrder::getKeeper_id_wsh, keeperId)
                 .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
@@ -1522,7 +1551,7 @@ public class OrderServiceImpl implements OrderService {
         }
         Long count = orderMapper.selectCount(wrapper);
         if (count != null && count >= capacity) {
-            throw new BusinessException(400, "看护者排班与已有订单冲突");
+            throw new BusinessException(400, BookingErrorCode.CAPACITY_EXCEEDED, "看护者排班与已有订单冲突");
         }
     }
 
@@ -1551,24 +1580,31 @@ public class OrderServiceImpl implements OrderService {
                 && merchant.getStatus_wsh() == StatusCode.MERCHANT_APPROVED.getValue()
                 && merchant.getStore_status_wsh() != null
                 && merchant.getStore_status_wsh() == 1;
+        // 看护员主动离线（offline_source_wsh == 1）不被容量刷新覆盖回在线
+        boolean manualOffline = keeper.getOffline_source_wsh() != null
+                && keeper.getOffline_source_wsh() == KeeperService.OFFLINE_SOURCE_MANUAL;
         if (keeper.getMax_pets_wsh() != null && keeper.getMax_pets_wsh() > 0) {
             if (current >= keeper.getMax_pets_wsh()) {
                 if (keeper.getStatus_wsh() != StatusCode.KEEPER_BUSY.getValue()) {
                     keeper.setStatus_wsh(StatusCode.KEEPER_BUSY.getValue());
                 }
-            } else if (merchantOpen) {
+            } else if (merchantOpen && !manualOffline) {
                 if (keeper.getStatus_wsh() != StatusCode.KEEPER_ACTIVE.getValue()) {
                     keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
+                    keeper.setOffline_source_wsh(KeeperService.OFFLINE_SOURCE_SYSTEM);
                 }
-            } else if (keeper.getStatus_wsh() != StatusCode.KEEPER_OFFLINE.getValue()) {
+            } else if (!merchantOpen && keeper.getStatus_wsh() != StatusCode.KEEPER_OFFLINE.getValue()) {
                 keeper.setStatus_wsh(StatusCode.KEEPER_OFFLINE.getValue());
+                keeper.setOffline_source_wsh(KeeperService.OFFLINE_SOURCE_SYSTEM);
             }
-        } else if (merchantOpen) {
+        } else if (merchantOpen && !manualOffline) {
             if (keeper.getStatus_wsh() != StatusCode.KEEPER_ACTIVE.getValue()) {
                 keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
+                keeper.setOffline_source_wsh(KeeperService.OFFLINE_SOURCE_SYSTEM);
             }
-        } else if (keeper.getStatus_wsh() != StatusCode.KEEPER_OFFLINE.getValue()) {
+        } else if (!merchantOpen && keeper.getStatus_wsh() != StatusCode.KEEPER_OFFLINE.getValue()) {
             keeper.setStatus_wsh(StatusCode.KEEPER_OFFLINE.getValue());
+            keeper.setOffline_source_wsh(KeeperService.OFFLINE_SOURCE_SYSTEM);
         }
         keeperMapper.updateById(keeper);
     }
@@ -1809,7 +1845,7 @@ public class OrderServiceImpl implements OrderService {
                          Map<Long, Pet> petMap,
                          Map<Long, Keeper> keeperMap,
                          Map<Long, Merchant> merchantMap) {
-        ServiceItem service = serviceMap.get(order.getService_id_wsh());
+        ServiceItem service = order.getService_id_wsh() == null ? null : serviceMap.get(order.getService_id_wsh());
         if (service != null) {
             dto.setService_name_wsh(service.getName_wsh());
             dto.setService_description_wsh(service.getDescription_wsh());
@@ -1906,7 +1942,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private boolean confirmPaidOrder(PetOrder order) {
-        Keeper keeper = requireKeeper(order.getKeeper_id_wsh());
+        requireFutureBookingEligibleMerchant(order.getMerchant_id_wsh());
+        Keeper keeper = requireFutureBookableKeeper(order.getKeeper_id_wsh());
         validateKeeperQualification(keeper.getId_wsh());
         ensureKeeperCapacity(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh(),
                 order.getId_wsh(), keeper.getMax_pets_wsh());
