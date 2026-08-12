@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test'
 
 const BASE = 'http://localhost:5173'
 
+// 重放约束：正向用例使用重放专用宠物 109（RepeatGuardPet145124，owner=login 用户）。
+// 同一宠物在重叠日期窗口只能存在一个有效订单（业务正确行为），因此重跑前需调整
+// isoDate 偏移或清除既有测试订单（pet_order 135/136 为历史 E2E 遗留，占用 pet 1）。
 function isoDate(offsetDays) {
   const d = new Date()
   d.setDate(d.getDate() + offsetDays)
@@ -35,9 +38,9 @@ test.describe('关店商家未来预约（浏览器端）', () => {
     const dialog = page.locator('.order-modal')
     await expect(dialog).toBeVisible()
 
-    await dialog.locator('select').nth(0).selectOption('1')
+    await dialog.locator('select').nth(0).selectOption('109')
     const merchantSelect = dialog.locator('select').nth(1)
-    await expect(merchantSelect).toBeEnabled({ timeout: 15000 })
+    await expect(merchantSelect).toBeDisabled()
     await expect(merchantSelect).toHaveValue('104')
     const keeperSelect = dialog.locator('select').nth(2)
     await expect(keeperSelect).toBeEnabled({ timeout: 15000 })
@@ -45,10 +48,14 @@ test.describe('关店商家未来预约（浏览器端）', () => {
 
     await dialog.getByRole('button', { name: '商家位置' }).click()
 
-    const delivery = dialog.locator('input[type="datetime-local"]').nth(0)
-    const pickup = dialog.locator('input[type="datetime-local"]').nth(1)
-    await delivery.fill(`${isoDate(1)}T10:00`)
-    await pickup.fill(`${isoDate(2)}T18:00`)
+    const dateInputs = dialog.locator('input[type="date"]')
+    const slotSelects = dialog.locator('select')
+    await dateInputs.nth(0).fill(isoDate(1))
+    await expect(slotSelects.nth(3)).toBeEnabled()
+    await slotSelects.nth(3).selectOption({ index: 1 })
+    await dateInputs.nth(1).fill(isoDate(2))
+    await expect(slotSelects.nth(4)).toBeEnabled()
+    await slotSelects.nth(4).selectOption({ index: 1 })
 
     await dialog.getByPlaceholder('联系人姓名').fill('Tom')
     await dialog.getByPlaceholder('联系人手机号').fill('13800000002')

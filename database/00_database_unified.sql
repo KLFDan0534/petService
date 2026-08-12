@@ -459,7 +459,8 @@ CREATE TABLE `rating_wsh` (
   `reply_wsh` text COMMENT '商家回复',
   `reply_at_wsh` datetime DEFAULT NULL COMMENT '回复时间',
   `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id_wsh`)
+  PRIMARY KEY (`id_wsh`),
+  UNIQUE KEY `uk_rating_order_user_type` (`order_id_wsh`, `user_id_wsh`, `target_type_wsh`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='评价表';
 
 -- ===================================================================

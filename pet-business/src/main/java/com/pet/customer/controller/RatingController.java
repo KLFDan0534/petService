@@ -66,6 +66,20 @@ public class RatingController {
     }
 
     /**
+     * 获取当前用户对指定订单的评价（用于评价面板已评价状态）
+     * <p>API: GET /api/ratings/my?orderId=xxx</p>
+     */
+    @GetMapping("/my")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "获取我的订单评价", description = "返回当前用户对指定订单已提交的评价维度")
+    public Result<List<RatingDTO>> getMyRatings(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @Parameter(description = "订单ID") @RequestParam Long orderId) {
+        log.info("调用 getMyRatings()");
+        return Result.success(ratingService.getMyRatingsByOrder(token.getUserId(), orderId));
+    }
+
+    /**
      * 创建评价
      *
      * <p>API: POST /api/ratings</p>

@@ -2,6 +2,7 @@ package com.pet.customer.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.pet.common.BookingErrorCode;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.order.entity.PetOrder;
@@ -13,8 +14,11 @@ import com.pet.customer.mapper.RatingMapper;
 import com.pet.customer.service.RatingService;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.entity.Keeper;
+import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.KeeperMapper;
+import com.pet.boarding.mapper.ServiceItemMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,15 +40,18 @@ public class RatingServiceImpl implements RatingService {
     private final OrderMapper orderMapper;
     private final MerchantMapper merchantMapper;
     private final KeeperMapper keeperMapper;
+    private final ServiceItemMapper serviceItemMapper;
 
     public RatingServiceImpl(RatingMapper ratingMapper,
                              OrderMapper orderMapper,
                              MerchantMapper merchantMapper,
-                             KeeperMapper keeperMapper) {
+                             KeeperMapper keeperMapper,
+                             ServiceItemMapper serviceItemMapper) {
         this.ratingMapper = ratingMapper;
         this.orderMapper = orderMapper;
         this.merchantMapper = merchantMapper;
         this.keeperMapper = keeperMapper;
+        this.serviceItemMapper = serviceItemMapper;
     }
 
     /**
@@ -68,15 +75,33 @@ public class RatingServiceImpl implements RatingService {
                         .orderByDesc(Rating::getCreated_at_wsh)));
     }
 
+    @Override
+    public List<RatingDTO> getMyRatingsByOrder(Long userId, Long orderId) {
+        log.info("调用 getMyRatingsByOrder()");
+        if (orderId == null) {
+            return List.of();
+        }
+        return toDTOList(ratingMapper.selectList(
+                new LambdaQueryWrapper<Rating>()
+                        .eq(Rating::getOrder_id_wsh, orderId)
+                        .eq(Rating::getUser_id_wsh, userId)));
+    }
+
     /**
      * 【业务名称】创建评价（实现）
      * 业务作用：用户为指定订单或服务创建评价。
      * 调用场景：订单完成后用户评价。
-     * 调用链：createRating() → 校验订单状态和重复评价 → insert()。
-     * 数据处理：校验订单已完成且未重复评价 → 插入评价记录。
-     * 业务规则：service 类型自动查找最近已完成订单；评分 1-5；同一订单不可重复评价。
+     * 调用链：createRating() → 校验订单状态、归属与重复评价 → insert()。
+     * 数据处理：校验订单已完成、属于当前用户、评价目标与订单归属一致，且未重复评价 → 插入评价记录。
+     * 业务规则：
+     * - service 类型允许不带订单ID，自动归属到当前用户最近一次使用该服务的已完成订单；
+     * - 评分 1-5；
+     * - 评价目标必须与订单归属一致（merchant/keeper/service 分别对应订单的 merchant/keeper/service）；
+     * - 同一订单同一维度（order_id + user_id + target_type）仅允许一条评价；
+     * - 订单必须属于当前用户，禁止利用他人订单刷评。
      * 状态影响：新增一条评价记录。
-     * 异常情况：目标为空抛异常；评分越界抛异常；订单未完成抛异常；重复评价抛异常。
+     * 异常情况：目标为空抛异常；评分越界抛异常；订单未完成抛异常；订单不属于当前用户抛异常；
+     * 目标与订单归属不一致抛异常；重复评价抛异常。
      * 注意事项：@Transactional 保证事务一致性。
      */
     @Transactional
@@ -84,7 +109,6 @@ public class RatingServiceImpl implements RatingService {
     public RatingDTO createRating(Long userId, RatingCreateRequestDTO request) {
         log.info("调用 createRating()");
         Rating rating = new Rating();
-        rating.setOrder_id_wsh(request.getOrder_id_wsh());
         rating.setTarget_id_wsh(request.getTarget_id_wsh());
         rating.setTarget_type_wsh(request.getTarget_type_wsh());
         rating.setScore_wsh(request.getScore_wsh());
@@ -97,47 +121,79 @@ public class RatingServiceImpl implements RatingService {
             throw new BusinessException("评分必须在 1-5 之间");
         }
 
+        PetOrder order;
         if ("service".equalsIgnoreCase(rating.getTarget_type_wsh())) {
             rating.setTarget_type_wsh("service");
-            Long count = ratingMapper.selectCount(
-                    new LambdaQueryWrapper<Rating>()
-                            .eq(Rating::getTarget_id_wsh, rating.getTarget_id_wsh())
-                            .eq(Rating::getTarget_type_wsh, "service")
-                            .eq(Rating::getUser_id_wsh, userId));
-            if (count > 0) {
-                throw new BusinessException("已评价过该服务");
+            if (request.getOrder_id_wsh() == null) {
+                order = orderMapper.selectOne(new LambdaQueryWrapper<PetOrder>()
+                        .eq(PetOrder::getService_id_wsh, rating.getTarget_id_wsh())
+                        .eq(PetOrder::getOwner_id_wsh, userId)
+                        .eq(PetOrder::getStatus_wsh, OrderStatus.COMPLETED)
+                        .orderByDesc(PetOrder::getCreated_at_wsh));
+                if (order == null) {
+                    throw new BusinessException(400, BookingErrorCode.ORDER_NOT_COMPLETED, "订单未完成，无法评价");
+                }
+            } else {
+                order = orderMapper.selectById(request.getOrder_id_wsh());
+                if (order == null) {
+                    throw new BusinessException("订单不存在");
+                }
             }
-            PetOrder order = orderMapper.selectOne(new LambdaQueryWrapper<PetOrder>()
-                    .eq(PetOrder::getService_id_wsh, rating.getTarget_id_wsh())
-                    .eq(PetOrder::getOwner_id_wsh, userId)
-                    .eq(PetOrder::getStatus_wsh, OrderStatus.COMPLETED)
-                    .orderByDesc(PetOrder::getCreated_at_wsh));
+        } else {
+            order = orderMapper.selectById(request.getOrder_id_wsh());
             if (order == null) {
-                throw new BusinessException("订单未完成，无法评价");
+                throw new BusinessException("订单不存在");
             }
-            rating.setOrder_id_wsh(order.getId_wsh());
-            rating.setUser_id_wsh(userId);
-            ratingMapper.insert(rating);
-            return toDTO(rating);
         }
 
-        PetOrder order = orderMapper.selectById(rating.getOrder_id_wsh());
-        if (order == null) {
-            throw new BusinessException("订单不存在");
-        }
         if (!OrderStatus.COMPLETED.equals(order.getStatus_wsh())) {
-            throw new BusinessException("订单未完成，无法评价");
+            throw new BusinessException(400, BookingErrorCode.ORDER_NOT_COMPLETED, "订单未完成，无法评价");
         }
+        if (!Long.valueOf(userId).equals(order.getOwner_id_wsh())) {
+            throw new BusinessException(400, BookingErrorCode.RATING_TARGET_MISMATCH,
+                    "订单不属于当前用户，禁止评价他人订单");
+        }
+        assertTargetBelongsOrder(rating.getTarget_id_wsh(), rating.getTarget_type_wsh(), order);
+
         Long count = ratingMapper.selectCount(
                 new LambdaQueryWrapper<Rating>()
-                        .eq(Rating::getOrder_id_wsh, rating.getOrder_id_wsh())
-                        .eq(Rating::getUser_id_wsh, userId));
+                        .eq(Rating::getOrder_id_wsh, order.getId_wsh())
+                        .eq(Rating::getUser_id_wsh, userId)
+                        .eq(Rating::getTarget_type_wsh, rating.getTarget_type_wsh()));
         if (count > 0) {
-            throw new BusinessException("已评价过该订单");
+            throw new BusinessException(400, BookingErrorCode.RATING_ALREADY_EXISTS, "已评价过该订单的该维度");
         }
+
+        rating.setOrder_id_wsh(order.getId_wsh());
         rating.setUser_id_wsh(userId);
-        ratingMapper.insert(rating);
+        try {
+            ratingMapper.insert(rating);
+        } catch (DuplicateKeyException e) {
+            throw new BusinessException(400, BookingErrorCode.RATING_ALREADY_EXISTS,
+                    "已评价过该订单的该维度");
+        }
         return toDTO(rating);
+    }
+
+    /**
+     * 校验评价目标与订单的实际归属一致（防止对订单无关对象刷评）。
+     *
+     * @param targetId   评价目标ID
+     * @param targetType 评价目标类型 merchant/keeper/service
+     * @param order      已完成且属于当前用户的订单
+     * @throws BusinessException 目标与订单归属不一致时抛出 RATING_TARGET_MISMATCH
+     */
+    private void assertTargetBelongsOrder(Long targetId, String targetType, PetOrder order) {
+        boolean matched;
+        switch (targetType) {
+            case "merchant" -> matched = Long.valueOf(order.getMerchant_id_wsh()).equals(targetId);
+            case "keeper" -> matched = Long.valueOf(order.getKeeper_id_wsh()).equals(targetId);
+            case "service" -> matched = Long.valueOf(order.getService_id_wsh()).equals(targetId);
+            default -> throw new BusinessException("不支持的评价目标类型");
+        }
+        if (!matched) {
+            throw new BusinessException(400, BookingErrorCode.RATING_TARGET_MISMATCH, "评价目标与订单不一致");
+        }
     }
 
     /**
@@ -169,6 +225,13 @@ public class RatingServiceImpl implements RatingService {
             Keeper keeper = keeperMapper.selectOne(
                     new LambdaQueryWrapper<Keeper>().eq(Keeper::getUser_id_wsh, userId));
             if (keeper == null || !keeper.getId_wsh().equals(rating.getTarget_id_wsh())) {
+                throw new BusinessException(403, "无权回复该评价");
+            }
+        } else if ("service".equals(rating.getTarget_type_wsh())) {
+            Merchant merchant = merchantMapper.selectOne(
+                    new LambdaQueryWrapper<Merchant>().eq(Merchant::getUser_id_wsh, userId));
+            ServiceItem service = serviceItemMapper.selectById(rating.getTarget_id_wsh());
+            if (merchant == null || service == null || !merchant.getId_wsh().equals(service.getMerchant_id_wsh())) {
                 throw new BusinessException(403, "无权回复该评价");
             }
         }

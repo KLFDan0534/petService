@@ -30,6 +30,7 @@
           <div>
             <span class="service-category">{{ categoryLabel(service) }}</span>
             <h3>{{ service.name_wsh }}</h3>
+            <span v-if="service.merchant_name_wsh" class="service-merchant">{{ service.merchant_name_wsh }}</span>
           </div>
           <div class="service-price">
             <strong>¥{{ formatMoney(service.price_wsh) }}</strong>
@@ -195,6 +196,13 @@ async function createOrder(service) {
   color: var(--color-primary);
   font-size: 12px;
   font-weight: 800;
+}
+
+.service-merchant {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
 }
 
 .service-heading h3 {

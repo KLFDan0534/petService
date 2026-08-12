@@ -63,10 +63,12 @@ import { Refresh, Search } from '@element-plus/icons-vue'
 import { getActiveNotices } from '@/api/notice'
 import { getServices } from '@/api/service'
 import { useAppStore } from '@/stores/app'
+import { useCategoryStore } from '@/stores/category'
 import BannerCarousel from '@/components/dashboard/BannerCarousel.vue'
 import ServiceGrid from '@/components/dashboard/ServiceGrid.vue'
 
 const appStore = useAppStore()
+const categoryStore = useCategoryStore()
 const services = ref([])
 const banners = ref([])
 const loading = ref(true)
@@ -80,10 +82,14 @@ function normalizeList(data) {
 }
 
 function categoryLabel(service) {
-  return service.category_name_wsh || service.type_wsh || '宠物服务'
+  return service.category_name_wsh || categoryStore.getCategoryName(service.category_id_wsh)
 }
 
-const categories = computed(() => Array.from(new Set(services.value.map(categoryLabel))).sort((a, b) => a.localeCompare(b, 'zh-CN')))
+const categories = computed(() => {
+  const fromStore = categoryStore.getChildren(0).map(cat => cat.name_wsh).filter(Boolean)
+  if (fromStore.length) return fromStore
+  return Array.from(new Set(services.value.map(categoryLabel))).filter(name => name !== '服务').sort((a, b) => a.localeCompare(b, 'zh-CN'))
+})
 const hasFilters = computed(() => Boolean(searchQuery.value || selectedCategory.value))
 const filteredServices = computed(() => {
   const keyword = searchQuery.value.toLocaleLowerCase('zh-CN')
@@ -127,7 +133,7 @@ async function loadBanners() {
 }
 
 onMounted(() => {
-  void Promise.all([loadServices(), loadBanners()])
+  void Promise.all([loadServices(), loadBanners(), categoryStore.loadCategories()])
 })
 </script>
 

@@ -12,6 +12,7 @@ import com.pet.order.entity.OrderSnapshot;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.mapper.OrderSnapshotMapper;
 import com.pet.order.service.OrderSnapshotService;
+import com.pet.common.ServiceVersions;
 import com.pet.pet.entity.Pet;
 import com.pet.system.entity.User;
 import org.springframework.stereotype.Service;
@@ -200,6 +201,7 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
             data.put("description_wsh", service.getDescription_wsh());
             data.put("price_wsh", service.getPrice_wsh());
             data.put("unit_wsh", service.getUnit_wsh());
+            data.put("version_wsh", ServiceVersions.format(service.getUpdated_at_wsh()));
         }
         return data;
     }

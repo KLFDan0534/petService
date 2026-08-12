@@ -46,7 +46,7 @@
     </div>
 
     <div v-else class="order-list">
-      <OrderCard v-for="o in filteredOrders" :key="o.id_wsh" :order="o" :now-ms="nowMs" :processing="processingOrderId === o.id_wsh" @cancel="handleCancel(o)" @pay="method => handlePay(o, method)" @deliver="handleDeliver(o)" @review="showReview = o" @tip="showTip = o" @viewDetail="handleViewDetail(o)" />
+      <OrderCard v-for="o in filteredOrders" :key="o.id_wsh" :order="o" :now-ms="nowMs" :processing="processingOrderId === o.id_wsh" @cancel="handleCancel(o)" @pay="method => handlePay(o, method)" @deliver="handleDeliver(o)" @review="openReview(o)" @tip="showTip = o" @viewDetail="handleViewDetail(o)" />
     </div>
 
     <button class="btn btn-primary" @click="showCreateDialog = true" style="margin: 16px 0">创建订单</button>
@@ -64,7 +64,7 @@
 
     <TipDialog :visible="!!showTip" :order="showTip" @close="showTip = null" @tipped="onTipped" />
 
-    <ReviewDialog :visible="!!showReview" :order="showReview" @close="showReview = null" @reviewed="onReviewed" />
+    <ReviewDialog :visible="!!showReview" :order="showReview" :done-types="reviewedDims" @close="showReview = null" @reviewed="onReviewed" />
   </div>
 </template>
 
@@ -82,7 +82,7 @@ import ReviewDialog from '@/components/order/ReviewDialog.vue'
 import { getOrders, cancelOrder as apiCancelOrder, confirmDelivered } from '@/api/order'
 import { createPayment, executePayment } from '@/api/payment'
 import { createTip } from '@/api/wallet'
-import { createRating } from '@/api/rating'
+import { createRating, getMyRatingsByOrder } from '@/api/rating'
 import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
 import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, hasExpiredPaymentTimeout } from '@/utils/orderPaymentTimeout'
@@ -98,6 +98,7 @@ const activeTab = ref('all')
 const showCreateDialog = ref(false)
 const showTip = ref(null)
 const showReview = ref(null)
+const reviewedDims = ref([])
 const createServiceName = ref('')
 const createServiceId = ref('')
 const createPrice = ref('')
@@ -123,6 +124,21 @@ const tabs = [
 const filteredOrders = computed(() => activeTab.value === 'all'
   ? orders.value
   : orders.value.filter(order => order.status_wsh === activeTab.value))
+
+async function openReview(order) {
+  showReview.value = order
+  reviewedDims.value = []
+  try {
+    const res = await getMyRatingsByOrder(order.id_wsh)
+    if (res.code === 200 && Array.isArray(res.data)) {
+      reviewedDims.value = res.data
+        .map(item => item.target_type_wsh)
+        .filter(Boolean)
+    }
+  } catch (e) {
+    /* 已评价状态获取失败不阻塞评价入口 */
+  }
+}
 
 onMounted(async () => {
   countdownTimer = window.setInterval(() => {
@@ -265,20 +281,20 @@ async function onTipped(orderId, amount, message) {
   } catch (e) { appStore.addToast('打赏失败', 'error') }
 }
 
-async function onReviewed(orderId, score, content) {
+async function onReviewed({ orderId, targetType, targetId, score, content }) {
   const order = showReview.value
   if (!order) return
   try {
     const res = await createRating({
       order_id_wsh: order.id_wsh,
-      target_id_wsh: order.keeper_id_wsh,
-      target_type_wsh: 'keeper',
+      target_id_wsh: targetId,
+      target_type_wsh: targetType,
       score_wsh: score,
       content_wsh: content,
     })
     if (res.code === 200) {
       appStore.addToast('评价成功', 'success')
-      showReview.value = null
+      reviewedDims.value = [...new Set([...reviewedDims.value, targetType])]
       await loadOrders()
     }
   } catch (e) { appStore.addToast('评价失败', 'error') }

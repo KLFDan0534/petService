@@ -5,7 +5,7 @@ import { getPets } from '@/api/pet'
 import { createOrder } from '@/api/order'
 import { getMerchants } from '@/api/merchant'
 import { getKeepersByMerchant } from '@/api/keeper'
-import { getService } from '@/api/service'
+import { getService, getServiceAvailability } from '@/api/service'
 import { getAvailableCoupons, quoteCoupon } from '@/api/coupon'
 import { quoteMembershipOrderDiscount } from '@/api/membership'
 import { useAppStore } from '@/stores/app'
@@ -22,7 +22,7 @@ vi.mock('@/utils/profileRequirements', () => ({
 vi.mock('@/api/pet', () => ({ getPets: vi.fn() }))
 vi.mock('@/api/merchant', () => ({ getMerchants: vi.fn() }))
 vi.mock('@/api/keeper', () => ({ getKeepersByMerchant: vi.fn() }))
-vi.mock('@/api/service', () => ({ getService: vi.fn() }))
+vi.mock('@/api/service', () => ({ getService: vi.fn(), getServiceAvailability: vi.fn() }))
 vi.mock('@/api/order', () => ({ createOrder: vi.fn() }))
 vi.mock('@/api/coupon', () => ({
   getAvailableCoupons: vi.fn(),
@@ -40,6 +40,7 @@ describe('CreateOrderDialog.vue', () => {
     setActivePinia(pinia)
     getPets.mockResolvedValue({ code: 200, data: [{ id_wsh: 1, name_wsh: '小白' }] })
     getService.mockResolvedValue({ code: 200, data: null })
+    getServiceAvailability.mockResolvedValue({ code: 200, data: { days_wsh: [] } })
     getAvailableCoupons.mockResolvedValue({ code: 200, data: [] })
     quoteCoupon.mockResolvedValue({ code: 200, data: null })
     quoteMembershipOrderDiscount.mockResolvedValue({ code: 200, data: null })
@@ -154,6 +155,196 @@ describe('CreateOrderDialog.vue', () => {
     const appStore = useAppStore()
     expect(appStore.toasts.some(t => t.message === '该时段看护人已预约满，请更换时段')).toBe(true)
   })
+
+  it('sends service_id_wsh and service_version_wsh when entering from service detail', async () => {
+    mockMerchants([merchant(1, '服务商家')])
+    getService.mockResolvedValue({
+      code: 200,
+      data: {
+        id_wsh: 7,
+        name_wsh: '上门寄养',
+        price_wsh: 199,
+        merchant_id_wsh: 1,
+        service_version_wsh: '2026-08-11T10:00:00',
+      },
+    })
+    getKeepersByMerchant.mockResolvedValue({
+      code: 200,
+      data: [keeper(11, { status: 1, qualificationStatus: 'approved' })],
+    })
+    const tomorrow = toDateOnly(new Date(Date.now() + 86400000))
+    const dayAfter = toDateOnly(new Date(Date.now() + 2 * 86400000))
+    getServiceAvailability.mockResolvedValue({
+      code: 200,
+      data: {
+        days_wsh: [
+          { date_wsh: tomorrow, bookable_wsh: true, windows_wsh: [{ slots_wsh: [makeSlot(new Date(Date.now() + 86400000))] }] },
+          { date_wsh: dayAfter, bookable_wsh: true, windows_wsh: [{ slots_wsh: [makeSlot(new Date(Date.now() + 2 * 86400000))] }] },
+        ],
+      },
+    })
+
+    const wrapper = mountDialog({ initialServiceId: '7' })
+    await flushPromises()
+
+    const merchantSelect = wrapper.findAll('select').at(1)
+    expect(merchantSelect.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('该服务由所选商家提供，不可更换')
+
+    await submitValidForm(wrapper)
+    await flushPromises()
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      service_id_wsh: 7,
+      service_version_wsh: '2026-08-11T10:00:00',
+      delivery_time_wsh: `${toLocalDateTime(new Date(Date.now() + 86400000)).slice(0, 16)}:00`,
+      pickup_time_wsh: `${toLocalDateTime(new Date(Date.now() + 2 * 86400000)).slice(0, 16)}:00`,
+    }))
+  })
+
+  it('only offers bookable dates and their slots from availability', async () => {
+    mockMerchants([merchant(1, '服务商家')])
+    getService.mockResolvedValue({
+      code: 200,
+      data: {
+        id_wsh: 7,
+        name_wsh: '上门寄养',
+        price_wsh: 199,
+        merchant_id_wsh: 1,
+        service_version_wsh: '2026-08-11T10:00:00',
+      },
+    })
+    getKeepersByMerchant.mockResolvedValue({
+      code: 200,
+      data: [keeper(11, { status: 1, qualificationStatus: 'approved' })],
+    })
+    const tomorrow = toDateOnly(new Date(Date.now() + 86400000))
+    const restDay = toDateOnly(new Date(Date.now() + 2 * 86400000))
+    getServiceAvailability.mockResolvedValue({
+      code: 200,
+      data: {
+        days_wsh: [
+          { date_wsh: tomorrow, bookable_wsh: true, windows_wsh: [{ slots_wsh: [makeSlot(new Date(Date.now() + 86400000))] }] },
+          { date_wsh: restDay, bookable_wsh: false, reason_code_wsh: 'MERCHANT_REST_DAY', windows_wsh: [] },
+        ],
+      },
+    })
+
+    const wrapper = mountDialog({ initialServiceId: '7' })
+    await flushPromises()
+    await wrapper.findAll('select').at(2).setValue(11)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('仅展示可预约日期（1 天可约）')
+    const dateInput = wrapper.findAll('input').filter(i => i.attributes('type') === 'date').at(0)
+    await dateInput.setValue(tomorrow)
+    await flushPromises()
+    const slotSelect = wrapper.findAll('select').at(3)
+    expect(Array.from(slotSelect.element.options).map(o => o.text)).toContain(displayTime(new Date(Date.now() + 86400000)))
+
+    await dateInput.setValue(restDay)
+    await flushPromises()
+    expect(wrapper.findAll('select').at(3).text()).toContain('该日暂无可约时间')
+  })
+
+  it('refetches availability and clears chosen times when keeper changes', async () => {
+    mockMerchants([merchant(1, '服务商家')])
+    getService.mockResolvedValue({
+      code: 200,
+      data: {
+        id_wsh: 7,
+        name_wsh: '上门寄养',
+        price_wsh: 199,
+        merchant_id_wsh: 1,
+        service_version_wsh: '2026-08-11T10:00:00',
+      },
+    })
+    getKeepersByMerchant.mockResolvedValue({
+      code: 200,
+      data: [
+        keeper(11, { status: 1, qualificationStatus: 'approved' }),
+        keeper(22, { status: 1, qualificationStatus: 'approved' }),
+      ],
+    })
+    const tomorrow = toDateOnly(new Date(Date.now() + 86400000))
+    getServiceAvailability.mockResolvedValue({
+      code: 200,
+      data: {
+        days_wsh: [
+          { date_wsh: tomorrow, bookable_wsh: true, windows_wsh: [{ slots_wsh: [makeSlot(new Date(Date.now() + 86400000))] }] },
+        ],
+      },
+    })
+
+    const wrapper = mountDialog({ initialServiceId: '7' })
+    await flushPromises()
+    const keeperSelect = wrapper.findAll('select').at(2)
+    await keeperSelect.setValue(11)
+    await flushPromises()
+    const dateInput = wrapper.findAll('input').filter(i => i.attributes('type') === 'date').at(0)
+    await dateInput.setValue(tomorrow)
+    await flushPromises()
+    await wrapper.findAll('select').at(3).setValue(makeSlot(new Date(Date.now() + 86400000)))
+    await flushPromises()
+    expect(dateInput.element.value).toBe(tomorrow)
+
+    await keeperSelect.setValue(22)
+    await flushPromises()
+
+    const lastCall = getServiceAvailability.mock.calls.at(-1)
+    expect(lastCall[3]).toBe(22)
+    expect(dateInput.element.value).toBe('')
+    expect(wrapper.findAll('select').at(3).element.value).toBe('')
+  })
+
+  it('blocks submission when pickup has no available slot on the chosen date', async () => {
+    mockMerchants([merchant(1, '服务商家')])
+    getService.mockResolvedValue({
+      code: 200,
+      data: {
+        id_wsh: 7,
+        name_wsh: '上门寄养',
+        price_wsh: 199,
+        merchant_id_wsh: 1,
+        service_version_wsh: '2026-08-11T10:00:00',
+      },
+    })
+    getKeepersByMerchant.mockResolvedValue({
+      code: 200,
+      data: [keeper(11, { status: 1, qualificationStatus: 'approved' })],
+    })
+    const tomorrow = toDateOnly(new Date(Date.now() + 86400000))
+    const restDay = toDateOnly(new Date(Date.now() + 2 * 86400000))
+    getServiceAvailability.mockResolvedValue({
+      code: 200,
+      data: {
+        days_wsh: [
+          { date_wsh: tomorrow, bookable_wsh: true, windows_wsh: [{ slots_wsh: [makeSlot(new Date(Date.now() + 86400000))] }] },
+          { date_wsh: restDay, bookable_wsh: false, reason_code_wsh: 'MERCHANT_REST_DAY', windows_wsh: [] },
+        ],
+      },
+    })
+
+    const wrapper = mountDialog({ initialServiceId: '7' })
+    await flushPromises()
+    await wrapper.findAll('select').at(2).setValue(11)
+    await flushPromises()
+    await wrapper.findAll('select').at(1).setValue(1)
+    await flushPromises()
+    const dateInputs = wrapper.findAll('input').filter(i => i.attributes('type') === 'date')
+    await dateInputs.at(0).setValue(tomorrow)
+    await flushPromises()
+    await wrapper.findAll('select').at(3).setValue(makeSlot(new Date(Date.now() + 86400000)))
+    await dateInputs.at(1).setValue(restDay)
+    await flushPromises()
+
+    await submitValidForm(wrapper)
+    await flushPromises()
+
+    const appStore = useAppStore()
+    expect(appStore.toasts.some(t => t.message === '请补全宠物、商家、看护人、送达时间和接回时间')).toBe(true)
+    expect(createOrder).not.toHaveBeenCalled()
+  })
 })
 
 let pinia
@@ -191,10 +382,21 @@ async function submitValidForm(wrapper) {
 
   const inputs = wrapper.findAll('input')
   const datetime = inputs.filter(i => i.attributes('type') === 'datetime-local')
-  const tomorrow = toLocalDateTime(new Date(Date.now() + 86400000))
-  const dayAfter = toLocalDateTime(new Date(Date.now() + 2 * 86400000))
-  await datetime.at(0).setValue(tomorrow)
-  await datetime.at(1).setValue(dayAfter)
+  if (datetime.length > 0) {
+    const tomorrow = toLocalDateTime(new Date(Date.now() + 86400000))
+    const dayAfter = toLocalDateTime(new Date(Date.now() + 2 * 86400000))
+    await datetime.at(0).setValue(tomorrow)
+    await datetime.at(1).setValue(dayAfter)
+  } else {
+    const dates = inputs.filter(i => i.attributes('type') === 'date')
+    const slots = wrapper.findAll('select')
+    await dates.at(0).setValue(toDateOnly(new Date(Date.now() + 86400000)))
+    await flushPromises()
+    await slots.at(3).setValue(makeSlot(new Date(Date.now() + 86400000)))
+    await dates.at(1).setValue(toDateOnly(new Date(Date.now() + 2 * 86400000)))
+    await flushPromises()
+    await slots.at(4).setValue(makeSlot(new Date(Date.now() + 2 * 86400000)))
+  }
 
   const addresses = wrapper.findAll('input.address-stub')
   await addresses.at(0).setValue('测试地址')
@@ -218,6 +420,18 @@ function toLocalDateTime(date) {
     pad(date.getMonth() + 1),
     pad(date.getDate()),
   ].join('-') + `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function toDateOnly(date) {
+  return toLocalDateTime(date).slice(0, 10)
+}
+
+function makeSlot(date) {
+  return toLocalDateTime(date).slice(0, 16) + ':00'
+}
+
+function displayTime(date) {
+  return makeSlot(date).slice(11, 16)
 }
 
 function merchant(id, name) {

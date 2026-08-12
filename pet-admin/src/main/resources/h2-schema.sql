@@ -366,7 +366,8 @@ CREATE TABLE IF NOT EXISTS `rating_wsh` (
     `deleted_wsh` TINYINT DEFAULT 0,
     `reply_wsh` TEXT,
     `reply_at_wsh` DATETIME,
-    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uk_rating_order_user_type` (`order_id_wsh`, `user_id_wsh`, `target_type_wsh`)
 );
 
 CREATE TABLE IF NOT EXISTS `ai_report_wsh` (

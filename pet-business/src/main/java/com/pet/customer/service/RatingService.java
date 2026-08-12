@@ -63,4 +63,12 @@ public interface RatingService {
      * @return 更新后的评价 DTO
      */
     RatingDTO replyRating(Long id, String reply, Long userId);
+
+    /**
+     * 【业务名称】查询当前用户对指定订单的评价
+     * 业务作用：返回当前用户对某订单已提交的所有评价维度，用于前端展示已评价状态。
+     * 调用场景：订单完成后的三维评价面板。
+     * 业务规则：仅返回当前用户自己的评价。
+     */
+    List<RatingDTO> getMyRatingsByOrder(Long userId, Long orderId);
 }

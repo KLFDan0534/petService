@@ -21,6 +21,7 @@ import com.pet.qualification.service.QualificationService;
 import com.pet.common.BookingErrorCode;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
+import com.pet.common.ServiceVersions;
 import com.pet.common.StatusCode;
 import com.pet.common.geo.GeoDistanceUtils;
 import com.pet.config.RabbitMQConfig;
@@ -497,7 +498,8 @@ CouponService couponService,
         // 服务判断
         validateKeeperMerchant(keeper, merchant);
         validateKeeperQualification(keeper.getId_wsh());
-        ServiceItem service = validateService(request.getService_id_wsh(), merchant.getId_wsh());
+        ServiceItem service = validateService(request.getService_id_wsh(), merchant.getId_wsh(),
+                request.getService_version_wsh());
 
         // 下单日期判断
         int days = validateDateRange(request.getStart_date_wsh(), request.getEnd_date_wsh());
@@ -515,7 +517,8 @@ CouponService couponService,
                 null, keeper.getMax_pets_wsh());
         keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), request.getStart_date_wsh(), request.getEnd_date_wsh());
 
-        BigDecimal totalAmount = keeper.getPrice_per_day_wsh().multiply(BigDecimal.valueOf(days));
+        BigDecimal pricePerDay = resolvePricePerDay(service, keeper);
+        BigDecimal totalAmount = pricePerDay.multiply(BigDecimal.valueOf(days));
         BigDecimal longStayDiscount = calculateDiscount(totalAmount, days);
         CouponDiscountResult couponDiscount = couponService.previewForOrder(
                 ownerId,
@@ -542,7 +545,7 @@ CouponService couponService,
         order.setMerchant_id_wsh(merchant.getId_wsh());                 //  下单商户
         order.setKeeper_id_wsh(keeper.getId_wsh());                     //  下单keeper
 
-        order.setPrice_per_day_wsh(keeper.getPrice_per_day_wsh());      //  keepr价格
+        order.setPrice_per_day_wsh(pricePerDay);                            //  每日单价（服务优先）
         order.setDiscount_wsh(discount);                                //  优惠
         order.setTotal_amount_wsh(totalAmount);                         //  总价
         order.setCoupon_id_wsh(couponDiscount.getUser_coupon_id_wsh());
@@ -1354,6 +1357,53 @@ CouponService couponService,
     }
 
     /**
+     * 校验服务计费单元必须为 day（本期仅支持按天寄养）。
+     *
+     * @param service 服务项
+     * @throws BusinessException 计费单元不是 day 时抛出 UNSUPPORTED_SERVICE_UNIT
+     */
+    static void assertServiceUnitSupported(ServiceItem service) {
+        if (service.getUnit_wsh() == null || !"day".equals(service.getUnit_wsh())) {
+            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, "服务计费单位不是 day，本期不支持");
+        }
+    }
+
+    /**
+     * 校验客户端携带的服务版本与当前服务版本一致。
+     * <p>
+     * 版本不一致说明服务价格/内容已变化，强制前端刷新后重新确认，
+     * 防止用户按旧价格下单（PRICE_CHANGED）。客户端未携带版本时跳过校验，兼容旧客户端。
+     *
+     * @param service       服务项
+     * @param clientVersion 客户端携带的服务版本（可空）
+     * @throws BusinessException 版本不一致时抛出 PRICE_CHANGED
+     */
+    static void assertServiceVersionMatches(ServiceItem service, String clientVersion) {
+        if (clientVersion == null || clientVersion.isBlank()) {
+            return;
+        }
+        String current = ServiceVersions.format(service.getUpdated_at_wsh());
+        if (current == null || !current.equals(clientVersion)) {
+            throw new BusinessException(400, BookingErrorCode.PRICE_CHANGED, "服务价格或版本已变化，请刷新后重新确认");
+        }
+    }
+
+    /**
+     * 解析订单单价：指定服务时以服务单价为准（服务驱动计价），
+     * 未指定服务时沿用看护者单价（兼容旧客户端）。
+     *
+     * @param service 服务项（可空）
+     * @param keeper  看护者
+     * @return 每日单价
+     */
+    static BigDecimal resolvePricePerDay(ServiceItem service, Keeper keeper) {
+        if (service != null && service.getPrice_wsh() != null) {
+            return service.getPrice_wsh();
+        }
+        return keeper.getPrice_per_day_wsh();
+    }
+
+    /**
      * Validates that the service item exists, belongs to the specified merchant,
      * and is currently enabled (on-shelf).
      *
@@ -1362,20 +1412,22 @@ CouponService couponService,
      * @return the validated ServiceItem, or null if serviceId is null
      * @throws BusinessException if service not found, not owned by merchant, or disabled
      */
-    private ServiceItem validateService(Long serviceId, Long merchantId) {
+    private ServiceItem validateService(Long serviceId, Long merchantId, String clientVersion) {
         if (serviceId == null) {
             return null;
         }
         ServiceItem service = serviceItemMapper.selectById(serviceId);
         if (service == null) {
-            throw new BusinessException(400, "服务不存在");
+            throw new BusinessException(400, BookingErrorCode.SERVICE_NOT_FOUND, "服务不存在");
         }
         if (service.getMerchant_id_wsh() != null && !service.getMerchant_id_wsh().equals(merchantId)) {
-            throw new BusinessException(400, "服务不属于所选商户");
+            throw new BusinessException(400, BookingErrorCode.SERVICE_MERCHANT_MISMATCH, "服务不属于所选商户");
         }
         if (service.getStatus_wsh() == null || service.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
-            throw new BusinessException(400, "服务未上架");
+            throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务未上架");
         }
+        assertServiceUnitSupported(service);
+        assertServiceVersionMatches(service, clientVersion);
         return service;
     }
 

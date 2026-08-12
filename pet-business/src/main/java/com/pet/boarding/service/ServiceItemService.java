@@ -2,7 +2,9 @@ package com.pet.boarding.service;
 
 import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
 import com.pet.boarding.dto.ServiceItemDTO;
+import com.pet.boarding.dto.ServiceItemQueryDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
+import com.pet.boarding.dto.ServiceQueryResultVO;
 import com.pet.boarding.entity.ServiceItem;
 
 import java.util.Collection;
@@ -191,4 +193,26 @@ public interface ServiceItemService {
      * @return 服务项目DTO（含分类名称），入参为 null 时返回 null
      */
     ServiceItemDTO toDTO(ServiceItem entity);
+
+    /**
+     * 【公开服务列表分页查询】
+     *
+     * 业务作用：用户端服务浏览的统一查询入口，支持分类、关键字、排序、分页与距离。
+     * 业务规则：只公开上架服务 + 已审核商家 + 启用分类；评分聚合与商家/分类均为批量查询，禁止 N+1；
+     * 排序走白名单；无定位时距离为 null 且不能使用距离排序。
+     *
+     * @param query 查询参数（可为 null 表示默认行为）
+     * @return 分页结果（含总数）
+     */
+    ServiceQueryResultVO queryPublic(ServiceItemQueryDTO query);
+
+    /**
+     * 【公开服务列表（非分页语义）】
+     *
+     * 业务作用：兼容旧客户端与商品级列表，返回 {@link #queryPublic} 的分页切片结果。
+     *
+     * @param query 查询参数
+     * @return 服务 DTO 列表
+     */
+    List<ServiceItemDTO> listPublic(ServiceItemQueryDTO query);
 }

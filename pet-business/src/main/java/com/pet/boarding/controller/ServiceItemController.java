@@ -2,10 +2,14 @@ package com.pet.boarding.controller;
 
 import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
 import com.pet.boarding.dto.ServiceItemDTO;
+import com.pet.boarding.dto.ServiceItemQueryDTO;
 import com.pet.boarding.dto.ServiceItemUpdateImagesRequestDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
+import com.pet.boarding.dto.ServiceQueryResultVO;
+import com.pet.boarding.dto.ServiceAvailabilityVO;
 import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.service.MerchantService;
+import com.pet.boarding.service.ServiceAvailabilityService;
 import com.pet.boarding.service.ServiceItemService;
 import com.pet.common.BusinessException;
 import com.pet.common.Result;
@@ -27,8 +31,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,10 +60,13 @@ public class ServiceItemController {
 
     private final ServiceItemService serviceItemService;
     private final MerchantService merchantService;
+    private final ServiceAvailabilityService serviceAvailabilityService;
 
-    public ServiceItemController(ServiceItemService serviceItemService, MerchantService merchantService) {
+    public ServiceItemController(ServiceItemService serviceItemService, MerchantService merchantService,
+                                 ServiceAvailabilityService serviceAvailabilityService) {
         this.serviceItemService = serviceItemService;
         this.merchantService = merchantService;
+        this.serviceAvailabilityService = serviceAvailabilityService;
     }
 
     /**
@@ -70,14 +80,58 @@ public class ServiceItemController {
      * 仅返回 status = ENABLED 的服务项。
      */
     @GetMapping
-    @Operation(summary = "获取启用的服务项目列表", description = "获取所有启用的服务项目列表")
+    @Operation(summary = "获取启用的服务项目列表", description = "获取所有启用的服务项目列表（支持分类/关键字/排序/分页）")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "操作成功"),
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
-    public Result<List<ServiceItemDTO>> listAll() {
+    public Result<List<ServiceItemDTO>> listAll(@RequestParam(required = false) Long categoryId,
+                                                @RequestParam(required = false) Long merchantId,
+                                                @RequestParam(required = false) String keyword,
+                                                @RequestParam(required = false) String sort,
+                                                @RequestParam(required = false) BigDecimal latitude,
+                                                @RequestParam(required = false) BigDecimal longitude,
+                                                @RequestParam(required = false) Integer page,
+                                                @RequestParam(required = false) Integer size) {
         log.info("listAll() called");
-        return Result.success(serviceItemService.listAll().stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
+        return Result.success(serviceItemService.listPublic(query(categoryId, merchantId, keyword, sort, latitude, longitude, page, size)));
+    }
+
+    /**
+     * 【公开服务列表分页查询】
+     *
+     * API: GET /api/services/public
+     *
+     * 权限：公开
+     *
+     * 场景：用户端服务浏览分页查询，返回总数。
+     */
+    @GetMapping("/public")
+    @Operation(summary = "获取启用的服务项目分页列表", description = "公开服务浏览：分类/关键字/排序/分页/距离")
+    public Result<ServiceQueryResultVO> pagePublic(@RequestParam(required = false) Long categoryId,
+                                                   @RequestParam(required = false) Long merchantId,
+                                                   @RequestParam(required = false) String keyword,
+                                                   @RequestParam(required = false) String sort,
+                                                   @RequestParam(required = false) BigDecimal latitude,
+                                                   @RequestParam(required = false) BigDecimal longitude,
+                                                   @RequestParam(required = false) Integer page,
+                                                   @RequestParam(required = false) Integer size) {
+        log.info("pagePublic() called");
+        return Result.success(serviceItemService.queryPublic(query(categoryId, merchantId, keyword, sort, latitude, longitude, page, size)));
+    }
+
+    private ServiceItemQueryDTO query(Long categoryId, Long merchantId, String keyword, String sort,
+                                      BigDecimal latitude, BigDecimal longitude, Integer page, Integer size) {
+        ServiceItemQueryDTO q = new ServiceItemQueryDTO();
+        q.setCategory_id_wsh(categoryId);
+        q.setMerchant_id_wsh(merchantId);
+        q.setKeyword_wsh(keyword);
+        q.setSort_wsh(sort);
+        q.setLatitude_wsh(latitude);
+        q.setLongitude_wsh(longitude);
+        q.setPage_wsh(page);
+        q.setSize_wsh(size);
+        return q;
     }
 
     /**
@@ -100,7 +154,11 @@ public class ServiceItemController {
     })
     public Result<List<ServiceItemDTO>> listByMerchant(@Parameter(description = "商家ID") @PathVariable Long merchantId) {
         log.info("listByMerchant() called");
-        return Result.success(serviceItemService.listByMerchant(merchantId).stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
+        ServiceItemQueryDTO q = new ServiceItemQueryDTO();
+        q.setMerchant_id_wsh(merchantId);
+        q.setPage_wsh(1);
+        q.setSize_wsh(100);
+        return Result.success(serviceItemService.listPublic(q));
     }
 
     /**
@@ -122,6 +180,32 @@ public class ServiceItemController {
     public Result<ServiceItemDTO> getById(@Parameter(description = "服务项目ID") @PathVariable Long id) {
         log.info("getById() called");
         return Result.success(serviceItemService.toDTO(serviceItemService.getById(id)));
+    }
+
+    /**
+     * 【查询服务动态可预约性】
+     *
+     * API: GET /api/services/{serviceId}/availability?from=2026-08-12&to=2026-08-13&keeperId=5
+     *
+     * 权限：公开
+     *
+     * 场景：用户在服务详情页选择日期/看护员后，查询每天的可预约窗口与起始槽位。
+     * 只读接口，不产生任何写操作。
+     *
+     * @param serviceId 服务ID
+     * @param from      起始日期（包含，不早于今天）
+     * @param to        结束日期（包含，跨度不超过 31 天）
+     * @param keeperId  可选看护员ID
+     */
+    @GetMapping("/{serviceId}/availability")
+    @Operation(summary = "查询服务动态可预约性", description = "按日返回营业窗口与起始槽位（可选叠加看护员维度）")
+    public Result<ServiceAvailabilityVO> availability(
+            @Parameter(description = "服务ID") @PathVariable Long serviceId,
+            @Parameter(description = "起始日期 yyyy-MM-dd") @RequestParam LocalDate from,
+            @Parameter(description = "结束日期 yyyy-MM-dd") @RequestParam LocalDate to,
+            @Parameter(description = "可选看护员ID") @RequestParam(required = false) Long keeperId) {
+        log.info("availability() called, serviceId={}, from={}, to={}, keeperId={}", serviceId, from, to, keeperId);
+        return Result.success(serviceAvailabilityService.getAvailability(serviceId, from, to, keeperId));
     }
 
     /**
@@ -258,7 +342,11 @@ public class ServiceItemController {
     })
     public Result<List<ServiceItemDTO>> listByCategory(@Parameter(description = "分类ID") @PathVariable Long categoryId) {
         log.info("listByCategory() called");
-        return Result.success(serviceItemService.listByCategory(categoryId).stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
+        ServiceItemQueryDTO q = new ServiceItemQueryDTO();
+        q.setCategory_id_wsh(categoryId);
+        q.setPage_wsh(1);
+        q.setSize_wsh(100);
+        return Result.success(serviceItemService.listPublic(q));
     }
 
     /**

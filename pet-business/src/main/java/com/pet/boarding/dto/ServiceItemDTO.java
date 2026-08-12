@@ -33,4 +33,18 @@ public class ServiceItemDTO {
     private String images_wsh;
     @Schema(description = "状态")
     private Integer status_wsh;
+    @Schema(description = "商家名称")
+    private String merchant_name_wsh;
+    @Schema(description = "服务评分（评分聚合，无评价为 null）")
+    private BigDecimal service_rating_wsh;
+    @Schema(description = "服务评价数")
+    private Long service_rating_count_wsh;
+    @Schema(description = "商家评分（评分聚合，无评价为 null）")
+    private BigDecimal merchant_rating_wsh;
+    @Schema(description = "商家评价数")
+    private Long merchant_rating_count_wsh;
+    @Schema(description = "距离（公里，无定位或商家无坐标时为 null）")
+    private BigDecimal distance_km_wsh;
+    @Schema(description = "服务版本（由服务更新时间生成，仅供变化检测）")
+    private String service_version_wsh;
 }

@@ -3,6 +3,7 @@ package com.pet.boarding.service;
 import com.pet.boarding.entity.BusinessHours;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -111,5 +112,65 @@ class BusinessHoursTargetResolverTest {
         assertEquals(true, resolver.isWithinBusinessHours(week, LocalDateTime.of(2026, 8, 11, 16, 0)));
         // Sunday 23:00 outside Sun 10:00-22:00
         assertEquals(false, resolver.isWithinBusinessHours(week, LocalDateTime.of(2026, 8, 16, 23, 0)));
+    }
+
+    // ============ U2: windowsForDate 窗口生成 ============
+
+    @Test
+    void windowsForDateNormalWindow() {
+        List<BusinessHours> week = defaultWeek();
+        List<BusinessHoursTargetResolver.BusinessWindow> windows =
+                resolver.windowsForDate(week, LocalDate.of(2026, 8, 10));
+        assertEquals(1, windows.size());
+        assertEquals(LocalDateTime.of(2026, 8, 10, 9, 0), windows.get(0).start());
+        assertEquals(LocalDateTime.of(2026, 8, 10, 18, 0), windows.get(0).end());
+    }
+
+    @Test
+    void windowsForDateRestDayIsEmpty() {
+        List<BusinessHours> week = defaultWeek();
+        assertEquals(List.of(), resolver.windowsForDate(week, LocalDate.of(2026, 8, 12)));
+    }
+
+    @Test
+    void windowsForDateCrossMidnightOwnPartAndTail() {
+        List<BusinessHours> week = List.of(
+                hours(3, LocalTime.of(22, 0), LocalTime.of(2, 0), 0));
+        // Wednesday own part [22:00, 24:00)
+        List<BusinessHoursTargetResolver.BusinessWindow> wed =
+                resolver.windowsForDate(week, LocalDate.of(2026, 8, 12));
+        assertEquals(1, wed.size());
+        assertEquals(LocalDateTime.of(2026, 8, 12, 22, 0), wed.get(0).start());
+        assertEquals(LocalDateTime.of(2026, 8, 13, 0, 0), wed.get(0).end());
+        // Thursday morning tail [00:00, 02:00) from Wednesday's window
+        List<BusinessHoursTargetResolver.BusinessWindow> thu =
+                resolver.windowsForDate(week, LocalDate.of(2026, 8, 13));
+        assertEquals(1, thu.size());
+        assertEquals(LocalDateTime.of(2026, 8, 13, 0, 0), thu.get(0).start());
+        assertEquals(LocalDateTime.of(2026, 8, 13, 2, 0), thu.get(0).end());
+    }
+
+    @Test
+    void windowsForDateWholeDay() {
+        List<BusinessHours> week = List.of(
+                hours(1, LocalTime.of(0, 0), LocalTime.of(0, 0), 0));
+        List<BusinessHoursTargetResolver.BusinessWindow> windows =
+                resolver.windowsForDate(week, LocalDate.of(2026, 8, 10));
+        assertEquals(1, windows.size());
+        assertEquals(LocalDateTime.of(2026, 8, 10, 0, 0), windows.get(0).start());
+        assertEquals(LocalDateTime.of(2026, 8, 11, 0, 0), windows.get(0).end());
+    }
+
+    @Test
+    void windowsForDateOverlappingWindowsAreMerged() {
+        // Monday own 00:00-08:00 window plus previous-day cross-midnight tail [00:00, 04:00)
+        List<BusinessHours> week = List.of(
+                hours(7, LocalTime.of(20, 0), LocalTime.of(4, 0), 0),   // Sun 20:00 -> Mon 04:00
+                hours(1, LocalTime.of(0, 0), LocalTime.of(8, 0), 0));   // Mon 00:00-08:00
+        List<BusinessHoursTargetResolver.BusinessWindow> windows =
+                resolver.windowsForDate(week, LocalDate.of(2026, 8, 10));
+        assertEquals(1, windows.size());
+        assertEquals(LocalDateTime.of(2026, 8, 10, 0, 0), windows.get(0).start());
+        assertEquals(LocalDateTime.of(2026, 8, 10, 8, 0), windows.get(0).end());
     }
 }

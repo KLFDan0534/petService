@@ -3,20 +3,37 @@ package com.pet.boarding.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
 import com.pet.boarding.dto.ServiceItemDTO;
+import com.pet.boarding.dto.ServiceItemQueryDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
+import com.pet.boarding.dto.ServiceQueryResultVO;
+import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.entity.ServiceCategory;
 import com.pet.boarding.entity.ServiceItem;
+import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.ServiceCategoryMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.ServiceItemService;
+import com.pet.common.BookingErrorCode;
 import com.pet.common.BusinessException;
+import com.pet.common.ServiceVersions;
 import com.pet.common.StatusCode;
+import com.pet.customer.mapper.RatingMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 服务项目管理服务实现。
@@ -28,12 +45,22 @@ import java.util.List;
 @Slf4j
 public class ServiceItemServiceImpl implements ServiceItemService {
 
+    private static final Set<String> SUPPORTED_SORTS = Set.of("default", "price_asc", "rating_desc", "distance_asc");
+    private static final int MAX_SIZE = 100;
+
     private final ServiceItemMapper serviceItemMapper;
     private final ServiceCategoryMapper categoryMapper;
+    private final MerchantMapper merchantMapper;
+    private final RatingMapper ratingMapper;
 
-    public ServiceItemServiceImpl(ServiceItemMapper serviceItemMapper, ServiceCategoryMapper categoryMapper) {
+    public ServiceItemServiceImpl(ServiceItemMapper serviceItemMapper,
+                                  ServiceCategoryMapper categoryMapper,
+                                  MerchantMapper merchantMapper,
+                                  RatingMapper ratingMapper) {
         this.serviceItemMapper = serviceItemMapper;
         this.categoryMapper = categoryMapper;
+        this.merchantMapper = merchantMapper;
+        this.ratingMapper = ratingMapper;
     }
 
     /**
@@ -280,21 +307,229 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Override
     public ServiceItemDTO toDTO(ServiceItem entity) {
         if (entity == null) return null;
+        ServiceItemDTO dto = copyFields(entity);
+        if (entity.getCategory_id_wsh() != null) {
+            ServiceCategory cat = categoryMapper.selectById(entity.getCategory_id_wsh());
+            dto.setCategory_name_wsh(cat != null ? cat.getName_wsh() : null);
+        }
+        return dto;
+    }
+
+    private ServiceItemDTO copyFields(ServiceItem entity) {
         ServiceItemDTO dto = new ServiceItemDTO();
         dto.setId_wsh(entity.getId_wsh());
         dto.setMerchant_id_wsh(entity.getMerchant_id_wsh());
         dto.setName_wsh(entity.getName_wsh());
         dto.setType_wsh(entity.getType_wsh());
         dto.setCategory_id_wsh(entity.getCategory_id_wsh());
-        if (entity.getCategory_id_wsh() != null) {
-            ServiceCategory cat = categoryMapper.selectById(entity.getCategory_id_wsh());
-            dto.setCategory_name_wsh(cat != null ? cat.getName_wsh() : null);
-        }
         dto.setDescription_wsh(entity.getDescription_wsh());
         dto.setPrice_wsh(entity.getPrice_wsh());
         dto.setUnit_wsh(entity.getUnit_wsh());
         dto.setImages_wsh(entity.getImages_wsh());
         dto.setStatus_wsh(entity.getStatus_wsh());
         return dto;
+    }
+
+    @Override
+    public ServiceQueryResultVO queryPublic(ServiceItemQueryDTO query) {
+        if (query == null) query = new ServiceItemQueryDTO();
+        int page = query.getPage_wsh() != null ? query.getPage_wsh() : 1;
+        int size = query.getSize_wsh() != null ? query.getSize_wsh() : 20;
+        if (page < 1) throw new BusinessException(400, "page must be >= 1");
+        if (size < 1) throw new BusinessException(400, "size must be >= 1");
+        if (size > MAX_SIZE) size = MAX_SIZE;
+        String sort = query.getSort_wsh() == null || query.getSort_wsh().isBlank() ? "default" : query.getSort_wsh();
+        if (!SUPPORTED_SORTS.contains(sort)) {
+            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "unsupported sort: " + sort);
+        }
+        Double lat = toDouble(query.getLatitude_wsh());
+        Double lng = toDouble(query.getLongitude_wsh());
+        boolean hasCoords = lat != null || lng != null;
+        if (hasCoords && (lat == null || lng == null)) {
+            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "latitude and longitude must be provided together");
+        }
+        if (hasCoords && (lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
+            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "coordinate out of range");
+        }
+        if ("distance_asc".equals(sort) && !hasCoords) {
+            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "distance sort requires coordinates");
+        }
+
+        LambdaQueryWrapper<ServiceItem> wrapper = new LambdaQueryWrapper<ServiceItem>()
+                .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue());
+        if (query.getCategory_id_wsh() != null) {
+            wrapper.eq(ServiceItem::getCategory_id_wsh, query.getCategory_id_wsh());
+        }
+        if (query.getMerchant_id_wsh() != null) {
+            wrapper.eq(ServiceItem::getMerchant_id_wsh, query.getMerchant_id_wsh());
+        }
+        if (query.getKeyword_wsh() != null && !query.getKeyword_wsh().isBlank()) {
+            String keyword = query.getKeyword_wsh().trim();
+            wrapper.and(w -> w.like(ServiceItem::getName_wsh, keyword)
+                    .or().like(ServiceItem::getDescription_wsh, keyword));
+        }
+        if ("price_asc".equals(sort)) {
+            wrapper.orderByAsc(ServiceItem::getPrice_wsh);
+        } else {
+            wrapper.orderByDesc(ServiceItem::getCreated_at_wsh);
+        }
+        List<ServiceItem> services = serviceItemMapper.selectList(wrapper);
+        if (services.isEmpty()) {
+            return new ServiceQueryResultVO(List.of(), 0, page, size);
+        }
+
+        // 批量加载商家/分类/评分，禁止逐行 selectById（SVC-U-08）
+        Map<Long, Merchant> merchants = new HashMap<>(batchMerchants(services));
+        Map<Long, ServiceCategory> categories = new HashMap<>(batchCategories(services));
+
+        List<ServiceItem> visible = services.stream()
+                .filter(s -> isPubliclyVisible(s, merchants, categories))
+                .toList();
+        if (visible.isEmpty()) {
+            return new ServiceQueryResultVO(List.of(), 0, page, size);
+        }
+
+        Set<Long> serviceIds = visible.stream().map(ServiceItem::getId_wsh).collect(Collectors.toSet());
+        Map<Long, RatingStats> serviceStats = aggregate(serviceIds, "service");
+        Set<Long> merchantIds = visible.stream().map(ServiceItem::getMerchant_id_wsh)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, RatingStats> merchantStats = aggregate(merchantIds, "merchant");
+
+        List<ServiceItemDTO> dtos = visible.stream()
+                .map(s -> toPublicDTO(s, merchants, categories, serviceStats, merchantStats, lat, lng))
+                .toList();
+
+        if ("price_asc".equals(sort)) {
+            dtos = dtos.stream()
+                    .sorted(Comparator.comparing(d -> d.getPrice_wsh() == null
+                            ? BigDecimal.ZERO : d.getPrice_wsh()))
+                    .toList();
+        } else if ("rating_desc".equals(sort)) {
+            dtos = dtos.stream()
+                    .sorted(Comparator.comparing(ServiceItemDTO::getService_rating_wsh,
+                            Comparator.nullsLast(Comparator.reverseOrder())))
+                    .toList();
+        } else if ("distance_asc".equals(sort)) {
+            dtos = dtos.stream()
+                    .sorted(Comparator.comparing(ServiceItemDTO::getDistance_km_wsh,
+                            Comparator.nullsLast(Comparator.naturalOrder())))
+                    .toList();
+        }
+
+        int total = dtos.size();
+        int from = (page - 1) * size;
+        List<ServiceItemDTO> items = from >= total ? List.of() : dtos.subList(from, Math.min(from + size, total));
+        return new ServiceQueryResultVO(items, total, page, size);
+    }
+
+    @Override
+    public List<ServiceItemDTO> listPublic(ServiceItemQueryDTO query) {
+        return queryPublic(query).getItems_wsh();
+    }
+
+    private boolean isPubliclyVisible(ServiceItem service, Map<Long, Merchant> merchants,
+                                      Map<Long, ServiceCategory> categories) {
+        Merchant merchant = merchants.get(service.getMerchant_id_wsh());
+        if (merchant == null || merchant.getStatus_wsh() == null
+                || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
+            return false;
+        }
+        ServiceCategory category = service.getCategory_id_wsh() == null
+                ? null : categories.get(service.getCategory_id_wsh());
+        if (category != null && (category.getStatus_wsh() == null
+                || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue())) {
+            return false;
+        }
+        return true;
+    }
+
+    private Map<Long, Merchant> batchMerchants(List<ServiceItem> services) {
+        Set<Long> merchantIds = services.stream().map(ServiceItem::getMerchant_id_wsh)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (merchantIds.isEmpty()) return Map.of();
+        return merchantMapper.selectBatchIds(merchantIds).stream()
+                .collect(Collectors.toMap(Merchant::getId_wsh, Function.identity()));
+    }
+
+    private Map<Long, ServiceCategory> batchCategories(List<ServiceItem> services) {
+        Set<Long> categoryIds = services.stream().map(ServiceItem::getCategory_id_wsh)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (categoryIds.isEmpty()) return Map.of();
+        return categoryMapper.selectBatchIds(categoryIds).stream()
+                .collect(Collectors.toMap(ServiceCategory::getId_wsh, Function.identity()));
+    }
+
+    private Map<Long, RatingStats> aggregate(Set<Long> targetIds, String targetType) {
+        if (targetIds.isEmpty()) return Map.of();
+        Map<Long, RatingStats> stats = new HashMap<>();
+        for (Map<String, Object> row : ratingMapper.aggregateByTargets(targetType, targetIds)) {
+            Object targetId = row.get("targetId");
+            if (targetId == null) continue;
+            long count = toLong(row.get("cnt"));
+            BigDecimal avg = row.get("avgScore") == null
+                    ? null : BigDecimal.valueOf(((Number) row.get("avgScore")).doubleValue());
+            stats.put(((Number) targetId).longValue(), new RatingStats(avg, count));
+        }
+        return stats;
+    }
+
+    private ServiceItemDTO toPublicDTO(ServiceItem entity, Map<Long, Merchant> merchants,
+                                       Map<Long, ServiceCategory> categories,
+                                       Map<Long, RatingStats> serviceStats,
+                                       Map<Long, RatingStats> merchantStats,
+                                       Double lat, Double lng) {
+        ServiceItemDTO dto = copyFields(entity);
+        Merchant merchant = merchants.get(entity.getMerchant_id_wsh());
+        if (merchant != null) {
+            dto.setMerchant_name_wsh(merchant.getName_wsh());
+        }
+        if (entity.getCategory_id_wsh() != null && categories.containsKey(entity.getCategory_id_wsh())) {
+            dto.setCategory_name_wsh(categories.get(entity.getCategory_id_wsh()).getName_wsh());
+        }
+        RatingStats serviceStat = serviceStats.get(entity.getId_wsh());
+        if (serviceStat != null) {
+            dto.setService_rating_wsh(serviceStat.avgScore());
+            dto.setService_rating_count_wsh(serviceStat.count());
+        } else {
+            dto.setService_rating_count_wsh(0L);
+        }
+        if (entity.getMerchant_id_wsh() != null) {
+            RatingStats merchantStat = merchantStats.get(entity.getMerchant_id_wsh());
+            if (merchantStat != null) {
+                dto.setMerchant_rating_wsh(merchantStat.avgScore());
+                dto.setMerchant_rating_count_wsh(merchantStat.count());
+            } else {
+                dto.setMerchant_rating_count_wsh(0L);
+            }
+        }
+        if (lat != null && lng != null && merchant != null
+                && merchant.getLatitude_wsh() != null && merchant.getLongitude_wsh() != null) {
+            dto.setDistance_km_wsh(computeDistanceKm(lat, lng,
+                    merchant.getLatitude_wsh().doubleValue(), merchant.getLongitude_wsh().doubleValue()));
+        }
+        dto.setService_version_wsh(ServiceVersions.format(entity.getUpdated_at_wsh()));
+        return dto;
+    }
+
+    private BigDecimal computeDistanceKm(double lat1, double lng1, double lat2, double lng2) {
+        double earthRadiusKm = 6371.0;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return BigDecimal.valueOf(earthRadiusKm * c).setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private Double toDouble(BigDecimal value) {
+        return value == null ? null : value.doubleValue();
+    }
+
+    private long toLong(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
+    }
+
+    private record RatingStats(BigDecimal avgScore, long count) {
     }
 }

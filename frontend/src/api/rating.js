@@ -1,7 +1,12 @@
 import request from '@/utils/request'
 
 export async function getMyRatings() {
-  const res = await request.get('/api/ratings')
+  const res = await request.get('/api/ratings/my')
+  return res.data
+}
+
+export async function getMyRatingsByOrder(orderId) {
+  const res = await request.get('/api/ratings/my', { params: { orderId } })
   return res.data
 }
 

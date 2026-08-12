@@ -17,7 +17,7 @@
           <select
             v-model="form.merchant_id_wsh"
             class="form-control"
-            :disabled="merchantLoading || merchants.length === 0"
+            :disabled="merchantLoading || merchants.length === 0 || !!serviceId"
             @change="onMerchantChange"
           >
             <option value="">{{ merchantSelectPlaceholder }}</option>
@@ -25,7 +25,7 @@
               {{ merchant.name_wsh }}
             </option>
           </select>
-          <span class="field-hint">{{ merchantHint }}</span>
+          <span class="field-hint">{{ serviceId ? '该服务由所选商家提供，不可更换' : merchantHint }}</span>
         </label>
         <label>
           看护人
@@ -55,14 +55,42 @@
             placeholder="搜索地点，或点击地图选址"
           />
         </label>
-        <label>
-          送达时间
-          <input v-model="form.delivery_time_wsh" type="datetime-local" class="form-control" :min="minDateTime">
-        </label>
-        <label>
-          接回时间
-          <input v-model="form.pickup_time_wsh" type="datetime-local" class="form-control" :min="pickupMinDateTime">
-        </label>
+        <template v-if="availabilityEnabled">
+          <label>
+            送达日期
+            <input v-model="form.delivery_date_wsh" type="date" class="form-control" :min="minDate()" :max="maxDate()" :disabled="availabilityLoading || bookableDates.length === 0" @change="onDeliveryDateChange">
+            <span class="field-hint">{{ availabilityHint }}</span>
+          </label>
+          <label>
+            送达时间
+            <select v-model="form.delivery_slot_wsh" class="form-control" :disabled="!form.delivery_date_wsh || deliverySlotOptions.length === 0" @change="onDeliverySlotChange">
+              <option value="">{{ deliverySlotPlaceholder }}</option>
+              <option v-for="slot in deliverySlotOptions" :key="slot" :value="slot">{{ displaySlot(slot) }}</option>
+            </select>
+          </label>
+          <label>
+            接回日期
+            <input v-model="form.pickup_date_wsh" type="date" class="form-control" :min="form.delivery_date_wsh || minDate()" :max="maxDate()" :disabled="!form.delivery_date_wsh || availabilityLoading || bookableDates.length === 0" @change="onPickupDateChange">
+            <span class="field-hint">接回日期不早于送达日期</span>
+          </label>
+          <label>
+            接回时间
+            <select v-model="form.pickup_slot_wsh" class="form-control" :disabled="!form.pickup_date_wsh || pickupSlotOptions.length === 0">
+              <option value="">{{ pickupSlotPlaceholder }}</option>
+              <option v-for="slot in pickupSlotOptions" :key="slot" :value="slot">{{ displaySlot(slot) }}</option>
+            </select>
+          </label>
+        </template>
+        <template v-else>
+          <label>
+            送达时间
+            <input v-model="form.delivery_time_wsh" type="datetime-local" class="form-control" :min="minDateTime">
+          </label>
+          <label>
+            接回时间
+            <input v-model="form.pickup_time_wsh" type="datetime-local" class="form-control" :min="pickupMinDateTime">
+          </label>
+        </template>
         <label>
           紧急联系人
           <input v-model="form.emergency_contact_name_wsh" class="form-control" placeholder="联系人姓名">
@@ -115,7 +143,7 @@ import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequir
 import { getPets } from '@/api/pet'
 import { getMerchants } from '@/api/merchant'
 import { getKeepersByMerchant } from '@/api/keeper'
-import { getService } from '@/api/service'
+import { getService, getServiceAvailability } from '@/api/service'
 import { createOrder } from '@/api/order'
 import { getAvailableCoupons, quoteCoupon } from '@/api/coupon'
 import { quoteMembershipOrderDiscount } from '@/api/membership'
@@ -146,6 +174,7 @@ const keepers = ref([])
 const orderableKeepersByMerchantId = ref({})
 const serviceName = ref('')
 const serviceId = ref('')
+const serviceVersion = ref('')
 const price = ref('')
 const nowTick = ref(Date.now())
 const availableCoupons = ref([])
@@ -156,6 +185,11 @@ const membershipQuote = ref(null)
 const membershipLoading = ref(false)
 let membershipQuoteSeq = 0
 
+const availabilityLoading = ref(false)
+const availabilityError = ref(false)
+const availabilityDays = ref([])
+let availabilitySeq = 0
+
 const form = reactive({
   pet_id_wsh: '',
   merchant_id_wsh: '',
@@ -164,6 +198,10 @@ const form = reactive({
   delivery_location_source_wsh: '',
   delivery_time_wsh: '',
   pickup_time_wsh: '',
+  delivery_date_wsh: '',
+  delivery_slot_wsh: '',
+  pickup_date_wsh: '',
+  pickup_slot_wsh: '',
   emergency_contact_name_wsh: '',
   emergency_contact_phone_wsh: '',
   user_coupon_id_wsh: '',
@@ -174,6 +212,24 @@ const minDateTime = computed(() => toLocalDateTimeInput(new Date(nowTick.value))
 const pickupMinDateTime = computed(() => {
   if (!form.delivery_time_wsh) return minDateTime.value
   return toLocalDateTimeInput(new Date(new Date(form.delivery_time_wsh).getTime() + 600000))
+})
+
+const availabilityEnabled = computed(() => Boolean(serviceId.value))
+const bookableDates = computed(() =>
+  availabilityDays.value
+    .filter(day => day.bookable_wsh)
+    .map(day => String(day.date_wsh)))
+const deliverySlotOptions = computed(() => {
+  if (!form.delivery_date_wsh) return []
+  const day = availabilityDays.value.find(item => String(item.date_wsh) === form.delivery_date_wsh)
+  if (!day || !day.bookable_wsh) return []
+  return day.windows_wsh.flatMap(window => window.slots_wsh || [])
+})
+const pickupSlotOptions = computed(() => {
+  if (!form.pickup_date_wsh) return []
+  const day = availabilityDays.value.find(item => String(item.date_wsh) === form.pickup_date_wsh)
+  if (!day || !day.bookable_wsh) return []
+  return day.windows_wsh.flatMap(window => window.slots_wsh || [])
 })
 
 const estimatedAmount = computed(() => {
@@ -206,18 +262,26 @@ const estimatedAmount = computed(() => {
 })
 
 function baseEstimate() {
-  if (!form.delivery_time_wsh || !form.pickup_time_wsh) {
+  const deliveryTime = availabilityEnabled.value
+    ? slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh)
+    : form.delivery_time_wsh
+  const pickupTime = availabilityEnabled.value
+    ? slotToDateTime(form.pickup_date_wsh, form.pickup_slot_wsh)
+    : form.pickup_time_wsh
+  if (!deliveryTime || !pickupTime) {
     return { total: '0.00', discount: '0.00', couponDiscount: '0.00', membershipDiscount: '0.00', platformSubsidy: '0.00', final: '0.00' }
   }
-  const start = new Date(form.delivery_time_wsh)
-  const end = new Date(form.pickup_time_wsh)
+  const start = new Date(deliveryTime)
+  const end = new Date(pickupTime)
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
     return { total: '0.00', discount: '0.00', couponDiscount: '0.00', membershipDiscount: '0.00', platformSubsidy: '0.00', final: '0.00' }
   }
   const serviceDates = buildServiceDates(start, end)
   const days = Math.max(0, diffDays(serviceDates.startDate, serviceDates.endDate))
   const keeper = keepers.value.find(item => Number(item.id_wsh) === Number(form.keeper_id_wsh))
-  const dayPrice = Number(keeper?.price_per_day_wsh || price.value || 0)
+  const dayPrice = availabilityEnabled.value
+    ? Number(price.value || 0)
+    : Number(keeper?.price_per_day_wsh || price.value || 0)
   const total = days * dayPrice
   let discount = 0
   if (days >= 30) discount = total * 0.1
@@ -265,6 +329,7 @@ watch(
     resetForm()
     serviceName.value = props.initialServiceName
     serviceId.value = props.initialServiceId
+    serviceVersion.value = ''
     price.value = props.initialPrice
     form.merchant_id_wsh = props.initialMerchantId || ''
     form.keeper_id_wsh = props.initialKeeperId || ''
@@ -278,6 +343,8 @@ watch(
         const r = await getService(serviceId.value)
         if (r.code === 200 && r.data) {
           serviceName.value = r.data.name_wsh || serviceName.value
+          serviceVersion.value = r.data.service_version_wsh || ''
+          price.value = r.data.price_wsh ?? price.value
           const merchant = merchants.value.find(m => Number(m.id_wsh) === Number(r.data.merchant_id_wsh))
           if (merchant) {
             form.merchant_id_wsh = merchant.id_wsh
@@ -313,8 +380,11 @@ watch(
     form.user_coupon_id_wsh,
     keepers.value.length,
   ],
-  () => {
+  async () => {
     refreshCoupons()
+    if (availabilityEnabled.value && form.keeper_id_wsh) {
+      await loadAvailability()
+    }
   }
 )
 
@@ -415,6 +485,10 @@ function resetForm() {
     delivery_location_source_wsh: '',
     delivery_time_wsh: '',
     pickup_time_wsh: '',
+    delivery_date_wsh: '',
+    delivery_slot_wsh: '',
+    pickup_date_wsh: '',
+    pickup_slot_wsh: '',
     emergency_contact_name_wsh: '',
     emergency_contact_phone_wsh: '',
     user_coupon_id_wsh: '',
@@ -423,6 +497,8 @@ function resetForm() {
   merchants.value = []
   keepers.value = []
   orderableKeepersByMerchantId.value = {}
+  availabilityDays.value = []
+  availabilityError.value = false
   availableCoupons.value = []
   couponQuote.value = null
   membershipQuote.value = null
@@ -435,6 +511,7 @@ function resetForm() {
 }
 
 function onMerchantChange() {
+  if (serviceId.value) return
   form.keeper_id_wsh = ''
   keepers.value = []
   if (form.merchant_id_wsh) {
@@ -446,6 +523,7 @@ function onMerchantChange() {
   if (serviceId.value) {
     serviceId.value = ''
     serviceName.value = ''
+    serviceVersion.value = ''
     price.value = ''
   }
 }
@@ -454,17 +532,117 @@ function handleClose() {
   emit('close')
 }
 
+function minDate() {
+  const d = new Date(nowTick.value)
+  const pad = value => String(value).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function maxDate() {
+  const d = new Date(nowTick.value)
+  d.setDate(d.getDate() + 30)
+  const pad = value => String(value).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function displaySlot(slot) {
+  return slot ? String(slot).slice(11, 16) : ''
+}
+
+const availabilityHint = computed(() => {
+  if (availabilityLoading.value) return '正在查询可预约日期...'
+  if (availabilityError.value) return '可预约日期查询失败，请刷新重试'
+  if (bookableDates.value.length === 0) return '近 31 天暂无可预约日期'
+  return `仅展示可预约日期（${bookableDates.value.length} 天可约）`
+})
+
+const deliverySlotPlaceholder = computed(() => {
+  if (!form.delivery_date_wsh) return '请先选择送达日期'
+  if (availabilityLoading.value) return '正在加载时间槽位...'
+  if (deliverySlotOptions.value.length === 0) return '该日暂无可约时间'
+  return '请选择送达时间'
+})
+
+const pickupSlotPlaceholder = computed(() => {
+  if (!form.pickup_date_wsh) return '请先选择接回日期'
+  if (availabilityLoading.value) return '正在加载时间槽位...'
+  if (pickupSlotOptions.value.length === 0) return '该日暂无可约时间'
+  return '请选择接回时间'
+})
+
+function onDeliveryDateChange() {
+  form.delivery_slot_wsh = ''
+  if (!form.delivery_date_wsh) {
+    form.pickup_date_wsh = ''
+    form.pickup_slot_wsh = ''
+  }
+  if (form.pickup_date_wsh && form.pickup_date_wsh < form.delivery_date_wsh) {
+    form.pickup_date_wsh = ''
+    form.pickup_slot_wsh = ''
+  }
+}
+
+function onDeliverySlotChange() {
+  form.pickup_date_wsh = ''
+  form.pickup_slot_wsh = ''
+}
+
+function onPickupDateChange() {
+  form.pickup_slot_wsh = ''
+}
+
+async function loadAvailability() {
+  if (!serviceId.value || !form.keeper_id_wsh) return
+  const seq = ++availabilitySeq
+  availabilityLoading.value = true
+  availabilityError.value = false
+  form.delivery_date_wsh = ''
+  form.delivery_slot_wsh = ''
+  form.pickup_date_wsh = ''
+  form.pickup_slot_wsh = ''
+  try {
+    const res = await getServiceAvailability(serviceId.value, minDate(), maxDate(), form.keeper_id_wsh)
+    if (seq !== availabilitySeq) return
+    if (res.code === 200 && res.data?.days_wsh) {
+      availabilityDays.value = res.data.days_wsh
+    } else {
+      availabilityDays.value = []
+      availabilityError.value = true
+    }
+  } catch (e) {
+    if (seq !== availabilitySeq) return
+    availabilityDays.value = []
+    availabilityError.value = true
+  } finally {
+    if (seq === availabilitySeq) availabilityLoading.value = false
+  }
+}
+
 async function submitOrder() {
   nowTick.value = Date.now()
   const profileOk = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
   if (!profileOk) return
-  if (merchantLoading.value || keeperLoading.value) {
+  if (merchantLoading.value || keeperLoading.value || availabilityLoading.value) {
     appStore.addToast('接单信息正在加载，请稍后再提交', 'warning')
     return
   }
-  if (!form.pet_id_wsh || !form.merchant_id_wsh || !form.keeper_id_wsh || !form.delivery_time_wsh || !form.pickup_time_wsh) {
+  const deliveryTime = availabilityEnabled.value
+    ? new Date(slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh))
+    : new Date(form.delivery_time_wsh)
+  const pickupTime = availabilityEnabled.value
+    ? new Date(slotToDateTime(form.pickup_date_wsh, form.pickup_slot_wsh))
+    : new Date(form.pickup_time_wsh)
+  if (!form.pet_id_wsh || !form.merchant_id_wsh || !form.keeper_id_wsh || Number.isNaN(deliveryTime.getTime()) || Number.isNaN(pickupTime.getTime())) {
     appStore.addToast('请补全宠物、商家、看护人、送达时间和接回时间', 'warning')
     return
+  }
+  if (availabilityEnabled.value) {
+    const deliveryDateBookable = bookableDates.value.includes(form.delivery_date_wsh)
+    const pickupDateBookable = bookableDates.value.includes(form.pickup_date_wsh)
+    if (!deliveryDateBookable || !pickupDateBookable) {
+      appStore.addToast('所选日期不可预约，请重新选择', 'warning')
+      return
+    }
   }
   if (!hasLoadedMerchant(form.merchant_id_wsh) || !hasLoadedKeeper(form.keeper_id_wsh)) {
     appStore.addToast('请选择可接单商家和看护人', 'warning')
@@ -474,8 +652,6 @@ async function submitOrder() {
     appStore.addToast('请填写紧急联系人和联系电话', 'warning')
     return
   }
-  const deliveryTime = new Date(form.delivery_time_wsh)
-  const pickupTime = new Date(form.pickup_time_wsh)
   if (Number.isNaN(deliveryTime.getTime()) || Number.isNaN(pickupTime.getTime())) {
     appStore.addToast('请选择有效的送达和接回时间', 'warning')
     return
@@ -504,6 +680,7 @@ async function submitOrder() {
       merchant_id_wsh: Number(form.merchant_id_wsh),
       keeper_id_wsh: Number(form.keeper_id_wsh),
       service_id_wsh: serviceId.value ? Number(serviceId.value) : null,
+      service_version_wsh: serviceVersion.value || null,
       user_coupon_id_wsh: form.user_coupon_id_wsh ? Number(form.user_coupon_id_wsh) : null,
       start_date_wsh: serviceDates.startDate,
       end_date_wsh: serviceDates.endDate,
@@ -511,8 +688,12 @@ async function submitOrder() {
       delivery_location_source_wsh: form.delivery_location_source_wsh || 'amap',
       pickup_address_wsh: form.delivery_address_wsh,
       pickup_location_source_wsh: form.delivery_location_source_wsh || 'amap',
-      delivery_time_wsh: toApiDateTime(form.delivery_time_wsh),
-      pickup_time_wsh: toApiDateTime(form.pickup_time_wsh),
+      delivery_time_wsh: toApiDateTime(availabilityEnabled.value
+        ? slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh)
+        : form.delivery_time_wsh),
+      pickup_time_wsh: toApiDateTime(availabilityEnabled.value
+        ? slotToDateTime(form.pickup_date_wsh, form.pickup_slot_wsh)
+        : form.pickup_time_wsh),
       emergency_contact_name_wsh: form.emergency_contact_name_wsh,
       emergency_contact_phone_wsh: form.emergency_contact_phone_wsh,
       remark_wsh: form.remark_wsh,
@@ -541,6 +722,16 @@ const BOOKING_ERROR_MESSAGES = {
   CAPACITY_EXCEEDED: '该时段看护人已预约满，请更换时段',
   KEEPER_NOT_BOOKABLE: '该看护人当前不可接单',
   MERCHANT_NOT_APPROVED: '商家未通过审核，暂不能预约',
+  SERVICE_NOT_FOUND: '服务不存在或已下架，请刷新后重试',
+  SERVICE_OFF_SHELF: '服务已下架，请选择其他服务',
+  SERVICE_MERCHANT_MISMATCH: '服务与所选商家不一致，请刷新后重试',
+  UNSUPPORTED_SERVICE_UNIT: '该服务暂不支持按天预约',
+  PRICE_CHANGED: '服务价格或版本已更新，请刷新后重新确认',
+  KEEPER_MERCHANT_MISMATCH: '看护人不属于该商家，请刷新后重试',
+  KEEPER_ON_LEAVE: '该看护人当前请假，请更换看护人',
+  KEEPER_NOT_QUALIFIED: '该看护人资质未通过，暂不能预约',
+  MERCHANT_REST_DAY: '商家当日休息，请更换日期',
+  PET_BOOKING_CONFLICT: '宠物在该时段已有预约，请更换日期',
 }
 
 function handleCreateError(res) {
@@ -682,6 +873,10 @@ function couponText(coupon) {
   }
   const amount = Number(coupon.discount_amount_template_wsh || 0)
   return `满￥${Number(coupon.threshold_amount_wsh || 0).toFixed(2)}减￥${amount.toFixed(2)}`
+}
+
+function slotToDateTime(dateValue, slotValue) {
+  return slotValue ? `${dateValue}T${slotValue.slice(11, 16)}` : ''
 }
 
 function toApiDateTime(value) {

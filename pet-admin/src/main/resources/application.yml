@@ -133,3 +133,6 @@ gao:
     security-code: ${GAO_MAP_SECURITY_CODE:}
     handover-radius-meters: ${GAO_MAP_HANDOVER_RADIUS_METERS:500}
     attendance-radius-meters: ${GAO_MAP_ATTENDANCE_RADIUS_METERS:300}
+
+booking:
+  slot-minutes: ${BOOKING_SLOT_MINUTES:30}

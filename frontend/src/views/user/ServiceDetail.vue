@@ -35,6 +35,9 @@
             <div class="provider-info">
               <strong>{{ merchant.name_wsh }}</strong>
               <span class="text-muted">{{ merchant.address_wsh || '-' }}</span>
+              <span v-if="service.merchant_rating_wsh" class="text-muted rating-summary">
+                ★ {{ Number(service.merchant_rating_wsh).toFixed(1) }}（{{ service.merchant_rating_count_wsh || 0 }} 条）
+              </span>
             </div>
             <span class="link-arrow">&rsaquo;</span>
           </div>
@@ -56,8 +59,28 @@
         </section>
 
         <section class="card">
+          <h3 class="section-title">商家评价 ({{ merchantRatings.length }})</h3>
+          <p v-if="merchantRatingsError" class="text-muted">商家评价加载失败</p>
+          <div v-else-if="merchantRatingsLoading" class="text-muted">加载中...</div>
+          <div v-else-if="merchantRatings.length === 0" class="empty-state">
+            <p>暂无商家评价</p>
+          </div>
+          <div v-else class="review-list">
+            <div v-for="r in merchantRatings" :key="r.id_wsh" class="review-card">
+              <div class="review-header">
+                <span class="review-user">用户 #{{ r.user_id_wsh }}</span>
+                <span class="review-stars">★ {{ r.score_wsh }}</span>
+                <span class="review-date">{{ formatDate(r.created_at_wsh) }}</span>
+              </div>
+              <p class="review-content">{{ r.content_wsh }}</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
           <h3 class="section-title">用户评价 ({{ ratings.length }})</h3>
-          <div v-if="ratings.length === 0" class="empty-state">
+          <p v-if="ratingsError" class="text-muted">评价加载失败</p>
+          <div v-else-if="ratings.length === 0" class="empty-state">
             <p>暂无评价</p>
           </div>
           <div v-else class="review-list">
@@ -119,6 +142,10 @@ const categoryStore = useCategoryStore()
 
 const service = ref(null)
 const ratings = ref([])
+const merchantRatings = ref([])
+const merchantRatingsLoading = ref(false)
+const merchantRatingsError = ref(false)
+const ratingsError = ref(false)
 const merchant = ref(null)
 const keepers = ref([])
 const loading = ref(true)
@@ -152,15 +179,35 @@ async function loadDetail() {
       service.value = svcRes.data
       if (svcRes.data.merchant_id_wsh) {
         loadProviderInfo(svcRes.data.merchant_id_wsh)
+        loadMerchantRatings(svcRes.data.merchant_id_wsh)
       }
     }
     if (ratingRes.code === 200) {
       ratings.value = ratingRes.data || []
+    } else {
+      ratingsError.value = true
     }
   } catch (error) {
     appStore.addToast('加载失败', 'error')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMerchantRatings(merchantId) {
+  merchantRatingsLoading.value = true
+  merchantRatingsError.value = false
+  try {
+    const res = await getRatings({ targetId: merchantId, targetType: 'merchant' })
+    if (res.code === 200) {
+      merchantRatings.value = res.data || []
+    } else {
+      merchantRatingsError.value = true
+    }
+  } catch {
+    merchantRatingsError.value = true
+  } finally {
+    merchantRatingsLoading.value = false
   }
 }
 
@@ -183,16 +230,12 @@ async function createOrder() {
   const query = {
     create: 'true',
     serviceId: service.value.id_wsh,
-    serviceName: service.value.name_wsh,
-    price: service.value.price_wsh,
   }
 
   if (!authStore.isLoggedIn) {
     appStore.loginRedirectPath = `/orders?${new URLSearchParams({
       create: 'true',
       serviceId: String(service.value.id_wsh),
-      serviceName: service.value.name_wsh,
-      price: String(service.value.price_wsh),
     }).toString()}`
     appStore.showLoginPrompt = true
     return

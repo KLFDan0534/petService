@@ -35,6 +35,10 @@ public class OrderCreateRequestDTO {
     @JsonAlias("serviceId")
     private Long service_id_wsh;
 
+    @Schema(description = "服务版本（来自服务详情/可预约性响应；为空时跳过版本校验，兼容旧客户端）")
+    @JsonAlias("serviceVersion")
+    private String service_version_wsh;
+
     @Schema(description = "用户优惠券ID")
     @JsonAlias("userCouponId")
     private Long user_coupon_id_wsh;

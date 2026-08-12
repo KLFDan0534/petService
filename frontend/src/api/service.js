@@ -40,5 +40,13 @@ export async function toggleServiceStatus(id) {
   return res.data
 }
 
+export async function getServiceAvailability(serviceId, from, to, keeperId) {
+  const params = { from, to }
+  if (keeperId) params.keeperId = keeperId
+  const res = await request.get(`/api/services/${serviceId}/availability`, { params })
+  return res.data
+}
+
+
 
 

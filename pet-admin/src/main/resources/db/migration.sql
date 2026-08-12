@@ -12,6 +12,26 @@ CREATE TABLE IF NOT EXISTS `category_wsh` (
 
 ALTER TABLE rating_wsh MODIFY COLUMN `order_id_wsh` BIGINT COMMENT '订单ID(服务评价可为空)';
 
+-- U4: 评价唯一约束 —— 同一订单同一用户同一维度仅允许一条评价（先清理历史重复，再建唯一索引）
+-- 幂等：索引已存在时跳过（重复执行不再报 1061 Duplicate key name）。
+DELETE t1 FROM rating_wsh t1
+INNER JOIN rating_wsh t2
+  ON t1.order_id_wsh <=> t2.order_id_wsh
+ AND t1.user_id_wsh = t2.user_id_wsh
+ AND t1.target_type_wsh = t2.target_type_wsh
+ AND t1.deleted_wsh = 0 AND t2.deleted_wsh = 0
+ AND t1.id_wsh < t2.id_wsh;
+SET @u4_has_idx := (SELECT COUNT(*) FROM information_schema.statistics
+                    WHERE table_schema = DATABASE()
+                      AND table_name = 'rating_wsh'
+                      AND index_name = 'uk_rating_order_user_type');
+SET @u4_ddl := IF(@u4_has_idx = 0,
+                  'ALTER TABLE rating_wsh ADD UNIQUE INDEX `uk_rating_order_user_type` (`order_id_wsh`, `user_id_wsh`, `target_type_wsh`)',
+                  'SELECT ''uk_rating_order_user_type already exists, skip'' AS u4_note');
+PREPARE u4_stmt FROM @u4_ddl;
+EXECUTE u4_stmt;
+DEALLOCATE PREPARE u4_stmt;
+
 CREATE TABLE IF NOT EXISTS `address_wsh` (
     `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
     `user_id_wsh` BIGINT NOT NULL COMMENT '用户ID',
