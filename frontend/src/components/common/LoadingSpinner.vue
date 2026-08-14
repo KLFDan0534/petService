@@ -1,5 +1,5 @@
 <template>
-  <div class="loading">
+  <div class="loading" role="status" aria-live="polite" :aria-label="text || '加载中...'">
     <div class="spinner"></div>
     <p>{{ text || '加载中...' }}</p>
   </div>

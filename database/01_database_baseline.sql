@@ -593,12 +593,33 @@ CREATE TABLE `file_record_wsh` (
   `object_name_wsh` varchar(255) DEFAULT NULL COMMENT '存储对象名',
   `size_wsh` bigint DEFAULT NULL COMMENT '文件大小(字节)',
   `content_type_wsh` varchar(100) DEFAULT NULL COMMENT 'MIME类型',
+  `purpose_wsh` varchar(30) DEFAULT NULL COMMENT '文件用途: product-产品图片 avatar-头像 evidence-资质证明 其他',
+  `merchant_id_wsh` bigint DEFAULT NULL COMMENT '服务端归属商家ID(产品图片等受管文件)',
   `user_id_wsh` bigint DEFAULT NULL COMMENT '上传用户ID',
   `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id_wsh`),
-  KEY `idx_user` (`user_id_wsh`) COMMENT '用户索引'
+  KEY `idx_user` (`user_id_wsh`) COMMENT '用户索引',
+  KEY `idx_purpose_merchant` (`purpose_wsh`, `merchant_id_wsh`) COMMENT '产品图片用途+商家索引'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='文件上传记录表';
+
+-- ===================================================================
+-- 30.1 运营模块 - pet_service_media_wsh (服务产品图片表)
+-- ===================================================================
+DROP TABLE IF EXISTS `pet_service_media_wsh`;
+CREATE TABLE `pet_service_media_wsh` (
+  `id_wsh` bigint NOT NULL AUTO_INCREMENT COMMENT '图片ID',
+  `service_id_wsh` bigint NOT NULL COMMENT '服务产品ID(pet_service_wsh.id_wsh)',
+  `file_id_wsh` bigint NOT NULL COMMENT '文件记录ID(file_record_wsh.id_wsh)',
+  `sort_order_wsh` int NOT NULL DEFAULT '0' COMMENT '排序序号(0..N 连续)',
+  `is_cover_wsh` tinyint NOT NULL DEFAULT '0' COMMENT '是否封面: 0-否 1-是',
+  `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id_wsh`),
+  UNIQUE KEY `uk_service_file` (`service_id_wsh`, `file_id_wsh`) COMMENT '同一服务不重复引用同一文件',
+  UNIQUE KEY `uk_service_sort` (`service_id_wsh`, `sort_order_wsh`) COMMENT '同一服务内排序唯一',
+  KEY `idx_media_file` (`file_id_wsh`) COMMENT '文件索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='服务产品图片表';
 
 -- ===================================================================
 -- 29. 运营模块 - favorite_wsh (收藏表)

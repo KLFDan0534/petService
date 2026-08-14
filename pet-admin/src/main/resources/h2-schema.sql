@@ -548,9 +548,26 @@ CREATE TABLE IF NOT EXISTS `file_record_wsh` (
     `object_name_wsh` VARCHAR(500) NOT NULL,
     `size_wsh` BIGINT,
     `content_type_wsh` VARCHAR(100),
+    `purpose_wsh` VARCHAR(30),
+    `merchant_id_wsh` BIGINT,
     `user_id_wsh` BIGINT,
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
-    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_purpose_merchant` (`purpose_wsh`, `merchant_id_wsh`),
+    INDEX `idx_user` (`user_id_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `pet_service_media_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `service_id_wsh` BIGINT NOT NULL,
+    `file_id_wsh` BIGINT NOT NULL,
+    `sort_order_wsh` INT NOT NULL DEFAULT 0,
+    `is_cover_wsh` TINYINT NOT NULL DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE (`service_id_wsh`, `file_id_wsh`),
+    UNIQUE (`service_id_wsh`, `sort_order_wsh`),
+    INDEX `idx_media_file` (`file_id_wsh`)
 );
 
 CREATE TABLE IF NOT EXISTS `qualification_wsh` (

@@ -42,6 +42,22 @@ public class MinIoService {
      * @throws com.pet.common.BusinessException 文件为空、文件名为空或上传失败时抛出
      */
     public String uploadFile(MultipartFile file, String directory) {
+        return uploadFile(file, directory, null, null);
+    }
+
+    /**
+     * 上传文件到 MinIO 指定的目录，使用服务端派生（而非客户端）的扩展名与内容类型。
+     * <p>
+     * 产品图片上传使用本方法：扩展名/MIME 由内容校验结果决定，忽略调用方目录选择与声明。
+     *
+     * @param file         上传的多部分文件，不可为空
+     * @param directory    存储目录（例如 "service"），不能为 null
+     * @param extension    服务端派生的扩展名（不含点，如 "png"），null 时回退到原始文件名
+     * @param contentType  服务端派生的内容类型（如 "image/png"），null 时使用客户端声明
+     * @return MinIO 对象存储路径（格式：{directory}/{uuid}.{ext}）
+     * @throws com.pet.common.BusinessException 文件为空、文件名为空或上传失败时抛出
+     */
+    public String uploadFile(MultipartFile file, String directory, String extension, String contentType) {
         try {
             if (file == null || file.isEmpty()) {
                 throw new BusinessException("上传文件不能为空");
@@ -54,16 +70,23 @@ public class MinIoService {
             if (originalFilename == null) {
                 throw new BusinessException("文件名不能为空");
             }
-            String extension = "";
-            if (originalFilename.contains(".")) {
-                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            String ext = extension;
+            if (ext == null || ext.isBlank()) {
+                ext = "";
+                if (originalFilename.contains(".")) {
+                    ext = originalFilename.substring(originalFilename.lastIndexOf("."));
+                }
+            } else {
+                ext = "." + ext;
             }
-            String objectName = directory + "/" + UUID.randomUUID() + extension;
+            String objectName = directory + "/" + UUID.randomUUID() + ext;
+            String derivedContentType = contentType != null && !contentType.isBlank()
+                    ? contentType : file.getContentType();
             minioClient.putObject(PutObjectArgs.builder()
                     .bucket(bucket)
                     .object(objectName)
                     .stream(file.getInputStream(), file.getSize(), -1)
-                    .contentType(file.getContentType())
+                    .contentType(derivedContentType)
                     .build());
             return objectName;
         } catch (Exception e) {

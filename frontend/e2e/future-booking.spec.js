@@ -34,7 +34,8 @@ test.describe('关店商家未来预约（浏览器端）', () => {
     await expect(bookButton).toHaveText('休息中·可预约')
     await bookButton.click()
 
-    await page.waitForURL('**/orders?create=true*')
+    // U6 导航契约：商家详情预约按钮收敛到服务详情页并带 book=1 打开下单弹窗
+    await page.waitForURL(/\/services\/\d+\?book=1/)
     const dialog = page.locator('.order-modal')
     await expect(dialog).toBeVisible()
 
@@ -63,9 +64,11 @@ test.describe('关店商家未来预约（浏览器端）', () => {
     await dialog.getByRole('button', { name: '确认下单' }).click()
 
     await expect(dialog).toBeHidden()
-    const orderCard = page.locator('.order-card', { hasText: 'Test Pet Shop' }).first()
-    await expect(orderCard).toBeVisible()
-    await orderCard.getByRole('button', { name: /余额支付/ }).click()
+    // U6 导航契约：下单成功后进入订单详情页（不再回落到 /orders 列表）
+    await page.waitForURL(/\/orders\/\d+/)
+    const payButton = page.getByRole('button', { name: '余额支付' }).first()
+    await expect(payButton).toBeVisible()
+    await payButton.click()
     await expect(page.locator('.toast', { hasText: '支付成功' }).first()).toBeVisible()
   })
 

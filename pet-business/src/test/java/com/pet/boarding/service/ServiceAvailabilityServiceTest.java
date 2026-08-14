@@ -5,9 +5,11 @@ import com.pet.boarding.dto.ServiceAvailabilityVO;
 import com.pet.boarding.entity.BusinessHours;
 import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.entity.Merchant;
+import com.pet.boarding.entity.ServiceCategory;
 import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
+import com.pet.boarding.mapper.ServiceCategoryMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.impl.ServiceAvailabilityServiceImpl;
 import com.pet.common.BookingErrorCode;
@@ -51,6 +53,7 @@ class ServiceAvailabilityServiceTest {
 
     @Mock private ServiceItemMapper serviceItemMapper;
     @Mock private MerchantMapper merchantMapper;
+    @Mock private ServiceCategoryMapper categoryMapper;
     @Mock private KeeperMapper keeperMapper;
     @Mock private OrderMapper orderMapper;
     @Mock private BusinessHoursService businessHoursService;
@@ -63,8 +66,9 @@ class ServiceAvailabilityServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ServiceAvailabilityServiceImpl(serviceItemMapper, merchantMapper, keeperMapper,
-                orderMapper, businessHoursService, resolver, keeperLeaveService, qualificationService, 30);
+        service = new ServiceAvailabilityServiceImpl(serviceItemMapper, merchantMapper, categoryMapper,
+                keeperMapper, orderMapper, businessHoursService, resolver, keeperLeaveService,
+                qualificationService, 30);
     }
 
     private LocalDate nextOrSame(DayOfWeek day) {
@@ -233,8 +237,9 @@ class ServiceAvailabilityServiceTest {
     @Test
     void slotGranularityIsConfigurable() {
         defaultStubs();
-        service = new ServiceAvailabilityServiceImpl(serviceItemMapper, merchantMapper, keeperMapper,
-                orderMapper, businessHoursService, resolver, keeperLeaveService, qualificationService, 15);
+        service = new ServiceAvailabilityServiceImpl(serviceItemMapper, merchantMapper, categoryMapper,
+                keeperMapper, orderMapper, businessHoursService, resolver, keeperLeaveService,
+                qualificationService, 15);
         when(businessHoursService.getByMerchantId(7L)).thenReturn(
                 List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(10, 0), 0)));
         LocalDate mon = nextOrSame(DayOfWeek.MONDAY);
@@ -345,6 +350,22 @@ class ServiceAvailabilityServiceTest {
                 () -> service.getAvailability(11L, nextOrSame(DayOfWeek.MONDAY), nextOrSame(DayOfWeek.MONDAY), null));
         assertEquals(400, ex.getCode());
         assertEquals(BookingErrorCode.MERCHANT_NOT_APPROVED, ex.getErrorCode());
+    }
+
+    @Test
+    void disabledCategoryRejected() {
+        ServiceItem item = serviceItem(11L, 7L);
+        item.setCategory_id_wsh(1L);
+        when(serviceItemMapper.selectById(11L)).thenReturn(item);
+        ServiceCategory category = new ServiceCategory();
+        category.setId_wsh(1L);
+        category.setStatus_wsh(StatusCode.SERVICE_DISABLED.getValue());
+        when(categoryMapper.selectById(1L)).thenReturn(category);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.getAvailability(11L, nextOrSame(DayOfWeek.MONDAY), nextOrSame(DayOfWeek.MONDAY), null));
+        assertEquals(400, ex.getCode());
+        assertEquals(BookingErrorCode.SERVICE_OFF_SHELF, ex.getErrorCode());
     }
 
     // ============ 看护员筛选 ============

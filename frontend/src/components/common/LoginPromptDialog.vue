@@ -26,9 +26,14 @@ const emit = defineEmits(['close'])
 const router = useRouter()
 const appStore = useAppStore()
 
+function safeRedirect(raw) {
+  if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard'
+  return raw
+}
+
 function goLogin() {
   emit('close')
-  const redirect = encodeURIComponent(appStore.loginRedirectPath || '/dashboard')
+  const redirect = encodeURIComponent(safeRedirect(appStore.loginRedirectPath))
   router.push('/login?redirect=' + redirect)
 }
 </script>

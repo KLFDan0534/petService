@@ -492,14 +492,16 @@ CouponService couponService,
         Pet pet = requirePet(ownerId, request.getPet_id_wsh());
         // 获取到当前用户的下单宠物的keeper
         Keeper keeper = requireFutureBookableKeeper(request.getKeeper_id_wsh());
-        // 获取到当前用户的下单宠物所属的merchant
-        Merchant merchant = requireFutureBookingEligibleMerchant(request.getMerchant_id_wsh());
+        // 先加载可下单服务（产品预订必须指定服务），商家与价格均由服务端根据服务派生
+        ServiceItem service = loadBookableService(request.getService_id_wsh());
+        assertServiceUnitSupported(service);
+        Merchant merchant = requireFutureBookingEligibleMerchant(service.getMerchant_id_wsh());
+        assertMerchantPayloadCompatible(request.getMerchant_id_wsh(), merchant.getId_wsh());
 
         // 服务判断
         validateKeeperMerchant(keeper, merchant);
         validateKeeperQualification(keeper.getId_wsh());
-        ServiceItem service = validateService(request.getService_id_wsh(), merchant.getId_wsh(),
-                request.getService_version_wsh());
+        assertServiceVersionMatches(service, request.getService_version_wsh());
 
         // 下单日期判断
         int days = validateDateRange(request.getStart_date_wsh(), request.getEnd_date_wsh());
@@ -1357,14 +1359,15 @@ CouponService couponService,
     }
 
     /**
-     * 校验服务计费单元必须为 day（本期仅支持按天寄养）。
+     * 校验服务计费单元必须为 day/天（本期仅支持按天寄养）。
      *
      * @param service 服务项
-     * @throws BusinessException 计费单元不是 day 时抛出 UNSUPPORTED_SERVICE_UNIT
+     * @throws BusinessException 计费单位不是 day/天 时抛出 UNSUPPORTED_SERVICE_UNIT
      */
     static void assertServiceUnitSupported(ServiceItem service) {
-        if (service.getUnit_wsh() == null || !"day".equals(service.getUnit_wsh())) {
-            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, "服务计费单位不是 day，本期不支持");
+        if (service.getUnit_wsh() == null
+                || !("day".equals(service.getUnit_wsh()) || "天".equals(service.getUnit_wsh()))) {
+            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, "服务计费单位不是 day/天，本期不支持");
         }
     }
 
@@ -1404,31 +1407,44 @@ CouponService couponService,
     }
 
     /**
-     * Validates that the service item exists, belongs to the specified merchant,
-     * and is currently enabled (on-shelf).
+     * 加载可下单服务（产品预订必填）。
+     * <p>
+     * 商家与价格均由服务端根据服务派生：商家 = service.merchant_id_wsh，
+     * 每日单价 = service.price_wsh，客户端提交的 merchantId 不再参与选择。
      *
-     * @param serviceId  the service item ID (may be null)
-     * @param merchantId the merchant ID for ownership verification
-     * @return the validated ServiceItem, or null if serviceId is null
-     * @throws BusinessException if service not found, not owned by merchant, or disabled
+     * @param serviceId 服务产品ID
+     * @return 校验通过的服务实体
+     * @throws BusinessException serviceId 为空或服务不存在 SERVICE_NOT_FOUND、
+     *                           服务未上架 SERVICE_OFF_SHELF
      */
-    private ServiceItem validateService(Long serviceId, Long merchantId, String clientVersion) {
+    private ServiceItem loadBookableService(Long serviceId) {
         if (serviceId == null) {
-            return null;
+            throw new BusinessException(400, BookingErrorCode.SERVICE_NOT_FOUND, "产品预订必须指定服务");
         }
         ServiceItem service = serviceItemMapper.selectById(serviceId);
         if (service == null) {
             throw new BusinessException(400, BookingErrorCode.SERVICE_NOT_FOUND, "服务不存在");
         }
-        if (service.getMerchant_id_wsh() != null && !service.getMerchant_id_wsh().equals(merchantId)) {
-            throw new BusinessException(400, BookingErrorCode.SERVICE_MERCHANT_MISMATCH, "服务不属于所选商户");
-        }
         if (service.getStatus_wsh() == null || service.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
             throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务未上架");
         }
-        assertServiceUnitSupported(service);
-        assertServiceVersionMatches(service, clientVersion);
         return service;
+    }
+
+    /**
+     * 兼容窗口内的商家字段校验：允许旧客户端继续携带 merchant_id_wsh，
+     * 但与服务端基于服务派生的商家不一致时拒绝（SERVICE_MERCHANT_MISMATCH）。
+     * 该字段永不参与商家选择。
+     *
+     * @param clientMerchantId 旧客户端提交的商家ID（可空）
+     * @param derivedMerchantId 服务端根据服务派生的商家ID
+     * @throws BusinessException 客户端值与派生值不一致时抛出 SERVICE_MERCHANT_MISMATCH
+     */
+    static void assertMerchantPayloadCompatible(Long clientMerchantId, Long derivedMerchantId) {
+        if (clientMerchantId != null && !clientMerchantId.equals(derivedMerchantId)) {
+            throw new BusinessException(400, BookingErrorCode.SERVICE_MERCHANT_MISMATCH,
+                    "提交的商家与服务归属不一致，商家由服务端根据服务派生");
+        }
     }
 
     /**

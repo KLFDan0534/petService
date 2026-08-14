@@ -10,7 +10,7 @@
         <div class="pet-info">⭐ {{ k.rating_wsh || '暂无' }} · 经验: {{ k.experience_years_wsh || 0 }} 年</div>
         <div class="pet-info">每日价格: ¥{{ money(k.price_per_day_wsh) }} | 在照护: {{ k.current_pets_wsh || 0 }}/{{ k.max_pets_wsh || '-' }}</div>
         <div style="margin-top:12px;display:flex;gap:8px" @click.stop>
-          <button class="btn btn-sm btn-primary" @click="bookKeeper(k)">联系</button>
+          <button class="btn btn-sm btn-primary" @click="goToMerchant(k)">选择服务</button>
           <button class="btn btn-sm btn-outline" @click="$router.push(`/keepers/${k.id_wsh}`)">查看主页</button>
         </div>
       </div>
@@ -30,15 +30,9 @@ const loading = ref(true)
 
 function money(v) { return Number(v || 0).toFixed(2) }
 
-function bookKeeper(keeper) {
-  router.push({
-    path: '/orders',
-    query: {
-      create: 'true',
-      merchantId: keeper.merchant_id_wsh,
-      keeperId: keeper.id_wsh,
-    },
-  })
+function goToMerchant(keeper) {
+  if (!keeper?.merchant_id_wsh) return
+  router.push(`/merchants/${keeper.merchant_id_wsh}`)
 }
 
 async function loadKeepers() {

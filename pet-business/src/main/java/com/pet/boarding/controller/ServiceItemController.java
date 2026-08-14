@@ -5,9 +5,12 @@ import com.pet.boarding.dto.ServiceItemDTO;
 import com.pet.boarding.dto.ServiceItemQueryDTO;
 import com.pet.boarding.dto.ServiceItemUpdateImagesRequestDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
+import com.pet.boarding.dto.ServiceManageDetailVO;
+import com.pet.boarding.dto.ServiceProductDetailVO;
 import com.pet.boarding.dto.ServiceQueryResultVO;
 import com.pet.boarding.dto.ServiceAvailabilityVO;
 import com.pet.boarding.entity.ServiceItem;
+import com.pet.boarding.service.MerchantScopeResolver;
 import com.pet.boarding.service.MerchantService;
 import com.pet.boarding.service.ServiceAvailabilityService;
 import com.pet.boarding.service.ServiceItemService;
@@ -61,12 +64,15 @@ public class ServiceItemController {
     private final ServiceItemService serviceItemService;
     private final MerchantService merchantService;
     private final ServiceAvailabilityService serviceAvailabilityService;
+    private final MerchantScopeResolver merchantScopeResolver;
 
     public ServiceItemController(ServiceItemService serviceItemService, MerchantService merchantService,
-                                 ServiceAvailabilityService serviceAvailabilityService) {
+                                 ServiceAvailabilityService serviceAvailabilityService,
+                                 MerchantScopeResolver merchantScopeResolver) {
         this.serviceItemService = serviceItemService;
         this.merchantService = merchantService;
         this.serviceAvailabilityService = serviceAvailabilityService;
+        this.merchantScopeResolver = merchantScopeResolver;
     }
 
     /**
@@ -162,16 +168,20 @@ public class ServiceItemController {
     }
 
     /**
-     * 【获取服务项目详情】
+     * 【获取服务项目详情（公共可见性受控）】
      *
      * API: GET /api/services/{id}
      *
      * 权限：公开
      *
+     * 场景：兼容旧客户端的服务详情读取。只返回通过公共可见性不变量
+     * （上架服务 + 已审核商家 + 启用分类）的服务，图册字段只含可信URL。
+     * 详情页权威数据请使用 GET /api/services/{serviceId}/detail。
+     *
      * @param id 服务项目 ID
      */
     @GetMapping("/{id}")
-    @Operation(summary = "获取服务项目详情", description = "根据ID获取服务项目详情")
+    @Operation(summary = "获取服务项目详情", description = "根据ID获取服务项目详情（公共可见性受控，图册可信化）")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "操作成功"),
             @ApiResponse(responseCode = "404", description = "服务项目不存在"),
@@ -179,7 +189,58 @@ public class ServiceItemController {
     })
     public Result<ServiceItemDTO> getById(@Parameter(description = "服务项目ID") @PathVariable Long id) {
         log.info("getById() called");
-        return Result.success(serviceItemService.toDTO(serviceItemService.getById(id)));
+        return Result.success(serviceItemService.getByIdPublic(id));
+    }
+
+    /**
+     * 【获取服务产品公开详情投影】
+     *
+     * API: GET /api/services/{serviceId}/detail
+     *
+     * 权限：公开
+     *
+     * 场景：服务详情页的权威数据源。返回白名单字段 + 有序可信图册 +
+     * 评分聚合 + 服务版本 + 可预约性标记；禁用/未审核商家/禁用分类一律拒绝。
+     *
+     * @param serviceId 服务产品ID
+     */
+    @GetMapping("/{serviceId}/detail")
+    @Operation(summary = "获取服务产品公开详情投影", description = "白名单字段 + 可信图册 + 评分 + 版本 + 可预约性")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "服务下架/商家未审核/分类下架/参数不合法"),
+            @ApiResponse(responseCode = "404", description = "服务产品不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ServiceProductDetailVO> detail(@Parameter(description = "服务产品ID") @PathVariable Long serviceId) {
+        log.info("detail() called, serviceId={}", serviceId);
+        return Result.success(serviceItemService.getPublicDetail(serviceId));
+    }
+
+    /**
+     * 【获取服务产品管理详情】
+     *
+     * API: GET /api/services/{serviceId}/manage
+     *
+     * 权限：ADMIN 或 MERCHANT（归属商家本人）
+     *
+     * 场景：管理端编辑单个服务时回显全部标量字段与图册条目。
+     *
+     * @param serviceId 服务产品ID
+     */
+    @GetMapping("/{serviceId}/manage")
+    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
+    @Operation(summary = "获取服务产品管理详情", description = "标量字段 + 有序图册（含文件ID与封面标记）")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "服务产品不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ServiceManageDetailVO> manageDetail(@Parameter(description = "服务产品ID") @PathVariable Long serviceId) {
+        log.info("manageDetail() called, serviceId={}", serviceId);
+        assertServiceOwnerOrAdmin(serviceId);
+        return Result.success(serviceItemService.getManageDetail(serviceId));
     }
 
     /**
@@ -209,32 +270,38 @@ public class ServiceItemController {
     }
 
     /**
-     * 【创建服务项目】
+     * 【创建服务项目（聚合）】
      *
      * API: POST /api/services
      *
      * 权限：ADMIN 或 MERCHANT
      *
      * 场景：商家在后台新增一项宠物寄养服务（如"标准寄养"、"VIP 寄养"）。
-     * 创建后默认状态为 ENABLED。
+     * 创建后默认状态为 ENABLED，标量与图册在同一事务内写入。
      *
-     * 校验：assertMerchantOwnerOrAdmin — 仅商家本人或平台管理员可操作。
+     * 归属：MERCHANT 自动派生自己所属商家；ADMIN 必须显式指定目标商家
+     * merchantId（请求参数）。客户端提交的归属不参与选择。
      *
-     * @param dto 服务项目创建信息
+     * @param dto        服务项目创建信息（含图册）
+     * @param merchantId 管理员显式指定的目标商家ID（MERCHANT 可省略）
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
-    @Operation(summary = "创建服务项目", description = "创建新的服务项目")
+    @Operation(summary = "创建服务项目", description = "标量 + 图册聚合创建，归属商家由服务端派生")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "操作成功"),
             @ApiResponse(responseCode = "400", description = "请求参数错误"),
             @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "目标商家不存在"),
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
-    public Result<ServiceItemDTO> create(@Valid @RequestBody ServiceItemCreateRequestDTO dto) {
+    public Result<ServiceItemDTO> create(
+            @Parameter(description = "ADMIN显式指定的目标商家ID（MERCHANT可省略）")
+            @RequestParam(required = false) Long merchantId,
+            @Valid @RequestBody ServiceItemCreateRequestDTO dto) {
         log.info("create() called");
-        assertMerchantOwnerOrAdmin(dto.getMerchant_id_wsh());
-        return Result.success(serviceItemService.toDTO(serviceItemService.create(dto)));
+        Long derivedMerchantId = merchantScopeResolver.resolve(merchantId, currentToken());
+        return Result.success(serviceItemService.toDTO(serviceItemService.create(derivedMerchantId, dto)));
     }
 
     /**

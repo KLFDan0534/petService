@@ -33,6 +33,7 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { addDynamicRoutes } from '@/router'
+import { safeRedirect } from '@/utils/safeRedirect'
 import axios from 'axios'
 
 const router = useRouter()
@@ -54,7 +55,7 @@ async function handleLogin() {
     if (r.data.code === 200) {
       authStore.setAuth(r.data.data)
       addDynamicRoutes(r.data.data.roles_wsh || [])
-      const redirect = route.query.redirect || '/dashboard'
+      const redirect = safeRedirect(route.query.redirect) || '/dashboard'
       router.push(redirect)
     } else {
       error.value = r.data.message || '登录失败'

@@ -4,39 +4,82 @@
 
     <LoadingSpinner v-if="loading" text="加载服务信息..." />
 
+    <div v-else-if="loadError" class="detail-container">
+      <EmptyState :title="loadError.title" :description="loadError.description">
+        <button class="btn btn-primary" @click="goToCatalog">返回服务列表</button>
+      </EmptyState>
+    </div>
+
     <div v-else-if="service" class="detail-container">
       <div class="detail-main">
         <section class="card">
           <div class="service-hero">
-            <div v-if="firstImage" class="service-cover" :style="{ backgroundImage: `url(${firstImage})` }"></div>
-            <div v-else class="service-cover placeholder">服</div>
+            <div class="gallery">
+              <div class="gallery-main">
+                <MediaWithFallback
+                  :src="activeMediaUrl"
+                  :alt="`${service.name_wsh} 主图`"
+                  placeholder="暂无图片"
+                />
+              </div>
+              <div v-if="mediaList.length > 1" class="gallery-thumbs">
+                <button
+                  v-for="(media, index) in mediaList"
+                  :key="media.url_wsh || index"
+                  type="button"
+                  class="gallery-thumb"
+                  :class="{ active: index === activeIndex }"
+                  :aria-label="`查看第 ${index + 1} 张图片`"
+                  :aria-current="index === activeIndex ? 'true' : undefined"
+                  @click="setActive(index)"
+                  @keydown.enter.prevent="setActive(index)"
+                  @keydown.space.prevent="setActive(index)"
+                >
+                  <MediaWithFallback :src="media.url_wsh" :alt="`第 ${index + 1} 张图片`" />
+                </button>
+              </div>
+            </div>
 
             <div class="service-hero-info">
-              <span class="badge badge-info">{{ categoryStore.getCategoryName(service.category_id_wsh) }}</span>
-              <h1>{{ service.name_wsh }}</h1>
+              <span class="badge badge-info">{{ service.category_name_wsh || '未分类' }}</span>
+              <h1 class="text-break">{{ service.name_wsh }}</h1>
               <div class="service-price">¥{{ money(service.price_wsh) }} <span>/ {{ service.unit_wsh || '次' }}</span></div>
-              <p class="service-desc">{{ service.description_wsh || '暂无服务描述' }}</p>
+              <p class="service-desc text-break">{{ service.description_wsh || '暂无服务描述' }}</p>
+              <div v-if="service.service_rating_count_wsh" class="rating-summary">
+                ★ {{ Number(service.service_rating_wsh).toFixed(1) }}（{{ service.service_rating_count_wsh }} 条）
+              </div>
               <div class="service-actions">
                 <FavoriteToggleButton
                   class="btn-sm"
                   :target-id="service.id_wsh"
                   :target-type="FAVORITE_TARGET_TYPES.SERVICE"
                 />
-                <button class="btn btn-primary" @click="createOrder">立即预约</button>
+                <button ref="bookButtonEl" class="btn btn-primary" @click="createOrder">立即预约</button>
               </div>
+              <p v-if="service.bookable_wsh === false && bookableReasonText" class="bookable-reason">
+                {{ bookableReasonText }}
+              </p>
             </div>
           </div>
         </section>
 
-        <section v-if="merchant" class="card">
+        <section v-if="service.merchant_name_wsh" class="card">
           <h3 class="section-title">商家信息</h3>
-          <div class="provider-card" @click="goToMerchant(merchant.id_wsh)">
-            <div class="provider-avatar">{{ merchant.name_wsh?.charAt(0) || '商' }}</div>
+          <div
+            class="provider-card"
+            role="link"
+            tabindex="0"
+            :aria-label="`查看商家 ${service.merchant_name_wsh}`"
+            @click="goToMerchant(service.merchant_id_wsh)"
+            @keydown.enter.prevent="goToMerchant(service.merchant_id_wsh)"
+            @keydown.space.prevent="goToMerchant(service.merchant_id_wsh)"
+          >
+            <div class="provider-avatar">{{ service.merchant_name_wsh.charAt(0) }}</div>
             <div class="provider-info">
-              <strong>{{ merchant.name_wsh }}</strong>
-              <span class="text-muted">{{ merchant.address_wsh || '-' }}</span>
-              <span v-if="service.merchant_rating_wsh" class="text-muted rating-summary">
-                ★ {{ Number(service.merchant_rating_wsh).toFixed(1) }}（{{ service.merchant_rating_count_wsh || 0 }} 条）
+              <strong>{{ service.merchant_name_wsh }}</strong>
+              <span class="text-muted">{{ merchant?.address_wsh || '-' }}</span>
+              <span v-if="service.service_rating_count_wsh" class="text-muted rating-summary">
+                ★ {{ Number(service.service_rating_wsh).toFixed(1) }}（{{ service.service_rating_count_wsh }} 条）
               </span>
             </div>
             <span class="link-arrow">&rsaquo;</span>
@@ -45,7 +88,17 @@
           <div v-if="keepers.length > 0" class="keepers-sub">
             <h4>看护员（{{ keepers.length }}）</h4>
             <div class="keeper-mini-list">
-              <div v-for="k in keepers" :key="k.id_wsh" class="keeper-mini-item" @click="goToKeeper(k.id_wsh)">
+              <div
+                v-for="k in keepers"
+                :key="k.id_wsh"
+                class="keeper-mini-item"
+                role="link"
+                tabindex="0"
+                :aria-label="`查看看护员 ${k.name_wsh}`"
+                @click="goToKeeper(k.id_wsh)"
+                @keydown.enter.prevent="goToKeeper(k.id_wsh)"
+                @keydown.space.prevent="goToKeeper(k.id_wsh)"
+              >
                 <img v-if="k.avatar_wsh" :src="k.avatar_wsh" class="keeper-mini-avatar">
                 <div v-else class="keeper-mini-avatar placeholder">{{ k.name_wsh?.charAt(0) || '看' }}</div>
                 <div class="keeper-mini-info">
@@ -102,45 +155,54 @@
       <aside class="detail-sidebar">
         <div class="card">
           <h4>快捷操作</h4>
-          <button class="btn btn-primary btn-block" @click="createOrder">立即预约</button>
-          <button v-if="merchant" class="btn btn-outline btn-block" @click="goToMerchant(merchant.id_wsh)">
+          <button ref="bookButtonEl" class="btn btn-primary btn-block" @click="createOrder">立即预约</button>
+          <button v-if="service.merchant_name_wsh" class="btn btn-outline btn-block" @click="goToMerchant(service.merchant_id_wsh)">
             查看商家
           </button>
-          <button class="btn btn-outline btn-block" @click="goBack">返回列表</button>
+          <button class="btn btn-outline btn-block" @click="goToCatalog">返回列表</button>
         </div>
       </aside>
     </div>
 
-    <EmptyState v-else title="服务不存在" description="找不到该服务信息">
-      <button class="btn btn-primary" @click="goBack">返回首页</button>
-    </EmptyState>
+    <CreateOrderDialog
+      :visible="showBookingDialog"
+      :initial-service-id="String(service?.id_wsh || route.params.id || '')"
+      @close="closeBookingDialog"
+      @created="onBookingCreated"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getService } from '@/api/service'
+import { getServiceDetail } from '@/api/service'
 import { getRatings } from '@/api/rating'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
-import { useCategoryStore } from '@/stores/category'
 import * as merchantService from '@/services/merchantService'
 import * as keeperService from '@/services/keeperService'
 import PageHero from '@/components/common/PageHero.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import FavoriteToggleButton from '@/components/common/FavoriteToggleButton.vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
 import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
+import CreateOrderDialog from '@/components/order/CreateOrderDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
-const categoryStore = useCategoryStore()
 
 const service = ref(null)
+const loading = ref(true)
+const loadError = ref(null)
+const showBookingDialog = ref(false)
+const bookButtonEl = ref(null)
+const mediaList = ref([])
+const activeIndex = ref(0)
 const ratings = ref([])
 const merchantRatings = ref([])
 const merchantRatingsLoading = ref(false)
@@ -148,11 +210,22 @@ const merchantRatingsError = ref(false)
 const ratingsError = ref(false)
 const merchant = ref(null)
 const keepers = ref([])
-const loading = ref(true)
+let requestSeq = 0
 
-const firstImage = computed(() => {
-  if (!service.value?.images_wsh) return ''
-  return service.value.images_wsh.split(',')[0].trim()
+const activeMediaUrl = computed(() => mediaList.value[activeIndex.value]?.url_wsh || '')
+
+const BOOKABLE_REASON_TEXT = {
+  FUTURE_BOOKING_DISABLED: '该商家暂未开放未来预约，暂不支持在线预约',
+  UNSUPPORTED_SERVICE_UNIT: '该服务计费方式暂不支持在线预约，请线下联系商家',
+}
+
+const bookableReasonText = computed(() => {
+  if (service.value?.bookable_wsh === false) {
+    return BOOKABLE_REASON_TEXT[service.value.bookable_reason_wsh]
+      || service.value.bookable_reason_wsh
+      || '该服务暂不支持在线预约'
+  }
+  return ''
 })
 
 function money(value) {
@@ -168,58 +241,93 @@ function formatDate(value) {
   }
 }
 
+function setActive(index) {
+  if (index >= 0 && index < mediaList.value.length) {
+    activeIndex.value = index
+  }
+}
+
 async function loadDetail() {
+  const seq = ++requestSeq
   loading.value = true
+  loadError.value = null
+  const id = route.params.id
   try {
-    const [svcRes, ratingRes] = await Promise.all([
-      getService(route.params.id),
-      getRatings({ targetId: route.params.id, targetType: 'service' }),
+    const [detailRes, ratingRes] = await Promise.all([
+      getServiceDetail(id),
+      getRatings({ targetId: id, targetType: 'service' }).catch(() => null),
     ])
-    if (svcRes.code === 200) {
-      service.value = svcRes.data
-      if (svcRes.data.merchant_id_wsh) {
-        loadProviderInfo(svcRes.data.merchant_id_wsh)
-        loadMerchantRatings(svcRes.data.merchant_id_wsh)
+    if (seq !== requestSeq) return
+    if (detailRes.code === 200 && detailRes.data) {
+      service.value = detailRes.data
+      mediaList.value = detailRes.data.media_wsh || []
+      const coverIndex = mediaList.value.findIndex(m => Number(m.is_cover_wsh) === 1)
+      activeIndex.value = coverIndex >= 0 ? coverIndex : 0
+      if (detailRes.data.bookable_wsh === false && bookableReasonText.value) {
+        appStore.addToast(bookableReasonText.value, 'warning')
+      }
+      if (detailRes.data.merchant_id_wsh) {
+        loadProviderInfo(detailRes.data.merchant_id_wsh, seq)
+        loadMerchantRatings(detailRes.data.merchant_id_wsh, seq)
+      }
+    } else {
+      service.value = null
+      loadError.value = {
+        title: '服务不可用',
+        description: detailRes.message || '该服务不存在或已下架',
       }
     }
-    if (ratingRes.code === 200) {
+    if (ratingRes && ratingRes.code === 200) {
       ratings.value = ratingRes.data || []
     } else {
       ratingsError.value = true
     }
   } catch (error) {
-    appStore.addToast('加载失败', 'error')
+    if (seq !== requestSeq) return
+    service.value = null
+    loadError.value = {
+      title: '加载失败',
+      description: '服务信息加载失败，请稍后重试',
+    }
   } finally {
-    loading.value = false
+    if (seq === requestSeq) {
+      loading.value = false
+    }
   }
 }
 
-async function loadMerchantRatings(merchantId) {
+async function loadMerchantRatings(merchantId, seq) {
   merchantRatingsLoading.value = true
   merchantRatingsError.value = false
   try {
     const res = await getRatings({ targetId: merchantId, targetType: 'merchant' })
+    if (seq !== requestSeq) return
     if (res.code === 200) {
       merchantRatings.value = res.data || []
     } else {
       merchantRatingsError.value = true
     }
   } catch {
+    if (seq !== requestSeq) return
     merchantRatingsError.value = true
   } finally {
-    merchantRatingsLoading.value = false
+    if (seq === requestSeq) {
+      merchantRatingsLoading.value = false
+    }
   }
 }
 
-async function loadProviderInfo(merchantId) {
+async function loadProviderInfo(merchantId, seq) {
   try {
     const [m, k] = await Promise.all([
       merchantService.getById(merchantId),
       keeperService.getByMerchant(merchantId),
     ])
+    if (seq !== requestSeq) return
     merchant.value = m
     keepers.value = k || []
   } catch {
+    if (seq !== requestSeq) return
     merchant.value = null
     keepers.value = []
   }
@@ -227,16 +335,14 @@ async function loadProviderInfo(merchantId) {
 
 async function createOrder() {
   if (!service.value) return
-  const query = {
-    create: 'true',
-    serviceId: service.value.id_wsh,
+
+  if (service.value.bookable_wsh === false) {
+    appStore.addToast(bookableReasonText.value || '该服务暂不支持在线预约', 'warning')
+    return
   }
 
   if (!authStore.isLoggedIn) {
-    appStore.loginRedirectPath = `/orders?${new URLSearchParams({
-      create: 'true',
-      serviceId: String(service.value.id_wsh),
-    }).toString()}`
+    appStore.loginRedirectPath = `/services/${service.value.id_wsh}?book=1`
     appStore.showLoginPrompt = true
     return
   }
@@ -244,7 +350,40 @@ async function createOrder() {
   const ok = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
   if (!ok) return
 
-  router.push({ path: '/orders', query })
+  showBookingDialog.value = true
+}
+
+function closeBookingDialog() {
+  showBookingDialog.value = false
+  bookButtonEl.value?.focus?.()
+}
+
+function onBookingCreated(data) {
+  if (data?.id_wsh) {
+    router.push(`/orders/${data.id_wsh}`)
+  }
+}
+
+async function handleBookingResume() {
+  const query = route.query || {}
+  const keys = Object.keys(query)
+  const isOneShotBooking = keys.length === 1 && keys[0] === 'book' && query.book === '1'
+  if (!isOneShotBooking) return
+  if (!authStore.isLoggedIn) {
+    appStore.loginRedirectPath = `/services/${route.params.id}?book=1`
+    appStore.showLoginPrompt = true
+    router.replace({ path: route.path, query: {} })
+    return
+  }
+  if (!service.value) return
+  const ok = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
+  if (!ok) return
+  if (service.value.bookable_wsh === false) {
+    appStore.addToast(bookableReasonText.value || '该服务暂不支持在线预约', 'warning')
+    return
+  }
+  showBookingDialog.value = true
+  router.replace({ path: route.path, query: {} })
 }
 
 function goToMerchant(merchantId) {
@@ -255,13 +394,16 @@ function goToKeeper(keeperId) {
   router.push(`/keepers/${keeperId}`)
 }
 
-function goBack() {
-  router.push('/dashboard')
+function goToCatalog() {
+  router.push('/services')
 }
 
-onMounted(() => {
+watch(() => route.params.id, () => {
   loadDetail()
-  categoryStore.loadCategories()
+})
+
+onMounted(() => {
+  loadDetail().then(() => handleBookingResume())
 })
 </script>
 
@@ -294,23 +436,61 @@ onMounted(() => {
   align-items: flex-start;
 }
 
-.service-cover {
+.gallery {
   width: 360px;
-  min-height: 240px;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--color-muted);
-  border-radius: 12px;
   flex-shrink: 0;
 }
 
-.service-cover.placeholder {
+.gallery-main {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-muted);
+}
+
+.gallery-thumbs {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 64px;
-  color: var(--color-primary);
-  font-weight: 700;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.gallery-thumb {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--color-muted);
+}
+
+.gallery-thumb.active {
+  border-color: var(--color-primary);
+}
+
+.gallery-thumb:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.text-break {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bookable-reason {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+}
+
+.rating-summary {
+  margin: 8px 0 0;
 }
 
 .service-hero-info {
@@ -414,6 +594,12 @@ onMounted(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.provider-card:focus-visible,
+.keeper-mini-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .provider-card:hover {
@@ -537,9 +723,8 @@ onMounted(() => {
     flex-direction: column;
   }
 
-  .service-cover {
+  .gallery {
     width: 100%;
-    min-height: 200px;
   }
 
   .review-date {

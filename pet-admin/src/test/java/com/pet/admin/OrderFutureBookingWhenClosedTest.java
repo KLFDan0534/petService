@@ -288,6 +288,7 @@ class OrderFutureBookingWhenClosedTest {
         ServiceItem service = new ServiceItem();
         service.setId_wsh(5L);
         service.setMerchant_id_wsh(10L);
+        service.setUnit_wsh("day");
         service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         lenient().when(serviceItemMapper.selectById(5L)).thenReturn(service);
         lenient().when(serviceItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(service));
@@ -308,6 +309,12 @@ class OrderFutureBookingWhenClosedTest {
     private void stubSingleMerchant(Long id, int merchantStatus, int policy, int storeStatus) {
         when(merchantMapper.selectById(id)).thenReturn(merchant(id, merchantStatus, policy, storeStatus));
         lenient().when(merchantMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
+        ServiceItem service = new ServiceItem();
+        service.setId_wsh(5L);
+        service.setMerchant_id_wsh(id);
+        service.setUnit_wsh("day");
+        service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
+        when(serviceItemMapper.selectById(5L)).thenReturn(service);
     }
 
     private void stubPetAndKeeper() {
@@ -349,6 +356,7 @@ class OrderFutureBookingWhenClosedTest {
         dto.setPet_id_wsh(1L);
         dto.setKeeper_id_wsh(20L);
         dto.setMerchant_id_wsh(10L);
+        dto.setService_id_wsh(5L);
         dto.setStart_date_wsh(start);
         dto.setEnd_date_wsh(end);
         dto.setDelivery_time_wsh(start.atTime(10, 0));

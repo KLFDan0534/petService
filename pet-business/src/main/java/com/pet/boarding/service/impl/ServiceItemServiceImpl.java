@@ -5,6 +5,10 @@ import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
 import com.pet.boarding.dto.ServiceItemDTO;
 import com.pet.boarding.dto.ServiceItemQueryDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
+import com.pet.boarding.dto.ServiceManageDetailVO;
+import com.pet.boarding.dto.ServiceMediaDTO;
+import com.pet.boarding.dto.ServiceProductDetailVO;
+import com.pet.boarding.dto.ServiceProductMediaVO;
 import com.pet.boarding.dto.ServiceQueryResultVO;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.entity.ServiceCategory;
@@ -13,6 +17,7 @@ import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.ServiceCategoryMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.ServiceItemService;
+import com.pet.boarding.service.ServiceMediaService;
 import com.pet.common.BookingErrorCode;
 import com.pet.common.BusinessException;
 import com.pet.common.ServiceVersions;
@@ -24,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -47,20 +53,28 @@ public class ServiceItemServiceImpl implements ServiceItemService {
 
     private static final Set<String> SUPPORTED_SORTS = Set.of("default", "price_asc", "rating_desc", "distance_asc");
     private static final int MAX_SIZE = 100;
+    private static final int MAX_NAME_LENGTH = 100;
+    private static final int MAX_DESCRIPTION_LENGTH = 2000;
+    private static final int MAX_UNIT_LENGTH = 20;
+    private static final BigDecimal MAX_PRICE = new BigDecimal("1000000");
+    private static final Set<String> BOOKABLE_UNITS = Set.of("day", "天");
 
     private final ServiceItemMapper serviceItemMapper;
     private final ServiceCategoryMapper categoryMapper;
     private final MerchantMapper merchantMapper;
     private final RatingMapper ratingMapper;
+    private final ServiceMediaService serviceMediaService;
 
     public ServiceItemServiceImpl(ServiceItemMapper serviceItemMapper,
                                   ServiceCategoryMapper categoryMapper,
                                   MerchantMapper merchantMapper,
-                                  RatingMapper ratingMapper) {
+                                  RatingMapper ratingMapper,
+                                  ServiceMediaService serviceMediaService) {
         this.serviceItemMapper = serviceItemMapper;
         this.categoryMapper = categoryMapper;
         this.merchantMapper = merchantMapper;
         this.ratingMapper = ratingMapper;
+        this.serviceMediaService = serviceMediaService;
     }
 
     /**
@@ -155,69 +169,89 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【创建服务项目】
+     * 【创建服务项目（聚合）】
      *
-     * 业务作用：商家新增一个服务项目，自动关联分类编码。
+     * 业务作用：商家新增一个服务项目，标量与图册在同一事务内写入。
      * 调用场景：商家在后台新增服务项目时调用。
-     * 调用链：ServiceItemController → create @Transactional → ServiceItemMapper.insert
-     * 数据处理：按 DTO 构建实体；指定分类则自动获取其 code 作为 type；默认状态已启用。
-     * 业务规则：分类编码自动同步到 type；默认启用。
-     * 状态影响：新增服务项目记录。
+     * 业务规则：归属商家由服务端派生（调用方已完成作用域解析）；
+     * 分类必须存在且启用；名称/描述/价格/单位均校验；图册非空时整体替换校验。
+     * 状态影响：新增服务项目记录（默认已启用）+ 图册行。
      */
     @Override
     @Transactional
-    public ServiceItem create(ServiceItemCreateRequestDTO dto) {
+    public ServiceItem create(Long merchantId, ServiceItemCreateRequestDTO dto) {
         log.info("create() called");
+        validateName(dto.getName_wsh());
+        validateDescription(dto.getDescription_wsh());
+        validatePrice(dto.getPrice_wsh());
+        ServiceCategory cat = requireEnabledCategory(dto.getCategory_id_wsh());
+
         ServiceItem item = new ServiceItem();
-        item.setMerchant_id_wsh(dto.getMerchant_id_wsh());
+        item.setMerchant_id_wsh(merchantId);
         item.setName_wsh(dto.getName_wsh());
-        item.setCategory_id_wsh(dto.getCategory_id_wsh());
+        item.setCategory_id_wsh(cat.getId_wsh());
+        item.setType_wsh(cat.getCode_wsh());
         item.setDescription_wsh(dto.getDescription_wsh());
         item.setPrice_wsh(dto.getPrice_wsh());
-        item.setUnit_wsh(dto.getUnit_wsh());
+        item.setUnit_wsh(normalizeUnit(dto.getUnit_wsh()));
         item.setImages_wsh(dto.getImages_wsh());
-        if (item.getCategory_id_wsh() != null) {
-            ServiceCategory cat = categoryMapper.selectById(item.getCategory_id_wsh());
-            if (cat != null) {
-                item.setType_wsh(cat.getCode_wsh());
-            }
-        }
-        if (item.getStatus_wsh() == null) {
-            item.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
-        }
+        item.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         serviceItemMapper.insert(item);
+        if (dto.getMedia_wsh() != null && !dto.getMedia_wsh().isEmpty()) {
+            serviceMediaService.replaceMedia(item.getId_wsh(), dto.getMedia_wsh());
+        }
         return item;
     }
 
     /**
-     * 【更新服务项目】
+     * 【更新服务项目（聚合）】
      *
-     * 业务作用：修改服务项目信息，更新分类时同步更新 type 编码。
-     * 调用场景：商家在后台编辑服务项目时调用。
-     * 调用链：ServiceItemController → update @Transactional → ServiceItemMapper.updateById
-     * 数据处理：仅更新非 null 字段；更新 category_id 时同步从分类表读取 code 更新 type。
-     * 业务规则：更新分类时同步更新 type。
-     * 状态影响：更新服务项目字段。
+     * 业务作用：修改服务项目信息；仅更新非 null 字段；更新分类时同步
+     * 更新 type 编码；media_wsh 非 null 时整体替换图册（空集合表示清空）。
+     * 业务规则：更新前对聚合根加行锁（SELECT ... FOR UPDATE），与图册替换
+     * 串行化；名称/描述/价格/状态/单位/分类均校验。
+     * 状态影响：更新服务项目字段，可选整体替换图册。
      */
     @Override
     @Transactional
     public ServiceItem update(Long id, ServiceItemUpdateRequestDTO dto) {
         log.info("update() called");
-        ServiceItem existing = getById(id);
-        if (dto.getName_wsh() != null) existing.setName_wsh(dto.getName_wsh());
-        if (dto.getCategory_id_wsh() != null) {
-            existing.setCategory_id_wsh(dto.getCategory_id_wsh());
-            ServiceCategory cat = categoryMapper.selectById(dto.getCategory_id_wsh());
-            if (cat != null) {
-                existing.setType_wsh(cat.getCode_wsh());
-            }
+        assertPositiveId(id);
+        ServiceItem existing = serviceItemMapper.selectByIdForUpdate(id);
+        if (existing == null) {
+            throw new BusinessException(404, BookingErrorCode.SERVICE_NOT_FOUND, "服务项目不存在");
         }
-        if (dto.getDescription_wsh() != null) existing.setDescription_wsh(dto.getDescription_wsh());
-        if (dto.getPrice_wsh() != null) existing.setPrice_wsh(dto.getPrice_wsh());
-        if (dto.getUnit_wsh() != null) existing.setUnit_wsh(dto.getUnit_wsh());
-        if (dto.getImages_wsh() != null) existing.setImages_wsh(dto.getImages_wsh());
-        if (dto.getStatus_wsh() != null) existing.setStatus_wsh(dto.getStatus_wsh());
+        if (dto.getName_wsh() != null) {
+            validateName(dto.getName_wsh());
+            existing.setName_wsh(dto.getName_wsh());
+        }
+        if (dto.getCategory_id_wsh() != null) {
+            ServiceCategory cat = requireEnabledCategory(dto.getCategory_id_wsh());
+            existing.setCategory_id_wsh(cat.getId_wsh());
+            existing.setType_wsh(cat.getCode_wsh());
+        }
+        if (dto.getDescription_wsh() != null) {
+            validateDescription(dto.getDescription_wsh());
+            existing.setDescription_wsh(dto.getDescription_wsh());
+        }
+        if (dto.getPrice_wsh() != null) {
+            validatePrice(dto.getPrice_wsh());
+            existing.setPrice_wsh(dto.getPrice_wsh());
+        }
+        if (dto.getUnit_wsh() != null) {
+            existing.setUnit_wsh(normalizeUnit(dto.getUnit_wsh()));
+        }
+        if (dto.getImages_wsh() != null) {
+            existing.setImages_wsh(dto.getImages_wsh());
+        }
+        if (dto.getStatus_wsh() != null) {
+            validateStatus(dto.getStatus_wsh());
+            existing.setStatus_wsh(dto.getStatus_wsh());
+        }
         serviceItemMapper.updateById(existing);
+        if (dto.getMedia_wsh() != null) {
+            serviceMediaService.replaceMedia(id, dto.getMedia_wsh());
+        }
         return existing;
     }
 
@@ -234,6 +268,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Transactional
     public void delete(Long id) {
         log.info("delete() called");
+        assertPositiveId(id);
         getById(id);
         serviceItemMapper.deleteById(id);
     }
@@ -251,6 +286,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Transactional
     public void toggleStatus(Long id) {
         log.info("toggleStatus() called");
+        assertPositiveId(id);
         ServiceItem item = getById(id);
         item.setStatus_wsh(item.getStatus_wsh() == null || item.getStatus_wsh() == StatusCode.SERVICE_DISABLED.getValue()
                 ? StatusCode.SERVICE_ENABLED.getValue()
@@ -271,6 +307,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Transactional
     public ServiceItem updateImages(Long id, String images) {
         log.info("updateImages() called");
+        assertPositiveId(id);
         ServiceItem item = getById(id);
         item.setImages_wsh(images);
         serviceItemMapper.updateById(item);
@@ -390,13 +427,16 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         }
 
         Set<Long> serviceIds = visible.stream().map(ServiceItem::getId_wsh).collect(Collectors.toSet());
+        // 图册批量解析（单次媒体查询 + 单次文件记录查询），列表只展示媒体行可信 URL
+        Map<Long, List<ServiceMediaDTO>> mediaByService = serviceMediaService.listMediaByServiceIds(serviceIds);
         Map<Long, RatingStats> serviceStats = aggregate(serviceIds, "service");
         Set<Long> merchantIds = visible.stream().map(ServiceItem::getMerchant_id_wsh)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, RatingStats> merchantStats = aggregate(merchantIds, "merchant");
 
         List<ServiceItemDTO> dtos = visible.stream()
-                .map(s -> toPublicDTO(s, merchants, categories, serviceStats, merchantStats, lat, lng))
+                .map(s -> toPublicDTO(s, merchants, categories, serviceStats, merchantStats, lat, lng,
+                        mediaByService.get(s.getId_wsh())))
                 .toList();
 
         if ("price_asc".equals(sort)) {
@@ -434,11 +474,12 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
             return false;
         }
-        ServiceCategory category = service.getCategory_id_wsh() == null
-                ? null : categories.get(service.getCategory_id_wsh());
-        if (category != null && (category.getStatus_wsh() == null
-                || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue())) {
-            return false;
+        if (service.getCategory_id_wsh() != null) {
+            ServiceCategory category = categories.get(service.getCategory_id_wsh());
+            if (category == null || category.getStatus_wsh() == null
+                    || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+                return false;
+            }
         }
         return true;
     }
@@ -477,8 +518,13 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                                        Map<Long, ServiceCategory> categories,
                                        Map<Long, RatingStats> serviceStats,
                                        Map<Long, RatingStats> merchantStats,
-                                       Double lat, Double lng) {
+                                       Double lat, Double lng,
+                                       List<ServiceMediaDTO> media) {
         ServiceItemDTO dto = copyFields(entity);
+        // 公共输出只允许可信图册 URL（外部/data/协议相对地址一律不下发）
+        dto.setImages_wsh(media == null || media.isEmpty() ? null
+                : media.stream().map(ServiceMediaDTO::getUrl_wsh)
+                        .filter(Objects::nonNull).collect(Collectors.joining(",")));
         Merchant merchant = merchants.get(entity.getMerchant_id_wsh());
         if (merchant != null) {
             dto.setMerchant_name_wsh(merchant.getName_wsh());
@@ -528,6 +574,216 @@ public class ServiceItemServiceImpl implements ServiceItemService {
 
     private long toLong(Object value) {
         return value instanceof Number number ? number.longValue() : 0L;
+    }
+
+    @Override
+    public ServiceItemDTO getByIdPublic(Long id) {
+        assertPositiveId(id);
+        PublicContext ctx = requirePublicService(id);
+        ServiceItemDTO dto = toDTO(ctx.service);
+        dto.setImages_wsh(resolvePublicImages(ctx.service));
+        return dto;
+    }
+
+    @Override
+    public ServiceProductDetailVO getPublicDetail(Long id) {
+        assertPositiveId(id);
+        PublicContext ctx = requirePublicService(id);
+        ServiceItem service = ctx.service;
+        Merchant merchant = ctx.merchant;
+        ServiceCategory category = ctx.category;
+
+        ServiceProductDetailVO vo = new ServiceProductDetailVO();
+        vo.setId_wsh(service.getId_wsh());
+        vo.setMerchant_id_wsh(service.getMerchant_id_wsh());
+        vo.setMerchant_name_wsh(merchant != null ? merchant.getName_wsh() : null);
+        vo.setName_wsh(service.getName_wsh());
+        vo.setType_wsh(service.getType_wsh());
+        vo.setCategory_id_wsh(service.getCategory_id_wsh());
+        vo.setCategory_name_wsh(category != null ? category.getName_wsh() : null);
+        vo.setDescription_wsh(service.getDescription_wsh());
+        vo.setPrice_wsh(service.getPrice_wsh());
+        vo.setUnit_wsh(service.getUnit_wsh());
+        vo.setService_version_wsh(ServiceVersions.format(service.getUpdated_at_wsh()));
+        vo.setMedia_wsh(resolvePublicMedia(service));
+
+        RatingStats stats = aggregate(Set.of(service.getId_wsh()), "service").get(service.getId_wsh());
+        if (stats != null) {
+            vo.setService_rating_wsh(stats.avgScore());
+            vo.setService_rating_count_wsh(stats.count());
+        } else {
+            vo.setService_rating_count_wsh(0L);
+        }
+
+        String reason = bookableReason(service, merchant);
+        vo.setBookable_wsh(reason == null);
+        vo.setBookable_reason_wsh(reason);
+        return vo;
+    }
+
+    @Override
+    public ServiceManageDetailVO getManageDetail(Long id) {
+        assertPositiveId(id);
+        ServiceManageDetailVO vo = new ServiceManageDetailVO();
+        vo.setService_wsh(toDTO(getById(id)));
+        vo.setMedia_wsh(serviceMediaService.listMedia(id));
+        return vo;
+    }
+
+    /**
+     * 公共可见性不变量：上架服务 + 已审核商家 + （存在分类时）启用分类。
+     * 与列表过滤（isPubliclyVisible）语义一致，保证详情不会暴露列表隐藏的数据。
+     */
+    private PublicContext requirePublicService(Long id) {
+        ServiceItem service = serviceItemMapper.selectById(id);
+        if (service == null) {
+            throw new BusinessException(404, BookingErrorCode.SERVICE_NOT_FOUND, "服务不存在");
+        }
+        if (service.getStatus_wsh() == null
+                || service.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+            throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务已下架");
+        }
+        Merchant merchant = merchantMapper.selectById(service.getMerchant_id_wsh());
+        if (merchant == null || merchant.getStatus_wsh() == null
+                || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
+            throw new BusinessException(400, BookingErrorCode.MERCHANT_NOT_APPROVED, "服务所属商家未通过审核");
+        }
+        ServiceCategory category = service.getCategory_id_wsh() == null
+                ? null : categoryMapper.selectById(service.getCategory_id_wsh());
+        if (service.getCategory_id_wsh() != null
+                && (category == null || category.getStatus_wsh() == null
+                || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue())) {
+            throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务所属分类已下架");
+        }
+        return new PublicContext(service, merchant, category);
+    }
+
+    /**
+     * 详情图片：优先媒体行可信 URL；无媒体行时仅回退到能解析到内部
+     * 文件记录的历史值（外部/data/协议相对地址丢弃，仅审计记录）。
+     */
+    private String resolvePublicImages(ServiceItem service) {
+        List<ServiceMediaDTO> media = serviceMediaService.listMedia(service.getId_wsh());
+        if (!media.isEmpty()) {
+            return media.stream().map(ServiceMediaDTO::getUrl_wsh)
+                    .filter(Objects::nonNull).collect(Collectors.joining(","));
+        }
+        List<String> trusted = serviceMediaService.resolveTrustedLegacyImages(service.getImages_wsh());
+        return trusted.isEmpty() ? null : String.join(",", trusted);
+    }
+
+    private List<ServiceProductMediaVO> resolvePublicMedia(ServiceItem service) {
+        List<ServiceProductMediaVO> result = new ArrayList<>();
+        for (ServiceMediaDTO m : serviceMediaService.listMedia(service.getId_wsh())) {
+            ServiceProductMediaVO vo = new ServiceProductMediaVO();
+            vo.setFile_id_wsh(m.getFile_id_wsh());
+            vo.setSort_order_wsh(m.getSort_order_wsh());
+            vo.setIs_cover_wsh(m.getIs_cover_wsh());
+            vo.setUrl_wsh(m.getUrl_wsh());
+            result.add(vo);
+        }
+        if (result.isEmpty()) {
+            List<String> trusted = serviceMediaService.resolveTrustedLegacyImages(service.getImages_wsh());
+            for (int i = 0; i < trusted.size(); i++) {
+                ServiceProductMediaVO vo = new ServiceProductMediaVO();
+                vo.setSort_order_wsh(i);
+                vo.setIs_cover_wsh(i == 0 ? 1 : 0);
+                vo.setUrl_wsh(trusted.get(i));
+                result.add(vo);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 可预约性：商家开放未来预约且计费单位为 day/天。
+     */
+    private String bookableReason(ServiceItem service, Merchant merchant) {
+        boolean futureBookingOn = merchant != null && merchant.getFuture_booking_enabled_wsh() != null
+                && merchant.getFuture_booking_enabled_wsh() == 1;
+        if (!futureBookingOn) {
+            return BookingErrorCode.FUTURE_BOOKING_DISABLED;
+        }
+        if (service.getUnit_wsh() == null || !BOOKABLE_UNITS.contains(service.getUnit_wsh())) {
+            return BookingErrorCode.UNSUPPORTED_SERVICE_UNIT;
+        }
+        return null;
+    }
+
+    private void assertPositiveId(Long id) {
+        if (id == null || id <= 0) {
+            throw new BusinessException(400, BookingErrorCode.INVALID_PRODUCT_ID, "服务ID必须为正数");
+        }
+    }
+
+    private void validateName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new BusinessException(400, "服务名称不能为空");
+        }
+        if (name.length() > MAX_NAME_LENGTH) {
+            throw new BusinessException(400, "服务名称不能超过" + MAX_NAME_LENGTH + "个字符");
+        }
+    }
+
+    private void validateDescription(String description) {
+        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new BusinessException(400, "服务描述不能超过" + MAX_DESCRIPTION_LENGTH + "个字符");
+        }
+    }
+
+    private void validatePrice(BigDecimal price) {
+        if (price == null) {
+            throw new BusinessException(400, BookingErrorCode.PRICE_INVALID, "价格不能为空");
+        }
+        if (price.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(400, BookingErrorCode.PRICE_INVALID, "价格不能为负数");
+        }
+        if (price.scale() > 2) {
+            throw new BusinessException(400, BookingErrorCode.PRICE_INVALID, "价格最多保留两位小数");
+        }
+        if (price.compareTo(MAX_PRICE) > 0) {
+            throw new BusinessException(400, BookingErrorCode.PRICE_INVALID, "价格不能超过上限");
+        }
+    }
+
+    private void validateStatus(Integer status) {
+        if (status == null
+                || (status != StatusCode.SERVICE_ENABLED.getValue()
+                && status != StatusCode.SERVICE_DISABLED.getValue())) {
+            throw new BusinessException(400, BookingErrorCode.INVALID_STATUS, "服务状态仅允许启用或禁用");
+        }
+    }
+
+    private ServiceCategory requireEnabledCategory(Long categoryId) {
+        if (categoryId == null) {
+            throw new BusinessException(400, BookingErrorCode.CATEGORY_NOT_FOUND, "服务分类不能为空");
+        }
+        ServiceCategory cat = categoryMapper.selectById(categoryId);
+        if (cat == null) {
+            throw new BusinessException(400, BookingErrorCode.CATEGORY_NOT_FOUND, "服务分类不存在");
+        }
+        if (cat.getStatus_wsh() == null
+                || cat.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+            throw new BusinessException(400, BookingErrorCode.CATEGORY_DISABLED, "服务分类已禁用");
+        }
+        return cat;
+    }
+
+    /**
+     * 单位归一化：天 → day（与订单契约对齐）；其余原样保存，仅限制长度。
+     */
+    private String normalizeUnit(String unit) {
+        if (unit == null || unit.isBlank()) {
+            return null;
+        }
+        String normalized = "天".equals(unit.trim()) ? "day" : unit.trim();
+        if (normalized.length() > MAX_UNIT_LENGTH) {
+            throw new BusinessException(400, "计费单位不能超过" + MAX_UNIT_LENGTH + "个字符");
+        }
+        return normalized;
+    }
+
+    private record PublicContext(ServiceItem service, Merchant merchant, ServiceCategory category) {
     }
 
     private record RatingStats(BigDecimal avgScore, long count) {

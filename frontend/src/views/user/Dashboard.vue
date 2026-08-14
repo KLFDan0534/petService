@@ -305,7 +305,6 @@ import {
 import { getKeepers } from '@/api/keeper'
 import { getMerchants } from '@/api/merchant'
 import { getRatings } from '@/api/rating'
-import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import request from '@/utils/request'
@@ -483,24 +482,9 @@ function goDetail(serviceId) {
   router.push(`/services/${serviceId}`)
 }
 
-async function createOrder(service) {
+function createOrder(service) {
   if (!service?.id_wsh) return
-  const query = {
-    create: 'true',
-    serviceId: service.id_wsh,
-    serviceName: service.name_wsh,
-    price: service.price_wsh,
-  }
-
-  if (!authStore.isLoggedIn) {
-    appStore.loginRedirectPath = `/orders?${new URLSearchParams(query).toString()}`
-    appStore.showLoginPrompt = true
-    return
-  }
-
-  const profileReady = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
-  if (!profileReady) return
-  router.push({ path: '/orders', query })
+  router.push({ path: `/services/${service.id_wsh}`, query: { book: '1' } })
 }
 
 function startBooking() {

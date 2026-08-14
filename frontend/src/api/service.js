@@ -5,8 +5,8 @@ export async function getServices() {
   return res.data
 }
 
-export async function getService(id) {
-  const res = await request.get(`/services/${id}`)
+export async function getServiceDetail(id) {
+  const res = await request.get(`/api/services/${id}/detail`)
   return res.data
 }
 
@@ -17,6 +17,11 @@ export async function getServicesByMerchant(merchantId) {
 
 export async function getMerchantServices(merchantId) {
   const res = await request.get(`/api/services/merchant/${merchantId}/manage`)
+  return res.data
+}
+
+export async function getServiceManageDetail(id) {
+  const res = await request.get(`/api/services/${id}/manage`)
   return res.data
 }
 

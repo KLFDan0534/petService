@@ -143,7 +143,7 @@ import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequir
 import { getPets } from '@/api/pet'
 import { getMerchants } from '@/api/merchant'
 import { getKeepersByMerchant } from '@/api/keeper'
-import { getService, getServiceAvailability } from '@/api/service'
+import { getServiceDetail, getServiceAvailability } from '@/api/service'
 import { createOrder } from '@/api/order'
 import { getAvailableCoupons, quoteCoupon } from '@/api/coupon'
 import { quoteMembershipOrderDiscount } from '@/api/membership'
@@ -340,7 +340,7 @@ watch(
     }
     if (serviceId.value) {
       try {
-        const r = await getService(serviceId.value)
+        const r = await getServiceDetail(serviceId.value)
         if (r.code === 200 && r.data) {
           serviceName.value = r.data.name_wsh || serviceName.value
           serviceVersion.value = r.data.service_version_wsh || ''
@@ -357,7 +357,14 @@ watch(
             await refreshCoupons()
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        const res = e?.response?.data
+        const code = res?.errorCode || res?.error_code_wsh
+        if (code === 'SERVICE_NOT_FOUND' || code === 'SERVICE_OFF_SHELF') {
+          appStore.addToast('服务不存在或已下架，请选择其他服务', 'error')
+          emit('close')
+        }
+      }
     } else if (form.merchant_id_wsh) {
       fillDeliveryFromMerchant()
       await loadKeepers(form.merchant_id_wsh)
@@ -619,6 +626,7 @@ async function loadAvailability() {
 }
 
 async function submitOrder() {
+  if (submitting.value) return
   nowTick.value = Date.now()
   const profileOk = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
   if (!profileOk) return
@@ -700,6 +708,11 @@ async function submitOrder() {
     }
     const res = await createOrder(payload)
     if (res.code === 200) {
+      if (!res.data?.id_wsh && !res.data?.order_no_wsh) {
+        appStore.addToast('订单已提交，请稍后在订单页查看', 'warning')
+        emit('close')
+        return
+      }
       emit('created', res.data)
       return
     }
@@ -737,12 +750,46 @@ const BOOKING_ERROR_MESSAGES = {
 function handleCreateError(res) {
   const { errorCode, error_code_wsh, message } = res || {}
   const code = errorCode || error_code_wsh
+  if (code === 'PRICE_CHANGED') {
+    appStore.addToast('服务价格或版本已更新，请重新确认后提交', 'error')
+    reloadServiceState()
+    return
+  }
   const messageKey = code ? BOOKING_ERROR_MESSAGES[code] : null
   if (messageKey) {
     appStore.addToast(messageKey, 'error')
     return
   }
   appStore.addToast(message || '订单提交失败', 'error')
+}
+
+async function reloadServiceState() {
+  if (serviceId.value) {
+    try {
+      const r = await getServiceDetail(serviceId.value)
+      if (r.code === 200 && r.data) {
+        serviceName.value = r.data.name_wsh || serviceName.value
+        serviceVersion.value = r.data.service_version_wsh || ''
+        price.value = r.data.price_wsh ?? price.value
+      }
+    } catch (e) {}
+  }
+  form.delivery_time_wsh = ''
+  form.pickup_time_wsh = ''
+  form.delivery_date_wsh = ''
+  form.delivery_slot_wsh = ''
+  form.pickup_date_wsh = ''
+  form.pickup_slot_wsh = ''
+  form.user_coupon_id_wsh = ''
+  availabilityDays.value = []
+  availabilityError.value = false
+  availableCoupons.value = []
+  couponQuote.value = null
+  membershipQuote.value = null
+  if (availabilityEnabled.value && form.keeper_id_wsh) {
+    await loadAvailability()
+  }
+  await refreshCoupons()
 }
 
 function hasDeliveryLocation() {

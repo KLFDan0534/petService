@@ -49,19 +49,6 @@
       <OrderCard v-for="o in filteredOrders" :key="o.id_wsh" :order="o" :now-ms="nowMs" :processing="processingOrderId === o.id_wsh" @cancel="handleCancel(o)" @pay="method => handlePay(o, method)" @deliver="handleDeliver(o)" @review="openReview(o)" @tip="showTip = o" @viewDetail="handleViewDetail(o)" />
     </div>
 
-    <button class="btn btn-primary" @click="showCreateDialog = true" style="margin: 16px 0">创建订单</button>
-
-    <CreateOrderDialog
-      :visible="showCreateDialog"
-      :initial-service-name="createServiceName"
-      :initial-service-id="createServiceId"
-      :initial-price="createPrice"
-      :initial-merchant-id="createMerchantId"
-      :initial-keeper-id="createKeeperId"
-      @close="showCreateDialog = false; router.replace({ query: {} })"
-      @created="onOrderCreated"
-    />
-
     <TipDialog :visible="!!showTip" :order="showTip" @close="showTip = null" @tipped="onTipped" />
 
     <ReviewDialog :visible="!!showReview" :order="showReview" :done-types="reviewedDims" @close="showReview = null" @reviewed="onReviewed" />
@@ -69,41 +56,30 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import PageHero from '@/components/common/PageHero.vue'
 import OrderCard from '@/components/order/OrderCard.vue'
-import CreateOrderDialog from '@/components/order/CreateOrderDialog.vue'
 import TipDialog from '@/components/order/TipDialog.vue'
 import ReviewDialog from '@/components/order/ReviewDialog.vue'
 import { getOrders, cancelOrder as apiCancelOrder, confirmDelivered } from '@/api/order'
 import { createPayment, executePayment } from '@/api/payment'
 import { createTip } from '@/api/wallet'
 import { createRating, getMyRatingsByOrder } from '@/api/rating'
-import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
 import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, hasExpiredPaymentTimeout } from '@/utils/orderPaymentTimeout'
 
-const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
 const appStore = useAppStore()
 
 const orders = ref([])
 const loading = ref(true)
 const activeTab = ref('all')
-const showCreateDialog = ref(false)
 const showTip = ref(null)
 const showReview = ref(null)
 const reviewedDims = ref([])
-const createServiceName = ref('')
-const createServiceId = ref('')
-const createPrice = ref('')
-const createMerchantId = ref('')
-const createKeeperId = ref('')
 const nowMs = ref(Date.now())
 const processingOrderId = ref(null)
 let countdownTimer = null
@@ -146,15 +122,10 @@ onMounted(async () => {
     refreshExpiredPaymentOrders()
   }, 1000)
   await loadOrders()
-  if (route.query.create === 'true') openCreateFromQuery(route.query)
 })
 
 onUnmounted(() => {
   if (countdownTimer) window.clearInterval(countdownTimer)
-})
-
-watch(() => route.query, query => {
-  if (query.create === 'true' && !showCreateDialog.value) openCreateFromQuery(query)
 })
 
 async function loadOrders() {
@@ -178,24 +149,6 @@ function refreshExpiredPaymentOrders() {
     return
   }
   nextPaymentTimeoutRefreshAt = nowMs.value + PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS
-  void loadOrders()
-}
-
-async function openCreateFromQuery(query) {
-  const ok = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
-  if (!ok) return
-  createServiceName.value = query.serviceName || ''
-  createServiceId.value = query.serviceId || ''
-  createPrice.value = query.price || ''
-  createMerchantId.value = query.merchantId || ''
-  createKeeperId.value = query.keeperId || ''
-  showCreateDialog.value = true
-}
-
-function onOrderCreated(data) {
-  appStore.addToast(`下单成功，交接码：${data?.handover_code_wsh || '待生成'}`, 'success')
-  showCreateDialog.value = false
-  router.replace({ query: {} })
   void loadOrders()
 }
 

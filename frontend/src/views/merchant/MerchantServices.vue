@@ -73,6 +73,7 @@
     <div v-if="showForm" class="modal-overlay" @mousedown.self="closeForm">
       <div class="modal service-modal">
         <h2>{{ editingService ? '编辑服务' : '新增服务' }}</h2>
+        <p v-if="detailLoading" class="detail-loading">正在加载服务详情...</p>
         <form @submit.prevent="saveService">
           <div class="form-group">
             <label>服务名称</label>
@@ -115,12 +116,18 @@
               <button type="button" class="btn btn-outline btn-sm" :disabled="imageUploading" @click="imageInput?.click()">
                 {{ imageUploading ? '上传中...' : '上传图片' }}
               </button>
-              <span class="upload-hint">支持多张图片，上传后自动保存 MinIO 地址。</span>
+              <span class="upload-hint">支持 PNG/JPEG/GIF/BMP，单张不超过 10MB，最多 {{ MAX_MEDIA }} 张。</span>
             </div>
-            <div v-if="imageList.length" class="image-preview-grid">
-              <div v-for="url in imageList" :key="url" class="image-preview">
-                <img :src="url" alt="服务图片">
-                <button type="button" class="remove-image" :disabled="imageUploading" @click="removeImage(url)">移除</button>
+            <div v-if="mediaItems.length" class="image-preview-grid">
+              <div v-for="(item, index) in mediaItems" :key="item.file_id_wsh ?? item.url_wsh" class="image-preview">
+                <img :src="item.url_wsh" :alt="`服务图片 ${index + 1}`">
+                <span v-if="item.is_cover" class="cover-badge">封面</span>
+                <div class="media-actions">
+                  <button type="button" :disabled="imageUploading || index === 0" @click="moveMedia(index, -1)">左移</button>
+                  <button type="button" :disabled="imageUploading || index === mediaItems.length - 1" @click="moveMedia(index, 1)">右移</button>
+                  <button type="button" :disabled="imageUploading || item.is_cover" @click="setCover(index)">设为封面</button>
+                  <button type="button" :disabled="imageUploading" @click="removeMedia(index)">移除</button>
+                </div>
               </div>
             </div>
           </div>
@@ -139,8 +146,8 @@
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="saving || imageUploading" @click="closeForm">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="saving || imageUploading">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="saving || imageUploading || detailLoading" @click="closeForm">取消</button>
+            <button type="submit" class="btn btn-primary btn-sm" :disabled="saving || imageUploading || detailLoading">
               {{ saving ? '保存中...' : '保存' }}
             </button>
           </div>
@@ -158,16 +165,21 @@ import {
   createService,
   deleteService,
   getMerchantServices,
+  getServiceManageDetail,
   toggleServiceStatus,
   updateService,
 } from '@/api/service'
 import { getServiceCategoryList } from '@/api/serviceCategory'
-import { uploadFileToDirectory } from '@/api/file'
+import { uploadProductImage } from '@/api/file'
+
+const MAX_MEDIA = 10
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 const appStore = useAppStore()
 const loading = ref(true)
 const saving = ref(false)
 const imageUploading = ref(false)
+const detailLoading = ref(false)
 const imageInput = ref(null)
 const merchant = ref(null)
 const services = ref([])
@@ -175,6 +187,8 @@ const categories = ref([])
 const showForm = ref(false)
 const editingService = ref(null)
 const selectedCategoryId = ref(0)
+const mediaItems = ref([])
+let formSnapshot = ''
 
 const form = reactive({
   name_wsh: '',
@@ -182,11 +196,8 @@ const form = reactive({
   description_wsh: '',
   price_wsh: null,
   unit_wsh: '天',
-  images_wsh: '',
   status_wsh: 1,
 })
-
-const imageList = computed(() => parseImages(form.images_wsh))
 
 const categoryOptions = computed(() => {
   const byParent = new Map()
@@ -222,12 +233,23 @@ function parseImages(value) {
     .filter(Boolean)
 }
 
-function setImages(urls) {
-  form.images_wsh = [...new Set(urls)].join(',')
-}
-
 function firstImage(value) {
   return parseImages(value)[0] || ''
+}
+
+function currentMediaSignature() {
+  return JSON.stringify({
+    ...form,
+    media: mediaItems.value.map(item => [item.file_id_wsh ?? item.url_wsh, item.is_cover]),
+  })
+}
+
+function takeSnapshot() {
+  formSnapshot = currentMediaSignature()
+}
+
+function isDirty() {
+  return formSnapshot !== currentMediaSignature()
 }
 
 function resetForm() {
@@ -237,9 +259,9 @@ function resetForm() {
     description_wsh: '',
     price_wsh: null,
     unit_wsh: '天',
-    images_wsh: '',
     status_wsh: 1,
   })
+  mediaItems.value = []
 }
 
 function getCategoryIdsIncludingChildren(id, allCats) {
@@ -297,27 +319,60 @@ async function loadServices() {
 function openCreate() {
   editingService.value = null
   resetForm()
+  takeSnapshot()
   showForm.value = true
 }
 
-function openEdit(service) {
+async function openEdit(service) {
   editingService.value = service
-  Object.assign(form, {
-    name_wsh: service.name_wsh || '',
-    category_id_wsh: service.category_id_wsh ?? null,
-    description_wsh: service.description_wsh || '',
-    price_wsh: Number(service.price_wsh ?? 0),
-    unit_wsh: service.unit_wsh || '天',
-    images_wsh: service.images_wsh || '',
-    status_wsh: Number(service.status_wsh ?? 1),
-  })
+  resetForm()
   showForm.value = true
+  detailLoading.value = true
+  try {
+    const res = await getServiceManageDetail(service.id_wsh)
+    if (res.code !== 200 || !res.data) {
+      appStore.addToast(res.message || '加载服务详情失败', 'error')
+      showForm.value = false
+      editingService.value = null
+      return
+    }
+    const detail = res.data
+    Object.assign(form, {
+      name_wsh: detail.service_wsh?.name_wsh || '',
+      category_id_wsh: detail.service_wsh?.category_id_wsh ?? null,
+      description_wsh: detail.service_wsh?.description_wsh || '',
+      price_wsh: Number(detail.service_wsh?.price_wsh ?? 0),
+      unit_wsh: detail.service_wsh?.unit_wsh || '天',
+      status_wsh: Number(detail.service_wsh?.status_wsh ?? 1),
+    })
+    const media = (detail.media_wsh || []).map(item => ({
+      file_id_wsh: item.file_id_wsh ?? null,
+      url_wsh: item.url_wsh || '',
+      is_cover: Number(item.is_cover_wsh) === 1,
+    }))
+    if (!media.length) {
+      parseImages(detail.service_wsh?.images_wsh).forEach((url, index) => {
+        media.push({ file_id_wsh: null, url_wsh: url, is_cover: index === 0 })
+      })
+    }
+    mediaItems.value = media
+  } catch (error) {
+    appStore.addToast('加载服务详情失败', 'error')
+    showForm.value = false
+    editingService.value = null
+    return
+  } finally {
+    detailLoading.value = false
+    takeSnapshot()
+  }
 }
 
 function closeForm() {
-  if (saving.value || imageUploading.value) return
+  if (saving.value || imageUploading.value || detailLoading.value) return
+  if (showForm.value && isDirty() && !window.confirm('有未保存的更改，确定关闭吗？')) return
   showForm.value = false
   editingService.value = null
+  mediaItems.value = []
 }
 
 async function uploadServiceImages(event) {
@@ -325,36 +380,87 @@ async function uploadServiceImages(event) {
   event.target.value = ''
   if (!files.length) return
 
-  const invalid = files.find(file => !file.type.startsWith('image/'))
-  if (invalid) {
+  const invalidType = files.find(file => !file.type.startsWith('image/'))
+  if (invalidType) {
     appStore.addToast('只能上传图片文件', 'error')
+    return
+  }
+  const oversize = files.find(file => file.size > MAX_IMAGE_BYTES)
+  if (oversize) {
+    appStore.addToast('单张图片不能超过 10MB', 'error')
+    return
+  }
+  if (mediaItems.value.length + files.length > MAX_MEDIA) {
+    appStore.addToast(`最多上传 ${MAX_MEDIA} 张图片`, 'error')
     return
   }
 
   imageUploading.value = true
+  const uploaded = []
+  let failedCount = 0
   try {
-    const uploadedUrls = []
     for (const file of files) {
       const data = new FormData()
       data.append('file', file)
-      const res = await uploadFileToDirectory('services', data)
-      if (res.code === 200 && res.data?.url_wsh) {
-        uploadedUrls.push(res.data.url_wsh)
-      } else {
-        throw new Error(res.message || '上传图片失败')
+      try {
+        const res = await uploadProductImage(merchant.value.id_wsh, data)
+        if (res.code === 200 && res.data?.id_wsh && res.data?.url_wsh) {
+          uploaded.push({ file_id_wsh: res.data.id_wsh, url_wsh: res.data.url_wsh })
+        } else {
+          failedCount++
+        }
+      } catch (error) {
+        failedCount++
       }
     }
-    setImages([...imageList.value, ...uploadedUrls])
-    appStore.addToast('图片上传成功', 'success')
-  } catch (error) {
-    appStore.addToast(error.message || '上传图片失败', 'error')
+    if (uploaded.length) {
+      const existing = new Set(mediaItems.value.map(item => item.file_id_wsh))
+      const next = mediaItems.value.slice()
+      uploaded.forEach(item => {
+        if (!existing.has(item.file_id_wsh)) {
+          next.push({ ...item, is_cover: false })
+        }
+      })
+      if (next.length && !next.some(item => item.is_cover)) {
+        next[0].is_cover = true
+      }
+      mediaItems.value = next
+      if (failedCount > 0) {
+        appStore.addToast(`成功上传 ${uploaded.length} 张，失败 ${failedCount} 张，可重新选择重试`, 'error')
+      } else {
+        appStore.addToast('图片上传成功', 'success')
+      }
+    } else {
+      appStore.addToast('图片上传失败，请重试', 'error')
+    }
   } finally {
     imageUploading.value = false
   }
 }
 
-function removeImage(url) {
-  setImages(imageList.value.filter(item => item !== url))
+function moveMedia(index, direction) {
+  const target = index + direction
+  if (target < 0 || target >= mediaItems.value.length) return
+  const next = mediaItems.value.slice()
+  const temp = next[index]
+  next[index] = next[target]
+  next[target] = temp
+  mediaItems.value = next
+}
+
+function setCover(index) {
+  const next = mediaItems.value.map(item => ({ ...item, is_cover: false }))
+  next[index].is_cover = true
+  mediaItems.value = next
+}
+
+function removeMedia(index) {
+  const removed = mediaItems.value[index]
+  const next = mediaItems.value.filter((_, i) => i !== index)
+  if (removed?.is_cover && next.length && !next.some(item => item.is_cover)) {
+    next[0].is_cover = true
+  }
+  mediaItems.value = next
 }
 
 function buildPayload() {
@@ -366,6 +472,10 @@ function buildPayload() {
     appStore.addToast('请输入有效价格', 'error')
     return null
   }
+  if (mediaItems.value.length && mediaItems.value.some(item => item.file_id_wsh == null)) {
+    appStore.addToast('存在旧版图片，请移除后重新上传', 'error')
+    return null
+  }
 
   const payload = {
     name_wsh: form.name_wsh,
@@ -373,19 +483,22 @@ function buildPayload() {
     description_wsh: form.description_wsh,
     price_wsh: form.price_wsh,
     unit_wsh: form.unit_wsh || '天',
-    images_wsh: form.images_wsh,
+    media_wsh: mediaItems.value.map((item, index) => ({
+      file_id_wsh: item.file_id_wsh,
+      sort_order_wsh: index,
+      is_cover_wsh: item.is_cover ? 1 : 0,
+    })),
   }
 
   if (editingService.value) {
     payload.status_wsh = form.status_wsh
-  } else {
-    payload.merchant_id_wsh = merchant.value.id_wsh
   }
 
   return payload
 }
 
 async function saveService() {
+  if (saving.value || imageUploading.value) return
   const payload = buildPayload()
   if (!payload) return
 
@@ -544,6 +657,12 @@ onMounted(loadPage)
   max-width: 620px;
 }
 
+.detail-loading {
+  margin: 0 0 12px;
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -589,17 +708,49 @@ onMounted(loadPage)
   display: block;
 }
 
-.remove-image {
+.cover-badge {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  left: 6px;
+  top: 6px;
   border: 0;
   border-radius: 4px;
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, .68);
+  padding: 2px 8px;
+  background: rgba(24, 144, 255, .92);
   color: #fff;
   font-size: 12px;
+  line-height: 18px;
+}
+
+.media-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  padding: 4px;
+  background: rgba(0, 0, 0, .68);
+}
+
+.media-actions button {
+  border: 0;
+  border-radius: 4px;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, .18);
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
   cursor: pointer;
+}
+
+.media-actions button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.media-actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .32);
 }
 
 textarea {

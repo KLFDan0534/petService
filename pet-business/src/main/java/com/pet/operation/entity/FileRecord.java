@@ -46,6 +46,16 @@ public class FileRecord {
     @Schema(description = "内容类型")
     private String content_type_wsh;
 
+    @JsonProperty("purpose_wsh")
+    @TableField(value = "purpose_wsh")
+    @Schema(description = "文件用途: product-产品图片 avatar-头像 evidence-资质证明 其他")
+    private String purpose_wsh;
+
+    @JsonProperty("merchant_id_wsh")
+    @TableField(value = "merchant_id_wsh")
+    @Schema(description = "服务端归属商家ID(产品图片等受管文件)")
+    private Long merchant_id_wsh;
+
     @JsonProperty("user_id_wsh")
     @TableField(value = "user_id_wsh")
     @Schema(description = "用户ID")

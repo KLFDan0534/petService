@@ -51,6 +51,7 @@ class ServicePublicQueryTest {
     @Mock private ServiceCategoryMapper categoryMapper;
     @Mock private MerchantMapper merchantMapper;
     @Mock private com.pet.customer.mapper.RatingMapper ratingMapper;
+    @Mock private ServiceMediaService serviceMediaService;
 
     private ServiceItemServiceImpl service;
 
@@ -65,7 +66,8 @@ class ServicePublicQueryTest {
 
     @BeforeEach
     void setUp() {
-        service = new ServiceItemServiceImpl(serviceItemMapper, categoryMapper, merchantMapper, ratingMapper);
+        service = new ServiceItemServiceImpl(serviceItemMapper, categoryMapper, merchantMapper, ratingMapper,
+                serviceMediaService);
     }
 
     private ServiceItem enabled(Long id, Long merchantId, Long categoryId, String name, BigDecimal price) {

@@ -7,9 +7,11 @@ import com.pet.boarding.dto.ServiceAvailabilityVO;
 import com.pet.boarding.entity.BusinessHours;
 import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.entity.Merchant;
+import com.pet.boarding.entity.ServiceCategory;
 import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
+import com.pet.boarding.mapper.ServiceCategoryMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.BusinessHoursService;
 import com.pet.boarding.service.BusinessHoursTargetResolver;
@@ -62,6 +64,7 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
 
     private final ServiceItemMapper serviceItemMapper;
     private final MerchantMapper merchantMapper;
+    private final ServiceCategoryMapper categoryMapper;
     private final KeeperMapper keeperMapper;
     private final OrderMapper orderMapper;
     private final BusinessHoursService businessHoursService;
@@ -72,6 +75,7 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
 
     public ServiceAvailabilityServiceImpl(ServiceItemMapper serviceItemMapper,
                                           MerchantMapper merchantMapper,
+                                          ServiceCategoryMapper categoryMapper,
                                           KeeperMapper keeperMapper,
                                           OrderMapper orderMapper,
                                           BusinessHoursService businessHoursService,
@@ -81,6 +85,7 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
                                           @Value("${booking.slot-minutes:30}") int slotMinutes) {
         this.serviceItemMapper = serviceItemMapper;
         this.merchantMapper = merchantMapper;
+        this.categoryMapper = categoryMapper;
         this.keeperMapper = keeperMapper;
         this.orderMapper = orderMapper;
         this.businessHoursService = businessHoursService;
@@ -93,8 +98,12 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     @Override
     public ServiceAvailabilityVO getAvailability(Long serviceId, LocalDate from, LocalDate to, Long keeperId) {
         validateRange(from, to);
+        if (serviceId == null || serviceId <= 0) {
+            throw new BusinessException(400, BookingErrorCode.INVALID_PRODUCT_ID, "服务ID必须为正数");
+        }
 
         ServiceItem service = requireVisibleService(serviceId);
+        requireEnabledCategory(service);
         Merchant merchant = requireFutureBookingEligibleMerchant(service.getMerchant_id_wsh());
         Keeper keeper = keeperId == null ? null : requireQualifiedKeeper(keeperId, service.getMerchant_id_wsh());
 
@@ -143,6 +152,17 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
             throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务已下架");
         }
         return service;
+    }
+
+    private void requireEnabledCategory(ServiceItem service) {
+        if (service.getCategory_id_wsh() == null) {
+            return;
+        }
+        ServiceCategory category = categoryMapper.selectById(service.getCategory_id_wsh());
+        if (category == null || category.getStatus_wsh() == null
+                || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+            throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务所属分类已下架");
+        }
     }
 
     private Merchant requireFutureBookingEligibleMerchant(Long merchantId) {

@@ -26,7 +26,7 @@
                   </button>
               </div>
             </div>
-            <button class="btn btn-primary" @click="goToChat">联系</button>
+            <button class="btn btn-primary" @click="goToMerchant(keeper.merchant_id_wsh)">选择服务</button>
           </div>
 
           <dl class="info-grid">
@@ -112,7 +112,7 @@
       <aside class="detail-sidebar">
         <div class="card">
           <h4>快捷操作</h4>
-          <button class="btn btn-primary btn-block" @click="goToChat">联系看护者</button>
+          <button class="btn btn-primary btn-block" @click="goToMerchant(keeper.merchant_id_wsh)">选择服务</button>
           <button v-if="keeper.merchant_id_wsh" class="btn btn-outline btn-block" @click="goToMerchant(keeper.merchant_id_wsh)">
             查看商家
           </button>
@@ -184,22 +184,8 @@ async function handleToggleFavorite() {
   }
 }
 
-function goToChat() {
-  if (!authStore.isLoggedIn) {
-    appStore.showLoginPrompt = true
-    return
-  }
-  router.push({
-    path: '/orders',
-    query: {
-      create: 'true',
-      merchantId: keeper.value.merchant_id_wsh,
-      keeperId: keeper.value.id_wsh,
-    },
-  })
-}
-
 function goToMerchant(merchantId) {
+  if (!merchantId) return
   router.push(`/merchants/${merchantId}`)
 }
 

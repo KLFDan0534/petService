@@ -20,5 +20,11 @@ export async function downloadFile(id) {
   return res.data
 }
 
+export async function uploadProductImage(merchantId, data) {
+  const params = merchantId != null ? { merchantId } : undefined
+  const res = await request.post('/api/files/product-image', data, { params })
+  return res.data
+}
+
 
 

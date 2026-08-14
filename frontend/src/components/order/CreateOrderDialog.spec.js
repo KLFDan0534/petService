@@ -5,7 +5,7 @@ import { getPets } from '@/api/pet'
 import { createOrder } from '@/api/order'
 import { getMerchants } from '@/api/merchant'
 import { getKeepersByMerchant } from '@/api/keeper'
-import { getService, getServiceAvailability } from '@/api/service'
+import { getServiceDetail, getServiceAvailability } from '@/api/service'
 import { getAvailableCoupons, quoteCoupon } from '@/api/coupon'
 import { quoteMembershipOrderDiscount } from '@/api/membership'
 import { useAppStore } from '@/stores/app'
@@ -22,7 +22,7 @@ vi.mock('@/utils/profileRequirements', () => ({
 vi.mock('@/api/pet', () => ({ getPets: vi.fn() }))
 vi.mock('@/api/merchant', () => ({ getMerchants: vi.fn() }))
 vi.mock('@/api/keeper', () => ({ getKeepersByMerchant: vi.fn() }))
-vi.mock('@/api/service', () => ({ getService: vi.fn(), getServiceAvailability: vi.fn() }))
+vi.mock('@/api/service', () => ({ getServiceDetail: vi.fn(), getServiceAvailability: vi.fn() }))
 vi.mock('@/api/order', () => ({ createOrder: vi.fn() }))
 vi.mock('@/api/coupon', () => ({
   getAvailableCoupons: vi.fn(),
@@ -39,7 +39,7 @@ describe('CreateOrderDialog.vue', () => {
     pinia = createPinia()
     setActivePinia(pinia)
     getPets.mockResolvedValue({ code: 200, data: [{ id_wsh: 1, name_wsh: '小白' }] })
-    getService.mockResolvedValue({ code: 200, data: null })
+    getServiceDetail.mockResolvedValue({ code: 200, data: null })
     getServiceAvailability.mockResolvedValue({ code: 200, data: { days_wsh: [] } })
     getAvailableCoupons.mockResolvedValue({ code: 200, data: [] })
     quoteCoupon.mockResolvedValue({ code: 200, data: null })
@@ -158,7 +158,7 @@ describe('CreateOrderDialog.vue', () => {
 
   it('sends service_id_wsh and service_version_wsh when entering from service detail', async () => {
     mockMerchants([merchant(1, '服务商家')])
-    getService.mockResolvedValue({
+    getServiceDetail.mockResolvedValue({
       code: 200,
       data: {
         id_wsh: 7,
@@ -204,7 +204,7 @@ describe('CreateOrderDialog.vue', () => {
 
   it('only offers bookable dates and their slots from availability', async () => {
     mockMerchants([merchant(1, '服务商家')])
-    getService.mockResolvedValue({
+    getServiceDetail.mockResolvedValue({
       code: 200,
       data: {
         id_wsh: 7,
@@ -249,7 +249,7 @@ describe('CreateOrderDialog.vue', () => {
 
   it('refetches availability and clears chosen times when keeper changes', async () => {
     mockMerchants([merchant(1, '服务商家')])
-    getService.mockResolvedValue({
+    getServiceDetail.mockResolvedValue({
       code: 200,
       data: {
         id_wsh: 7,
@@ -299,7 +299,7 @@ describe('CreateOrderDialog.vue', () => {
 
   it('blocks submission when pickup has no available slot on the chosen date', async () => {
     mockMerchants([merchant(1, '服务商家')])
-    getService.mockResolvedValue({
+    getServiceDetail.mockResolvedValue({
       code: 200,
       data: {
         id_wsh: 7,

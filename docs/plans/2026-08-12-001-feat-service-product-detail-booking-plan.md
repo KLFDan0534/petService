@@ -291,15 +291,16 @@ flowchart TB
 - **Test scenarios:** Service price overrides keeper price; service version mismatch rejects; cross-merchant keeper rejects; availability remains read-only; three rating dimensions remain unique; future booking while currently closed remains valid.
 - **Verification:** Maven business suite, frontend Vitest, production build, and the isolated subset of existing browser tests that does not mutate conflicting fixed fixtures.
 
-### U1. Add structured product media persistence and idempotent migration
+### U1. Add structured product media persistence and idempotent migration — DONE
 
 - **Goal:** Establish ordered, cover-aware, MinIO-backed media without losing legacy images.
 - **Requirements:** R10, R11, R13, R19.
-- **Files:** `database/00_database_unified.sql`, `database/01_database_baseline.sql`, `pet-admin/src/main/resources/h2-schema.sql`, a new versioned script under `pet-admin/src/main/resources/db/`, media and product-purpose upload entity/mapper/service/DTO/controller files under `pet-business/src/main/java/com/pet/`, migration readiness code/config, and `docs/database/tables-description.md`.
+- **Files:** `database/00_database_unified.sql`, `database/01_database_baseline.sql`, `pet-admin/src/main/resources/h2-schema.sql`, `pet-admin/src/main/resources/db/migration_v6_service_product_media.sql` (new), `pet-business/src/main/java/com/pet/` media entity/mapper/service/DTO/controller/validator files (new), `ProductMediaMigrationReadiness`, `pet-admin/src/main/resources/application.yml`, and `docs/database/tables-description.md`.
 - **Patterns:** Follow `file_record_wsh`, MyBatis-Plus entities/mappers, `_wsh` naming, and existing idempotent migration guards.
 - **Approach:** Create media rows by product-purpose file ID, lock/version the aggregate before replacement, validate invariants transactionally, backfill only resolvable internal legacy values, expose unresolved values only for authorized remediation, and deliver the versioned operator/CI migration plus ledger/readiness check. Retain detached objects in this release.
 - **Test scenarios:** Empty gallery; one image becomes cover; ten ordered images; duplicate file/order rejected; two covers rejected; concurrent replacements yield one complete set; spoofed MIME/SVG/HTML/polyglot/oversize dimensions/truncated image/path-like upload directory rejected; upload-record failure compensates its own object; foreign user file rejected; migration order preservation; blanks/duplicates; external URL audit-only; two migration runs produce identical rows; expected migration version absent fails readiness.
 - **Verification:** New schema/service tests on H2, migration replay against a temporary MySQL schema, then Maven business regression.
+- **Done evidence (2026-08-12):** 36 focused U1 tests + `FileControllerTest` (5) green; full reactor `mvn -o test` BUILD SUCCESS (157 business + 127 admin); migration v6 replayed twice against real MySQL 8.0.46 in a temporary schema with identical rows and single ledger row, then applied to local dev `pet_service`; readiness blocks startup when ledger/table missing and passes when both present; the pre-existing `OrderCapacityAndEmploymentTest` regression (missing `unit_wsh` stub) was reproduced at HEAD in a clean worktree and fixed with a one-line `setUnit_wsh("day")`; MySQL 8.0.46 parser defect (JSON_TABLE + GROUP BY/ORDER BY → 1064) documented in the script and worked around in the audit query.
 
 ### U2. Harden public and management product APIs
 

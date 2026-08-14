@@ -76,13 +76,10 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Calendar, Service } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { useAppStore } from '@/stores/app'
 import { useCategoryStore } from '@/stores/category'
 import FavoriteToggleButton from '@/components/common/FavoriteToggleButton.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
-import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
-
 const props = defineProps({
   services: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
@@ -90,7 +87,6 @@ const props = defineProps({
 
 const router = useRouter()
 const authStore = useAuthStore()
-const appStore = useAppStore()
 const categoryStore = useCategoryStore()
 
 const normalizedServices = computed(() => props.services.map(service => ({
@@ -112,23 +108,9 @@ function goDetail(serviceId) {
   router.push(`/services/${serviceId}`)
 }
 
-async function createOrder(service) {
-  const query = {
-    create: 'true',
-    serviceId: service.id_wsh,
-    serviceName: service.name_wsh,
-    price: service.price_wsh,
-  }
-
-  if (!authStore.isLoggedIn) {
-    appStore.loginRedirectPath = `/orders?${new URLSearchParams(query).toString()}`
-    appStore.showLoginPrompt = true
-    return
-  }
-
-  const ok = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
-  if (!ok) return
-  router.push({ path: '/orders', query })
+function createOrder(service) {
+  if (!service?.id_wsh) return
+  router.push({ path: `/services/${service.id_wsh}`, query: { book: '1' } })
 }
 </script>
 

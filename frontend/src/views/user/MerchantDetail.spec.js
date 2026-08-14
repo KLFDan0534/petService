@@ -3,9 +3,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import MerchantDetail from './MerchantDetail.vue'
 import { useAppStore } from '@/stores/app'
 
+const state = vi.hoisted(() => ({ push: vi.fn() }))
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { id: '1' } }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: state.push }),
 }))
 
 vi.mock('@/domain/MerchantDomain', () => ({
@@ -95,5 +97,22 @@ describe('MerchantDetail.vue future booking', () => {
 
     const button = wrapper.find('.service-action button')
     expect(button.attributes('disabled')).toBeDefined()
+  })
+
+  it('F-NAV-003: booking routes to the product detail /services/{id}?book=1 without legacy order query', async () => {
+    mockProfile({
+      merchant: merchant({ storeStatus: 1 }),
+      services: [{ id_wsh: 7, name_wsh: '寄养', price_wsh: 100, unit_wsh: '天' }],
+    })
+
+    const wrapper = mountDetail()
+    await flushPromises()
+
+    const button = wrapper.find('.service-action button')
+    await button.trigger('click')
+
+    expect(state.push).toHaveBeenCalledWith({ path: '/services/7', query: { book: '1' } })
+    expect(JSON.stringify(state.push.mock.calls)).not.toContain('/orders')
+    expect(JSON.stringify(state.push.mock.calls)).not.toContain('create')
   })
 })

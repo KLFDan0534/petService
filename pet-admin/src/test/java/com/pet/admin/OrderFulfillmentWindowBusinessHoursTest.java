@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.boarding.entity.BusinessHours;
 import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.entity.Merchant;
+import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.mapper.BusinessHoursMapper;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
@@ -82,7 +83,7 @@ class OrderFulfillmentWindowBusinessHoursTest {
         LocalDate end = start.plusDays(2);
         int deliveryDow = start.getDayOfWeek().getValue();
         PetOrderOverrides.stubCreationPath(petMapper, keeperMapper, merchantMapper,
-                merchantService, qualificationService, orderMapper, start);
+                merchantService, serviceItemMapper, qualificationService, orderMapper, start);
 
         OrderCreateRequestDTO request = request(start, end);
         // Default delivery 10:00 is outside the day's 11:00-18:00 -> gate must reject before downstream steps.
@@ -102,7 +103,7 @@ class OrderFulfillmentWindowBusinessHoursTest {
         int midDow = start.plusDays(1).getDayOfWeek().getValue();
         int pickupDow = end.getDayOfWeek().getValue();
         PetOrderOverrides.stubCreationPath(petMapper, keeperMapper, merchantMapper,
-                merchantService, qualificationService, orderMapper, start);
+                merchantService, serviceItemMapper, qualificationService, orderMapper, start);
 
         OrderCreateRequestDTO request = request(start, end);
         // Delivery 10:00 inside the day's 09:00-20:00, but default pickup 18:00 is outside the end day's 09:00-17:00.
@@ -130,6 +131,7 @@ class OrderFulfillmentWindowBusinessHoursTest {
         dto.setPet_id_wsh(1L);
         dto.setKeeper_id_wsh(20L);
         dto.setMerchant_id_wsh(10L);
+        dto.setService_id_wsh(5L);
         dto.setStart_date_wsh(start);
         dto.setEnd_date_wsh(end);
         dto.setDelivery_time_wsh(start.atTime(10, 0));
@@ -150,6 +152,7 @@ class OrderFulfillmentWindowBusinessHoursTest {
     static final class PetOrderOverrides {
         static void stubCreationPath(PetMapper petMapper, KeeperMapper keeperMapper,
                                      MerchantMapper merchantMapper, MerchantService merchantService,
+                                     ServiceItemMapper serviceItemMapper,
                                      QualificationService qualificationService, OrderMapper orderMapper,
                                      LocalDate start) {
             Pet pet = new Pet();
@@ -171,6 +174,13 @@ class OrderFulfillmentWindowBusinessHoursTest {
             merchant.setStore_status_wsh(1);
             merchant.setFuture_booking_enabled_wsh(1);
             when(merchantMapper.selectById(10L)).thenReturn(merchant);
+
+            ServiceItem service = new ServiceItem();
+            service.setId_wsh(5L);
+            service.setMerchant_id_wsh(10L);
+            service.setUnit_wsh("day");
+            service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
+            when(serviceItemMapper.selectById(5L)).thenReturn(service);
 
             when(qualificationService.listByOwner(eq(QualificationService.OWNER_TYPE_KEEPER),
                     eq(20L), eq(false)))

@@ -90,6 +90,15 @@ minio:
   secret-key: minioadmin
   bucket: pet-service
 
+product-media:
+  max-count: 10
+  max-bytes: 10485760
+  max-dimension: 4096
+
+app:
+  migration:
+    product-media-version: v6_service_product_media
+
 jwt:
   access-token-expiration: 86400000
   refresh-token-expiration: 604800000

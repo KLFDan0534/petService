@@ -238,24 +238,11 @@ async function handleToggleFavorite() {
 }
 
 function bookService(svc) {
-  if (!authStore.isLoggedIn) {
-    appStore.showLoginPrompt = true
-    return
-  }
   if (!futureBookable.value) {
     appStore.addToast('该商家未开放未来预约', 'info')
     return
   }
-  router.push({
-    path: '/orders',
-    query: {
-      create: 'true',
-      serviceId: svc.id_wsh,
-      serviceName: svc.name_wsh,
-      price: svc.price_wsh,
-      merchantId: merchant.value.id_wsh,
-    },
-  })
+  router.push({ path: `/services/${svc.id_wsh}`, query: { book: '1' } })
 }
 
 function goToOwnerHome() {

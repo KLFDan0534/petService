@@ -9,9 +9,12 @@ import com.pet.operation.service.impl.MinIoService;
 import com.pet.security.JwtAuthenticationToken;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.pet.boarding.service.MerchantScopeResolver;
+import com.pet.boarding.service.ServiceMediaService;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,10 +34,56 @@ public class FileController {
 
     private final MinIoService minIoService;
     private final FileRecordService fileRecordService;
+    private final ServiceMediaService serviceMediaService;
+    private final MerchantScopeResolver merchantScopeResolver;
 
-    public FileController(MinIoService minIoService, FileRecordService fileRecordService) {
+    public FileController(MinIoService minIoService, FileRecordService fileRecordService,
+                          ServiceMediaService serviceMediaService, MerchantScopeResolver merchantScopeResolver) {
         this.minIoService = minIoService;
         this.fileRecordService = fileRecordService;
+        this.serviceMediaService = serviceMediaService;
+        this.merchantScopeResolver = merchantScopeResolver;
+    }
+
+    /**
+     * 上传产品图片到MinIO存储并返回文件记录
+     * 权限：MERCHANT 或 ADMIN
+     * 作用域：MERCHANT 自动派生自己所属商家；ADMIN 必须显式指定 merchantId；
+     * 其他角色一律拒绝。存储目录、扩展名、MIME 均由服务端控制。
+     *
+     * @author: wsh
+     * @date: 2026/8/12
+     **/
+    @PostMapping("/product-image")
+    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
+    @Operation(summary = "上传产品图片", description = "仅MERCHANT/ADMIN；服务端校验内容并记录product用途与商家归属")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "图片格式/大小/尺寸不合法"),
+            @ApiResponse(responseCode = "403", description = "无权限访问或商家归属不符"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<FileRecordDTO> uploadProductImage(
+            @Parameter(description = "上传的图片文件") @RequestParam("file") MultipartFile file,
+            @Parameter(description = "ADMIN显式指定的目标商家ID（MERCHANT 可省略）") @RequestParam(required = false) Long merchantId,
+            @AuthenticationPrincipal JwtAuthenticationToken token) {
+        log.info("调用 uploadProductImage()");
+        Long targetMerchantId = merchantScopeResolver.resolve(merchantId, token);
+        FileRecord record = serviceMediaService.uploadProductImage(
+                token.getUserId(), targetMerchantId, file);
+        return Result.success(toDTO(record));
+    }
+
+    private boolean isAdmin(JwtAuthenticationToken token) {
+        if (token == null || token.getAuthorities() == null) {
+            return false;
+        }
+        for (GrantedAuthority authority : token.getAuthorities()) {
+            if ("ROLE_ADMIN".equals(authority.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

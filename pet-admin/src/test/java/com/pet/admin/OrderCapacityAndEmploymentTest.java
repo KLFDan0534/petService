@@ -213,6 +213,7 @@ class OrderCapacityAndEmploymentTest {
         ServiceItem service = new ServiceItem();
         service.setId_wsh(5L);
         service.setMerchant_id_wsh(10L);
+        service.setUnit_wsh("day");
         service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         lenient().when(serviceItemMapper.selectById(5L)).thenReturn(service);
         lenient().when(serviceItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(service));

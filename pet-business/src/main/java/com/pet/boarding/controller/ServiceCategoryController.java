@@ -1,6 +1,9 @@
 package com.pet.boarding.controller;
 
 import com.pet.common.Result;
+import com.pet.common.BookingErrorCode;
+import com.pet.common.BusinessException;
+import com.pet.common.StatusCode;
 import com.pet.boarding.dto.ServiceCategoryCreateRequestDTO;
 import com.pet.boarding.dto.ServiceCategoryUpdateRequestDTO;
 import com.pet.boarding.dto.ServiceCategoryDTO;
@@ -115,24 +118,31 @@ public class ServiceCategoryController {
     }
 
     /**
-     * 【获取分类详情】
+     * 【获取分类详情（仅启用分类）】
      *
      * API: GET /api/service-categories/{id}
      *
      * 权限：公开
      *
+     * 场景：用户端浏览分类信息。禁用分类对匿名用户不可见（404）。
+     *
      * @param id 分类 ID
      */
     @GetMapping("/{id}")
-    @Operation(summary = "获取分类详情", description = "根据ID获取服务分类详情")
+    @Operation(summary = "获取分类详情", description = "根据ID获取服务分类详情（仅启用分类）")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "操作成功"),
-        @ApiResponse(responseCode = "400", description = "请求参数错误"),
-        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "404", description = "分类不存在或已禁用"),
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<ServiceCategoryDTO> getById(@Parameter(description = "分类ID") @PathVariable Long id) {
-        return Result.success(categoryService.toDTO(categoryService.getById(id)));
+        ServiceCategoryDTO dto = categoryService.toDTO(categoryService.getById(id));
+        if (dto == null || dto.getStatus_wsh() == null
+                || dto.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+            throw new BusinessException(404, BookingErrorCode.CATEGORY_DISABLED,
+                    "分类不存在或已禁用");
+        }
+        return Result.success(dto);
     }
 
     /**

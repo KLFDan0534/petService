@@ -4,6 +4,8 @@ import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
 import com.pet.boarding.dto.ServiceItemDTO;
 import com.pet.boarding.dto.ServiceItemQueryDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
+import com.pet.boarding.dto.ServiceManageDetailVO;
+import com.pet.boarding.dto.ServiceProductDetailVO;
 import com.pet.boarding.dto.ServiceQueryResultVO;
 import com.pet.boarding.entity.ServiceItem;
 
@@ -100,10 +102,11 @@ public interface ServiceItemService {
      * 业务规则：分类编码自动同步；默认启用。
      * 状态影响：新增服务项目记录。
      *
+     * @param merchantId 服务端派生的归属商家ID（MERCHANT 自动派生，ADMIN 显式指定）
      * @param dto 服务项目创建请求DTO
      * @return 创建后的服务项目实体
      */
-    ServiceItem create(ServiceItemCreateRequestDTO dto);
+    ServiceItem create(Long merchantId, ServiceItemCreateRequestDTO dto);
 
     /**
      * 【更新服务项目】
@@ -215,4 +218,41 @@ public interface ServiceItemService {
      * @return 服务 DTO 列表
      */
     List<ServiceItemDTO> listPublic(ServiceItemQueryDTO query);
+
+    /**
+     * 【公共可见性受控的旧详情读取】
+     *
+     * 业务作用：匿名用户的兼容详情路径，只返回通过公共可见性不变量
+     * （上架服务 + 已审核商家 + 启用分类）的服务，且 images_wsh 只保留
+     * 服务端可信值，外部/data/协议相对地址一律丢弃。
+     *
+     * @param id 服务产品ID
+     * @return 服务 DTO（图册已被可信化）
+     * @throws BusinessException 不存在 404 / 不可见 400
+     */
+    ServiceItemDTO getByIdPublic(Long id);
+
+    /**
+     * 【服务产品公开详情投影】
+     *
+     * 业务作用：详情页权威数据源。白名单字段 + 有序可信图册 + 评分聚合 +
+     * 服务版本 + 可预约性标记（仅 day/天 单位且商家开放未来预约）。
+     *
+     * @param id 服务产品ID
+     * @return 公开详情投影
+     * @throws BusinessException 不存在 404 / 不可见 400
+     */
+    ServiceProductDetailVO getPublicDetail(Long id);
+
+    /**
+     * 【服务产品管理详情】
+     *
+     * 业务作用：商家/管理员查看单个服务的完整管理投影（含原图册条目）。
+     * 调用方必须完成归属/权限校验，本方法不校验权限。
+     *
+     * @param id 服务产品ID
+     * @return 管理详情（标量 DTO + 有序图册）
+     * @throws BusinessException 不存在 404
+     */
+    ServiceManageDetailVO getManageDetail(Long id);
 }

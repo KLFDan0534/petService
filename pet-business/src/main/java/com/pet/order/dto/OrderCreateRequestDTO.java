@@ -26,12 +26,12 @@ public class OrderCreateRequestDTO {
     @JsonAlias("keeperId")
     private Long keeper_id_wsh;
 
-    @Schema(description = "商家ID")
-    @NotNull(message = "merchantId cannot be empty")
+    @Schema(description = "商家ID（兼容窗口内的旧客户端字段；商家由服务端根据服务派生，本字段不参与商家选择，不一致时拒绝）")
     @JsonAlias("merchantId")
     private Long merchant_id_wsh;
 
-    @Schema(description = "服务ID")
+    @Schema(description = "服务ID（产品预订必填；服务端根据服务派生商家与价格）")
+    @NotNull(message = "serviceId cannot be empty")
     @JsonAlias("serviceId")
     private Long service_id_wsh;
 
