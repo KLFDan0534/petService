@@ -68,7 +68,13 @@ public class OrderFulfillmentSchemaMigrator implements ApplicationRunner {
         addColumnIfMissing("started_at_wsh", "DATETIME");
         addColumnIfMissing("start_photo_wsh", "VARCHAR(1000)");
         addColumnIfMissing("completed_at_wsh", "DATETIME");
-        addColumnIfMissing("final_report_generated_wsh", "TINYINT DEFAULT 0");
+addColumnIfMissing("final_report_generated_wsh", "TINYINT DEFAULT 0");
+        addColumnIfMissing("billing_unit_wsh", "VARCHAR(20) DEFAULT 'day'");
+        addColumnIfMissing("quantity_wsh", "INT DEFAULT 1");
+        addColumnIfMissing("unit_price_wsh", "DECIMAL(10, 2)");
+        addColumnIfMissing("duration_minutes_wsh", "INT");
+        addColumnIfMissing("pet_service_wsh", "duration_minutes_wsh", "INT");
+        addColumnIfMissing("pet_service_wsh", "booking_mode_wsh", "VARCHAR(20) DEFAULT 'date_range'");
         addColumnIfMissing("tip_wsh", "deleted_wsh", "TINYINT DEFAULT 0");
         addColumnIfMissing("refund_wsh", "order_status_before_refund_wsh", "VARCHAR(30)");
         backfillMissingHandoverCodes();

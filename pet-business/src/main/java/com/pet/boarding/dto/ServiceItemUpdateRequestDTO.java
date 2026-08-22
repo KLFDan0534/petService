@@ -24,9 +24,12 @@ public class ServiceItemUpdateRequestDTO {
     @Schema(description = "价格")
     private BigDecimal price_wsh;
 
-    @Schema(description = "单位（day/天 为可预约单位）")
+    @Schema(description = "单位（day/session/hour；未传则保留原单位）")
     @Size(max = 20, message = "计费单位不能超过20个字符")
     private String unit_wsh;
+
+    @Schema(description = "单次服务时长（分钟），未传则按单位默认值：day=1440；session=60；hour=60")
+    private Integer duration_minutes_wsh;
 
     @Schema(description = "图片(逗号分隔，历史兼容字段)")
     private String images_wsh;

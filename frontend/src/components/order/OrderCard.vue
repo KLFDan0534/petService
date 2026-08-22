@@ -5,9 +5,14 @@
         <span class="order-no">{{ order.order_no_wsh || `#${order.id_wsh}` }}</span>
         <h3>{{ order.service_name_wsh || '宠物寄养服务' }}</h3>
       </div>
-      <span :class="['badge', statusBadge(order.status_wsh)]">
-        {{ statusLabel(order.status_wsh) }}
-      </span>
+      <div class="order-card__badges">
+        <span :class="['badge', statusBadge(order.status_wsh)]">
+          {{ statusLabel(order.status_wsh) }}
+        </span>
+        <span v-if="order.status_wsh === 'completed' && authStore.isOwner" :class="['badge', order.has_feedback_wsh ? 'badge-success' : 'badge-warning']">
+          {{ order.has_feedback_wsh ? '已评价' : '待反馈' }}
+        </span>
+      </div>
     </header>
 
     <div v-if="showPaymentCountdown" class="payment-countdown">
@@ -63,7 +68,7 @@
       <div>
         <span>实付金额</span>
         <strong>¥{{ money(order.final_amount_wsh || order.total_amount_wsh) }}</strong>
-        <small v-if="order.days_wsh">{{ order.days_wsh }} 天</small>
+        <small v-if="orderBillingText">{{ orderBillingText }}</small>
       </div>
       <div v-if="order.discount_wsh && Number(order.discount_wsh) > 0" class="discount">
         已优惠 ¥{{ money(order.discount_wsh) }}
@@ -91,24 +96,32 @@
         <el-icon><Check /></el-icon>
         已送达
       </button>
-      <button v-if="order.status_wsh === 'completed' && authStore.isOwner" class="btn btn-sm btn-primary" type="button" @click="$emit('review')">
-        <el-icon><Star /></el-icon>
-        评价
-      </button>
-      <button v-if="order.status_wsh === 'completed' && authStore.isOwner" class="btn btn-sm btn-success" type="button" @click="$emit('tip')">
-        <el-icon><Present /></el-icon>
-        打赏
-      </button>
+      <template v-if="order.status_wsh === 'completed' && authStore.isOwner">
+        <button v-if="!order.has_feedback_wsh" class="btn btn-sm btn-primary" type="button" @click="$emit('review')">
+          <el-icon><Star /></el-icon>
+          评价
+        </button>
+        <button class="btn btn-sm btn-danger" type="button" @click="goComplaint">
+          <el-icon><Warning /></el-icon>
+          投诉
+        </button>
+        <button class="btn btn-sm btn-success" type="button" @click="$emit('tip')">
+          <el-icon><Present /></el-icon>
+          打赏
+        </button>
+      </template>
     </footer>
   </article>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { Check, Close, Present, Star, View, Wallet } from '@element-plus/icons-vue'
+import { Check, Close, Present, Star, View, Wallet, Warning } from '@element-plus/icons-vue'
 import { OrderStatus, getStatusLabel, getStatusBadge } from '@/constants/statusMaps'
 import { formatPaymentTimeoutRemaining, getPaymentTimeoutRemaining } from '@/utils/orderPaymentTimeout'
+import { billingText } from '@/domain/BookingUnit'
 
 const props = defineProps({
   order: { type: Object, required: true },
@@ -118,6 +131,18 @@ const props = defineProps({
 defineEmits(['cancel', 'pay', 'deliver', 'review', 'tip', 'viewDetail'])
 
 const authStore = useAuthStore()
+const router = useRouter()
+const orderBillingText = computed(() => billingText(props.order))
+
+function goComplaint() {
+  router.push({
+    path: '/complaints',
+    query: {
+      orderId: props.order.id_wsh,
+      orderNo: props.order.order_no_wsh || '',
+    },
+  })
+}
 const paymentRemaining = computed(() => getPaymentTimeoutRemaining(props.order, props.nowMs))
 const showPaymentCountdown = computed(() => props.order.status_wsh === 'pending' && paymentRemaining.value != null)
 const paymentCountdownText = computed(() => formatPaymentTimeoutRemaining(paymentRemaining.value))
@@ -161,6 +186,12 @@ function firstLetter(value, fallback) {
   align-items: flex-start;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--color-border);
+}
+.order-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .order-title-group { min-width: 0; }
 .order-title-group h3 {

@@ -5,8 +5,13 @@ export async function getMyComplaints() {
   return res.data
 }
 
-export async function getComplaints() {
-  const res = await request.get('/api/complaints/all')
+export async function getComplaintTargets() {
+  const res = await request.get('/api/complaints/targets')
+  return res.data
+}
+
+export async function getComplaints(filters = {}) {
+  const res = await request.get('/api/complaints/all', { params: filters })
   return res.data
 }
 
@@ -17,6 +22,21 @@ export async function createComplaint(data) {
 
 export async function getComplaintEvidence(id) {
   const res = await request.get(`/api/complaints/${id}/evidence`)
+  return res.data
+}
+
+export async function getComplaintMessages(id) {
+  const res = await request.get(`/api/complaints/${id}/messages`)
+  return res.data
+}
+
+export async function sendComplaintMessage(id, content, fileUrl) {
+  const res = await request.post(`/api/complaints/${id}/messages`, { content_wsh: content, file_url_wsh: fileUrl || null })
+  return res.data
+}
+
+export async function acceptComplaint(id) {
+  const res = await request.post(`/api/complaints/${id}/accept`, {})
   return res.data
 }
 

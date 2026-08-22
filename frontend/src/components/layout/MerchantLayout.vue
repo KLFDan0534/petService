@@ -9,6 +9,9 @@
 
       <nav class="sidebar-nav">
         <router-link v-for="item in navItems" :key="item.route" :to="item.route" active-class="active">
+          <span class="nav-icon" aria-hidden="true">
+            <el-icon><component :is="item.icon" /></el-icon>
+          </span>
           <span>{{ item.label }}</span>
         </router-link>
       </nav>
@@ -39,6 +42,21 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  Avatar,
+  ChatDotRound,
+  Clock,
+  DataBoard,
+  Goods,
+  Headset,
+  List,
+  Odometer,
+  Shop,
+  Tickets,
+  TrendCharts,
+  User,
+  Warning,
+} from '@element-plus/icons-vue'
 import MessageIndicator from '@/components/common/MessageIndicator.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import { resetDynamicRoutes } from '@/router'
@@ -48,22 +66,25 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const merchantNavItems = [
-  { route: '/merchant/dashboard', label: '控制台' },
-  { route: '/merchant/profile', label: '商家资料' },
-  { route: '/merchant/services', label: '服务管理' },
-  { route: '/merchant/business-hours', label: '营业时间' },
-  { route: '/merchant/pets', label: '宠物管理' },
-  { route: '/merchant/orders', label: '订单管理' },
-  { route: '/merchant/keepers', label: '寄养员管理' },
-  { route: '/merchant/customer-service', label: '客服管理' },
-  { route: '/merchant/support/tickets', label: '支持工单' },
-  { route: '/merchant/support/complaints', label: '投诉处理' },
-  { route: '/merchant/statistics', label: '数据统计' },
+  { route: '/merchant/dashboard', label: '控制台', icon: Odometer },
+  { route: '/merchant/profile', label: '商家资料', icon: Shop },
+  { route: '/merchant/services', label: '服务管理', icon: Goods },
+  { route: '/merchant/business-hours', label: '营业时间', icon: Clock },
+  { route: '/merchant/pets', label: '宠物管理', icon: Avatar },
+  { route: '/merchant/orders', label: '订单管理', icon: List },
+  { route: '/merchant/keepers', label: '寄养员管理', icon: User },
+  { route: '/merchant/customer-service', label: '客服管理', icon: Headset },
+  { route: '/merchant/support/dashboard', label: '客服工作台', icon: DataBoard },
+  { route: '/merchant/support/tickets', label: '支持工单', icon: Tickets },
+  { route: '/merchant/support/complaints', label: '投诉处理', icon: Warning },
+  { route: '/merchant/statistics', label: '数据统计', icon: TrendCharts },
 ]
 
 const supportNavItems = [
-  { route: '/merchant/support/tickets', label: '支持工单' },
-  { route: '/merchant/support/complaints', label: '投诉处理' },
+  { route: '/merchant/support/dashboard', label: '工作台', icon: DataBoard },
+  { route: '/merchant/support/tickets', label: '支持工单', icon: Tickets },
+  { route: '/merchant/support/complaints', label: '投诉处理', icon: Warning },
+  { route: '/merchant/support/chat', label: '实时聊天', icon: ChatDotRound },
 ]
 
 const isSupportOnly = computed(() =>

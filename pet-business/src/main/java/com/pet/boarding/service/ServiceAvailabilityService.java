@@ -19,7 +19,8 @@ public interface ServiceAvailabilityService {
      *
      * @param serviceId 服务ID
      * @param from      起始日期（包含，不早于今天）
-     * @param to        结束日期（包含，与 from 跨度不超过 31 天）
+     * @param to        结束日期（包含）；请求跨度超过预约窗口时按窗口收敛，
+     *                  实际窗口通过响应 {@code booking_window_days_wsh} 返回
      * @param keeperId  可选看护员ID；为空时不叠加看护员维度
      * @return 按天拆分的可预约性视图
      */

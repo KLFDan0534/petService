@@ -21,22 +21,22 @@ export async function refreshToken(data) {
 }
 
 export async function forgotPassword(data) {
-  const res = await request.post('/auth/forgot-password', data)
+  const res = await request.post('/api/auth/forgot-password', data)
   return res.data
 }
 
 export async function getCurrentUser() {
-  const res = await request.get('/users/me')
+  const res = await request.get('/api/users/me')
   return res.data
 }
 
 export async function updateCurrentUser(data) {
-  const res = await request.put('/users/me', data)
+  const res = await request.put('/api/users/me', data)
   return res.data
 }
 
 export async function deleteCurrentUser() {
-  const res = await request.delete('/users/me')
+  const res = await request.delete('/api/users/me')
   return res.data
 }
 

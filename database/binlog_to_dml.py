@@ -29,7 +29,7 @@ FK_ORDER = [
     "notice_wsh", "notice_read_wsh", "notification_wsh",
     "chat_message_wsh", "complaint_wsh", "rating_wsh",
     "ticket_wsh", "ticket_message_wsh",
-    "care_record_wsh", "adoption_pet_wsh", "adoption_application_wsh",
+    "care_record_wsh",
     "favorite_wsh", "file_record_wsh", "operation_log_wsh",
     "content_review_wsh", "ai_report_wsh",
     "knowledge_document_wsh", "document_embedding_wsh",

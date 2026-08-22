@@ -5,8 +5,9 @@ export async function getMyTickets() {
   return res.data
 }
 
-export async function getTickets(page = 1, size = 20) {
-  const res = await request.get('/api/tickets', { params: { page, size } })
+export async function getTickets(page = 1, size = 20, filters = {}) {
+  const params = { page, size, ...filters }
+  const res = await request.get('/api/tickets', { params })
   return res.data
 }
 

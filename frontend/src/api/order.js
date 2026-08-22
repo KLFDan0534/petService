@@ -15,6 +15,11 @@ export async function createOrder(data) {
   return res.data
 }
 
+export async function createOrdersBatch(data) {
+  const res = await request.post('/api/orders/batch', data)
+  return res.data
+}
+
 export async function cancelOrder(data) {
   const res = await request.post('/api/orders/cancel', data)
   return res.data

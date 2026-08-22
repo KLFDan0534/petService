@@ -28,6 +28,10 @@ public class TicketDTO {
     private String result_wsh;
     @Schema(description = "处理人ID")
     private Long assignee_id_wsh;
+    @Schema(description = "发起用户名称")
+    private String user_name_wsh;
+    @Schema(description = "所属商家名称")
+    private String merchant_name_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
     @Schema(description = "更新时间")

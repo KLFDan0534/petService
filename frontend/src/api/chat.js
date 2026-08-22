@@ -10,6 +10,11 @@ export async function sendChatMessage(data) {
   return res.data
 }
 
+export async function assignCustomerServiceAgent() {
+  const res = await request.post('/api/chat/assign-agent')
+  return res.data
+}
+
 export async function markConversationRead(data) {
   const res = await request.post('/api/chat/read-conversation', data)
   return res.data

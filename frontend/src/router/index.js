@@ -37,6 +37,7 @@ export const constantRoutes = [
   { path: '/keeper-workflow', name: 'KeeperWorkflow', component: () => import('@/views/user/KeeperWorkflow.vue'), meta: { layout: 'user', requiresAuth: true, roles: [ROLES.KEEPER, ROLES.ADMIN] } },
   { path: '/payments', name: 'Payments', component: () => import('@/views/user/Payments.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/recharge', name: 'Recharge', component: () => import('@/views/user/Recharge.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
+  { path: '/wallet', name: 'Wallet', component: () => import('@/views/user/Wallet.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/profile', name: 'Profile', component: () => import('@/views/user/Profile.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
   { path: '/profile/phone', name: 'ProfilePhoneEdit', component: () => import('@/views/user/ProfileAccountEdit.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES, accountType: 'phone' } },
   { path: '/profile/email', name: 'ProfileEmailEdit', component: () => import('@/views/user/ProfileAccountEdit.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES, accountType: 'email' } },
@@ -49,13 +50,14 @@ export const constantRoutes = [
   { path: '/notifications', name: 'Notifications', component: () => import('@/views/user/Notifications.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
   { path: '/notices/:id', name: 'NoticeDetail', component: () => import('@/views/user/NoticeDetail.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
   { path: '/favorites', name: 'Favorites', component: () => import('@/views/user/Favorites.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
-  { path: '/tickets', name: 'Tickets', component: () => import('@/views/user/Tickets.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
+  { path: '/tickets', name: 'Tickets', component: () => import('@/views/user/Tickets.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
   { path: '/complaints', name: 'Complaints', component: () => import('@/views/user/Complaints.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/ratings', name: 'Ratings', component: () => import('@/views/user/Ratings.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/credit-reputation', name: 'CreditReputation', component: () => import('@/views/user/CreditReputation.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/anomaly', name: 'Anomaly', component: () => import('@/views/user/Anomaly.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/revenue', name: 'RevenueCenter', component: () => import('@/views/user/RevenueCenter.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/ai', name: 'AI', component: () => import('@/views/user/AI.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
+  { path: '/ai/chat', name: 'AiChat', component: () => import('@/views/user/AiChat.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
   { path: '/rag', name: 'RAG', component: () => import('@/views/user/RAG.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/agent', name: 'Agent', component: () => import('@/views/user/Agent.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
 ]
@@ -78,8 +80,10 @@ export const merchantRoutes = [
 ]
 
 export const merchantSupportRoutes = [
+  { path: '/merchant/support/dashboard', name: 'MerchantSupportDashboard', component: () => import('@/views/cs/CsWorkbench.vue'), meta: { layout: 'merchant', requiresAuth: true, roles: SUPPORT_AREA_ROLES } },
   { path: '/merchant/support/tickets', name: 'MerchantSupportTickets', component: () => import('@/views/admin/AdminTickets.vue'), meta: { layout: 'merchant', requiresAuth: true, roles: SUPPORT_AREA_ROLES } },
   { path: '/merchant/support/complaints', name: 'MerchantSupportComplaints', component: () => import('@/views/admin/AdminComplaints.vue'), meta: { layout: 'merchant', requiresAuth: true, roles: SUPPORT_AREA_ROLES } },
+  { path: '/merchant/support/chat', name: 'MerchantSupportChat', component: () => import('@/views/cs/CsChat.vue'), meta: { layout: 'merchant', requiresAuth: true, roles: SUPPORT_AREA_ROLES } },
 ]
 
 // ====== Admin routes (ADMIN only) ======

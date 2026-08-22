@@ -240,14 +240,37 @@ class ServiceProductDetailTest {
     }
 
     /**
-     * DU-07: 非 day/天 计费单位不可预约。
+     * DU-07: session/hour 计费单位可预约（A2 多单位支持，不得显示“暂不支持预约”）。
      */
     @Test
-    void detailNotBookableForHourUnit() {
+    void detailBookableForHourUnit() {
         stubVisibleContext();
         ServiceItem hourly = enabled(301L);
         hourly.setUnit_wsh("hour");
+        hourly.setDuration_minutes_wsh(120);
         when(serviceItemMapper.selectById(301L)).thenReturn(hourly);
+        when(serviceMediaService.listMedia(301L)).thenReturn(List.of());
+        when(serviceMediaService.resolveTrustedLegacyImages(null)).thenReturn(List.of());
+        when(ratingMapper.aggregateByTargets(eq("service"), anyCollection())).thenReturn(List.of());
+
+        ServiceProductDetailVO vo = service.getPublicDetail(301L);
+
+        assertTrue(vo.getBookable_wsh());
+        assertNull(vo.getBookable_reason_wsh());
+        assertEquals("hour", vo.getUnit_wsh());
+        assertEquals(120, vo.getDuration_minutes_wsh());
+        assertEquals("slot", vo.getBooking_mode_wsh());
+    }
+
+    /**
+     * DU-07b: 真正未知/非受支持单位仍不可预约，返回 UNSUPPORTED_SERVICE_UNIT。
+     */
+    @Test
+    void detailNotBookableForUnknownUnit() {
+        stubVisibleContext();
+        ServiceItem odd = enabled(301L);
+        odd.setUnit_wsh("疗程");
+        when(serviceItemMapper.selectById(301L)).thenReturn(odd);
         when(serviceMediaService.listMedia(301L)).thenReturn(List.of());
         when(serviceMediaService.resolveTrustedLegacyImages(null)).thenReturn(List.of());
         when(ratingMapper.aggregateByTargets(eq("service"), anyCollection())).thenReturn(List.of());

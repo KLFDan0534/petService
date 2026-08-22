@@ -301,6 +301,31 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return merchantId != null && getApprovedMerchantIds(userId).contains(merchantId);
     }
 
+    /**
+     * 【业务名称】查询指定商家的已授权客服用户ID集合（实现）
+     * 业务作用：获取服务指定商家的所有已通过审核客服的用户ID。
+     * 调用场景：新工单/新投诉创建时通知服务该商家的客服。
+     * 调用链：getApprovedCsUserIds() → mapper.selectList()。
+     * 数据处理：按 merchant_id + approved 状态筛选。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：用于提醒推送。
+     */
+    @Override
+    public Set<Long> getApprovedCsUserIds(Long merchantId) {
+        if (merchantId == null) {
+            return Set.of();
+        }
+        return mapper.selectList(new LambdaQueryWrapper<MerchantCustomerService>()
+                        .eq(MerchantCustomerService::getMerchant_id_wsh, merchantId)
+                        .eq(MerchantCustomerService::getStatus_wsh, STATUS_APPROVED))
+                .stream()
+                .map(MerchantCustomerService::getUser_id_wsh)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
+
     private MerchantCustomerService requireApprovedApplication(Long id) {
         if (id == null) {
             throw new BusinessException(400, "application id is required");

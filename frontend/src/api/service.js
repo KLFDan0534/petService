@@ -1,7 +1,7 @@
 import request from '@/utils/request'
 
 export async function getServices() {
-  const res = await request.get('/services')
+  const res = await request.get('/api/services')
   return res.data
 }
 

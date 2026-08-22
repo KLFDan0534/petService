@@ -115,7 +115,7 @@
                 </div>
               </div>
               <div class="service-action">
-                <span class="price">&yen;{{ money(svc.price_wsh) }}<small>/{{ svc.unit_wsh || '次' }}</small></span>
+                <span class="price">&yen;{{ money(svc.price_wsh) }}<small>/{{ unitLabel(svc.unit_wsh) || '次' }}</small></span>
                 <button class="btn btn-sm btn-primary" :disabled="bookDisabled" @click="bookService(svc)">
                   {{ isOpen ? '预约' : '休息中·可预约' }}
                 </button>
@@ -173,6 +173,7 @@ import { Star } from '@element-plus/icons-vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
 import { MerchantStoreMode, MerchantStoreStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
 import { parseCommaSeparatedUrls } from '@/utils/fileUrls'
+import { unitLabel } from '@/domain/BookingUnit'
 
 const route = useRoute()
 const router = useRouter()

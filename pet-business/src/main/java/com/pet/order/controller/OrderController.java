@@ -11,6 +11,7 @@ import com.pet.common.annotation.LogOperation;
 import com.pet.operation.entity.FileRecord;
 import com.pet.operation.service.FileRecordService;
 import com.pet.operation.service.impl.MinIoService;
+import com.pet.order.dto.OrderBatchCreateRequestDTO;
 import com.pet.order.dto.OrderCreateRequestDTO;
 import com.pet.order.dto.OrderCancelRequestDTO;
 import com.pet.order.dto.OrderDTO;
@@ -233,6 +234,29 @@ public class OrderController {
     public Result<OrderDTO> create(@AuthenticationPrincipal JwtAuthenticationToken token,
                                    @Valid @RequestBody OrderCreateRequestDTO request) {
         return Result.success(orderService.createOrder(token.getUserId(), request));
+    }
+
+    /**
+     * 批量创建订单（多宠物连续下单）
+     * @param token 当前用户认证信息
+     * @param request 批量创建订单请求体（2..10 只宠物）
+     * @return 按 items 顺序创建的订单列表
+     * @author: wsh
+     * @date: 2026/08/16
+     */
+    @PostMapping("/batch")
+    @PreAuthorize("isAuthenticated()")
+    @LogOperation(module = "Order", operation = "增加/创建", description = "批量创建订单（多宠物连续下单）")
+    @Operation(summary = "批量创建订单（多宠物连续下单）")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<List<OrderDTO>> createBatch(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                              @Valid @RequestBody OrderBatchCreateRequestDTO request) {
+        return Result.success(orderService.createOrders(token.getUserId(), request));
     }
 
     /**

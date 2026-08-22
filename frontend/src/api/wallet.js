@@ -5,13 +5,18 @@ export async function getMyWallet() {
   return res.data
 }
 
-export async function getWallets() {
-  const res = await request.get('/api/wallet')
+export async function getWallets(params) {
+  const res = await request.get('/api/wallet', { params })
   return res.data
 }
 
 export async function adjustWallet(data) {
   const res = await request.post('/api/wallet/admin/adjust', data)
+  return res.data
+}
+
+export async function rechargeWallet(data) {
+  const res = await request.post('/api/wallet/recharge', data)
   return res.data
 }
 
@@ -60,8 +65,8 @@ export async function getMyTransactions() {
   return res.data
 }
 
-export async function getTransactions() {
-  const res = await request.get('/api/transactions')
+export async function getTransactions(params) {
+  const res = await request.get('/api/transactions', { params })
   return res.data
 }
 

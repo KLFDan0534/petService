@@ -49,6 +49,7 @@ export const KeeperOnlineStatus = {
 
 export const ComplaintStatus = {
   pending: { label: '待处理', badge: 'badge-warning' },
+  processing: { label: '受理中', badge: 'badge-info' },
   resolved: { label: '已处理', badge: 'badge-success' },
   rejected: { label: '已驳回', badge: 'badge-danger' },
 }
@@ -58,6 +59,20 @@ export const TicketStatus = {
   processing: { label: '处理中', badge: 'badge-info' },
   resolved: { label: '已解决', badge: 'badge-success' },
   closed: { label: '已关闭', badge: 'badge-secondary' },
+}
+
+export const TicketCategory = {
+  complaint: { label: '投诉', badge: 'badge-danger' },
+  question: { label: '咨询', badge: 'badge-info' },
+  suggestion: { label: '建议', badge: 'badge-warning' },
+  other: { label: '其他', badge: 'badge-secondary' },
+}
+
+export const TicketPriority = {
+  low: { label: '低', badge: 'badge-secondary' },
+  medium: { label: '中', badge: 'badge-info' },
+  high: { label: '高', badge: 'badge-warning' },
+  urgent: { label: '紧急', badge: 'badge-danger' },
 }
 
 export const ReviewStatus = {

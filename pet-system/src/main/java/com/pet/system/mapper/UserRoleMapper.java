@@ -13,6 +13,28 @@ import java.util.List;
 @Mapper
 public interface UserRoleMapper extends BaseMapper<UserRole> {
     /**
+     * 【按角色编码查询有效用户ID列表】
+     *
+     * 业务作用：查询系统中拥有指定角色编码的全部有效（未删除、未封禁）用户ID，用于按角色随机分配客服等场景
+     *
+     * 调用场景：智能客服转人工时随机分配一名在线客服
+     *
+     * 调用链：ChatServiceImpl.assignCustomerServiceAgent() ↓ selectActiveUserIdsByRoleCode() → SQL联表
+     *
+     * 数据处理：JOIN role_wsh + user_role_wsh + user_wsh → 过滤角色编码匹配且均未逻辑删除、用户未封禁 → 返回用户ID列表
+     *
+     * 业务规则：仅统计deleted_wsh=0的有效记录；用户status_wsh=1（未封禁）
+     *
+     * 状态影响：无
+     */
+    @Select("SELECT ur.user_id_wsh FROM user_role_wsh ur " +
+            "JOIN role_wsh r ON ur.role_id_wsh = r.id_wsh " +
+            "JOIN user_wsh u ON ur.user_id_wsh = u.id_wsh " +
+            "WHERE r.code_wsh = #{roleCode} " +
+            "AND ur.deleted_wsh = 0 AND r.deleted_wsh = 0 AND u.deleted_wsh = 0 AND u.status_wsh = 1")
+    List<Long> selectActiveUserIdsByRoleCode(String roleCode);
+
+    /**
      * 【按角色统计用户数量】
      *
      * 业务作用：统计系统中每个角色下关联的有效用户数量，用于角色管理仪表盘

@@ -35,6 +35,7 @@ import com.pet.order.mapper.PaymentMapper;
 import com.pet.order.service.OrderService;
 import com.pet.order.service.OrderSnapshotService;
 import com.pet.order.service.OrderStatusBroadcaster;
+import com.pet.customer.mapper.RatingMapper;
 import com.pet.order.service.impl.OrderServiceImpl;
 import com.pet.order.service.impl.PaymentServiceImpl;
 import com.pet.pet.entity.Pet;
@@ -96,6 +97,7 @@ class OrderFutureBookingWhenClosedTest {
     @Mock private OrderService orderServiceDelegate;
 
     private final BusinessHoursTargetResolver resolver = new BusinessHoursTargetResolver();
+    @Mock private RatingMapper ratingMapper;
 
     @BeforeAll
     static void initMybatisPlusTableInfo() {
@@ -370,7 +372,7 @@ class OrderFutureBookingWhenClosedTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
     }
 
     private OrderService orderServiceDelegate() {

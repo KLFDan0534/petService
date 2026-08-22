@@ -130,6 +130,12 @@ ai:
     max-tokens: ${DEEPSEEK_MAX_TOKENS:8192}
     temperature: ${DEEPSEEK_TEMPERATURE:0.7}
     thinking-type: ${DEEPSEEK_THINKING_TYPE:disabled}
+  kenari:
+    api-key: ${KENARI_API_KEY:}
+    model: ${KENARI_MODEL:gpt-4o-mini}
+    endpoint: ${KENARI_ENDPOINT:https://kenari.id/v1}
+    max-tokens: ${KENARI_MAX_TOKENS:1024}
+    temperature: ${KENARI_TEMPERATURE:0.3}
 
 chroma:
   url: ${CHROMA_URL:http://localhost:8000}
@@ -145,3 +151,5 @@ gao:
 
 booking:
   slot-minutes: ${BOOKING_SLOT_MINUTES:30}
+  max-booking-days: ${BOOKING_MAX_BOOKING_DAYS:91}
+  max-order-days: ${BOOKING_MAX_ORDER_DAYS:365}

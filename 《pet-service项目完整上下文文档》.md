@@ -454,22 +454,9 @@ pending → paid → confirmed → delivered → received → in_progress → co
 - [x] `FileController` 的 `PUT /api/files/upload?directory=...` 上传接口完全公开（SecurityConfig 白名单），没有文件类型/大小校验
 - [x] `OperationLogController` 和 `RecycleBinController` 允许所有 ADMIN 角色操作，需要更加精细的权限控制
 
-### 3.5.7 领养模块 (adoption)
+### 3.5.7 领养模块 (adoption) — 已移除
 
-| Controller | 文件 | 主要接口 |
-|------------|------|---------|
-| `AdoptionController` | `adoption/controller/AdoptionController.java` | 宠物CRUD/申请/审核 |
-
-**核心流程**:
-```
-商家发布领养宠物 → 用户浏览 → 用户申请 → 商家审核 → 管理员终审
-```
-
-**数据库表**: `adoption_pet_wsh`, `adoption_application_wsh`
-
-**问题**:
-- [x] `adoption_pet_wsh` 和 `adoption_application_wsh` 的 **Java Entity 缺失**（在 `pet-business/adoption/entity/` 下找不到实体类）
-- [x] 两个领养表在 `PROJECT_MAP.md` 中被引用但实际代码中未完成
+> 领养模块已整体移除（包括前端页面、路由、Controller、数据库表 `adoption_pet_wsh` / `adoption_application_wsh`）。
 
 ## 3.6 pet-ai（AI模块）
 
@@ -592,10 +579,7 @@ pending → paid → confirmed → delivered → received → in_progress → co
 | `document_embedding_wsh` | DocumentEmbedding | document_id, embedding, chunk_text | PK + FK |
 
 ### 领养模块（2表）
-| 表 | Entity | 核心字段 | 索引 |
-|----|--------|---------|------|
-| `adoption_pet_wsh` | ❌ 缺失 | name, type, status | PK + 2索引 |
-| `adoption_application_wsh` | ❌ 缺失 | user_id, pet_id, status | PK + 3索引 |
+> 领养表 `adoption_pet_wsh` / `adoption_application_wsh` 已随领养模块一并移除，不再属于当前系统。
 
 ### 看护人管理（2表）
 | 表 | Entity | 核心字段 | 索引 |
@@ -629,8 +613,6 @@ pending → paid → confirmed → delivered → received → in_progress → co
 
 | 表 | 实体缺失 | 状态 |
 |----|---------|------|
-| `adoption_pet_wsh` | 无 Java Entity | Controllers 已存在，Entity 缺失 |
-| `adoption_application_wsh` | 无 Java Entity | Controllers 已存在，Entity 缺失 |
 | `document_embedding_wsh` | 无 Java Entity | 被 RAG 服务引用但无对应 Mapper |
 
 **3. 外键关系**
@@ -686,8 +668,7 @@ pending → paid → confirmed → delivered → received → in_progress → co
 | pet-business/customer | 4 | 22 |
 | pet-business/finance | 3 | 13 |
 | pet-business/operation | 7 | 22 |
-| pet-business/adoption | 1 | 12 |
-| **总计** | **~35** | **~166** |
+| **总计** | **~34** | **~154** |
 
 ## 5.2 接口设计规范
 
@@ -787,7 +768,6 @@ frontend/
 │   │   ├── user/               # 28 页
 │   │   ├── merchant/           # 5 页
 │   │   ├── admin/              # 19 页
-│   │   ├── adoption/           # 1 页
 │   │   └── error/              # 4 页
 │   ├── constants/              # 常量（状态映射、消息）
 │   ├── directives/             # 自定义指令
@@ -980,7 +960,7 @@ OrderService.create()
 4. **为所有核心表添加业务索引**
    - 按前述清单逐一添加
 5. **补充缺失 Entity**
-   - 创建 `AdoptionPet`, `AdoptionApplication`, `DocumentEmbedding` 实体
+   - 创建 `DocumentEmbedding` 实体
 6. **密码加密审计**
    - 确认使用 BCryptPasswordEncoder
 7. **操作日志脱敏**

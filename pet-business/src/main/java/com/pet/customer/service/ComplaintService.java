@@ -5,6 +5,9 @@ import com.pet.common.PageRequestDTO;
 import com.pet.customer.dto.ComplaintCreateRequestDTO;
 import com.pet.customer.dto.ComplaintDTO;
 import com.pet.customer.dto.ComplaintEvidenceDTO;
+import com.pet.customer.dto.ComplaintListRequestDTO;
+import com.pet.customer.dto.ComplaintMessageDTO;
+import com.pet.customer.dto.ComplaintTargetsDTO;
 import com.pet.customer.entity.Complaint;
 
 import java.util.List;
@@ -73,14 +76,14 @@ public interface ComplaintService {
      * 异常情况：无。
      * 注意事项：角色权限隔离。
      *
-     * @param pageParam 分页参数
+     * @param pageParam 分页参数（含筛选条件：状态/商家/关键字）
      * @param staffUserId 当前操作用户ID
      * @param admin 是否为管理员
      * @param merchant 是否为商家
      * @param customerService 是否为客服
      * @return 过滤后的投诉分页数据
      */
-    IPage<ComplaintDTO> listPageForStaff(PageRequestDTO pageParam, Long staffUserId,
+    IPage<ComplaintDTO> listPageForStaff(ComplaintListRequestDTO pageParam, Long staffUserId,
                                          boolean admin, boolean merchant, boolean customerService);
 
     /**
@@ -119,6 +122,21 @@ public interface ComplaintService {
      */
     ComplaintEvidenceDTO getEvidenceForStaff(Long id, Long staffUserId,
                                              boolean admin, boolean merchant, boolean customerService);
+
+    /**
+     * 【业务名称】获取可投诉目标列表
+     * 业务作用：返回当前用户可投诉/举报的对象（订单、消费过的商家、服务过的寄养师），
+     * 前端据此渲染选择列表，用户无需手填 ID。
+     * 调用场景：投诉/举报表单第一步"选择投诉对象"。
+     * 数据处理：按 owner_id 查询订单，聚合出消费过的商家与服务过的寄养师。
+     * 业务规则：只返回与当前用户相关的对象。
+     * 状态影响：无。
+     * 异常情况：无。
+     *
+     * @param ownerId 投诉人（宠物主）用户ID
+     * @return 可投诉目标列表
+     */
+    ComplaintTargetsDTO getTargets(Long ownerId);
 
     /**
      * 【业务名称】创建投诉
@@ -177,4 +195,61 @@ public interface ComplaintService {
      */
     ComplaintDTO processForStaff(Long id, String result, String status, Long staffUserId,
                                  boolean admin, boolean merchant, boolean customerService);
+
+    /**
+     * 【业务名称】受理投诉（进入处理中）
+     * 业务作用：客服/管理员/商家受理投诉，状态从 pending 变为 processing，并通知投诉人。
+     * 调用场景：内部人员（管理员/商家/客服）受理投诉，进入处理流程。
+     * 调用链：accept() → assertStaffCanManage() → 更新状态 → 通知投诉人。
+     * 数据处理：更新状态为 processing，记录处理结果说明。
+     * 业务规则：仅 pending 状态可受理；无权限时抛 BusinessException。
+     * 状态影响：投诉状态 pending → processing。
+     * 异常情况：无权限抛 BusinessException(403)。
+     * 注意事项：角色权限隔离。
+     *
+     * @param id 投诉ID
+     * @param staffUserId 当前操作用户ID
+     * @param admin 是否为管理员
+     * @param merchant 是否为商家
+     * @param customerService 是否为客服
+     * @return 更新后的投诉DTO
+     */
+    ComplaintDTO accept(Long id, Long staffUserId, boolean admin, boolean merchant, boolean customerService);
+
+    /**
+     * 【业务名称】查询投诉沟通消息
+     * 业务作用：查询某投诉的往来消息（投诉人本人或可管理该投诉的内部人员）。
+     * 调用场景：投诉详情展示沟通记录。
+     * 数据处理：按 complaint_id 查询，按创建时间正序。
+     * 业务规则：投诉人本人或可管理该投诉的客服/商家/管理员可查看。
+     * 状态影响：无。
+     * 异常情况：无权限抛 BusinessException(403)。
+     *
+     * @param id 投诉ID
+     * @param userId 当前用户ID
+     * @param admin 是否为管理员
+     * @param merchant 是否为商家
+     * @param customerService 是否为客服
+     * @return 消息列表
+     */
+    List<ComplaintMessageDTO> listMessages(Long id, Long userId, boolean admin, boolean merchant, boolean customerService);
+
+    /**
+     * 【业务名称】发送投诉沟通消息
+     * 业务作用：投诉人或可管理该投诉的内部人员发送消息；消息会以站内通知提醒接收方。
+     * 调用场景：用户追问 / 客服回复。
+     * 数据处理：校验权限与内容 → 插入消息 → 通知接收方。
+     * 业务规则：内容必填且≤1000字；用户只能在自己的投诉中发言，客服只能在其服务商家的投诉中发言。
+     * 状态影响：新增消息；发送通知。
+     * 异常情况：无权限抛 403；内容为空抛 400。
+     *
+     * @param id 投诉ID
+     * @param senderId 发送人用户ID
+     * @param content 消息内容
+     * @param admin 是否为管理员
+     * @param merchant 是否为商家
+     * @param customerService 是否为客服
+     * @return 发送成功的消息DTO
+     */
+    ComplaintMessageDTO sendMessage(Long id, Long senderId, String content, String fileUrl, boolean admin, boolean merchant, boolean customerService);
 }

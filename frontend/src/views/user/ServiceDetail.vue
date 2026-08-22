@@ -43,7 +43,7 @@
             <div class="service-hero-info">
               <span class="badge badge-info">{{ service.category_name_wsh || '未分类' }}</span>
               <h1 class="text-break">{{ service.name_wsh }}</h1>
-              <div class="service-price">¥{{ money(service.price_wsh) }} <span>/ {{ service.unit_wsh || '次' }}</span></div>
+              <div class="service-price">¥{{ money(service.price_wsh) }} <span>/ {{ unitLabel(service.unit_wsh) || '次' }}</span></div>
               <p class="service-desc text-break">{{ service.description_wsh || '暂无服务描述' }}</p>
               <div v-if="service.service_rating_count_wsh" class="rating-summary">
                 ★ {{ Number(service.service_rating_wsh).toFixed(1) }}（{{ service.service_rating_count_wsh }} 条）
@@ -177,6 +177,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getServiceDetail } from '@/api/service'
+import { unitLabel } from '@/domain/BookingUnit'
 import { getRatings } from '@/api/rating'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -359,8 +360,11 @@ function closeBookingDialog() {
 }
 
 function onBookingCreated(data) {
+  // 单笔：进入订单详情；批量（多宠物连续下单）：进入订单列表逐单支付
   if (data?.id_wsh) {
     router.push(`/orders/${data.id_wsh}`)
+  } else if (Array.isArray(data?.orders) && data.orders.length > 0) {
+    router.push('/orders')
   }
 }
 

@@ -19,6 +19,7 @@ import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.ServiceItemService;
 import com.pet.boarding.service.ServiceMediaService;
 import com.pet.common.BookingErrorCode;
+import com.pet.common.BookingUnit;
 import com.pet.common.BusinessException;
 import com.pet.common.ServiceVersions;
 import com.pet.common.StatusCode;
@@ -55,9 +56,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     private static final int MAX_SIZE = 100;
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_DESCRIPTION_LENGTH = 2000;
-    private static final int MAX_UNIT_LENGTH = 20;
     private static final BigDecimal MAX_PRICE = new BigDecimal("1000000");
-    private static final Set<String> BOOKABLE_UNITS = Set.of("day", "天");
 
     private final ServiceItemMapper serviceItemMapper;
     private final ServiceCategoryMapper categoryMapper;
@@ -193,7 +192,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         item.setType_wsh(cat.getCode_wsh());
         item.setDescription_wsh(dto.getDescription_wsh());
         item.setPrice_wsh(dto.getPrice_wsh());
-        item.setUnit_wsh(normalizeUnit(dto.getUnit_wsh()));
+        applyUnitContract(item, dto.getUnit_wsh(), dto.getDuration_minutes_wsh());
         item.setImages_wsh(dto.getImages_wsh());
         item.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         serviceItemMapper.insert(item);
@@ -238,8 +237,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             validatePrice(dto.getPrice_wsh());
             existing.setPrice_wsh(dto.getPrice_wsh());
         }
-        if (dto.getUnit_wsh() != null) {
-            existing.setUnit_wsh(normalizeUnit(dto.getUnit_wsh()));
+        if (dto.getUnit_wsh() != null || dto.getDuration_minutes_wsh() != null) {
+            applyUnitContract(existing, dto.getUnit_wsh(), dto.getDuration_minutes_wsh());
         }
         if (dto.getImages_wsh() != null) {
             existing.setImages_wsh(dto.getImages_wsh());
@@ -362,6 +361,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         dto.setDescription_wsh(entity.getDescription_wsh());
         dto.setPrice_wsh(entity.getPrice_wsh());
         dto.setUnit_wsh(entity.getUnit_wsh());
+        dto.setDuration_minutes_wsh(entity.getDuration_minutes_wsh());
+        dto.setBooking_mode_wsh(entity.getBooking_mode_wsh());
         dto.setImages_wsh(entity.getImages_wsh());
         dto.setStatus_wsh(entity.getStatus_wsh());
         return dto;
@@ -604,6 +605,16 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         vo.setDescription_wsh(service.getDescription_wsh());
         vo.setPrice_wsh(service.getPrice_wsh());
         vo.setUnit_wsh(service.getUnit_wsh());
+        String detailUnit = BookingUnit.normalize(service.getUnit_wsh());
+        if (detailUnit == null) {
+            detailUnit = BookingUnit.DAY;
+        }
+        vo.setDuration_minutes_wsh(service.getDuration_minutes_wsh() != null
+                ? service.getDuration_minutes_wsh()
+                : BookingUnit.resolveDurationMinutes(detailUnit, null));
+        vo.setBooking_mode_wsh(service.getBooking_mode_wsh() != null
+                ? service.getBooking_mode_wsh()
+                : BookingUnit.bookingMode(detailUnit));
         vo.setService_version_wsh(ServiceVersions.format(service.getUpdated_at_wsh()));
         vo.setMedia_wsh(resolvePublicMedia(service));
 
@@ -696,7 +707,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 可预约性：商家开放未来预约且计费单位为 day/天。
+     * 可预约性：商家开放未来预约且服务计费单位是受支持的规范单位（day/session/hour）。
+     * 未知/无法解析的单位仍视为不可预约（UNSUPPORTED_SERVICE_UNIT）。
      */
     private String bookableReason(ServiceItem service, Merchant merchant) {
         boolean futureBookingOn = merchant != null && merchant.getFuture_booking_enabled_wsh() != null
@@ -704,7 +716,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         if (!futureBookingOn) {
             return BookingErrorCode.FUTURE_BOOKING_DISABLED;
         }
-        if (service.getUnit_wsh() == null || !BOOKABLE_UNITS.contains(service.getUnit_wsh())) {
+        if (service.getUnit_wsh() == null || BookingUnit.normalize(service.getUnit_wsh()) == null) {
             return BookingErrorCode.UNSUPPORTED_SERVICE_UNIT;
         }
         return null;
@@ -770,17 +782,25 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 单位归一化：天 → day（与订单契约对齐）；其余原样保存，仅限制长度。
+     * 单位契约落地：将请求单位规范化为 day/session/hour（未知/超长拒绝），
+     * 校验并归一服务时长（BookingUnit.resolveDurationMinutes），并推导预约模式。
+     * unit 为空时保留既有单位；durationMinutes 为空时按该单位默认时长回填。
      */
-    private String normalizeUnit(String unit) {
+    private void applyUnitContract(ServiceItem item, String unit, Integer durationMinutes) {
+        String canonical;
         if (unit == null || unit.isBlank()) {
-            return null;
+            canonical = item.getUnit_wsh();
+        } else {
+            canonical = BookingUnit.normalize(unit);
+            if (canonical == null) {
+                throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
+                        "不支持的计费单位: " + unit.trim());
+            }
         }
-        String normalized = "天".equals(unit.trim()) ? "day" : unit.trim();
-        if (normalized.length() > MAX_UNIT_LENGTH) {
-            throw new BusinessException(400, "计费单位不能超过" + MAX_UNIT_LENGTH + "个字符");
-        }
-        return normalized;
+        int duration = BookingUnit.resolveDurationMinutes(canonical, durationMinutes);
+        item.setUnit_wsh(canonical);
+        item.setDuration_minutes_wsh(duration);
+        item.setBooking_mode_wsh(BookingUnit.bookingMode(canonical));
     }
 
     private record PublicContext(ServiceItem service, Merchant merchant, ServiceCategory category) {

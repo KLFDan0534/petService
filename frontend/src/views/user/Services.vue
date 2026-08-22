@@ -62,13 +62,16 @@ import { computed, onMounted, ref } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { getActiveNotices } from '@/api/notice'
 import { getServices } from '@/api/service'
+import { getMerchants } from '@/api/merchant'
 import { useAppStore } from '@/stores/app'
 import { useCategoryStore } from '@/stores/category'
 import BannerCarousel from '@/components/dashboard/BannerCarousel.vue'
 import ServiceGrid from '@/components/dashboard/ServiceGrid.vue'
+import { useServiceDistance } from '@/composables/useServiceDistance'
 
 const appStore = useAppStore()
 const categoryStore = useCategoryStore()
+const { attachDistances } = useServiceDistance()
 const services = ref([])
 const banners = ref([])
 const loading = ref(true)
@@ -113,8 +116,11 @@ function resetFilters() {
 async function loadServices() {
   loading.value = true
   try {
-    const response = await getServices()
-    if (response.code === 200) services.value = normalizeList(response.data)
+    const [serviceResponse, merchantResponse] = await Promise.all([getServices(), getMerchants()])
+    if (serviceResponse.code === 200) services.value = normalizeList(serviceResponse.data)
+    const merchants = merchantResponse.code === 200 ? normalizeList(merchantResponse.data) : []
+    // 服务卡片距离：用户位置 + 商家地址均走高德（不依赖本地经纬度）
+    void attachDistances(services.value, merchants)
   } catch (_) {
     services.value = []
     appStore.addToast('加载预约服务失败，请稍后重试', 'error')

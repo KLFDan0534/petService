@@ -87,8 +87,8 @@
             <dd>{{ formatDate(order.start_date_wsh) }} 至 {{ formatDate(order.end_date_wsh) }}</dd>
           </div>
           <div>
-            <dt>天数</dt>
-            <dd>{{ order.days_wsh || '-' }}</dd>
+            <dt>计费</dt>
+            <dd>{{ billingText(order) }}</dd>
           </div>
           <div>
             <dt>下单时间</dt>
@@ -120,6 +120,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { getMerchantOrders } from '@/api/order'
 import { OrderStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
+import { billingText } from '@/domain/BookingUnit'
 import {
   PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS,
   formatPaymentTimeoutRemaining,

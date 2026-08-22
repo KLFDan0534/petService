@@ -72,15 +72,15 @@ public class TransactionController {
      * </p>
      */
     @GetMapping
-    @Operation(summary = "获取全部流水", description = "管理员获取全部交易流水记录")
+    @Operation(summary = "获取全部流水", description = "管理员获取全部交易流水记录（可选按类型过滤，如 recharge/admin_adjust）")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "成功返回全部交易流水列表"),
             @ApiResponse(responseCode = "403", description = "无权限访问"),
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     @PreAuthorize("hasRole('ADMIN')")
-    public Result<List<TransactionDTO>> listAll() {
-        log.info("调用 listAll()");
-        return Result.success(transactionService.listAll().stream().map(transactionService::toDTO).collect(Collectors.toList()));
+    public Result<List<TransactionDTO>> listAll(@RequestParam(required = false) String type) {
+        log.info("调用 listAll(), type={}", type);
+        return Result.success(transactionService.listAllByType(type).stream().map(transactionService::toDTO).collect(Collectors.toList()));
     }
 }

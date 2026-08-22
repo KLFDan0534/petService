@@ -52,10 +52,18 @@ public class OrderDTO {
     private LocalDate start_date_wsh;
     @Schema(description = "结束日期")
     private LocalDate end_date_wsh;
-    @Schema(description = "天数")
+    @Schema(description = "天数（兼容投影）")
     private Integer days_wsh;
-    @Schema(description = "每日价格")
+    @Schema(description = "每日价格（兼容投影）")
     private BigDecimal price_per_day_wsh;
+    @Schema(description = "计费单位（day/session/hour）")
+    private String billing_unit_wsh;
+    @Schema(description = "计费数量")
+    private Integer quantity_wsh;
+    @Schema(description = "单价（下单时服务单价快照）")
+    private BigDecimal unit_price_wsh;
+    @Schema(description = "单次服务时长（分钟）")
+    private Integer duration_minutes_wsh;
     @Schema(description = "总金额")
     private BigDecimal total_amount_wsh;
     @Schema(description = "折扣金额")
@@ -148,6 +156,8 @@ public class OrderDTO {
     private LocalDateTime completed_at_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
+    @Schema(description = "是否已有反馈（评价）")
+    private Boolean has_feedback_wsh;
 
     @JsonProperty("id")
     public Long getId() { return id_wsh; }

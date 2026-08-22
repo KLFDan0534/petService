@@ -52,7 +52,7 @@
             <div class="form-group"><label>订单金额</label><div>¥{{ detailOrder.total_amount_wsh ?? '-' }}</div></div>
             <div class="form-group"><label>优惠</label><div>¥{{ detailOrder.discount_wsh || 0 }}</div></div>
             <div class="form-group"><label>实付金额</label><div>¥{{ detailOrder.final_amount_wsh ?? '-' }}</div></div>
-            <div class="form-group"><label>天数</label><div>{{ detailOrder.days_wsh ?? '-' }} 天</div></div>
+            <div class="form-group"><label>计费</label><div>{{ billingText(detailOrder) }}</div></div>
             <div class="form-group"><label>开始日期</label><div>{{ detailOrder.start_date_wsh || '-' }}</div></div>
             <div class="form-group"><label>结束日期</label><div>{{ detailOrder.end_date_wsh || '-' }}</div></div>
           </div>
@@ -114,6 +114,7 @@ import { useAppStore } from '@/stores/app'
 import { getOrders, getOrder, updateOrderStatus, deleteOrder as apiDeleteOrder } from '@/api/order'
 import { OrderStatus, enrichWithStatus, getStatusBadge, getStatusLabel, makeStatusBadge } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
+import { billingText } from '@/domain/BookingUnit'
 
 const appStore = useAppStore()
 const orders = ref([])

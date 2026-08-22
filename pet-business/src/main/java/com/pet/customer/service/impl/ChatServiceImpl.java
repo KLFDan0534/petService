@@ -3,16 +3,21 @@ package com.pet.customer.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.pet.common.BusinessException;
+import com.pet.customer.dto.ChatAgentAssignDTO;
 import com.pet.customer.dto.ChatMessageDTO;
 import com.pet.customer.entity.ChatMessage;
 import com.pet.customer.mapper.ChatMessageMapper;
 import com.pet.customer.service.ChatService;
+import com.pet.system.entity.User;
+import com.pet.system.mapper.UserMapper;
+import com.pet.system.mapper.UserRoleMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -27,11 +32,19 @@ public class ChatServiceImpl implements ChatService {
     private static final int MAX_CONTENT_LENGTH = 2000;
     /** 允许的消息类型集合 */
     private static final Set<String> ALLOWED_TYPES = Set.of("text", "image", "video", "file");
+    /** 客服角色编码 */
+    private static final String CUSTOMER_SERVICE_ROLE_CODE = "CUSTOMER_SERVICE";
 
     private final ChatMessageMapper chatMessageMapper;
+    private final UserRoleMapper userRoleMapper;
+    private final UserMapper userMapper;
 
-    public ChatServiceImpl(ChatMessageMapper chatMessageMapper) {
+    public ChatServiceImpl(ChatMessageMapper chatMessageMapper,
+                           UserRoleMapper userRoleMapper,
+                           UserMapper userMapper) {
         this.chatMessageMapper = chatMessageMapper;
+        this.userRoleMapper = userRoleMapper;
+        this.userMapper = userMapper;
     }
 
     /**
@@ -220,6 +233,38 @@ public class ChatServiceImpl implements ChatService {
         ChatMessage update = new ChatMessage();
         update.setRead_wsh(1);
         chatMessageMapper.update(update, wrapper);
+    }
+
+    /**
+     * 【业务名称】随机分配人工客服（实现）
+     * 业务作用：从拥有客服角色的有效用户中随机挑选一名（排除当前用户），返回其用户ID、名称与头像。
+     * 调用场景：智能客服页面点击“转人工客服”按钮。
+     * 调用链：assignCustomerServiceAgent() → userRoleMapper.selectActiveUserIdsByRoleCode() → userMapper.selectById()。
+     * 数据处理：角色编码查询客服ID列表 → 排除当前用户 → ThreadLocalRandom随机取一名 → 组装昵称/头像。
+     * 业务规则：候选为空时抛 BusinessException(400) 提示暂无在线客服。
+     * 状态影响：无。
+     * 异常情况：无可用客服时抛 BusinessException(400)。
+     * 注意事项：无。
+     */
+    @Override
+    public ChatAgentAssignDTO assignCustomerServiceAgent(Long userId) {
+        List<Long> agentIds = userRoleMapper.selectActiveUserIdsByRoleCode(CUSTOMER_SERVICE_ROLE_CODE);
+        List<Long> candidates = agentIds == null ? List.of() : agentIds.stream()
+                .filter(id -> id != null && (userId == null || !id.equals(userId)))
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            throw new BusinessException(400, "暂无可用的在线客服，请稍后再试");
+        }
+        Long agentId = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+        User agent = agentId == null ? null : userMapper.selectById(agentId);
+        if (agent == null) {
+            throw new BusinessException(400, "暂无可用的在线客服，请稍后再试");
+        }
+        ChatAgentAssignDTO dto = new ChatAgentAssignDTO();
+        dto.setUser_id_wsh(agentId);
+        dto.setName_wsh(agent.getNickname_wsh() != null ? agent.getNickname_wsh() : agent.getUsername_wsh());
+        dto.setAvatar_wsh(agent.getAvatar_wsh());
+        return dto;
     }
 
     /**

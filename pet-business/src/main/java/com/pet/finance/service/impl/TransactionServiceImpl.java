@@ -60,6 +60,29 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     /**
+     * 【业务名称】按类型查询交易记录（实现）
+     * 业务作用：type 为空则全量；否则按 type 精确匹配，按创建时间倒序。
+     * 调用场景：后台分别查看充值 / 余额调整流水。
+     * 调用链：listAllByType() → TransactionMapper.selectList()。
+     * 数据处理：按 type 精确匹配。
+     * 业务规则：type 为 null 或空白时等价 listAll()。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
+    @Override
+    public List<Transaction> listAllByType(String type) {
+        log.info("调用 listAllByType(), type={}", type);
+        if (type == null || type.isBlank()) {
+            return listAll();
+        }
+        return transactionMapper.selectList(
+                new LambdaQueryWrapper<Transaction>()
+                        .eq(Transaction::getType_wsh, type.trim())
+                        .orderByDesc(Transaction::getCreated_at_wsh));
+    }
+
+    /**
      * 【业务名称】交易记录转 DTO（实现）
      * 业务作用：将交易实体转换为 DTO，拷贝全部字段。
      * 调用场景：对外暴露交易记录。

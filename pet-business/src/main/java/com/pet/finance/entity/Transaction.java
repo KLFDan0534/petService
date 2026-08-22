@@ -94,6 +94,11 @@ public class Transaction {
     @Schema(description = "幂等请求ID")
     private String request_id_wsh;
 
+    @JsonProperty("operator_id_wsh")
+    @TableField(value = "operator_id_wsh")
+    @Schema(description = "操作人用户ID，仅管理员调账时记录")
+    private Long operator_id_wsh;
+
     @JsonProperty("order_id_wsh")
     @TableField(value = "order_id_wsh")
     @Schema(description = "订单ID")

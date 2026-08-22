@@ -11,6 +11,8 @@ public class WalletDTO {
     private Long id_wsh;
     @Schema(description = "用户ID")
     private Long user_id_wsh;
+    @Schema(description = "用户名")
+    private String username_wsh;
     @Schema(description = "钱包余额")
     private BigDecimal balance_wsh;
     @Schema(description = "冻结金额")

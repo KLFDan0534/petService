@@ -103,13 +103,33 @@ public class PetOrder {
 
     @JsonProperty("days_wsh")
     @TableField(value = "days_wsh")
-    @Schema(description = "服务天数")
+    @Schema(description = "服务天数（day 模式=quantity；session/hour 模式固定为1的兼容投影）")
     private Integer days_wsh;
 
     @JsonProperty("price_per_day_wsh")
     @TableField(value = "price_per_day_wsh")
-    @Schema(description = "每日价格")
+    @Schema(description = "每日价格（旧兼容字段，day 模式=unit_price；session/hour 模式为单单位单价）")
     private BigDecimal price_per_day_wsh;
+
+    @JsonProperty("billing_unit_wsh")
+    @TableField(value = "billing_unit_wsh")
+    @Schema(description = "计费单位（下单时服务单位快照：day/session/hour）")
+    private String billing_unit_wsh;
+
+    @JsonProperty("quantity_wsh")
+    @TableField(value = "quantity_wsh")
+    @Schema(description = "计费数量（day=天数；session=1；hour=连续小时数）")
+    private Integer quantity_wsh;
+
+    @JsonProperty("unit_price_wsh")
+    @TableField(value = "unit_price_wsh")
+    @Schema(description = "单价（下单时服务单价快照，计价权威）")
+    private BigDecimal unit_price_wsh;
+
+    @JsonProperty("duration_minutes_wsh")
+    @TableField(value = "duration_minutes_wsh")
+    @Schema(description = "单次服务时长（分钟，下单时服务时长快照）")
+    private Integer duration_minutes_wsh;
 
     @JsonProperty("total_amount_wsh")
     @TableField(value = "total_amount_wsh")

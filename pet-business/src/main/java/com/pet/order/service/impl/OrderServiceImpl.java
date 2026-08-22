@@ -19,17 +19,21 @@ import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.service.MerchantService;
 import com.pet.qualification.service.QualificationService;
 import com.pet.common.BookingErrorCode;
+import com.pet.common.BookingUnit;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.common.ServiceVersions;
 import com.pet.common.StatusCode;
 import com.pet.common.geo.GeoDistanceUtils;
 import com.pet.config.RabbitMQConfig;
+import com.pet.customer.mapper.RatingMapper;
 import com.pet.finance.service.AccountingService;
 import com.pet.marketing.dto.CouponDiscountResult;
 import com.pet.marketing.service.CouponService;
 import com.pet.membership.dto.MembershipDiscountDTO;
 import com.pet.membership.service.MembershipBenefitService;
+import com.pet.order.dto.OrderBatchCreateRequestDTO;
+import com.pet.order.dto.OrderBatchItemDTO;
 import com.pet.order.dto.OrderCreateRequestDTO;
 import com.pet.order.dto.OrderDeliveredRequestDTO;
 import com.pet.order.dto.OrderDTO;
@@ -63,6 +67,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,6 +122,10 @@ public class OrderServiceImpl implements OrderService {
     @Value("${gao.map.handover-radius-meters:500}")
     private int handoverRadiusMeters;
 
+    /** 单笔订单最大天数（booking.max-order-days，默认 365） */
+    @Value("${booking.max-order-days:365}")
+    private int maxOrderDays = 365;
+
     private final OrderMapper orderMapper;
     private final PaymentMapper paymentMapper;
     private final PetMapper petMapper;
@@ -137,6 +147,7 @@ public class OrderServiceImpl implements OrderService {
     private final ObjectMapper objectMapper;
     private final BusinessHoursService businessHoursService;
     private final BusinessHoursTargetResolver businessHoursTargetResolver;
+    private final RatingMapper ratingMapper;
 
     public OrderServiceImpl(OrderMapper orderMapper,
                             PaymentMapper paymentMapper,
@@ -158,7 +169,9 @@ CouponService couponService,
                              MembershipBenefitService membershipBenefitService,
                              ObjectMapper objectMapper,
                              BusinessHoursService businessHoursService,
-                             BusinessHoursTargetResolver businessHoursTargetResolver) {
+                             BusinessHoursTargetResolver businessHoursTargetResolver,
+                             RatingMapper ratingMapper) {
+        this.ratingMapper = ratingMapper;
         this.orderMapper = orderMapper;
         this.paymentMapper = paymentMapper;
         this.petMapper = petMapper;
@@ -344,7 +357,28 @@ CouponService couponService,
         if (entity == null) return null;
         OrderDTO dto = new OrderDTO();
         BeanUtils.copyProperties(entity, dto);
+        applyBillingReadCompat(dto, entity);
         return dto;
+    }
+
+    /**
+     * 【多单位读取兼容（静态辅助）】
+     *
+     * 业务作用：
+     * 旧订单缺失 billing_unit_wsh/quantity_wsh/unit_price_wsh/duration_minutes_wsh
+     * 新字段时，按旧字段（days_wsh/price_per_day_wsh）推导为 day 语义，保证历史订单
+     * 读取不出现 null 计价字段；新订单已存储新字段的原样保留，不覆盖。
+     */
+    static void applyBillingReadCompat(OrderDTO dto, PetOrder entity) {
+        if (entity == null || dto == null) {
+            return;
+        }
+        if (entity.getBilling_unit_wsh() == null || entity.getBilling_unit_wsh().isBlank()) {
+            dto.setBilling_unit_wsh(BookingUnit.DAY);
+            dto.setQuantity_wsh(entity.getDays_wsh());
+            dto.setUnit_price_wsh(entity.getPrice_per_day_wsh());
+            dto.setDuration_minutes_wsh(BookingUnit.resolveDurationMinutes(BookingUnit.DAY, null));
+        }
     }
 
     /**
@@ -482,19 +516,110 @@ CouponService couponService,
     @Transactional
     @Override
     public OrderDTO createOrder(Long ownerId, OrderCreateRequestDTO request) {
-
         Assert.notNull(request, "订单请求不能为空");
-
-        // 获取到当前用户的下单宠物
         // 教学注释：下单不是单纯 insert，前面还有“查宠物档期/查看护者容量”。
         // 在没有排班表或数据库约束前，同 JVM 先串行化这段，避免两个请求同时通过检查后一起写入。
         synchronized (CREATE_ORDER_LOCK) {
+            return doCreateOrder(ownerId, request);
+        }
+    }
+
+    /**
+     * 【批量创建订单（多宠物连续下单）】
+     *
+     * 业务作用：
+     * 在一个事务内为多只宠物分别创建独立订单（每单一只宠物，各自日期区间），
+     * 任一失败整批回滚。共享校验（服务/商家/看护人/单位/价格/版本）只执行一次；
+     * 容量与宠物冲突复用单笔路径——同事务顺序插入的读己之写保证批次内部互相挤占
+     * （如 A、B 同区间顶满容量）也不会漏检。
+     *
+     * 业务规则：
+     * 1. 仅支持 day 单位服务；items 数量 2..10
+     * 2. 同一宠物重叠区间被拒（不重叠允许）
+     * 3. 优惠券只应用于批次中 baseAmount 最大的订单（并列取 items 顺序靠前者）
+     * 4. 每单 PENDING、各自独立支付
+     */
+    @Transactional
+    @Override
+    public List<OrderDTO> createOrders(Long ownerId, OrderBatchCreateRequestDTO request) {
+        Assert.notNull(request, "批量订单请求不能为空");
+        List<OrderBatchItemDTO> items = request.getItems();
+        if (items == null || items.size() < OrderBatchCreateRequestDTO.MIN_ITEMS) {
+            throw new BusinessException(400, "批量下单至少需要" + OrderBatchCreateRequestDTO.MIN_ITEMS
+                    + "只宠物，单只宠物请使用单笔下单");
+        }
+        if (items.size() > OrderBatchCreateRequestDTO.MAX_ITEMS) {
+            throw new BusinessException(400, "批量下单最多支持" + OrderBatchCreateRequestDTO.MAX_ITEMS + "只宠物");
+        }
+        synchronized (CREATE_ORDER_LOCK) {
+            // 共享契约只校验一次（与单笔一致的口径）
+            Keeper keeper = requireFutureBookableKeeper(request.getKeeper_id_wsh());
+            ServiceItem service = loadBookableService(request.getService_id_wsh());
+            String unit = assertServiceUnitSupported(service);
+            if (!BookingUnit.DAY.equals(unit)) {
+                throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
+                        "批量下单仅支持按天计费服务");
+            }
+            Merchant merchant = requireFutureBookingEligibleMerchant(service.getMerchant_id_wsh());
+            assertMerchantPayloadCompatible(request.getMerchant_id_wsh(), merchant.getId_wsh());
+            validateKeeperMerchant(keeper, merchant);
+            validateKeeperQualification(keeper.getId_wsh());
+            assertServiceVersionMatches(service, request.getService_version_wsh());
+            assertBillingUnitCompatible(request.getBilling_unit_wsh(), unit);
+            assertExpectedUnitPrice(service, request.getExpected_unit_price_wsh());
+
+            // 券归属：先算每单 baseAmount，最大的一单（并列取先出现的）才应用优惠券。
+            // 此处只做纯计算与日期校验，不落库；真正的落库校验在 doCreateOrder 内。
+            List<OrderCreateRequestDTO> singles = new ArrayList<>(items.size());
+            int couponTarget = -1;
+            BigDecimal maxBase = BigDecimal.ZERO;
+            for (int i = 0; i < items.size(); i++) {
+                OrderCreateRequestDTO single = toSingleRequest(request, items.get(i));
+                singles.add(single);
+                int days = validateDateRange(single.getStart_date_wsh(), single.getEnd_date_wsh());
+                BigDecimal base = resolveBaseAmount(resolvePricePerDay(service, keeper), days);
+                if (base.compareTo(maxBase) > 0) {
+                    maxBase = base;
+                    couponTarget = i;
+                }
+            }
+
+            List<OrderDTO> results = new ArrayList<>(items.size());
+            for (int i = 0; i < singles.size(); i++) {
+                OrderCreateRequestDTO single = singles.get(i);
+                if (i != couponTarget) {
+                    single.setUser_coupon_id_wsh(null);
+                }
+                results.add(doCreateOrder(ownerId, single));
+            }
+            return results;
+        }
+    }
+
+    /** 组装单笔请求：共享字段 + 单项宠物参数。 */
+    private OrderCreateRequestDTO toSingleRequest(OrderBatchCreateRequestDTO batch, OrderBatchItemDTO item) {
+        OrderCreateRequestDTO single = new OrderCreateRequestDTO();
+        BeanUtils.copyProperties(batch, single);
+        single.setPet_id_wsh(item.getPet_id_wsh());
+        single.setStart_date_wsh(item.getStart_date_wsh());
+        single.setEnd_date_wsh(item.getEnd_date_wsh());
+        single.setDelivery_time_wsh(item.getDelivery_time_wsh());
+        single.setPickup_time_wsh(item.getPickup_time_wsh());
+        single.setQuantity_wsh(item.getQuantity_wsh());
+        return single;
+    }
+
+    /**
+     * 单笔订单创建实现（供单笔与批量共用）。调用方必须持有 CREATE_ORDER_LOCK。
+     */
+    private OrderDTO doCreateOrder(Long ownerId, OrderCreateRequestDTO request) {
+        // 获取到当前用户的下单宠物
         Pet pet = requirePet(ownerId, request.getPet_id_wsh());
         // 获取到当前用户的下单宠物的keeper
         Keeper keeper = requireFutureBookableKeeper(request.getKeeper_id_wsh());
         // 先加载可下单服务（产品预订必须指定服务），商家与价格均由服务端根据服务派生
         ServiceItem service = loadBookableService(request.getService_id_wsh());
-        assertServiceUnitSupported(service);
+        String unit = assertServiceUnitSupported(service);
         Merchant merchant = requireFutureBookingEligibleMerchant(service.getMerchant_id_wsh());
         assertMerchantPayloadCompatible(request.getMerchant_id_wsh(), merchant.getId_wsh());
 
@@ -502,26 +627,65 @@ CouponService couponService,
         validateKeeperMerchant(keeper, merchant);
         validateKeeperQualification(keeper.getId_wsh());
         assertServiceVersionMatches(service, request.getService_version_wsh());
+        assertBillingUnitCompatible(request.getBilling_unit_wsh(), unit);
+        assertExpectedUnitPrice(service, request.getExpected_unit_price_wsh());
 
-        // 下单日期判断
-        int days = validateDateRange(request.getStart_date_wsh(), request.getEnd_date_wsh());
-        LocalDateTime deliveryTime = defaultDeliveryTime(request);
-        LocalDateTime receiverStart = defaultReceiverStart(deliveryTime);
-        LocalDateTime receiverEnd = defaultReceiverEnd(deliveryTime);
-        LocalDateTime pickupTime = defaultPickupTime(request);
-        validateFulfillmentWindow(request.getStart_date_wsh(), request.getEnd_date_wsh(),
-                deliveryTime, receiverStart, receiverEnd, pickupTime,
-                merchant.getId_wsh());
+        // 下单时间/数量/时长（半开区间 [start, end)）
+        int quantity;
+        int durationMinutes;
+        LocalDate startDate;
+        LocalDate endDate;
+        LocalDateTime deliveryTime;
+        LocalDateTime receiverStart;
+        LocalDateTime receiverEnd;
+        LocalDateTime pickupTime;
 
-        // 冲突判断
-        ensureNoPetDateConflict(pet.getId_wsh(), request.getStart_date_wsh(), request.getEnd_date_wsh(), null);
-        ensureKeeperCapacity(keeper.getId_wsh(), request.getStart_date_wsh(), request.getEnd_date_wsh(),
-                null, keeper.getMax_pets_wsh());
-        keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), request.getStart_date_wsh(), request.getEnd_date_wsh());
+        if (BookingUnit.DAY.equals(unit)) {
+            // day：沿用日期区间语义，服务占用整日 [start_date 00:00, end_date 00:00)
+            int days = validateDateRange(request.getStart_date_wsh(), request.getEnd_date_wsh());
+            quantity = days;
+            durationMinutes = BookingUnit.DAY_DURATION_MINUTES;
+            startDate = request.getStart_date_wsh();
+            endDate = request.getEnd_date_wsh();
+            deliveryTime = defaultDeliveryTime(request);
+            receiverStart = defaultReceiverStart(deliveryTime);
+            receiverEnd = defaultReceiverEnd(deliveryTime);
+            pickupTime = defaultPickupTime(request);
+            validateFulfillmentWindow(startDate, endDate,
+                    deliveryTime, receiverStart, receiverEnd, pickupTime,
+                    merchant.getId_wsh());
+            ensureNoPetDateConflict(pet.getId_wsh(), startDate, endDate, null);
+            ensureKeeperCapacity(keeper.getId_wsh(), startDate, endDate,
+                    null, keeper.getMax_pets_wsh());
+            keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), startDate, endDate);
+        } else {
+            // session/hour：从可用性槽位选择开始时间，服务端按时长/数量计算结束时间
+            LocalDateTime slotStart = requireSlotStart(request);
+            durationMinutes = BookingUnit.resolveDurationMinutes(unit, service.getDuration_minutes_wsh());
+            quantity = resolveSlotQuantity(unit, request, durationMinutes);
+            LocalDateTime computedEnd = slotStart.plusMinutes((long) quantity * durationMinutes);
+            assertClientEndTimeConsistent(request.getEnd_time_wsh(), computedEnd);
+            if (!slotStart.isBefore(LocalDateTime.now())) {
+                startDate = slotStart.toLocalDate();
+                endDate = startDate.plusDays(1);
+                serviceWindowCheck(merchant.getId_wsh(), slotStart, computedEnd);
+                ensureNoPetIntervalConflict(pet.getId_wsh(), slotStart, computedEnd, null);
+                ensureKeeperIntervalCapacity(keeper.getId_wsh(), slotStart, computedEnd,
+                        null, keeper.getMax_pets_wsh());
+                keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), startDate, endDate);
+                deliveryTime = slotStart;
+                receiverStart = slotStart;
+                receiverEnd = slotStart.plusMinutes(RECEIVER_WINDOW_MINUTES);
+                pickupTime = computedEnd;
+            } else {
+                throw new BusinessException(400, "选择的开始时间已过，请重新选择槽位");
+            }
+        }
 
-        BigDecimal pricePerDay = resolvePricePerDay(service, keeper);
-        BigDecimal totalAmount = pricePerDay.multiply(BigDecimal.valueOf(days));
-        BigDecimal longStayDiscount = calculateDiscount(totalAmount, days);
+        BigDecimal unitPrice = resolvePricePerDay(service, keeper);
+        BigDecimal totalAmount = resolveBaseAmount(unitPrice, quantity);
+        int discountDays = resolveDiscountDays(unit, quantity);
+        BigDecimal longStayDiscount = calculateDiscount(totalAmount, discountDays);
         CouponDiscountResult couponDiscount = couponService.previewForOrder(
                 ownerId,
                 request.getUser_coupon_id_wsh(),
@@ -547,7 +711,16 @@ CouponService couponService,
         order.setMerchant_id_wsh(merchant.getId_wsh());                 //  下单商户
         order.setKeeper_id_wsh(keeper.getId_wsh());                     //  下单keeper
 
-        order.setPrice_per_day_wsh(pricePerDay);                            //  每日单价（服务优先）
+        // 服务端权威下单字段：单位/数量/单价/时长快照（客户端不可伪造）
+        order.setBilling_unit_wsh(unit);                                //  计费单位快照
+        order.setQuantity_wsh(quantity);                                //  计费数量
+        order.setUnit_price_wsh(unitPrice);                             //  单单位单价快照（计价权威）
+        order.setDuration_minutes_wsh(durationMinutes);                 //  单单位时长快照
+        order.setStart_date_wsh(startDate);                             //  服务开始日期
+        order.setEnd_date_wsh(endDate);                                 //  服务结束日期
+        // 兼容投影：day 令 days_wsh=quantity；session/hour 令 days_wsh=1 供旧页面/旧履约接口使用
+        order.setDays_wsh(BookingUnit.DAY.equals(unit) ? quantity : 1);
+        order.setPrice_per_day_wsh(unitPrice);                          //  每日单价（兼容投影=单单位单价）
         order.setDiscount_wsh(discount);                                //  优惠
         order.setTotal_amount_wsh(totalAmount);                         //  总价
         order.setCoupon_id_wsh(couponDiscount.getUser_coupon_id_wsh());
@@ -565,11 +738,10 @@ CouponService couponService,
 
         order.setHandover_code_wsh(generateHandoverCode());             //  交接码
 
-        order.setDays_wsh(days);                                        //  抚养天数
-        order.setDelivery_time_wsh(deliveryTime);                       //  宠物取送时间
+        order.setDelivery_time_wsh(deliveryTime);                       //  宠物取送时间/服务开始
         order.setReceiver_available_start_wsh(receiverStart);           //  接收者接收宠物的时间
         order.setReceiver_available_end_wsh(receiverEnd);               //  接收者接收宠物的结束时间
-        order.setPickup_time_wsh(pickupTime);                           //  宠物取回时间
+        order.setPickup_time_wsh(pickupTime);                           //  宠物取回时间/服务结束
         order.setFinal_report_generated_wsh(0);                         //  是否生成了 boarding report
         orderMapper.insert(order);
         couponService.lockForOrder(ownerId, request.getUser_coupon_id_wsh(), order.getId_wsh(),
@@ -582,7 +754,6 @@ CouponService couponService,
         broadcastOrderChange(order);
         schedulePaymentTimeoutCheck(order);
         return toDTOEnriched(order);
-        }
     }
 
     /**
@@ -672,8 +843,7 @@ CouponService couponService,
         }
         requireFutureBookingEligibleMerchant(order.getMerchant_id_wsh());
         validateKeeperQualification(keeper.getId_wsh());
-        ensureKeeperCapacity(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh(),
-                order.getId_wsh(), keeper.getMax_pets_wsh());
+        ensureKeeperCapacityForOrder(order, keeper.getMax_pets_wsh());
         keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh());
         PetOrder update = new PetOrder();
         update.setStatus_wsh(OrderStatus.CONFIRMED);
@@ -1359,15 +1529,57 @@ CouponService couponService,
     }
 
     /**
-     * 校验服务计费单元必须为 day/天（本期仅支持按天寄养）。
+     * 校验服务计费单位并返回规范化单位。day/session/hour 及其中文别名均受支持；
+     * unit 为空的历史服务按 day 语义兼容；未知的非空单位拒绝（UNSUPPORTED_SERVICE_UNIT）。
      *
      * @param service 服务项
-     * @throws BusinessException 计费单位不是 day/天 时抛出 UNSUPPORTED_SERVICE_UNIT
+     * @return 规范化计费单位（day/session/hour）
+     * @throws BusinessException 未知单位时抛出 UNSUPPORTED_SERVICE_UNIT
      */
-    static void assertServiceUnitSupported(ServiceItem service) {
-        if (service.getUnit_wsh() == null
-                || !("day".equals(service.getUnit_wsh()) || "天".equals(service.getUnit_wsh()))) {
-            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, "服务计费单位不是 day/天，本期不支持");
+    static String assertServiceUnitSupported(ServiceItem service) {
+        if (service == null || service.getUnit_wsh() == null || service.getUnit_wsh().isBlank()) {
+            return BookingUnit.DAY;
+        }
+        String unit = BookingUnit.normalize(service.getUnit_wsh());
+        if (unit == null) {
+            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, "服务计费单位不受支持");
+        }
+        return unit;
+    }
+
+    /**
+     * 校验客户端提交的计费单位（可选）与服务端派生单位一致；空值跳过校验（旧客户端兼容）。
+     *
+     * @param clientUnit  客户端提交的单位（可空）
+     * @param serverUnit  服务端根据服务派生的规范化单位
+     * @throws BusinessException 客户端单位与服务单位不一致时抛出 UNIT_MISMATCH
+     */
+    static void assertBillingUnitCompatible(String clientUnit, String serverUnit) {
+        if (clientUnit == null || clientUnit.isBlank()) {
+            return;
+        }
+        String normalized = BookingUnit.normalize(clientUnit);
+        if (normalized == null || !normalized.equals(serverUnit)) {
+            throw new BusinessException(400, BookingErrorCode.UNIT_MISMATCH,
+                    "提交的计费单位与服务不一致，服务端以服务记录为准");
+        }
+    }
+
+    /**
+     * 校验客户端期望单价（可选）与服务当前单价一致；不一致返回 PRICE_CHANGED。
+     *
+     * @param service          服务项
+     * @param expectedUnitPrice 客户端携带的期望单价（可空）
+     * @throws BusinessException 单价不一致或服务无价格时抛出 PRICE_CHANGED
+     */
+    static void assertExpectedUnitPrice(ServiceItem service, BigDecimal expectedUnitPrice) {
+        if (expectedUnitPrice == null) {
+            return;
+        }
+        BigDecimal actual = service == null ? null : service.getPrice_wsh();
+        if (actual == null || actual.compareTo(expectedUnitPrice) != 0) {
+            throw new BusinessException(400, BookingErrorCode.PRICE_CHANGED,
+                    "服务价格已变化，请刷新后重新确认");
         }
     }
 
@@ -1404,6 +1616,37 @@ CouponService couponService,
             return service.getPrice_wsh();
         }
         return keeper.getPrice_per_day_wsh();
+    }
+
+    /**
+     * 【多单位基础金额（静态辅助）】
+     *
+     * 业务作用：
+     * 计费基数为服务端计算出的 quantity * unitPrice，作为折扣/优惠券/会员/支付/
+     * 结算的输入基数，客户端无法伪造。
+     *
+     * @param unitPrice 单单位单价
+     * @param quantity  计费数量
+     * @return 基础金额
+     */
+    static BigDecimal resolveBaseAmount(BigDecimal unitPrice, int quantity) {
+        BigDecimal price = unitPrice == null ? BigDecimal.ZERO : unitPrice;
+        return price.multiply(BigDecimal.valueOf(quantity));
+    }
+
+    /**
+     * 【折扣适用天数（静态辅助）】
+     *
+     * 业务作用：
+     * day 订单按天数（quantity）享受长住折扣；session/hour 单次/单日服务
+     * 不因小时数放大折扣档位，固定按 1 天判定，避免虚构多日优惠。
+     *
+     * @param unit     计费单位
+     * @param quantity 计费数量
+     * @return 折扣判定天数
+     */
+    static int resolveDiscountDays(String unit, int quantity) {
+        return BookingUnit.DAY.equals(BookingUnit.normalize(unit)) ? quantity : 1;
     }
 
     /**
@@ -1467,8 +1710,8 @@ CouponService couponService,
         if (days <= 0) {
             throw new BusinessException(400, "结束日期必须在开始日期之后");
         }
-        if (days > 365) {
-            throw new BusinessException(400, "订单天数不能超过365天");
+        if (days > maxOrderDays) {
+            throw new BusinessException(400, "订单天数不能超过" + maxOrderDays + "天");
         }
         return (int) days;
     }
@@ -1620,6 +1863,185 @@ CouponService couponService,
         Long count = orderMapper.selectCount(wrapper);
         if (count != null && count >= capacity) {
             throw new BusinessException(400, BookingErrorCode.CAPACITY_EXCEEDED, "看护者排班与已有订单冲突");
+        }
+    }
+
+    /**
+     * session/hour 模式必须提交开始槽位（来自可用性接口）。
+     */
+    private LocalDateTime requireSlotStart(OrderCreateRequestDTO request) {
+        LocalDateTime slotStart = request.getStart_time_wsh();
+        if (slotStart == null) {
+            throw new BusinessException(400, "session/hour 服务必须选择开始槽位(startTime)");
+        }
+        return slotStart;
+    }
+
+    /**
+     * 解析计费数量：session 固定为 1；hour 为连续整小时数（默认 1，总时长不跨天）。
+     * day 模式不经过此方法。
+     */
+    private int resolveSlotQuantity(String unit, OrderCreateRequestDTO request, int durationMinutes) {
+        if (BookingUnit.SESSION.equals(unit)) {
+            if (request.getQuantity_wsh() != null && request.getQuantity_wsh() != 1) {
+                throw new BusinessException(400, BookingErrorCode.QUANTITY_INVALID,
+                        "按次服务每次订单数量固定为1，需要多次请分别下单");
+            }
+            return 1;
+        }
+        if (BookingUnit.HOUR.equals(unit)) {
+            int qty = request.getQuantity_wsh() == null ? 1 : request.getQuantity_wsh();
+            if (qty < 1) {
+                throw new BusinessException(400, BookingErrorCode.QUANTITY_INVALID, "按小时服务数量必须大于0");
+            }
+            if ((long) qty * durationMinutes > BookingUnit.DAY_DURATION_MINUTES) {
+                throw new BusinessException(400, BookingErrorCode.QUANTITY_INVALID,
+                        "按小时服务单笔订单总时长不能超过24小时");
+            }
+            return qty;
+        }
+        throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, "不支持的计费单位");
+    }
+
+    /**
+     * 客户端提交的结束时间仅做一致性校验，权威结束时间由服务端按开始+时长计算。
+     */
+    private void assertClientEndTimeConsistent(LocalDateTime clientEndTime, LocalDateTime computedEnd) {
+        if (clientEndTime != null && !clientEndTime.equals(computedEnd)) {
+            throw new BusinessException(400, BookingErrorCode.SLOT_UNAVAILABLE,
+                    "客户端提交的结束时间与服务端计算不一致，请刷新后重试");
+        }
+    }
+
+    /**
+     * 完整服务时段必须落在营业窗口内（可能跨午夜，逐日切片校验）。
+     * 无营业时间配置（legacy_unrestricted）时不做限制。
+     */
+    private void serviceWindowCheck(Long merchantId, LocalDateTime start, LocalDateTime end) {
+        List<BusinessHours> hours = businessHoursService.getByMerchantId(merchantId);
+        if (hours == null || hours.isEmpty()) {
+            return;
+        }
+        LocalDate date = start.toLocalDate();
+        LocalDate lastDate = end.minusNanos(1).toLocalDate();
+        while (!date.isAfter(lastDate)) {
+            LocalDateTime sliceStart = start.isAfter(date.atStartOfDay()) ? start : date.atStartOfDay();
+            LocalDateTime sliceEnd = end.isBefore(date.plusDays(1).atStartOfDay())
+                    ? end : date.plusDays(1).atStartOfDay();
+            List<BusinessHoursTargetResolver.BusinessWindow> windows =
+                    businessHoursTargetResolver.windowsForDate(hours, date);
+            boolean covered = false;
+            for (BusinessHoursTargetResolver.BusinessWindow w : windows) {
+                if (!sliceStart.isBefore(w.start()) && !sliceEnd.isAfter(w.end())) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                throw new BusinessException(400, BookingErrorCode.SLOT_UNAVAILABLE,
+                        "所选时段不完整落在营业窗口内，请重新选择");
+            }
+            date = date.plusDays(1);
+        }
+    }
+
+    /**
+     * 宠物区间冲突：候选订单按日过滤后再做半开区间 [start, end) 精确重叠判定。
+     */
+    private void ensureNoPetIntervalConflict(Long petId, LocalDateTime start, LocalDateTime end, Long excludeOrderId) {
+        LocalDate startDate = start.toLocalDate();
+        LocalDate endDate = end.minusNanos(1).toLocalDate().plusDays(1);
+        LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<PetOrder>()
+                .eq(PetOrder::getPet_id_wsh, petId)
+                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
+                .lt(PetOrder::getStart_date_wsh, endDate)
+                .gt(PetOrder::getEnd_date_wsh, startDate)
+                .last("LIMIT 50");
+        if (excludeOrderId != null) {
+            wrapper.ne(PetOrder::getId_wsh, excludeOrderId);
+        }
+        List<PetOrder> candidates = orderMapper.selectList(wrapper);
+        for (PetOrder existing : candidates) {
+            if (intervalOverlaps(existing, start, end)) {
+                throw new BusinessException(400, BookingErrorCode.PET_BOOKING_CONFLICT,
+                        "宠物存在冲突订单: " + existing.getOrder_no_wsh());
+            }
+        }
+    }
+
+    /**
+     * 看护员区间容量：行锁 + 候选订单按日过滤 + 半开区间精确重叠计数。
+     */
+    private void ensureKeeperIntervalCapacity(Long keeperId, LocalDateTime start, LocalDateTime end,
+                                              Long excludeOrderId, Integer maxPets) {
+        int capacity = maxPets == null ? 0 : maxPets;
+        if (capacity <= 0) {
+            throw new BusinessException(400, "看护者容量不足");
+        }
+        keeperMapper.selectByIdForUpdate(keeperId);
+        LocalDate startDate = start.toLocalDate();
+        LocalDate endDate = end.minusNanos(1).toLocalDate().plusDays(1);
+        LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<PetOrder>()
+                .eq(PetOrder::getKeeper_id_wsh, keeperId)
+                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
+                .lt(PetOrder::getStart_date_wsh, endDate)
+                .gt(PetOrder::getEnd_date_wsh, startDate)
+                .last("LIMIT 200");
+        if (excludeOrderId != null) {
+            wrapper.ne(PetOrder::getId_wsh, excludeOrderId);
+        }
+        List<PetOrder> candidates = orderMapper.selectList(wrapper);
+        long overlapping = candidates.stream()
+                .filter(o -> intervalOverlaps(o, start, end))
+                .count();
+        if (overlapping >= capacity) {
+            throw new BusinessException(400, BookingErrorCode.CAPACITY_EXCEEDED,
+                    "看护者排班与已有订单冲突");
+        }
+    }
+
+    /**
+     * 半开区间 [start, end) 是否与已有订单占用区间重叠（相邻不冲突）。
+     * slot 订单用 [delivery_time, pickup_time)；其余订单按 day 日期区间推导。
+     */
+    private boolean intervalOverlaps(PetOrder existing, LocalDateTime start, LocalDateTime end) {
+        String unit = BookingUnit.normalize(existing.getBilling_unit_wsh());
+        LocalDateTime exStart;
+        LocalDateTime exEnd;
+        if (BookingUnit.MODE_SLOT.equals(BookingUnit.bookingMode(unit))
+                && existing.getDelivery_time_wsh() != null
+                && existing.getPickup_time_wsh() != null) {
+            exStart = existing.getDelivery_time_wsh();
+            exEnd = existing.getPickup_time_wsh();
+        } else {
+            if (existing.getStart_date_wsh() == null || existing.getEnd_date_wsh() == null) {
+                return false;
+            }
+            exStart = existing.getStart_date_wsh().atStartOfDay();
+            exEnd = existing.getEnd_date_wsh().atStartOfDay();
+        }
+        return exStart.isBefore(end) && start.isBefore(exEnd);
+    }
+
+    /** 是否 slot 模式（session/hour）订单。 */
+    private boolean isSlotOrder(PetOrder order) {
+        String unit = BookingUnit.normalize(order.getBilling_unit_wsh());
+        return BookingUnit.MODE_SLOT.equals(BookingUnit.bookingMode(unit))
+                && order.getDelivery_time_wsh() != null;
+    }
+
+    /**
+     * 按订单模式选择对应的容量校验路径：slot 用区间精确校验，其余用日期区间校验。
+     */
+    private void ensureKeeperCapacityForOrder(PetOrder order, Integer maxPets) {
+        if (isSlotOrder(order)) {
+            ensureKeeperIntervalCapacity(order.getKeeper_id_wsh(),
+                    order.getDelivery_time_wsh(), order.getPickup_time_wsh(),
+                    order.getId_wsh(), maxPets);
+        } else {
+            ensureKeeperCapacity(order.getKeeper_id_wsh(),
+                    order.getStart_date_wsh(), order.getEnd_date_wsh(),
+                    order.getId_wsh(), maxPets);
         }
     }
 
@@ -1828,11 +2250,13 @@ CouponService couponService,
         Map<Long, Merchant> merchantMap = loadMerchantMap(collectIds(orders, PetOrder::getMerchant_id_wsh));
         Map<Long, com.pet.order.dto.OrderSnapshotDTO> snapshotMap =
                 orderSnapshotService.findDTOMapByOrderIds(collectIds(orders, PetOrder::getId_wsh));
+        Set<Long> ratedOrderIds = new HashSet<>(ratingMapper.selectOrderIdsWithRatings(collectIds(orders, PetOrder::getId_wsh)));
         return orders.stream()
                 .map(order -> {
                     OrderDTO dto = toDTO(order);
                     fillDTO(dto, order, serviceMap, userMap, petMap, keeperMap, merchantMap);
                     dto.setSnapshot_wsh(snapshotMap.get(order.getId_wsh()));
+                    dto.setHas_feedback_wsh(ratedOrderIds.contains(order.getId_wsh()));
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -2013,8 +2437,7 @@ CouponService couponService,
         requireFutureBookingEligibleMerchant(order.getMerchant_id_wsh());
         Keeper keeper = requireFutureBookableKeeper(order.getKeeper_id_wsh());
         validateKeeperQualification(keeper.getId_wsh());
-        ensureKeeperCapacity(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh(),
-                order.getId_wsh(), keeper.getMax_pets_wsh());
+        ensureKeeperCapacityForOrder(order, keeper.getMax_pets_wsh());
         keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh());
 
         PetOrder update = new PetOrder();

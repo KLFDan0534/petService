@@ -38,29 +38,29 @@ const formatPrice = (val) => {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  background: #dee0e3;
-  border: 1px solid #dee0e3;
-  border-radius: 4px;
+  background: var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   margin: 24px 0;
   overflow: hidden;
 }
 .stat-item {
-  background: #ffffff;
+  background: var(--color-card);
   padding: 16px 20px;
 }
 .highlight-item {
-  background: #fafafa;
+  background: var(--color-muted);
 }
 .stat-label {
   font-size: 12px;
-  color: #646a73;
+  color: var(--color-muted-foreground);
   margin-bottom: 8px;
 }
 .stat-number {
   font-size: 20px;
   font-weight: 700;
-  color: #1f2329;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--color-foreground);
+  font-family: var(--font-body);
   overflow-wrap: anywhere;
 }
 

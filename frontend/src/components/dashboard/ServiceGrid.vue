@@ -30,11 +30,14 @@
           <div>
             <span class="service-category">{{ categoryLabel(service) }}</span>
             <h3>{{ service.name_wsh }}</h3>
-            <span v-if="service.merchant_name_wsh" class="service-merchant">{{ service.merchant_name_wsh }}</span>
+            <span v-if="service.merchant_name_wsh || service.distance_m_wsh != null" class="service-merchant">
+              {{ service.merchant_name_wsh }}
+              <em v-if="service.distance_m_wsh != null" class="service-distance">{{ formatServiceDistance(service.distance_m_wsh) }}</em>
+            </span>
           </div>
           <div class="service-price">
             <strong>¥{{ formatMoney(service.price_wsh) }}</strong>
-            <span>/ {{ service.unit_wsh || '次' }}</span>
+            <span>/ {{ unitLabel(service.unit_wsh) || '次' }}</span>
           </div>
         </div>
 
@@ -80,6 +83,8 @@ import { useCategoryStore } from '@/stores/category'
 import FavoriteToggleButton from '@/components/common/FavoriteToggleButton.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
+import { unitLabel } from '@/domain/BookingUnit'
+import { formatServiceDistance } from '@/composables/useServiceDistance'
 const props = defineProps({
   services: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
@@ -181,10 +186,22 @@ function createOrder(service) {
 }
 
 .service-merchant {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 2px;
   color: var(--color-muted-foreground);
   font-size: 12px;
+}
+.service-distance {
+  font-style: normal;
+  padding: 1px 8px;
+  border-radius: var(--radius-full, 999px);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .service-heading h3 {

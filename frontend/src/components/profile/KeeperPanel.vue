@@ -42,7 +42,7 @@
         <div class="keeper-title">寄养员工作台</div>
         <div class="keeper-desc">您当前为离线状态，点击进入工作台切换</div>
       </div>
-      <span class="badge badge-muted">离线</span>
+      <span class="badge badge-disabled">离线</span>
     </div>
     <div v-else-if="keeperStatus === 4" class="keeper-entry" @click="$emit('goWorkflow')">
       <div class="keeper-icon">⏰</div>
@@ -75,12 +75,12 @@ defineEmits(['apply', 'goWorkflow'])
 .keeper-section {
   margin: 24px 0;
   padding: 20px 0;
-  border-top: 1px solid #dee0e3;
+  border-top: 1px solid var(--color-border);
 }
 .section-label {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--color-foreground);
   margin-bottom: 12px;
 }
 .keeper-entry {
@@ -88,13 +88,14 @@ defineEmits(['apply', 'goWorkflow'])
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border: 1px solid #dee0e3;
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, border-color 0.2s;
 }
 .keeper-entry:hover {
-  background: #f5f6f7;
+  background: var(--color-muted);
+  border-color: var(--color-border);
 }
 .keeper-icon {
   font-size: 24px;
@@ -103,7 +104,7 @@ defineEmits(['apply', 'goWorkflow'])
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #646a73;
+  color: var(--color-muted-foreground);
 }
 .keeper-info {
   flex: 1;
@@ -111,36 +112,15 @@ defineEmits(['apply', 'goWorkflow'])
 .keeper-title {
   font-size: 14px;
   font-weight: 500;
-  color: #1f2329;
+  color: var(--color-foreground);
 }
 .keeper-desc {
   font-size: 12px;
-  color: #8f959e;
+  color: var(--color-muted-foreground);
   margin-top: 2px;
 }
 .keeper-arrow {
   font-size: 16px;
-  color: #8f959e;
-}
-.badge {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 2px;
-  font-weight: 500;
-}
-.badge-warning {
-  color: #ad6800;
-  background: #fffbe6;
-  border: 1px solid #ffe58f;
-}
-.badge-success {
-  color: #237804;
-  background: #f6ffed;
-  border: 1px solid #b7eb8f;
-}
-.badge-muted {
-  color: #8f959e;
-  background: #f5f6f7;
-  border: 1px solid #dee0e3;
+  color: var(--color-muted-foreground);
 }
 </style>

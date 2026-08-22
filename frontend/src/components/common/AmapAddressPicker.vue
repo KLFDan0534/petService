@@ -510,10 +510,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .amap-address-picker { position: relative; display: grid; gap: 6px; }
-.picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
 .picker-row--single { grid-template-columns: minmax(0, 1fr); }
-.picker-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.picker-actions .btn { white-space: nowrap; }
+.picker-actions { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; }
+.picker-actions .btn { min-height: 0; white-space: nowrap; }
 .tips-panel {
   position: absolute;
   z-index: 30;

@@ -87,7 +87,7 @@ async function submitReply(r) {
   if (!replyText.value.trim()) return appStore.addToast('请输入回复内容', 'error')
   try {
     const res = await replyToRating(r.id_wsh, replyText.value)
-    if (res.code === 200) { appStore.addToast('回复成功', 'success'); r.reply_wsh = replyText.value; replyFormId = null; replyText = '' }
+    if (res.code === 200) { appStore.addToast('回复成功', 'success'); r.reply_wsh = replyText.value; replyFormId.value = null; replyText.value = '' }
   } catch (e) { appStore.addToast('回复失败', 'error') }
 }
 </script>

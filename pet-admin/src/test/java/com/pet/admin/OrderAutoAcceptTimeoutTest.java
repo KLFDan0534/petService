@@ -28,6 +28,7 @@ import com.pet.order.mq.OrderAcceptTimeoutListener;
 import com.pet.order.service.OrderService;
 import com.pet.order.service.OrderSnapshotService;
 import com.pet.order.service.OrderStatusBroadcaster;
+import com.pet.customer.mapper.RatingMapper;
 import com.pet.order.service.impl.OrderServiceImpl;
 import com.pet.order.service.impl.PaymentServiceImpl;
 import com.pet.pet.mapper.PetMapper;
@@ -83,6 +84,7 @@ class OrderAutoAcceptTimeoutTest {
     @Mock private OrderService orderService;
     @Mock private BusinessHoursService businessHoursService;
     @Mock private BusinessHoursTargetResolver businessHoursTargetResolver;
+    @Mock private RatingMapper ratingMapper;
     @Mock private Channel channel;
 
     @Test
@@ -364,7 +366,8 @@ class OrderAutoAcceptTimeoutTest {
                 membershipBenefitService,
                 new ObjectMapper(),
                 businessHoursService,
-                businessHoursTargetResolver);
+                businessHoursTargetResolver,
+                ratingMapper);
     }
 
     private Payment payment(String payNo, Long id, Long orderId, BigDecimal amount) {

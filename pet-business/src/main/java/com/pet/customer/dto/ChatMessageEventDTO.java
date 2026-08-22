@@ -19,6 +19,10 @@ public class ChatMessageEventDTO {
     private Long to_user_id_wsh;
     @Schema(description = "消息类型")
     private String type_wsh;
+    @Schema(description = "消息内容")
+    private String content_wsh;
+    @Schema(description = "图片附件URL")
+    private String file_url_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
 }

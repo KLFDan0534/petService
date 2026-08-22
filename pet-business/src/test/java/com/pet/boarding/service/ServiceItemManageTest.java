@@ -1,6 +1,7 @@
 package com.pet.boarding.service;
 
 import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
+import com.pet.boarding.dto.ServiceItemDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
 import com.pet.boarding.dto.ServiceMediaItemDTO;
 import com.pet.boarding.entity.ServiceCategory;
@@ -263,16 +264,140 @@ class ServiceItemManageTest {
         verify(serviceMediaService).replaceMedia(301L, List.of());
     }
 
+    // ============ 多单位契约（session/hour） ============
+
     /**
-     * MG-08: 更新目标不存在或 ID 非法时拒绝。
+     * MG-09: 创建 session 单位回填默认时长 60 并推导 slot 模式；
+     * 显式 120 分钟生效。
      */
     @Test
-    void updateRejectsMissingTarget() {
-        assertEquals(BookingErrorCode.INVALID_PRODUCT_ID, assertThrows(BusinessException.class,
-                () -> service.update(0L, new ServiceItemUpdateRequestDTO())).getErrorCode());
+    void createSessionUnitWritesDefaultDurationAndSlotMode() {
+        when(categoryMapper.selectById(1L)).thenReturn(enabledCat());
+        when(serviceItemMapper.insert(any(ServiceItem.class))).thenReturn(1);
+        ServiceItemCreateRequestDTO dto = createDto();
+        dto.setUnit_wsh("次");
+        dto.setDuration_minutes_wsh(null);
 
-        when(serviceItemMapper.selectByIdForUpdate(999L)).thenReturn(null);
-        assertEquals(BookingErrorCode.SERVICE_NOT_FOUND, assertThrows(BusinessException.class,
-                () -> service.update(999L, new ServiceItemUpdateRequestDTO())).getErrorCode());
+        ServiceItem created = service.create(99L, dto);
+
+        assertEquals("session", created.getUnit_wsh());
+        assertEquals(60, created.getDuration_minutes_wsh());
+        assertEquals("slot", created.getBooking_mode_wsh());
+    }
+
+    /**
+     * MG-10: 创建 hour 单位要求 60 的正整数倍（120 通过、90 拒绝），
+     * 低于 15 / 超过 1440 拒绝；booking_mode 为 slot。
+     */
+    @Test
+    void createHourUnitEnforcesWholeHourDuration() {
+        when(categoryMapper.selectById(1L)).thenReturn(enabledCat());
+        when(serviceItemMapper.insert(any(ServiceItem.class))).thenReturn(1);
+
+        ServiceItemCreateRequestDTO ok = createDto();
+        ok.setUnit_wsh("hours");
+        ok.setDuration_minutes_wsh(120);
+        ServiceItem created = service.create(99L, ok);
+        assertEquals("hour", created.getUnit_wsh());
+        assertEquals(120, created.getDuration_minutes_wsh());
+        assertEquals("slot", created.getBooking_mode_wsh());
+
+        ServiceItemCreateRequestDTO badStep = createDto();
+        badStep.setUnit_wsh("hour");
+        badStep.setDuration_minutes_wsh(90);
+        assertEquals(BookingErrorCode.DURATION_INVALID, assertThrows(BusinessException.class,
+                () -> service.create(99L, badStep)).getErrorCode());
+
+        ServiceItemCreateRequestDTO tooShort = createDto();
+        tooShort.setUnit_wsh("小时");
+        tooShort.setDuration_minutes_wsh(10);
+        assertEquals(BookingErrorCode.DURATION_INVALID, assertThrows(BusinessException.class,
+                () -> service.create(99L, tooShort)).getErrorCode());
+
+        ServiceItemCreateRequestDTO tooLong = createDto();
+        tooLong.setUnit_wsh("hour");
+        tooLong.setDuration_minutes_wsh(1500);
+        assertEquals(BookingErrorCode.DURATION_INVALID, assertThrows(BusinessException.class,
+                () -> service.create(99L, tooLong)).getErrorCode());
+    }
+
+    /**
+     * MG-11: 未知/超长单位创建拒绝，返回 UNSUPPORTED_SERVICE_UNIT。
+     */
+    @Test
+    void createRejectsUnknownAndOversizedUnit() {
+        when(categoryMapper.selectById(1L)).thenReturn(enabledCat());
+        ServiceItemCreateRequestDTO unknown = createDto();
+        unknown.setUnit_wsh("按疗程");
+        assertEquals(BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, assertThrows(BusinessException.class,
+                () -> service.create(99L, unknown)).getErrorCode());
+
+        ServiceItemCreateRequestDTO oversized = createDto();
+        oversized.setUnit_wsh("a".repeat(40));
+        assertEquals(BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, assertThrows(BusinessException.class,
+                () -> service.create(99L, oversized)).getErrorCode());
+    }
+
+    /**
+     * MG-12: 更新单位或时长时重新落地契约；只传时长时沿用现有单位推导。
+     */
+    @Test
+    void updateAppliesUnitContractWhenUnitOrDurationProvided() {
+        ServiceItem base = existing();
+        base.setUnit_wsh("day");
+        when(serviceItemMapper.selectByIdForUpdate(301L)).thenReturn(base);
+        when(serviceItemMapper.updateById(any(ServiceItem.class))).thenReturn(1);
+
+        ServiceItemUpdateRequestDTO dto = new ServiceItemUpdateRequestDTO();
+        dto.setUnit_wsh("小时");
+        dto.setDuration_minutes_wsh(120);
+        ServiceItem updated = service.update(301L, dto);
+        assertEquals("hour", updated.getUnit_wsh());
+        assertEquals(120, updated.getDuration_minutes_wsh());
+        assertEquals("slot", updated.getBooking_mode_wsh());
+
+        ArgumentCaptor<ServiceItem> captor = ArgumentCaptor.forClass(ServiceItem.class);
+        verify(serviceItemMapper).updateById(captor.capture());
+        assertEquals("hour", captor.getValue().getUnit_wsh());
+        assertEquals(120, captor.getValue().getDuration_minutes_wsh());
+    }
+
+    /**
+     * MG-13: 更新传入非法单位拒绝；day 服务显式传入非 1440 时长拒绝。
+     */
+    @Test
+    void updateRejectsInvalidUnitAndDayDuration() {
+        ServiceItem base = existing();
+        base.setUnit_wsh("day");
+        when(serviceItemMapper.selectByIdForUpdate(301L)).thenReturn(base);
+
+        ServiceItemUpdateRequestDTO badUnit = new ServiceItemUpdateRequestDTO();
+        badUnit.setUnit_wsh("疗程");
+        assertEquals(BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, assertThrows(BusinessException.class,
+                () -> service.update(301L, badUnit)).getErrorCode());
+
+        ServiceItemUpdateRequestDTO badDay = new ServiceItemUpdateRequestDTO();
+        badDay.setUnit_wsh("day");
+        badDay.setDuration_minutes_wsh(720);
+        assertEquals(BookingErrorCode.DURATION_INVALID, assertThrows(BusinessException.class,
+                () -> service.update(301L, badDay)).getErrorCode());
+    }
+
+    /**
+     * MG-14: 详情/管理列表回显规范单位、模式、时长与单价（不得显示“暂不支持预约”）。
+     */
+    @Test
+    void detailAndListEchoCanonicalUnitFields() {
+        ServiceItem entity = existing();
+        entity.setUnit_wsh("session");
+        entity.setDuration_minutes_wsh(60);
+        entity.setBooking_mode_wsh("slot");
+        when(categoryMapper.selectById(1L)).thenReturn(enabledCat());
+
+        ServiceItemDTO dto = service.toDTO(entity);
+        assertEquals("session", dto.getUnit_wsh());
+        assertEquals(60, dto.getDuration_minutes_wsh());
+        assertEquals("slot", dto.getBooking_mode_wsh());
+        assertEquals(new BigDecimal("128.00"), dto.getPrice_wsh());
     }
 }

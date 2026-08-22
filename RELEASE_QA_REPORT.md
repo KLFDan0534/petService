@@ -8,7 +8,7 @@
 | 2 | pet-framework | ~5 files | 配置、CharsetFilter |
 | 3 | pet-security | ~5 files | SecurityConfig、JWT过滤器、JwtAuthenticationToken |
 | 4 | pet-system | ~15 files | UserMapper、RoleMapper、UserRoleMapper、AuthController |
-| 5 | pet-business | ~120 files | **核心业务模块**：finance(27)、order(20)、marketing(15)、boarding(30)、pet(10)、customer(20)、operation(20)、qualification(5)、adoption(10) |
+| 5 | pet-business | ~110 files | **核心业务模块**：finance(27)、order(20)、marketing(15)、boarding(30)、pet(10)、customer(20)、operation(20)、qualification(5) |
 | 6 | pet-ai | ~10 files | AI报告、RAG、知识库、Agent |
 | 7 | pet-admin | ~20 files | Admin控制器、StatisticsService、测试文件 |
 | 8 | frontend | 95 Vue + 63 JS = 158 files | 全面前端分析 |

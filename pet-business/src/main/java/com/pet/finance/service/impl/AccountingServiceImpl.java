@@ -61,6 +61,14 @@ public class AccountingServiceImpl implements AccountingService {
     @Override
     public Wallet credit(Long userId, BigDecimal amount, String type, Long orderId,
                          String businessType, String businessId, String requestId, String description) {
+        return credit(userId, amount, type, orderId, businessType, businessId, requestId, description, null);
+    }
+
+    @Transactional
+    @Override
+    public Wallet credit(Long userId, BigDecimal amount, String type, Long orderId,
+                         String businessType, String businessId, String requestId, String description,
+                         Long operatorId) {
         BigDecimal money = positive(amount);
         if (alreadyPosted(requestId)) return walletService.getByUserId(userId);
         Wallet before = walletService.getByUserId(userId);
@@ -68,7 +76,7 @@ public class AccountingServiceImpl implements AccountingService {
             throw new BusinessException("钱包入账失败");
         }
         Wallet after = walletService.getByUserId(userId);
-        saveTransaction(after, type, money, before, after, "in", orderId, businessType, businessId, requestId, description);
+        saveTransaction(after, type, money, before, after, "in", orderId, businessType, businessId, requestId, description, operatorId);
         return after;
     }
 
@@ -87,6 +95,14 @@ public class AccountingServiceImpl implements AccountingService {
     @Override
     public Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,
                         String businessType, String businessId, String requestId, String description) {
+        return debit(userId, amount, type, orderId, businessType, businessId, requestId, description, null);
+    }
+
+    @Transactional
+    @Override
+    public Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,
+                        String businessType, String businessId, String requestId, String description,
+                        Long operatorId) {
         BigDecimal money = positive(amount);
         if (alreadyPosted(requestId)) return walletService.getByUserId(userId);
         Wallet before = walletService.getByUserId(userId);
@@ -98,7 +114,7 @@ public class AccountingServiceImpl implements AccountingService {
             throw new BusinessException("钱包扣款失败");
         }
         Wallet after = walletService.getByUserId(userId);
-        saveTransaction(after, type, money.negate(), before, after, "out", orderId, businessType, businessId, requestId, description);
+        saveTransaction(after, type, money.negate(), before, after, "out", orderId, businessType, businessId, requestId, description, operatorId);
         return after;
     }
 
@@ -148,7 +164,7 @@ public class AccountingServiceImpl implements AccountingService {
             throw new BusinessException("可用余额不足");
         }
         Wallet after = walletService.getByUserId(userId);
-        saveTransaction(after, type, money, before, after, "freeze", orderId, businessType, businessId, requestId, description);
+        saveTransaction(after, type, money, before, after, "freeze", orderId, businessType, businessId, requestId, description, null);
         return after;
     }
 
@@ -174,7 +190,7 @@ public class AccountingServiceImpl implements AccountingService {
             throw new BusinessException("冻结余额不足");
         }
         Wallet after = walletService.getByUserId(userId);
-        saveTransaction(after, type, money.negate(), before, after, "unfreeze", orderId, businessType, businessId, requestId, description);
+        saveTransaction(after, type, money.negate(), before, after, "unfreeze", orderId, businessType, businessId, requestId, description, null);
         return after;
     }
 
@@ -200,7 +216,7 @@ public class AccountingServiceImpl implements AccountingService {
             throw new BusinessException("冻结余额不足");
         }
         Wallet after = walletService.getByUserId(userId);
-        saveTransaction(after, type, money.negate(), before, after, "out", orderId, businessType, businessId, requestId, description);
+        saveTransaction(after, type, money.negate(), before, after, "out", orderId, businessType, businessId, requestId, description, null);
         return after;
     }
 
@@ -232,7 +248,8 @@ public class AccountingServiceImpl implements AccountingService {
         BigDecimal delta = after.getBalance_wsh().subtract(before.getBalance_wsh());
         saveTransaction(after, "admin_adjust", delta, before, after, "set",
                 null, "wallet_admin", String.valueOf(userId), requestId,
-                description == null || description.isBlank() ? "管理员调整余额: " + adminId : description);
+                description == null || description.isBlank() ? "管理员调整余额: " + adminId : description,
+                adminId);
         return after;
     }
 
@@ -245,7 +262,7 @@ public class AccountingServiceImpl implements AccountingService {
 
     private void saveTransaction(Wallet wallet, String type, BigDecimal amount, Wallet before, Wallet after,
                                  String direction, Long orderId, String businessType, String businessId,
-                                 String requestId, String description) {
+                                 String requestId, String description, Long operatorId) {
         Transaction tx = new Transaction();
         tx.setWallet_id_wsh(wallet.getId_wsh());
         tx.setUser_id_wsh(wallet.getUser_id_wsh());
@@ -262,6 +279,7 @@ public class AccountingServiceImpl implements AccountingService {
         tx.setRequest_id_wsh(requestId);
         tx.setOrder_id_wsh(orderId);
         tx.setDescription_wsh(description);
+        tx.setOperator_id_wsh(operatorId);
         transactionMapper.insert(tx);
     }
 

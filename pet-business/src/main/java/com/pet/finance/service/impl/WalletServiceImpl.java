@@ -1,10 +1,13 @@
 package com.pet.finance.service.impl;
 
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.finance.dto.WalletDTO;
 import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
 
 import com.pet.finance.entity.Wallet;
 import com.pet.finance.mapper.WalletMapper;
@@ -215,5 +218,41 @@ public class WalletServiceImpl implements WalletService {
                 new LambdaQueryWrapper<Wallet>()
                         .orderByDesc(Wallet::getCreated_at_wsh)
                         .last("LIMIT 1000"));
+    }
+
+    /**
+     * 【业务名称】分页获取钱包列表（实现）
+     * 业务作用：分页获取所有钱包，关联用户名，支持按 id / balance / created 动态排序。
+     * 调用场景：管理后台钱包列表分页。
+     * 调用链：listPage() → WalletMapper.selectWalletPage()。
+     * 数据处理：按白名单排序字段与方向分页。
+     * 业务规则：支持分页参数（page/size）与排序参数（sort_by_wsh / order_wsh）；排序字段/方向均经白名单校验。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     */
+    @Override
+    public IPage<WalletDTO> listPage(PageRequestDTO pageParam) {
+        log.info("调用 listPage() sort={} order={}",
+                pageParam.getSort_by_wsh(), pageParam.getOrder_wsh());
+        Page<WalletDTO> page = new Page<>(pageParam.getPage(), pageParam.getSize());
+        return walletMapper.selectWalletPage(page,
+                resolveOrderColumn(pageParam.getSort_by_wsh()),
+                resolveOrderDirection(pageParam.getOrder_wsh()));
+    }
+
+    private String resolveOrderColumn(String sortBy) {
+        if (sortBy == null || sortBy.isBlank()) return "w.created_at_wsh";
+        switch (sortBy.trim().toLowerCase()) {
+            case "id": return "w.id_wsh";
+            case "user_id": return "w.user_id_wsh";
+            case "balance": return "w.balance_wsh";
+            case "created":
+            default: return "w.created_at_wsh";
+        }
+    }
+
+    private String resolveOrderDirection(String order) {
+        return (order != null && "asc".equalsIgnoreCase(order.trim())) ? "ASC" : "DESC";
     }
 }

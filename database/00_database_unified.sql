@@ -220,7 +220,9 @@ CREATE TABLE `pet_service_wsh` (
   `category_id_wsh` bigint DEFAULT NULL COMMENT '关联 service_category_wsh.id_wsh',
   `description_wsh` text COMMENT '描述',
   `price_wsh` decimal(10,2) NOT NULL COMMENT '价格',
-  `unit_wsh` varchar(20) DEFAULT 'day' COMMENT '单位',
+  `unit_wsh` varchar(20) DEFAULT 'day' COMMENT '计费单位 day/session/hour',
+  `duration_minutes_wsh` int DEFAULT NULL COMMENT 'session/hour 单次时长(分钟)，day 为 1440',
+  `booking_mode_wsh` varchar(20) DEFAULT 'date_range' COMMENT '预约模式 date_range(day)/slot(session, hour)',
   `images_wsh` text COMMENT '图片URL',
   `status_wsh` tinyint DEFAULT '1' COMMENT '状态: 0-下架 1-上架',
   `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
@@ -284,8 +286,12 @@ CREATE TABLE `pet_order_wsh` (
   `service_id_wsh` bigint DEFAULT NULL COMMENT '服务项目ID',
   `start_date_wsh` date NOT NULL COMMENT '开始日期',
   `end_date_wsh` date NOT NULL COMMENT '结束日期',
-  `days_wsh` int NOT NULL COMMENT '天数',
-  `price_per_day_wsh` decimal(10,2) NOT NULL COMMENT '每天价格',
+  `days_wsh` int NOT NULL COMMENT '天数(day=计费数量, session/hour=1)',
+  `price_per_day_wsh` decimal(10,2) NOT NULL COMMENT '每天价格(兼容投影=unit_price_wsh)',
+  `billing_unit_wsh` varchar(20) DEFAULT 'day' COMMENT '计费单位快照 day/session/hour',
+  `quantity_wsh` int DEFAULT '1' COMMENT '计费数量: day=天数, session/hour=槽位数',
+  `unit_price_wsh` decimal(10,2) DEFAULT NULL COMMENT '单价快照(每个计费单位)',
+  `duration_minutes_wsh` int DEFAULT NULL COMMENT '下单时单个单位时长快照(分钟)',
   `total_amount_wsh` decimal(10,2) NOT NULL COMMENT '总金额',
   `discount_wsh` decimal(10,2) DEFAULT '0.00' COMMENT '折扣',
   `final_amount_wsh` decimal(10,2) NOT NULL COMMENT '实付金额',
@@ -427,7 +433,8 @@ CREATE TABLE `chat_message_wsh` (
 DROP TABLE IF EXISTS `complaint_wsh`;
 CREATE TABLE `complaint_wsh` (
   `id_wsh` bigint NOT NULL AUTO_INCREMENT COMMENT '投诉ID',
-  `order_id_wsh` bigint NOT NULL COMMENT '订单ID',
+  `order_id_wsh` bigint DEFAULT NULL COMMENT '订单ID(可空: 支持仅投诉商家不关联订单)',
+  `merchant_id_wsh` bigint DEFAULT NULL COMMENT '商家ID',
   `owner_id_wsh` bigint NOT NULL COMMENT '投诉人ID',
   `target_id_wsh` bigint DEFAULT NULL COMMENT '被投诉对象ID',
   `target_type_wsh` varchar(20) DEFAULT NULL COMMENT '被投诉类型: merchant/keeper',
@@ -469,12 +476,15 @@ CREATE TABLE `rating_wsh` (
 DROP TABLE IF EXISTS `ticket_wsh`;
 CREATE TABLE `ticket_wsh` (
   `id_wsh` bigint NOT NULL AUTO_INCREMENT COMMENT '工单ID',
+  `merchant_id_wsh` bigint DEFAULT NULL COMMENT '商家ID',
+  `order_id_wsh` bigint DEFAULT NULL COMMENT '订单ID',
   `user_id_wsh` bigint NOT NULL COMMENT '创建用户ID',
   `title_wsh` varchar(200) NOT NULL COMMENT '工单标题',
   `content_wsh` text COMMENT '工单内容',
   `category_wsh` varchar(50) DEFAULT NULL COMMENT '分类: complaint-投诉 question-咨询 suggestion-建议 other-其他',
   `priority_wsh` varchar(20) DEFAULT 'medium' COMMENT '优先级: low/medium/high/urgent',
   `status_wsh` varchar(20) DEFAULT 'pending' COMMENT '状态: pending-待处理 processing-处理中 resolved-已解决 closed-已关闭',
+  `result_wsh` varchar(2000) DEFAULT NULL COMMENT '处理结果',
   `assignee_id_wsh` bigint DEFAULT NULL COMMENT '处理人ID',
   `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
   `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -739,71 +749,6 @@ CREATE TABLE `content_review_wsh` (
   `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id_wsh`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='内容审核表';
-
--- ===================================================================
--- 34. adoption_pet_wsh — 领养宠物表
--- ===================================================================
-DROP TABLE IF EXISTS `adoption_pet_wsh`;
-CREATE TABLE `adoption_pet_wsh` (
-  `id_wsh` bigint NOT NULL AUTO_INCREMENT COMMENT '领养宠物ID',
-  `merchant_id_wsh` bigint NOT NULL COMMENT '商家ID',
-  `name_wsh` varchar(50) NOT NULL COMMENT '宠物名称',
-  `type_wsh` varchar(30) DEFAULT NULL COMMENT '宠物类型',
-  `breed_wsh` varchar(100) DEFAULT NULL COMMENT '品种',
-  `age_wsh` int DEFAULT NULL COMMENT '年龄(月)',
-  `gender_wsh` varchar(10) DEFAULT NULL COMMENT '性别',
-  `weight_wsh` decimal(5,2) DEFAULT NULL COMMENT '体重(kg)',
-  `color_wsh` varchar(50) DEFAULT NULL COMMENT '颜色',
-  `health_status_wsh` varchar(500) DEFAULT NULL COMMENT '健康状况',
-  `vaccinated_wsh` tinyint DEFAULT '0' COMMENT '是否接种疫苗',
-  `sterilized_wsh` tinyint DEFAULT '0' COMMENT '是否绝育',
-  `personality_wsh` varchar(500) DEFAULT NULL COMMENT '性格',
-  `story_wsh` text COMMENT '救助故事',
-  `adoption_requirements_wsh` text COMMENT '领养要求',
-  `adoption_fee_wsh` decimal(10,2) DEFAULT '0.00' COMMENT '领养费',
-  `cover_image_wsh` varchar(500) DEFAULT NULL COMMENT '封面图片',
-  `images_wsh` varchar(2000) DEFAULT NULL COMMENT '图片(逗号分隔)',
-  `status_wsh` varchar(20) DEFAULT 'AVAILABLE' COMMENT '状态: AVAILABLE/APPLIED/ADOPTED',
-  `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
-  `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id_wsh`),
-  KEY `idx_merchant` (`merchant_id_wsh`) COMMENT '商家索引',
-  KEY `idx_status` (`status_wsh`) COMMENT '状态索引'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='领养宠物表';
-
--- ===================================================================
--- 35. adoption_application_wsh — 领养申请表
--- ===================================================================
-DROP TABLE IF EXISTS `adoption_application_wsh`;
-CREATE TABLE `adoption_application_wsh` (
-  `id_wsh` bigint NOT NULL AUTO_INCREMENT COMMENT '申请ID',
-  `user_id_wsh` bigint NOT NULL COMMENT '申请人用户ID',
-  `pet_id_wsh` bigint NOT NULL COMMENT '领养宠物ID',
-  `merchant_id_wsh` bigint NOT NULL COMMENT '商家ID',
-  `applicant_name_wsh` varchar(50) NOT NULL COMMENT '申请人姓名',
-  `applicant_phone_wsh` varchar(20) NOT NULL COMMENT '申请人电话',
-  `applicant_address_wsh` varchar(500) NOT NULL COMMENT '家庭地址',
-  `housing_type_wsh` varchar(50) DEFAULT NULL COMMENT '住房类型',
-  `has_yard_wsh` tinyint DEFAULT '0' COMMENT '是否有院子',
-  `family_members_wsh` varchar(200) DEFAULT NULL COMMENT '家庭成员',
-  `pet_experience_wsh` text COMMENT '养宠经验',
-  `reason_wsh` text NOT NULL COMMENT '领养原因',
-  `economic_condition_wsh` varchar(200) DEFAULT NULL COMMENT '经济状况',
-  `agree_visit_wsh` tinyint DEFAULT '0' COMMENT '同意回访',
-  `merchant_status_wsh` varchar(20) DEFAULT NULL COMMENT '商家审核状态',
-  `merchant_remark_wsh` varchar(500) DEFAULT NULL COMMENT '商家审核备注',
-  `admin_status_wsh` varchar(20) DEFAULT NULL COMMENT '管理员审核状态',
-  `admin_remark_wsh` varchar(500) DEFAULT NULL COMMENT '管理员审核备注',
-  `status_wsh` varchar(20) DEFAULT 'PENDING' COMMENT '总体状态',
-  `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
-  `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id_wsh`),
-  KEY `idx_user` (`user_id_wsh`) COMMENT '用户索引',
-  KEY `idx_pet` (`pet_id_wsh`) COMMENT '宠物索引',
-  KEY `idx_status` (`status_wsh`) COMMENT '状态索引'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='领养申请表';
 
 -- ===================================================================
 -- 36. ai_report_wsh — AI报告表

@@ -201,6 +201,9 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
             data.put("description_wsh", service.getDescription_wsh());
             data.put("price_wsh", service.getPrice_wsh());
             data.put("unit_wsh", service.getUnit_wsh());
+            data.put("booking_mode_wsh", service.getBooking_mode_wsh());
+            data.put("duration_minutes_wsh", service.getDuration_minutes_wsh());
+            data.put("images_wsh", service.getImages_wsh());
             data.put("version_wsh", ServiceVersions.format(service.getUpdated_at_wsh()));
         }
         return data;
@@ -221,6 +224,10 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
 
     private Map<String, Object> priceSnapshot(PetOrder order) {
         Map<String, Object> data = new LinkedHashMap<>();
+        data.put("billing_unit_wsh", order.getBilling_unit_wsh());
+        data.put("quantity_wsh", order.getQuantity_wsh());
+        data.put("unit_price_wsh", defaultMoney(order.getUnit_price_wsh()));
+        data.put("duration_minutes_wsh", order.getDuration_minutes_wsh());
         data.put("days_wsh", order.getDays_wsh());
         data.put("price_per_day_wsh", defaultMoney(order.getPrice_per_day_wsh()));
         data.put("total_amount_wsh", defaultMoney(order.getTotal_amount_wsh()));

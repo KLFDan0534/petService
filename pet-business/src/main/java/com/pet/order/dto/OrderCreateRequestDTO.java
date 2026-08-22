@@ -39,19 +39,38 @@ public class OrderCreateRequestDTO {
     @JsonAlias("serviceVersion")
     private String service_version_wsh;
 
+    @Schema(description = "客户端期望的单价（可选；有值时服务端必须与服务单价一致，否则 PRICE_CHANGED）")
+    @JsonAlias("expectedUnitPrice")
+    private BigDecimal expected_unit_price_wsh;
+
     @Schema(description = "用户优惠券ID")
     @JsonAlias("userCouponId")
     private Long user_coupon_id_wsh;
 
-    @Schema(description = "开始日期")
-    @NotNull(message = "startDate cannot be empty")
+    @Schema(description = "开始日期（day 模式必填；session/hour 可省略，由服务端根据开始时间推导）")
     @JsonAlias("startDate")
     private LocalDate start_date_wsh;
 
-    @Schema(description = "结束日期")
-    @NotNull(message = "endDate cannot be empty")
+    @Schema(description = "结束日期（day 模式必填；session/hour 由服务端按开始时间+时长计算，客户端可提交做一致性校验）")
     @JsonAlias("endDate")
     private LocalDate end_date_wsh;
+
+    @Schema(description = "服务开始时间（session/hour 模式必填，来自可用性槽位；服务端据此计算结束时间）")
+    @JsonAlias("startTime")
+    private LocalDateTime start_time_wsh;
+
+    @Schema(description = "客户端提交的服务结束时间（可选；仅做一致性校验，最终以服务端计算为准）")
+    @JsonAlias("endTime")
+    private LocalDateTime end_time_wsh;
+
+    @Schema(description = "计费单位（可选；规范化后必须与服务单位一致，不一致返回 UNIT_MISMATCH）")
+    @Size(max = 20, message = "计费单位不能超过20个字符")
+    @JsonAlias("billingUnit")
+    private String billing_unit_wsh;
+
+    @Schema(description = "计费数量（可选；day=服务天数、session=1、hour=连续小时数，服务端重算校验）")
+    @JsonAlias("quantity")
+    private Integer quantity_wsh;
 
     @Schema(description = "配送地址")
     @Size(max = 500, message = "deliveryAddress cannot exceed 500 characters")

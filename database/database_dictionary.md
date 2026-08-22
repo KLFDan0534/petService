@@ -395,12 +395,6 @@
 
 ---
 
-## 模块: pet-business/adoption (领养模块) — 2张表
-
-### 31~32. adoption_pet_wsh / adoption_application_wsh
-
----
-
 ## 模块: pet-ai (AI模块) — 3张表
 
 ### 33~35. ai_report_wsh / knowledge_document_wsh / document_embedding_wsh
@@ -442,7 +436,6 @@
 │         ├── file_record_wsh                                 │
 │         ├── favorite_wsh                                    │
 │         └── content_review_wsh                              │
-│  [领养] adoption_pet_wsh ──< adoption_application_wsh       │
 └─────────────────────────────────────────────────────────────┘
          │
          ▼

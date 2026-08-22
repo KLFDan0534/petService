@@ -1,11 +1,14 @@
 package com.pet.finance.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.finance.dto.WalletDTO;
 import com.pet.finance.entity.Wallet;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Select;
 
 import java.math.BigDecimal;
 
@@ -95,4 +98,22 @@ public interface WalletMapper extends BaseMapper<Wallet> {
      */
     @Update("UPDATE wallet_wsh SET balance_wsh = #{balance}, updated_at_wsh = NOW() WHERE user_id_wsh = #{userId}")
     int setBalance(@Param("userId") Long userId, @Param("balance") BigDecimal balance);
+
+    /**
+     * 分页查询钱包并关联用户名，支持动态排序。用于管理后台钱包列表。
+     * <p>orderColumn / orderDirection 由服务层白名单校验后传入（仅允许绑定到受控排序字段/方向），避免 SQL 注入。</p>
+     *
+     * @param page            分页对象
+     * @param orderColumn     排序列（已白名单校验，如 w.id_wsh / w.balance_wsh / w.created_at_wsh）
+     * @param orderDirection  排序方向（仅 ASC / DESC）
+     * @return 分页结果（含用户名）
+     */
+    @Select("SELECT w.id_wsh, w.user_id_wsh, u.username_wsh, w.balance_wsh, w.frozen_amount_wsh, w.created_at_wsh " +
+            "FROM wallet_wsh w " +
+            "LEFT JOIN user_wsh u ON u.id_wsh = w.user_id_wsh " +
+            "WHERE w.deleted_wsh = 0 " +
+            "ORDER BY ${orderColumn} ${orderDirection}")
+    IPage<WalletDTO> selectWalletPage(IPage<WalletDTO> page,
+                                      @Param("orderColumn") String orderColumn,
+                                      @Param("orderDirection") String orderDirection);
 }

@@ -1,8 +1,32 @@
 <template>
   <div class="admin-complaints-page">
+    <div class="complaint-filters">
+      <select v-model="filters.status_wsh" class="form-control" @change="loadComplaints">
+        <option value="">全部状态</option>
+        <option value="pending">待处理</option>
+        <option value="processing">受理中</option>
+        <option value="resolved">已处理</option>
+        <option value="rejected">已驳回</option>
+      </select>
+      <input
+        v-model="filters.keyword"
+        class="form-control"
+        placeholder="搜索标题/内容关键字"
+        @keyup.enter="loadComplaints"
+      >
+      <button class="btn btn-sm btn-primary" type="button" @click="loadComplaints">筛选</button>
+      <button class="btn btn-sm" type="button" @click="resetFilters">重置</button>
+    </div>
     <DataTable :columns="columns" :data="complaints">
       <template #default="{ row }">
         <div class="row-actions">
+          <button
+            class="btn btn-sm btn-info"
+            type="button"
+            @click="goChat(row)"
+          >
+            回复用户
+          </button>
           <button
             v-if="row.order_id_wsh"
             class="btn btn-sm btn-info"
@@ -13,6 +37,14 @@
           </button>
           <button
             v-if="row.status_wsh === 'pending'"
+            class="btn btn-sm btn-info"
+            type="button"
+            @click="accept(row)"
+          >
+            受理
+          </button>
+          <button
+            v-if="row.status_wsh === 'pending' || row.status_wsh === 'processing'"
             class="btn btn-sm btn-success"
             type="button"
             @click="openReview(row, 'resolve')"
@@ -20,7 +52,7 @@
             处理
           </button>
           <button
-            v-if="row.status_wsh === 'pending'"
+            v-if="row.status_wsh === 'pending' || row.status_wsh === 'processing'"
             class="btn btn-sm btn-danger"
             type="button"
             @click="openReview(row, 'reject')"
@@ -91,7 +123,22 @@
                   <time>{{ formatTime(message.created_at_wsh) }}</time>
                 </div>
                 <p v-if="message.content_wsh">{{ message.content_wsh }}</p>
-                <a v-if="message.file_url_wsh" :href="message.file_url_wsh" target="_blank" rel="noreferrer">查看附件</a>
+                <a
+                  v-if="message.file_url_wsh"
+                  :href="message.file_url_wsh"
+                  target="_blank"
+                  rel="noreferrer"
+                  class="evidence-photo"
+                >
+                  <img
+                    v-if="isImageUrl(message.file_url_wsh)"
+                    :src="message.file_url_wsh"
+                    alt="聊天附件照片"
+                    loading="lazy"
+                    @error="$event.target.style.display = 'none'"
+                  >
+                  <span v-else>查看附件</span>
+                </a>
               </article>
             </div>
             <div v-else class="empty-inline">暂无聊天记录</div>
@@ -106,15 +153,16 @@
                   <time>{{ formatTime(record.record_time_wsh || record.created_at_wsh) }}</time>
                 </div>
                 <p v-if="record.content_wsh">{{ record.content_wsh }}</p>
-                <div v-if="parseImages(record.images_wsh).length" class="photo-links">
+                <div v-if="parseImages(record.images_wsh).length" class="evidence-photos">
                   <a
                     v-for="(url, index) in parseImages(record.images_wsh)"
                     :key="`${url}-${index}`"
                     :href="url"
                     target="_blank"
                     rel="noreferrer"
+                    class="evidence-photo"
                   >
-                    照片 {{ index + 1 }}
+                    <img :src="url" :alt="`证据照片 ${index + 1}`" loading="lazy" @error="$event.target.style.display = 'none'">
                   </a>
                 </div>
               </article>
@@ -128,11 +176,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import {
   getComplaints,
   getComplaintEvidence,
+  acceptComplaint,
   resolveComplaint,
   rejectComplaint as rejectComplaintApi,
 } from '@/api/complaint'
@@ -140,7 +190,10 @@ import { ComplaintStatus, enrichWithStatus } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
 
 const appStore = useAppStore()
+const route = useRoute()
+const router = useRouter()
 const complaints = ref([])
+const filters = reactive({ status_wsh: '', keyword: '', merchant_id_wsh: null })
 const evidenceVisible = ref(false)
 const evidenceLoading = ref(false)
 const selectedEvidence = ref(null)
@@ -167,9 +220,24 @@ function enrichComplaint(complaint) {
   return enriched
 }
 
+function buildFilterParams() {
+  const params = {}
+  if (filters.status_wsh) params.status_wsh = filters.status_wsh
+  if (filters.keyword && filters.keyword.trim()) params.keyword = filters.keyword.trim()
+  if (filters.merchant_id_wsh) params.merchant_id_wsh = filters.merchant_id_wsh
+  return params
+}
+
+function resetFilters() {
+  filters.status_wsh = ''
+  filters.keyword = ''
+  filters.merchant_id_wsh = null
+  loadComplaints()
+}
+
 async function loadComplaints() {
   try {
-    const response = await getComplaints()
+    const response = await getComplaints(buildFilterParams())
     if (response.code === 200) {
       complaints.value = (response.data.list || response.data || []).map(enrichComplaint)
     }
@@ -195,6 +263,39 @@ async function openEvidence(row) {
 function closeEvidence() {
   evidenceVisible.value = false
   selectedEvidence.value = null
+}
+
+function goChat(row) {
+  const userId = row.owner_id_wsh
+  if (!userId) {
+    appStore.addToast('该投诉缺少投诉人信息', 'error')
+    return
+  }
+  const orderNo = row.order_label_wsh && !String(row.order_label_wsh).startsWith('#') ? row.order_label_wsh : ''
+  router.push({
+    path: '/merchant/support/chat',
+    query: {
+      bizType: 'complaint',
+      bizId: row.id_wsh,
+      userId,
+      name: row.owner_name_wsh || '',
+      title: row.title_wsh || '',
+      status: row.status_wsh || '',
+      orderNo,
+    },
+  })
+}
+
+async function accept(row) {
+  try {
+    const response = await acceptComplaint(row.id_wsh)
+    if (response.code === 200) {
+      appStore.addToast('已受理', 'success')
+      await loadComplaints()
+    }
+  } catch {
+    appStore.addToast('受理失败', 'error')
+  }
 }
 
 function openReview(row, action) {
@@ -238,13 +339,32 @@ function parseImages(value) {
   return String(value).split(',').map(item => item.trim()).filter(Boolean)
 }
 
-onMounted(loadComplaints)
+function isImageUrl(value) {
+  if (!value) return false
+  return /\.(jpe?g|png|gif|webp|bmp|svg|avif)(\?.*)?$/i.test(String(value))
+}
+
+onMounted(() => {
+  if (route.query.status_wsh) filters.status_wsh = String(route.query.status_wsh)
+  if (route.query.merchant_id_wsh) filters.merchant_id_wsh = Number(route.query.merchant_id_wsh)
+  loadComplaints()
+})
 </script>
 
 <style scoped>
 .admin-complaints-page {
   display: grid;
   gap: 16px;
+}
+.complaint-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.complaint-filters .form-control {
+  width: auto;
+  min-width: 120px;
 }
 .row-actions {
   display: flex;
@@ -312,10 +432,31 @@ onMounted(loadComplaints)
 .evidence-item p {
   margin: 0 0 6px;
 }
-.photo-links {
+.evidence-photos {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+}
+.evidence-photo {
+  display: inline-block;
+  line-height: 0;
+}
+.evidence-photo img {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+.evidence-photo img:hover {
+  transform: scale(1.04);
+}
+.evidence-photo span {
+  line-height: normal;
+  color: var(--color-primary);
+  font-size: 13px;
 }
 .empty-inline {
   color: var(--color-muted-foreground);

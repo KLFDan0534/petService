@@ -66,6 +66,7 @@ public class GlobalExceptionHandler {
             case 401 -> HttpStatus.UNAUTHORIZED.value();
             case 403 -> HttpStatus.FORBIDDEN.value();
             case 404 -> HttpStatus.NOT_FOUND.value();
+            case 429 -> HttpStatus.TOO_MANY_REQUESTS.value();
             default -> HttpStatus.INTERNAL_SERVER_ERROR.value();
         };
         return ResponseEntity.status(httpStatus).body(Result.error(e.getCode(), e.getErrorCode(), e.getMessage()));

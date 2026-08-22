@@ -13,6 +13,7 @@ import com.pet.boarding.mapper.ServiceCategoryMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.impl.ServiceAvailabilityServiceImpl;
 import com.pet.common.BookingErrorCode;
+import com.pet.common.BookingUnit;
 import com.pet.common.BusinessException;
 import com.pet.common.StatusCode;
 import com.pet.order.entity.PetOrder;
@@ -41,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,7 +70,7 @@ class ServiceAvailabilityServiceTest {
     void setUp() {
         service = new ServiceAvailabilityServiceImpl(serviceItemMapper, merchantMapper, categoryMapper,
                 keeperMapper, orderMapper, businessHoursService, resolver, keeperLeaveService,
-                qualificationService, 30);
+                qualificationService, 30, 91);
     }
 
     private LocalDate nextOrSame(DayOfWeek day) {
@@ -239,7 +241,7 @@ class ServiceAvailabilityServiceTest {
         defaultStubs();
         service = new ServiceAvailabilityServiceImpl(serviceItemMapper, merchantMapper, categoryMapper,
                 keeperMapper, orderMapper, businessHoursService, resolver, keeperLeaveService,
-                qualificationService, 15);
+                qualificationService, 15, 91);
         when(businessHoursService.getByMerchantId(7L)).thenReturn(
                 List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(10, 0), 0)));
         LocalDate mon = nextOrSame(DayOfWeek.MONDAY);
@@ -253,15 +255,107 @@ class ServiceAvailabilityServiceTest {
         assertTrue(slots.get(3).contains("T09:45:00"));
     }
 
+    // ============ 多单位槽位（session/hour） ============
+
+    @Test
+    void sessionUnitExposesOnlyFullCoverageStarts() {
+        ServiceItem item = serviceItem(12L, 7L);
+        item.setUnit_wsh("session");
+        when(serviceItemMapper.selectById(12L)).thenReturn(item);
+        when(merchantMapper.selectById(7L)).thenReturn(merchant(7L));
+        when(businessHoursService.getByMerchantId(7L)).thenReturn(
+                List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(10, 30), 0)));
+        LocalDate mon = nextOrSame(DayOfWeek.MONDAY);
+
+        ServiceAvailabilityVO vo = service.getAvailability(12L, mon, mon, null);
+
+        assertEquals("session", vo.getUnit_wsh());
+        assertEquals(BookingUnit.MODE_SLOT, vo.getBooking_mode_wsh());
+        assertEquals(60, vo.getDuration_minutes_wsh());
+        List<String> slots = day(vo, 0).getWindows_wsh().get(0).getSlots_wsh();
+        // 窗口 09:00..10:30，时长 60 分钟整点覆盖 => 09:00、09:30 可选；10:00+60 超过窗口不可选。
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T09:00:00")));
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T09:30:00")));
+        assertFalse(slots.stream().anyMatch(s -> s.endsWith("T10:00:00")));
+    }
+
+    @Test
+    void hourUnitGeneratesWholeHourSlotsOnly() {
+        ServiceItem item = serviceItem(13L, 7L);
+        item.setUnit_wsh("hour");
+        item.setDuration_minutes_wsh(120);
+        when(serviceItemMapper.selectById(13L)).thenReturn(item);
+        when(merchantMapper.selectById(7L)).thenReturn(merchant(7L));
+        when(businessHoursService.getByMerchantId(7L)).thenReturn(
+                List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(12, 30), 0)));
+        LocalDate mon = nextOrSame(DayOfWeek.MONDAY);
+
+        ServiceAvailabilityVO vo = service.getAvailability(13L, mon, mon, null);
+
+        assertEquals("hour", vo.getUnit_wsh());
+        assertEquals(BookingUnit.MODE_SLOT, vo.getBooking_mode_wsh());
+        assertEquals(120, vo.getDuration_minutes_wsh());
+        List<String> slots = day(vo, 0).getWindows_wsh().get(0).getSlots_wsh();
+        // 整点起始 + 完整 120 分钟覆盖（窗口 09:00..12:30）：09:00、10:00 可选；
+        // 11:00+120=13:00 超出窗口、09:30/10:30 非整点，均不可选。
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T09:00:00")));
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T10:00:00")));
+        assertFalse(slots.stream().anyMatch(s -> s.endsWith("T11:00:00")));
+        assertFalse(slots.stream().anyMatch(s -> s.endsWith("T09:30:00")));
+        assertFalse(slots.stream().anyMatch(s -> s.endsWith("T10:30:00")));
+    }
+
+    @Test
+    void hourUnitAlignsFirstSlotToNextWholeHour() {
+        ServiceItem item = serviceItem(14L, 7L);
+        item.setUnit_wsh("hour");
+        item.setDuration_minutes_wsh(60);
+        when(serviceItemMapper.selectById(14L)).thenReturn(item);
+        when(merchantMapper.selectById(7L)).thenReturn(merchant(7L));
+        when(businessHoursService.getByMerchantId(7L)).thenReturn(
+                List.of(hours(1, LocalTime.of(9, 30), LocalTime.of(11, 30), 0)));
+        LocalDate mon = nextOrSame(DayOfWeek.MONDAY);
+
+        ServiceAvailabilityVO vo = service.getAvailability(14L, mon, mon, null);
+
+        List<String> slots = day(vo, 0).getWindows_wsh().get(0).getSlots_wsh();
+        // 窗口从 09:30 开始，整点对齐后第一个可选起始为 10:00（10:00+60=11:00 <= 11:30 覆盖完整）。
+        assertFalse(slots.stream().anyMatch(s -> s.endsWith("T09:30:00")));
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T10:00:00")));
+        assertFalse(slots.stream().anyMatch(s -> s.endsWith("T11:00:00")));
+    }
+
     // ============ 日期范围校验 ============
 
     @Test
-    void rangeLongerThan31DaysRejected() {
+    void rangeBeyondWindowClampedToWindow() {
+        defaultStubs();
+        when(businessHoursService.getByMerchantId(7L)).thenReturn(
+                List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(18, 0), 0)));
         LocalDate from = nextOrSame(DayOfWeek.MONDAY);
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.getAvailability(11L, from, from.plusDays(32), null));
-        assertEquals(400, ex.getCode());
-        assertEquals(BookingErrorCode.AVAILABILITY_RANGE_INVALID, ex.getErrorCode());
+
+        ServiceAvailabilityVO vo = service.getAvailability(11L, from, from.plusDays(120), null);
+
+        // 请求 121 天，按默认窗口 91 天收敛；响应告知实际窗口
+        assertEquals(91, vo.getBooking_window_days_wsh());
+        assertEquals(91, vo.getDays_wsh().size());
+        assertEquals(from.plusDays(90), day(vo, 90).getDate_wsh());
+    }
+
+    @Test
+    void bookingWindowDaysIsConfigurable() {
+        service = new ServiceAvailabilityServiceImpl(serviceItemMapper, merchantMapper, categoryMapper,
+                keeperMapper, orderMapper, businessHoursService, resolver, keeperLeaveService,
+                qualificationService, 30, 31);
+        defaultStubs();
+        when(businessHoursService.getByMerchantId(7L)).thenReturn(
+                List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(18, 0), 0)));
+        LocalDate from = nextOrSame(DayOfWeek.MONDAY);
+
+        ServiceAvailabilityVO vo = service.getAvailability(11L, from, from.plusDays(60), null);
+
+        assertEquals(31, vo.getBooking_window_days_wsh());
+        assertEquals(31, vo.getDays_wsh().size());
     }
 
     @Test
@@ -439,8 +533,17 @@ class ServiceAvailabilityServiceTest {
                 .thenReturn(List.of(approvedQual()));
         when(businessHoursService.getByMerchantId(7L)).thenReturn(
                 List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(18, 0), 0)));
-        when(orderMapper.selectCount(any())).thenReturn(2L);
         LocalDate mon = nextOrSame(DayOfWeek.MONDAY);
+        // 看护人容量 2：两条覆盖当天的有效订单 => 当天满
+        PetOrder o1 = new PetOrder();
+        o1.setKeeper_id_wsh(5L);
+        o1.setStart_date_wsh(mon.minusDays(1));
+        o1.setEnd_date_wsh(mon.plusDays(1));
+        PetOrder o2 = new PetOrder();
+        o2.setKeeper_id_wsh(5L);
+        o2.setStart_date_wsh(mon);
+        o2.setEnd_date_wsh(mon.plusDays(2));
+        when(orderMapper.selectList(any())).thenReturn(List.of(o1, o2));
 
         ServiceAvailabilityVO vo = service.getAvailability(11L, mon, mon, 5L);
 
@@ -448,6 +551,24 @@ class ServiceAvailabilityServiceTest {
         assertFalse(d.getBookable_wsh());
         assertEquals(BookingErrorCode.CAPACITY_EXCEEDED, d.getReason_code_wsh());
         assertTrue(d.getWindows_wsh().isEmpty());
+        // 容量判定改为窗口内一次性加载：单次 selectList，不逐日 selectCount
+        verify(orderMapper, times(1)).selectList(any());
+    }
+
+    @Test
+    void capacityCountsOnceForWindowInsteadOfPerDay() {
+        defaultStubs();
+        when(keeperMapper.selectById(5L)).thenReturn(keeper(5L, 7L));
+        when(qualificationService.listByOwner(eq(QualificationService.OWNER_TYPE_KEEPER), eq(5L), eq(false)))
+                .thenReturn(List.of(approvedQual()));
+        when(businessHoursService.getByMerchantId(7L)).thenReturn(List.of());
+        when(orderMapper.selectList(any())).thenReturn(List.of());
+        LocalDate from = nextOrSame(DayOfWeek.MONDAY);
+
+        service.getAvailability(11L, from, from.plusDays(90), 5L);
+
+        // 91 天窗口只查询一次容量，而不是逐日 N+1
+        verify(orderMapper, times(1)).selectList(any());
     }
 
     // ============ 只读契约 ============

@@ -29,11 +29,26 @@ public class ServiceAvailabilityVO {
     /** 服务版本（与详情页一致，用于下单快照校验） */
     private String service_version_wsh;
 
+    /** 服务计费单位（规范化） */
+    private String unit_wsh;
+
+    /** 预约模式：date_range（按日期区间）/ slot（按时长槽位） */
+    private String booking_mode_wsh;
+
+    /** 单次服务时长（分钟） */
+    private Integer duration_minutes_wsh;
+
+    /** 服务单价（服务端权威） */
+    private java.math.BigDecimal price_wsh;
+
     /** 时区，固定 Asia/Shanghai */
     private String timezone_wsh;
 
     /** 槽位分钟粒度 */
     private Integer slot_minutes_wsh;
+
+    /** 预约窗口天数（含首尾，由服务端 booking.max-booking-days 决定，默认 91 = 今天起 90 天） */
+    private Integer booking_window_days_wsh;
 
     /** 营业窗口来源：business_hours | legacy_unrestricted */
     private String schedule_source_wsh;

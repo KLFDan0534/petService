@@ -3,8 +3,12 @@ import { test, expect } from '@playwright/test'
 const BASE = 'http://localhost:5173'
 
 // 重放约束：正向用例使用重放专用宠物 109（RepeatGuardPet145124，owner=login 用户）。
-// 同一宠物在重叠日期窗口只能存在一个有效订单（业务正确行为），因此重跑前需调整
-// isoDate 偏移或清除既有测试订单（pet_order 135/136 为历史 E2E 遗留，占用 pet 1）。
+// 同一宠物在重叠日期窗口只能存在一个有效订单（业务正确行为）。
+// 本用例会在下单前动态挑选第一个与既有订单无重叠的未来窗口，因此可连续重跑；
+// 若需彻底清理历史 E2E 订单，可执行 SQL：
+//   DELETE FROM order_snapshot_wsh WHERE order_id_wsh IN (
+//     SELECT id_wsh FROM pet_order_wsh WHERE pet_id_wsh IN (1, 109) AND order_no_wsh LIKE 'ORD2026%');
+//   DELETE FROM pet_order_wsh WHERE pet_id_wsh IN (1, 109) AND order_no_wsh LIKE 'ORD2026%';
 function isoDate(offsetDays) {
   const d = new Date()
   d.setDate(d.getDate() + offsetDays)
@@ -12,6 +16,32 @@ function isoDate(offsetDays) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+// 通过 owner 的订单列表计算 pet 109 的既有占用窗口（半开区间 [start, end)），
+// 返回最早一个不与任何占用窗口重叠的 (startDate, endDate) 未来窗口。
+async function freeBookingWindow(page) {
+  const orders = await page.evaluate(async () => {
+    const res = await fetch('/api/orders', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    })
+    return res.json()
+  })
+  const blocking = new Set(['pending', 'confirmed', 'paid'])
+  const taken = (orders.data || [])
+    .filter(o => Number(o.pet_id_wsh) === 109 && blocking.has(String(o.status_wsh)))
+    .map(o => ({
+      start: new Date(o.start_date_wsh + 'T00:00:00').getTime(),
+      end: new Date(o.end_date_wsh + 'T00:00:00').getTime(),
+    }))
+  // 预约窗口 90 天（后端 booking.max-booking-days 默认 91，含首尾）
+  for (let n = 1; n <= 90; n++) {
+    const start = new Date(isoDate(n) + 'T00:00:00').getTime()
+    const end = new Date(isoDate(n + 1) + 'T00:00:00').getTime()
+    const overlaps = taken.some(w => start < w.end && end > w.start)
+    if (!overlaps) return { startDate: isoDate(n), endDate: isoDate(n + 1) }
+  }
+  throw new Error('近 90 天内无可用预约窗口')
 }
 
 async function login(page) {
@@ -49,12 +79,13 @@ test.describe('关店商家未来预约（浏览器端）', () => {
 
     await dialog.getByRole('button', { name: '商家位置' }).click()
 
+    const { startDate, endDate } = await freeBookingWindow(page)
     const dateInputs = dialog.locator('input[type="date"]')
     const slotSelects = dialog.locator('select')
-    await dateInputs.nth(0).fill(isoDate(1))
+    await dateInputs.nth(0).fill(startDate)
     await expect(slotSelects.nth(3)).toBeEnabled()
     await slotSelects.nth(3).selectOption({ index: 1 })
-    await dateInputs.nth(1).fill(isoDate(2))
+    await dateInputs.nth(1).fill(endDate)
     await expect(slotSelects.nth(4)).toBeEnabled()
     await slotSelects.nth(4).selectOption({ index: 1 })
 

@@ -1,6 +1,7 @@
 package com.pet.customer.controller;
 
 import com.pet.common.Result;
+import com.pet.customer.dto.ChatAgentAssignDTO;
 import com.pet.customer.dto.ChatMarkConversationReadRequestDTO;
 import com.pet.customer.dto.ChatMessageDTO;
 import com.pet.customer.dto.ChatSendRequestDTO;
@@ -67,6 +68,19 @@ public class ChatController {
                     token.getUserId(), isAdmin(token), orderId, otherUserId, beforeId, size));
         }
         return Result.success(chatService.getConversation(token.getUserId(), otherUserId, null, beforeId, size));
+    }
+
+    @PostMapping("/assign-agent")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "随机分配人工客服", description = "智能客服转人工时，从在线客服中随机分配一名，返回其用户信息用于直接发起聊天")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "暂无可用的在线客服"),
+        @ApiResponse(responseCode = "401", description = "未登录"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<ChatAgentAssignDTO> assignAgent(@AuthenticationPrincipal JwtAuthenticationToken token) {
+        return Result.success(chatService.assignCustomerServiceAgent(token.getUserId()));
     }
 
     @GetMapping("/unread")

@@ -37,6 +37,16 @@ public class TicketMessage {
     @Schema(description = "内容")
     private String content_wsh;
 
+    @JsonProperty("file_url_wsh")
+    @TableField(value = "file_url_wsh")
+    @Schema(description = "图片附件URL")
+    private String file_url_wsh;
+
+    @JsonProperty("is_read_wsh")
+    @TableField(value = "is_read_wsh")
+    @Schema(description = "是否已读")
+    private Integer is_read_wsh;
+
     @JsonIgnore
     @TableLogic
     @TableField(value = "deleted_wsh")

@@ -45,6 +45,21 @@ export async function deleteRagDocument(id) {
   return res.data
 }
 
+export async function getRagDocument(id) {
+  const res = await request.get(`/api/rag/documents/${id}`)
+  return res.data
+}
+
+export async function updateRagDocument(id, data) {
+  const res = await request.put(`/api/rag/documents/${id}`, data)
+  return res.data
+}
+
+export async function aiChat(data) {
+  const res = await request.post('/api/ai/chat', data)
+  return res.data
+}
+
 export async function executeAgent(data) {
   const res = await request.post('/api/agent/execute', data)
   return res.data

@@ -66,3 +66,23 @@ pet-admin/data/
 
 # 前端构建产物备份
 pet-admin/src/main/resources/static_backup/
+
+# 本地数据库文件
+/data/
+pet_service.mv.db
+
+# 编辑器内部缓存
+.freebuff/
+
+# 接口响应临时文件
+login_check.json
+resp.json
+resp.txt
+services.json
+
+# 页面快照
+header.png
+header-new.png
+
+# 临时备份
+*.java.fixed

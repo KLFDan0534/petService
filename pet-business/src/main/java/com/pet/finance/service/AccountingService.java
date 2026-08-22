@@ -45,6 +45,17 @@ public interface AccountingService {
                   String businessType, String businessId, String requestId, String description);
 
     /**
+     * 【业务名称】入账（带操作人）
+     * 业务作用：增加用户余额，并在流水中记录操作人用户 ID。
+     * 调用场景：管理员调账中的「增加余额」操作，用于审计追踪操作人。
+     * 注意事项：operatorId 仅用于记录『谁执行了本次操作』，目标用户仍为 userId。
+     *
+     * @return 入账后的钱包
+     */
+    Wallet credit(Long userId, BigDecimal amount, String type, Long orderId,
+                  String businessType, String businessId, String requestId, String description, Long operatorId);
+
+    /**
      * 【业务名称】出账
      * 业务作用：扣除用户余额，自动校验可用余额，记录流水并校验幂等。
      * 调用场景：用户消费、提现扣款等。
@@ -67,6 +78,17 @@ public interface AccountingService {
      */
     Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,
                  String businessType, String businessId, String requestId, String description);
+
+    /**
+     * 【业务名称】出账（带操作人）
+     * 业务作用：扣除用户余额，并在流水中记录操作人用户 ID。
+     * 调用场景：管理员调账中的「扣减余额」操作，用于审计追踪操作人。
+     * 注意事项：operatorId 仅用于记录『谁执行了本次操作』，目标用户仍为 userId。
+     *
+     * @return 出账后的钱包
+     */
+    Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,
+                 String businessType, String businessId, String requestId, String description, Long operatorId);
 
     /**
      * 【业务名称】用户间转账

@@ -19,8 +19,9 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/minio': {
-        target: 'http://localhost:80',
+        target: 'http://localhost:9000',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/minio/, ''),
       },
     },
   },

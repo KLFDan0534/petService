@@ -34,6 +34,10 @@ public class ServiceProductDetailVO {
     private BigDecimal price_wsh;
     @Schema(description = "计费单位")
     private String unit_wsh;
+    @Schema(description = "单次服务时长（分钟）")
+    private Integer duration_minutes_wsh;
+    @Schema(description = "预约模式：date_range（按日期区间）/ slot（按时长槽位）")
+    private String booking_mode_wsh;
     @Schema(description = "服务版本（由更新时间生成，供下单校验）")
     private String service_version_wsh;
     @Schema(description = "服务评分（无评价为 null）")

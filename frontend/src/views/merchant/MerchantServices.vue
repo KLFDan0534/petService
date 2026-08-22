@@ -55,7 +55,7 @@
             </div>
           </div>
           <span>{{ getCategoryName(service.category_id_wsh) }}</span>
-          <span>¥{{ service.price_wsh }} / {{ service.unit_wsh || '次' }}</span>
+          <span>¥{{ service.price_wsh }} / {{ unitLabel(service.unit_wsh) || '次' }}</span>
           <span :class="['badge', service.status_wsh === 1 ? 'badge-success' : 'badge-secondary']">
             {{ service.status_wsh === 1 ? '已上架' : '已下架' }}
           </span>
@@ -97,8 +97,27 @@
             </div>
             <div class="form-group">
               <label>计价单位</label>
-              <input v-model.trim="form.unit_wsh" maxlength="20" placeholder="天 / 次 / 小时">
+              <select data-testid="unit-select" :value="form.unit_wsh" @change="onUnitChange">
+                <option value="day">天</option>
+                <option value="session">次</option>
+                <option value="hour">小时</option>
+              </select>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label>单次服务时长（分钟）</label>
+            <input
+              data-testid="duration-input"
+              v-model.number="form.duration_minutes_wsh"
+              type="number"
+              min="15"
+              max="1440"
+              step="15"
+              :disabled="form.unit_wsh === 'day'"
+            >
+            <span v-if="durationError" data-testid="duration-error" class="field-error">{{ durationError }}</span>
+            <span v-else class="field-hint">{{ durationHint }}</span>
           </div>
 
           <div class="form-group">
@@ -171,6 +190,7 @@ import {
 } from '@/api/service'
 import { getServiceCategoryList } from '@/api/serviceCategory'
 import { uploadProductImage } from '@/api/file'
+import { normalizeUnit, defaultDurationMinutes, unitLabel } from '@/domain/BookingUnit'
 
 const MAX_MEDIA = 10
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -195,8 +215,32 @@ const form = reactive({
   category_id_wsh: null,
   description_wsh: '',
   price_wsh: null,
-  unit_wsh: '天',
+  unit_wsh: 'day',
+  duration_minutes_wsh: 1440,
   status_wsh: 1,
+})
+
+function onUnitChange(event) {
+  const unit = event.target.value
+  form.unit_wsh = unit
+  form.duration_minutes_wsh = defaultDurationMinutes(unit)
+}
+
+const durationError = computed(() => {
+  const unit = form.unit_wsh
+  const minutes = Number(form.duration_minutes_wsh)
+  if (!minutes || Number.isNaN(minutes)) return '请输入服务时长'
+  if (minutes < 15) return '时长不能少于 15 分钟'
+  if (minutes > 1440) return '时长不能超过 1440 分钟'
+  if (unit === 'hour' && minutes % 60 !== 0) return '按小时服务时长必须是 60 的整数倍'
+  return ''
+})
+
+const durationHint = computed(() => {
+  const unit = form.unit_wsh
+  if (unit === 'day') return '按天服务时长固定为 1440 分钟（1 天）'
+  if (unit === 'hour') return '必须是 60 的整数倍，范围 60..1440 分钟'
+  return '范围 15..1440 分钟'
 })
 
 const categoryOptions = computed(() => {
@@ -258,7 +302,8 @@ function resetForm() {
     category_id_wsh: null,
     description_wsh: '',
     price_wsh: null,
-    unit_wsh: '天',
+    unit_wsh: 'day',
+    duration_minutes_wsh: 1440,
     status_wsh: 1,
   })
   mediaItems.value = []
@@ -337,12 +382,14 @@ async function openEdit(service) {
       return
     }
     const detail = res.data
+    const rawUnit = normalizeUnit(detail.service_wsh?.unit_wsh) || 'day'
     Object.assign(form, {
       name_wsh: detail.service_wsh?.name_wsh || '',
       category_id_wsh: detail.service_wsh?.category_id_wsh ?? null,
       description_wsh: detail.service_wsh?.description_wsh || '',
       price_wsh: Number(detail.service_wsh?.price_wsh ?? 0),
-      unit_wsh: detail.service_wsh?.unit_wsh || '天',
+      unit_wsh: rawUnit,
+      duration_minutes_wsh: Number(detail.service_wsh?.duration_minutes_wsh) || defaultDurationMinutes(rawUnit),
       status_wsh: Number(detail.service_wsh?.status_wsh ?? 1),
     })
     const media = (detail.media_wsh || []).map(item => ({
@@ -472,6 +519,10 @@ function buildPayload() {
     appStore.addToast('请输入有效价格', 'error')
     return null
   }
+  if (durationError.value) {
+    appStore.addToast(durationError.value, 'error')
+    return null
+  }
   if (mediaItems.value.length && mediaItems.value.some(item => item.file_id_wsh == null)) {
     appStore.addToast('存在旧版图片，请移除后重新上传', 'error')
     return null
@@ -482,7 +533,8 @@ function buildPayload() {
     category_id_wsh: form.category_id_wsh,
     description_wsh: form.description_wsh,
     price_wsh: form.price_wsh,
-    unit_wsh: form.unit_wsh || '天',
+    unit_wsh: form.unit_wsh || 'day',
+    duration_minutes_wsh: Number(form.duration_minutes_wsh),
     media_wsh: mediaItems.value.map((item, index) => ({
       file_id_wsh: item.file_id_wsh,
       sort_order_wsh: index,
@@ -762,6 +814,24 @@ textarea {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 12px;
+}
+
+.field-hint {
+  display: block;
+  min-height: 18px;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.field-error {
+  display: block;
+  min-height: 18px;
+  color: var(--color-danger, #e5484d);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
 }
 
 .filter-count {

@@ -32,7 +32,7 @@ function onFileChange(e) {
 
 <style scoped>
 .profile-avatar-field {
-  border-bottom: 1px solid #eef0f3;
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 16px;
 }
 .avatar-upload-row {
@@ -43,9 +43,9 @@ function onFileChange(e) {
 .avatar-wrapper {
   width: 60px;
   height: 60px;
-  border-radius: 4px;
-  background: #3f51b5;
-  color: #ffffff;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -65,10 +65,10 @@ function onFileChange(e) {
   position: relative;
   height: 34px;
   padding: 0 14px;
-  border: 1px solid #3f51b5;
-  border-radius: 4px;
-  color: #3f51b5;
-  background: #ffffff;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+  background: var(--color-card);
   display: inline-flex;
   align-items: center;
   cursor: pointer;
@@ -83,6 +83,6 @@ function onFileChange(e) {
 .form-label {
   font-size: 13px;
   font-weight: 500;
-  color: #1f2329;
+  color: var(--color-foreground);
 }
 </style>

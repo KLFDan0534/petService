@@ -35,6 +35,21 @@ public interface TransactionService {
      */
     List<Transaction> listAll();
     /**
+     * 【业务名称】按类型查询交易记录（管理员用）
+     * 业务作用：按交易类型（如 recharge 充值、admin_adjust 余额调整）过滤查询全部交易记录。
+     * 调用场景：后台分别查看充值流水 / 余额调整记录。
+     * 调用链：TransactionService.listAllByType() → TransactionMapper.selectList()。
+     * 数据处理：type 为空则全量；否则按 type 精确匹配，按创建时间倒序。
+     * 业务规则：无。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：type 过滤用于运营对账。
+     *
+     * @param type 交易类型，可为 null（此时等价 listAll）
+     * @return 交易记录列表
+     */
+    List<Transaction> listAllByType(String type);
+    /**
      * 【业务名称】新增交易记录
      * 业务作用：新增一条交易记录，记录钱包余额变化前后的快照。
      * 调用场景：由 AccountingService 在每次资金变动时自动调用。

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonAlias;
 
 /**
  * 【通用分页请求参数】
@@ -40,4 +41,12 @@ public class PageRequestDTO {
     @Min(value = 1, message = "每页条数最小为1")
     @Max(value = 100, message = "每页条数最大为100")
     private int size = 10;
+
+    @Schema(description = "排序字段，如 id / balance / created")
+    @JsonAlias({"sort_by", "sortBy"})
+    private String sort_by_wsh;
+
+    @Schema(description = "排序方向，asc / desc")
+    @JsonAlias({"order", "sort_order", "orderBy"})
+    private String order_wsh;
 }

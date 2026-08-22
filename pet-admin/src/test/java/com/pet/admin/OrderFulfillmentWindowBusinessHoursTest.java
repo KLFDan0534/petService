@@ -26,6 +26,7 @@ import com.pet.order.mapper.OrderMapper;
 import com.pet.order.mapper.PaymentMapper;
 import com.pet.order.service.OrderSnapshotService;
 import com.pet.order.service.OrderStatusBroadcaster;
+import com.pet.customer.mapper.RatingMapper;
 import com.pet.order.service.impl.OrderServiceImpl;
 import com.pet.pet.entity.Pet;
 import com.pet.pet.mapper.PetMapper;
@@ -76,6 +77,7 @@ class OrderFulfillmentWindowBusinessHoursTest {
     @Mock private BusinessHoursService businessHoursService;
 
     private final BusinessHoursTargetResolver resolver = new BusinessHoursTargetResolver();
+    @Mock private RatingMapper ratingMapper;
 
     @Test
     void deliveryOutsideBusinessHoursIsRejectedAtCreation() {
@@ -93,6 +95,24 @@ class OrderFulfillmentWindowBusinessHoursTest {
         BusinessException error = assertThrows(BusinessException.class, () -> orderService().createOrder(7L, request));
         assertEquals(400, error.getCode());
         assertEquals("送达时间不在目标日期营业时段内", error.getMessage());
+    }
+
+    @Test
+    void pickupEarlierThanDeliveryIsRejectedAtCreation() {
+        // 用户场景：今天下午送、今天上午取 —— 取宠时间早于送宠时间，逻辑上不可能，必须拒绝。
+        LocalDate start = LocalDate.now().plusDays(1);
+        LocalDate end = start.plusDays(1);
+        PetOrderOverrides.stubCreationPath(petMapper, keeperMapper, merchantMapper,
+                merchantService, serviceItemMapper, qualificationService, orderMapper, start);
+
+        OrderCreateRequestDTO request = request(start, end);
+        // 显式构造"下午送、上午取（跨日但取宠时刻早于送宠时刻）"的脏数据
+        request.setDelivery_time_wsh(start.atTime(15, 0));
+        request.setPickup_time_wsh(start.atTime(9, 0));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> orderService().createOrder(7L, request));
+        assertEquals(400, error.getCode());
+        assertEquals("接宠时间必须在送宠时间之后", error.getMessage());
     }
 
     @Test
@@ -145,7 +165,7 @@ class OrderFulfillmentWindowBusinessHoursTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
     }
 
     /** Stubs the entity lookups needed before validateFulfillmentWindow executes. */

@@ -112,10 +112,14 @@ describe('优惠券和会员入口', () => {
     expect(benefitLinks.map(link => link.text())).toEqual([
       expect.stringContaining('我的优惠券'),
       expect.stringContaining('会员中心'),
+      expect.stringContaining('我的工单'),
+      expect.stringContaining('我的投诉'),
     ])
     expect(wrapper.findAllComponents(RouterLinkStub).map(link => link.props('to'))).toEqual([
       '/coupons',
       '/membership',
+      '/tickets',
+      '/complaints',
     ])
   })
 })

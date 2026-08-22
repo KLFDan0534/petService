@@ -195,7 +195,9 @@ CREATE TABLE `pet_service_wsh` (
   `type_wsh` varchar(50) DEFAULT NULL COMMENT '类型: boarding/grooming/training/walk',
   `description_wsh` text COMMENT '描述',
   `price_wsh` decimal(10,2) NOT NULL COMMENT '价格',
-  `unit_wsh` varchar(20) DEFAULT 'day' COMMENT '单位',
+  `unit_wsh` varchar(20) DEFAULT 'day' COMMENT '计费单位 day/session/hour',
+  `duration_minutes_wsh` int DEFAULT NULL COMMENT 'session/hour 单次时长(分钟)，day 为 1440',
+  `booking_mode_wsh` varchar(20) DEFAULT 'date_range' COMMENT '预约模式 date_range(day)/slot(session, hour)',
   `images_wsh` text COMMENT '图片URL',
   `status_wsh` tinyint DEFAULT '1' COMMENT '状态: 0-下架 1-上架',
   `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
@@ -257,8 +259,12 @@ CREATE TABLE `pet_order_wsh` (
   `service_id_wsh` bigint DEFAULT NULL COMMENT '服务项目ID',
   `start_date_wsh` date NOT NULL COMMENT '开始日期',
   `end_date_wsh` date NOT NULL COMMENT '结束日期',
-  `days_wsh` int NOT NULL COMMENT '天数',
-  `price_per_day_wsh` decimal(10,2) NOT NULL COMMENT '每天价格',
+  `days_wsh` int NOT NULL COMMENT '天数(day=计费数量, session/hour=1)',
+  `price_per_day_wsh` decimal(10,2) NOT NULL COMMENT '每天价格(兼容投影=unit_price_wsh)',
+  `billing_unit_wsh` varchar(20) DEFAULT 'day' COMMENT '计费单位快照 day/session/hour',
+  `quantity_wsh` int DEFAULT '1' COMMENT '计费数量: day=天数, session/hour=槽位数',
+  `unit_price_wsh` decimal(10,2) DEFAULT NULL COMMENT '单价快照(每个计费单位)',
+  `duration_minutes_wsh` int DEFAULT NULL COMMENT '下单时单个单位时长快照(分钟)',
   `total_amount_wsh` decimal(10,2) NOT NULL COMMENT '总金额',
   `discount_wsh` decimal(10,2) DEFAULT '0.00' COMMENT '折扣',
   `final_amount_wsh` decimal(10,2) NOT NULL COMMENT '实付金额',
@@ -457,10 +463,12 @@ CREATE TABLE `wallet_wsh` (
   `user_id_wsh` bigint NOT NULL COMMENT '用户ID',
   `balance_wsh` decimal(12,2) DEFAULT '0.00' COMMENT '余额',
   `frozen_amount_wsh` decimal(12,2) DEFAULT '0.00' COMMENT '冻结金额',
+  `version_wsh` int DEFAULT '0' COMMENT '乐观锁',
   `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
   `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id_wsh`)
+  PRIMARY KEY (`id_wsh`),
+  UNIQUE KEY `uk_wallet_user` (`user_id_wsh`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='钱包表';
 
 -- ===================================================================
@@ -473,12 +481,23 @@ CREATE TABLE `wallet_transaction_wsh` (
   `user_id_wsh` bigint NOT NULL COMMENT '用户ID',
   `type_wsh` varchar(20) DEFAULT 'income' COMMENT '类型: income-收入 expense-支出 withdraw-提现 refund-退款',
   `amount_wsh` decimal(12,2) NOT NULL COMMENT '金额',
+  `balance_before_wsh` decimal(12,2) DEFAULT NULL COMMENT '变动前余额',
   `balance_after_wsh` decimal(12,2) DEFAULT NULL COMMENT '变动后余额',
+  `frozen_before_wsh` decimal(12,2) DEFAULT NULL COMMENT '冻结前金额',
+  `frozen_after_wsh` decimal(12,2) DEFAULT NULL COMMENT '冻结后金额',
+  `direction_wsh` varchar(20) DEFAULT NULL COMMENT '方向: in-out-freeze-unfreeze-set',
+  `status_wsh` varchar(20) DEFAULT 'success' COMMENT '状态: pending-success-failed',
+  `business_type_wsh` varchar(50) DEFAULT NULL COMMENT '业务类型: payment-refund-settlement-withdraw-tip-admin_adjust',
+  `business_id_wsh` varchar(100) DEFAULT NULL COMMENT '业务ID',
+  `request_id_wsh` varchar(120) DEFAULT NULL COMMENT '幂等请求ID',
   `order_id_wsh` bigint DEFAULT NULL COMMENT '关联订单',
   `description_wsh` varchar(500) DEFAULT NULL COMMENT '描述',
   `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
   `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id_wsh`)
+  PRIMARY KEY (`id_wsh`),
+  UNIQUE KEY `uk_wallet_tx_request` (`request_id_wsh`),
+  KEY `idx_wallet_tx_user` (`user_id_wsh`),
+  KEY `idx_wallet_tx_business` (`business_type_wsh`, `business_id_wsh`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易流水表';
 
 -- ===================================================================
@@ -660,71 +679,6 @@ CREATE TABLE `content_review_wsh` (
 -- ===================================================================
 -- 注意: recycle_bin_wsh 在数据库中不存在，RecycleBinMapper使用动态表名直接操作各表的deleted_wsh字段
 -- 这是一个虚拟概念，不需要独立的表
-
--- ===================================================================
--- 32. 领养模块 - adoption_pet_wsh (领养宠物表)
--- ===================================================================
-DROP TABLE IF EXISTS `adoption_pet_wsh`;
-CREATE TABLE `adoption_pet_wsh` (
-  `id_wsh` bigint NOT NULL AUTO_INCREMENT COMMENT '领养宠物ID',
-  `merchant_id_wsh` bigint NOT NULL COMMENT '商家ID',
-  `name_wsh` varchar(50) NOT NULL COMMENT '宠物名称',
-  `type_wsh` varchar(30) DEFAULT NULL COMMENT '宠物类型',
-  `breed_wsh` varchar(100) DEFAULT NULL COMMENT '品种',
-  `age_wsh` int DEFAULT NULL COMMENT '年龄(月)',
-  `gender_wsh` varchar(10) DEFAULT NULL COMMENT '性别',
-  `weight_wsh` decimal(5,2) DEFAULT NULL COMMENT '体重(kg)',
-  `color_wsh` varchar(50) DEFAULT NULL COMMENT '颜色',
-  `health_status_wsh` varchar(500) DEFAULT NULL COMMENT '健康状况',
-  `vaccinated_wsh` tinyint DEFAULT '0' COMMENT '是否接种疫苗',
-  `sterilized_wsh` tinyint DEFAULT '0' COMMENT '是否绝育',
-  `personality_wsh` varchar(500) DEFAULT NULL COMMENT '性格',
-  `story_wsh` text COMMENT '救助故事',
-  `adoption_requirements_wsh` text COMMENT '领养要求',
-  `adoption_fee_wsh` decimal(10,2) DEFAULT '0.00' COMMENT '领养费',
-  `cover_image_wsh` varchar(500) DEFAULT NULL COMMENT '封面图片',
-  `images_wsh` varchar(2000) DEFAULT NULL COMMENT '图片(逗号分隔)',
-  `status_wsh` varchar(20) DEFAULT 'AVAILABLE' COMMENT '状态: AVAILABLE/APPLIED/ADOPTED',
-  `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
-  `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id_wsh`),
-  KEY `idx_merchant` (`merchant_id_wsh`) COMMENT '商家索引',
-  KEY `idx_status` (`status_wsh`) COMMENT '状态索引'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='领养宠物表';
-
--- ===================================================================
--- 33. 领养模块 - adoption_application_wsh (领养申请表)
--- ===================================================================
-DROP TABLE IF EXISTS `adoption_application_wsh`;
-CREATE TABLE `adoption_application_wsh` (
-  `id_wsh` bigint NOT NULL AUTO_INCREMENT COMMENT '申请ID',
-  `user_id_wsh` bigint NOT NULL COMMENT '申请人用户ID',
-  `pet_id_wsh` bigint NOT NULL COMMENT '领养宠物ID',
-  `merchant_id_wsh` bigint NOT NULL COMMENT '商家ID',
-  `applicant_name_wsh` varchar(50) NOT NULL COMMENT '申请人姓名',
-  `applicant_phone_wsh` varchar(20) NOT NULL COMMENT '申请人电话',
-  `applicant_address_wsh` varchar(500) NOT NULL COMMENT '家庭地址',
-  `housing_type_wsh` varchar(50) DEFAULT NULL COMMENT '住房类型',
-  `has_yard_wsh` tinyint DEFAULT '0' COMMENT '是否有院子',
-  `family_members_wsh` varchar(200) DEFAULT NULL COMMENT '家庭成员',
-  `pet_experience_wsh` text COMMENT '养宠经验',
-  `reason_wsh` text NOT NULL COMMENT '领养原因',
-  `economic_condition_wsh` varchar(200) DEFAULT NULL COMMENT '经济状况',
-  `agree_visit_wsh` tinyint DEFAULT '0' COMMENT '同意回访',
-  `merchant_status_wsh` varchar(20) DEFAULT NULL COMMENT '商家审核状态',
-  `merchant_remark_wsh` varchar(500) DEFAULT NULL COMMENT '商家审核备注',
-  `admin_status_wsh` varchar(20) DEFAULT NULL COMMENT '管理员审核状态',
-  `admin_remark_wsh` varchar(500) DEFAULT NULL COMMENT '管理员审核备注',
-  `status_wsh` varchar(20) DEFAULT 'PENDING' COMMENT '总体状态',
-  `deleted_wsh` tinyint DEFAULT '0' COMMENT '逻辑删除',
-  `created_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at_wsh` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id_wsh`),
-  KEY `idx_user` (`user_id_wsh`) COMMENT '用户索引',
-  KEY `idx_pet` (`pet_id_wsh`) COMMENT '宠物索引',
-  KEY `idx_status` (`status_wsh`) COMMENT '状态索引'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='领养申请表';
 
 -- ===================================================================
 -- 34. AI模块 - ai_report_wsh (AI报告表)

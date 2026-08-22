@@ -65,7 +65,7 @@
           <div><dt>订单号</dt><dd>{{ order.order_no_wsh || '-' }}</dd></div>
           <div><dt>下单时间</dt><dd>{{ formatTime(order.created_at_wsh) }}</dd></div>
           <div><dt>服务时间</dt><dd>{{ formatDate(order.start_date_wsh) }} 至 {{ formatDate(order.end_date_wsh) }}</dd></div>
-          <div><dt>服务天数</dt><dd>{{ order.days_wsh || '-' }} 天</dd></div>
+          <div><dt>服务数量</dt><dd>{{ billingText(order) || '-' }}</dd></div>
           <div><dt>总金额</dt><dd>￥{{ money(order.total_amount_wsh) }}</dd></div>
           <div><dt>优惠金额</dt><dd>￥{{ money(order.discount_wsh) }}</dd></div>
         </dl>
@@ -74,7 +74,7 @@
       <article class="card info-card">
         <div class="card-title">
           <span>服务信息</span>
-          <strong>￥{{ money(order.price_per_day_wsh) }}/天</strong>
+          <strong>￥{{ money(order.unit_price_wsh ?? order.price_per_day_wsh) }}/{{ unitLabel(order.billing_unit_wsh) }}</strong>
         </div>
         <dl class="fact-list">
           <div><dt>服务名称</dt><dd>{{ order.service_name_wsh || '-' }}</dd></div>

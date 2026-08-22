@@ -10,6 +10,7 @@ import com.pet.customer.entity.Ticket;
 import com.pet.customer.entity.TicketMessage;
 import com.pet.customer.mapper.TicketMapper;
 import com.pet.customer.mapper.TicketMessageMapper;
+import com.pet.customer.service.ChatEventBroadcaster;
 import com.pet.customer.service.MerchantCustomerServiceService;
 import com.pet.customer.service.impl.TicketServiceImpl;
 import com.pet.operation.service.NotificationService;
@@ -46,6 +47,7 @@ class TicketServiceTest {
     @Mock private OrderMapper orderMapper;
     @Mock private MerchantMapper merchantMapper;
     @Mock private MerchantCustomerServiceService merchantCustomerServiceService;
+    @Mock private ChatEventBroadcaster chatEventBroadcaster;
 
     @Test
     void orderTicketStoresOrderMerchant() {
@@ -129,7 +131,8 @@ class TicketServiceTest {
                 notificationService,
                 orderMapper,
                 merchantMapper,
-                merchantCustomerServiceService);
+                merchantCustomerServiceService,
+                chatEventBroadcaster);
     }
 
     private TicketCreateRequestDTO requestForOrder() {

@@ -9,8 +9,12 @@ import com.pet.customer.dto.ComplaintDTO;
 import com.pet.customer.dto.ComplaintEvidenceDTO;
 import com.pet.customer.entity.ChatMessage;
 import com.pet.customer.entity.Complaint;
+import com.pet.boarding.entity.Keeper;
+import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.customer.mapper.ChatMessageMapper;
 import com.pet.customer.mapper.ComplaintMapper;
+import com.pet.customer.mapper.ComplaintMessageMapper;
+import com.pet.customer.service.ChatEventBroadcaster;
 import com.pet.customer.service.MerchantCustomerServiceService;
 import com.pet.customer.service.impl.ComplaintServiceImpl;
 import com.pet.mq.MessageSender;
@@ -47,14 +51,17 @@ class ComplaintServiceTest {
     private static final long CUSTOMER_SERVICE_USER_ID = 40L;
 
     @Mock private ComplaintMapper complaintMapper;
+    @Mock private ComplaintMessageMapper complaintMessageMapper;
     @Mock private UserMapper userMapper;
     @Mock private NotificationService notificationService;
     @Mock private OrderMapper orderMapper;
     @Mock private ChatMessageMapper chatMessageMapper;
     @Mock private CareRecordMapper careRecordMapper;
     @Mock private MerchantMapper merchantMapper;
+    @Mock private KeeperMapper keeperMapper;
     @Mock private MerchantCustomerServiceService merchantCustomerServiceService;
     @Mock private MessageSender messageSender;
+    @Mock private ChatEventBroadcaster chatEventBroadcaster;
 
     @Test
     void orderComplaintRequiresOrderOwner() {
@@ -82,6 +89,10 @@ class ComplaintServiceTest {
 
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
         when(merchantMapper.selectById(MERCHANT_ID)).thenReturn(merchant(MERCHANT_ID));
+        Keeper keeper = new Keeper();
+        keeper.setId_wsh(20L);
+        keeper.setMerchant_id_wsh(MERCHANT_ID);
+        when(keeperMapper.selectById(20L)).thenReturn(keeper);
         when(chatMessageMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(3L);
         when(careRecordMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(2L);
         when(chatMessageMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(latestMessage);
@@ -184,14 +195,17 @@ class ComplaintServiceTest {
     private ComplaintServiceImpl service() {
         return new ComplaintServiceImpl(
                 complaintMapper,
+                complaintMessageMapper,
                 userMapper,
                 notificationService,
                 orderMapper,
                 chatMessageMapper,
                 careRecordMapper,
                 merchantMapper,
+                keeperMapper,
                 merchantCustomerServiceService,
-                messageSender);
+                messageSender,
+                chatEventBroadcaster);
     }
 
     private ComplaintCreateRequestDTO requestForOrder() {

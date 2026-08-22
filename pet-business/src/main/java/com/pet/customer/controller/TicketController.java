@@ -1,12 +1,12 @@
 package com.pet.customer.controller;
 
-import com.pet.common.PageRequestDTO;
 import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.customer.dto.TicketAddMessageRequestDTO;
 import com.pet.customer.dto.TicketAssignRequestDTO;
 import com.pet.customer.dto.TicketCreateRequestDTO;
 import com.pet.customer.dto.TicketDTO;
+import com.pet.customer.dto.TicketListRequestDTO;
 import com.pet.customer.dto.TicketMessageDTO;
 import com.pet.customer.dto.TicketResolveRequestDTO;
 import com.pet.customer.service.TicketService;
@@ -64,7 +64,7 @@ public class TicketController {
     })
     public Result<PageResult<TicketDTO>> listAll(
             @AuthenticationPrincipal JwtAuthenticationToken token,
-            @Parameter(description = "分页请求") PageRequestDTO pageParam) {
+            @Parameter(description = "分页及筛选请求") TicketListRequestDTO pageParam) {
         return Result.success(new PageResult<>(ticketService.listPageForStaff(
                 pageParam,
                 token.getUserId(),
@@ -227,7 +227,8 @@ public class TicketController {
                 hasRole(token, "ADMIN"),
                 hasRole(token, "MERCHANT"),
                 hasRole(token, "CUSTOMER_SERVICE"),
-                request.getContent_wsh()));
+                request.getContent_wsh(),
+                request.getFile_url_wsh()));
     }
 
     private boolean hasRole(JwtAuthenticationToken token, String role) {

@@ -34,4 +34,18 @@ public interface RatingMapper extends BaseMapper<Rating> {
             "</script>")
     List<Map<String, Object>> aggregateByTargets(@Param("targetType") String targetType,
                                                  @Param("targetIds") Collection<Long> targetIds);
+
+    /**
+     * 批量查询已有评价的订单ID（用于订单列表展示"待反馈/已评价"状态）
+     *
+     * @param orderIds 订单ID集合
+     * @return 已有评价的订单ID列表
+     */
+    @Select("<script>" +
+            "SELECT DISTINCT order_id_wsh FROM rating_wsh " +
+            "WHERE deleted_wsh = 0 AND order_id_wsh IS NOT NULL " +
+            "AND order_id_wsh IN " +
+            "<foreach collection='orderIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>" +
+            "</script>")
+    List<Long> selectOrderIdsWithRatings(@Param("orderIds") Collection<Long> orderIds);
 }

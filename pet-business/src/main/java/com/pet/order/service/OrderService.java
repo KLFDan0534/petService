@@ -4,6 +4,7 @@ import com.pet.order.dto.OrderCreateRequestDTO;
 import com.pet.order.dto.OrderDeliveredRequestDTO;
 import com.pet.order.dto.OrderDTO;
 import com.pet.order.dto.OrderReceivedRequestDTO;
+import com.pet.order.dto.OrderBatchCreateRequestDTO;
 import com.pet.order.entity.PetOrder;
 import java.util.List;
 
@@ -276,6 +277,26 @@ public interface OrderService {
      * @return 创建成功的增强订单DTO
      */
     OrderDTO createOrder(Long ownerId, OrderCreateRequestDTO request);
+
+    /**
+     * 【批量创建订单（多宠物连续下单）】
+     *
+     * 业务作用：
+     * 在一个事务内为多个宠物分别创建独立订单（每单一只宠物，各自日期区间），
+     * 任一订单失败整批回滚。共享校验（服务/商家/看护人/单位/价格/版本）只执行一次；
+     * 容量校验沿用单笔路径，利用同事务读己之写保证批次内部互相挤占不被漏检。
+     *
+     * 业务规则：
+     * 1. 仅支持 day 单位服务；items 数量 2..10
+     * 2. 每只宠物必须属于当前用户，同一宠物重叠区间被拒（不重叠允许）
+     * 3. 优惠券只应用于批次中 baseAmount 最大的订单（并列取 items 顺序靠前者）
+     * 4. 创建后每单状态为 PENDING，各自独立支付
+     *
+     * @param ownerId 宠物主人的用户ID
+     * @param request 批量订单创建请求
+     * @return 按 items 顺序的创建成功订单DTO列表
+     */
+    List<OrderDTO> createOrders(Long ownerId, OrderBatchCreateRequestDTO request);
     /**
      * 【根据订单ID取消订单】
      *

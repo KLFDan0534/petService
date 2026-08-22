@@ -18,6 +18,7 @@ import com.pet.boarding.service.BusinessHoursTargetResolver;
 import com.pet.boarding.service.KeeperLeaveService;
 import com.pet.boarding.service.ServiceAvailabilityService;
 import com.pet.common.BookingErrorCode;
+import com.pet.common.BookingUnit;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.common.ServiceVersions;
@@ -35,7 +36,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -51,10 +54,10 @@ import java.util.Set;
 @Slf4j
 public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityService {
 
-    /** 单次查询最大天数（含首尾） */
-    public static final int MAX_RANGE_DAYS = 31;
-
     private static final DateTimeFormatter SLOT_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
+    /** 预约窗口默认天数（含首尾，与 application.yml booking.max-booking-days 默认值一致） */
+    static final int DEFAULT_MAX_BOOKING_DAYS = 91;
 
     /** 与下单容量校验一致的进行中订单状态集合 */
     private static final Set<String> BOOKING_STATUSES = Set.of(
@@ -72,6 +75,7 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     private final KeeperLeaveService keeperLeaveService;
     private final QualificationService qualificationService;
     private final int slotMinutes;
+    private final int maxBookingDays;
 
     public ServiceAvailabilityServiceImpl(ServiceItemMapper serviceItemMapper,
                                           MerchantMapper merchantMapper,
@@ -82,7 +86,8 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
                                           BusinessHoursTargetResolver resolver,
                                           KeeperLeaveService keeperLeaveService,
                                           QualificationService qualificationService,
-                                          @Value("${booking.slot-minutes:30}") int slotMinutes) {
+                                          @Value("${booking.slot-minutes:30}") int slotMinutes,
+                                          @Value("${booking.max-booking-days:91}") int maxBookingDays) {
         this.serviceItemMapper = serviceItemMapper;
         this.merchantMapper = merchantMapper;
         this.categoryMapper = categoryMapper;
@@ -93,11 +98,12 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         this.keeperLeaveService = keeperLeaveService;
         this.qualificationService = qualificationService;
         this.slotMinutes = slotMinutes;
+        this.maxBookingDays = maxBookingDays > 0 ? maxBookingDays : DEFAULT_MAX_BOOKING_DAYS;
     }
 
     @Override
     public ServiceAvailabilityVO getAvailability(Long serviceId, LocalDate from, LocalDate to, Long keeperId) {
-        validateRange(from, to);
+        LocalDate effectiveTo = clampRange(from, to);
         if (serviceId == null || serviceId <= 0) {
             throw new BusinessException(400, BookingErrorCode.INVALID_PRODUCT_ID, "服务ID必须为正数");
         }
@@ -111,23 +117,38 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         String scheduleSource = hours == null || hours.isEmpty() ? "legacy_unrestricted" : "business_hours";
 
         List<DayAvailabilityVO> days = new ArrayList<>();
-        for (LocalDate date = from; !date.isAfter(to); date = date.plusDays(1)) {
-            days.add(buildDay(date, hours, scheduleSource, keeper));
+        String unit = normalizeServiceUnit(service);
+        int durationMinutes = BookingUnit.resolveDurationMinutes(unit, service.getDuration_minutes_wsh());
+        // 看护人容量按窗口一次性加载并内存计数，避免逐日 N+1 查询（窗口放大后查询次数保持恒定）。
+        Map<LocalDate, Integer> capacityByDate = keeper == null
+                ? Map.of()
+                : loadCapacityCountByDate(keeper, from, effectiveTo);
+        for (LocalDate date = from; !date.isAfter(effectiveTo); date = date.plusDays(1)) {
+            days.add(buildDay(date, hours, scheduleSource, keeper, unit, durationMinutes, capacityByDate));
         }
 
         ServiceAvailabilityVO vo = new ServiceAvailabilityVO();
         vo.setService_id_wsh(service.getId_wsh());
         vo.setMerchant_id_wsh(merchant.getId_wsh());
         vo.setService_version_wsh(formatVersion(service.getUpdated_at_wsh()));
+        vo.setUnit_wsh(unit);
+        vo.setBooking_mode_wsh(BookingUnit.bookingMode(unit));
+        vo.setDuration_minutes_wsh(durationMinutes);
+        vo.setPrice_wsh(service.getPrice_wsh());
         vo.setTimezone_wsh(BusinessHoursTargetResolver.ZONE.getId());
         vo.setSlot_minutes_wsh(slotMinutes);
         vo.setSchedule_source_wsh(scheduleSource);
         vo.setGenerated_at_wsh(LocalDateTime.now(BusinessHoursTargetResolver.ZONE));
+        vo.setBooking_window_days_wsh(maxBookingDays);
         vo.setDays_wsh(days);
         return vo;
     }
 
-    private void validateRange(LocalDate from, LocalDate to) {
+    /**
+     * 校验并收敛查询范围：拒绝空/过去/倒置日期；请求范围超过预约窗口时
+     * 按 booking.max-booking-days 收敛到窗口内（响应通过 booking_window_days_wsh 告知窗口）。
+     */
+    private LocalDate clampRange(LocalDate from, LocalDate to) {
         if (from == null || to == null) {
             throw new BusinessException(400, BookingErrorCode.AVAILABILITY_RANGE_INVALID, "可用性查询日期不能为空");
         }
@@ -137,9 +158,10 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         if (to.isBefore(from)) {
             throw new BusinessException(400, BookingErrorCode.AVAILABILITY_RANGE_INVALID, "结束日期不能早于起始日期");
         }
-        if (ChronoUnit.DAYS.between(from, to) + 1 > MAX_RANGE_DAYS) {
-            throw new BusinessException(400, BookingErrorCode.AVAILABILITY_RANGE_INVALID, "查询范围不能超过" + MAX_RANGE_DAYS + "天");
+        if (ChronoUnit.DAYS.between(from, to) + 1 > maxBookingDays) {
+            return from.plusDays(maxBookingDays - 1);
         }
+        return to;
     }
 
     private ServiceItem requireVisibleService(Long serviceId) {
@@ -207,7 +229,9 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         return keeper;
     }
 
-    private DayAvailabilityVO buildDay(LocalDate date, List<BusinessHours> hours, String scheduleSource, Keeper keeper) {
+    private DayAvailabilityVO buildDay(LocalDate date, List<BusinessHours> hours, String scheduleSource,
+                                       Keeper keeper, String unit, int durationMinutes,
+                                       Map<LocalDate, Integer> capacityByDate) {
         List<BusinessHoursTargetResolver.BusinessWindow> windows = "legacy_unrestricted".equals(scheduleSource)
                 ? List.of(new BusinessHoursTargetResolver.BusinessWindow(
                         date.atStartOfDay(), date.plusDays(1).atStartOfDay()))
@@ -223,7 +247,7 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
                 bookable = false;
                 reasonCode = BookingErrorCode.KEEPER_ON_LEAVE;
                 windows = List.of();
-            } else if (keeperCapacityFull(keeper, date)) {
+            } else if (isDayAtCapacity(keeper, date, capacityByDate)) {
                 bookable = false;
                 reasonCode = BookingErrorCode.CAPACITY_EXCEEDED;
                 windows = List.of();
@@ -234,43 +258,99 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         day.setDate_wsh(date);
         day.setBookable_wsh(bookable);
         day.setReason_code_wsh(reasonCode);
-        day.setWindows_wsh(toWindowVOs(windows));
+        day.setWindows_wsh(toWindowVOs(windows, unit, durationMinutes));
         return day;
     }
 
-    private boolean keeperCapacityFull(Keeper keeper, LocalDate date) {
+    /**
+     * 一次性加载看护人在查询窗口内的全部有效订单，按天累加占用数（半开区间 [start,end)）。
+     * 与原逐日 selectCount 判定等价，但查询次数与窗口天数解耦。
+     */
+    private Map<LocalDate, Integer> loadCapacityCountByDate(Keeper keeper, LocalDate from, LocalDate to) {
+        List<PetOrder> overlapping = orderMapper.selectList(new LambdaQueryWrapper<PetOrder>()
+                .eq(PetOrder::getKeeper_id_wsh, keeper.getId_wsh())
+                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
+                .lt(PetOrder::getStart_date_wsh, to.plusDays(1))
+                .gt(PetOrder::getEnd_date_wsh, from.minusDays(1)));
+        Map<LocalDate, Integer> counts = new HashMap<>();
+        for (PetOrder order : overlapping) {
+            LocalDate start = order.getStart_date_wsh();
+            LocalDate end = order.getEnd_date_wsh();
+            if (start == null || end == null) {
+                continue;
+            }
+            LocalDate d = start.isAfter(from) ? start : from;
+            LocalDate limit = end.isBefore(to.plusDays(1)) ? end : to.plusDays(1);
+            while (d.isBefore(limit)) {
+                counts.merge(d, 1, Integer::sum);
+                d = d.plusDays(1);
+            }
+        }
+        return counts;
+    }
+
+    private boolean isDayAtCapacity(Keeper keeper, LocalDate date, Map<LocalDate, Integer> capacityByDate) {
         Integer maxPets = keeper.getMax_pets_wsh();
         if (maxPets == null || maxPets <= 0) {
             return true;
         }
-        Long count = orderMapper.selectCount(new LambdaQueryWrapper<PetOrder>()
-                .eq(PetOrder::getKeeper_id_wsh, keeper.getId_wsh())
-                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
-                .lt(PetOrder::getStart_date_wsh, date.plusDays(1))
-                .gt(PetOrder::getEnd_date_wsh, date));
-        return count != null && count >= maxPets;
+        return capacityByDate.getOrDefault(date, 0) >= maxPets;
     }
 
-    private List<AvailabilityWindowVO> toWindowVOs(List<BusinessHoursTargetResolver.BusinessWindow> windows) {
+    private List<AvailabilityWindowVO> toWindowVOs(List<BusinessHoursTargetResolver.BusinessWindow> windows,
+                                                   String unit, int durationMinutes) {
         List<AvailabilityWindowVO> vos = new ArrayList<>(windows.size());
         for (BusinessHoursTargetResolver.BusinessWindow w : windows) {
             AvailabilityWindowVO vo = new AvailabilityWindowVO();
             vo.setStart_wsh(w.start());
             vo.setEnd_wsh(w.end());
-            vo.setSlots_wsh(generateSlots(w.start(), w.end()));
+            vo.setSlots_wsh(generateSlots(w.start(), w.end(), unit, durationMinutes));
             vos.add(vo);
         }
         return vos;
     }
 
-    private List<String> generateSlots(LocalDateTime windowStart, LocalDateTime windowEnd) {
+    /**
+     * 生成可选起始时间。slot 模式（session/hour）只暴露“完整服务时长能落进
+     * 该窗口”的起始槽位：仅当 start + duration <= end 才可选，避免选择后才发现
+     * 时长覆盖不完整。day 模式保持与旧接口一致的槽位列表。
+     * hour 单位的起始槽位必须对齐整点（按 60 分钟步进），保证“连续整数小时”。
+     */
+    private List<String> generateSlots(LocalDateTime windowStart, LocalDateTime windowEnd,
+                                       String unit, int durationMinutes) {
         List<String> slots = new ArrayList<>();
+        boolean slotMode = BookingUnit.MODE_SLOT.equals(BookingUnit.bookingMode(unit));
+        int stepMinutes = BookingUnit.HOUR.equals(unit) ? 60 : slotMinutes;
         LocalDateTime t = windowStart;
+        if (BookingUnit.HOUR.equals(unit)) {
+            // 整点对齐：即使窗口开在非整点(如 09:30)，第一个可选起始也顺延到下一个整点。
+            LocalDateTime aligned = windowStart.withMinute(0).withSecond(0).withNano(0);
+            if (aligned.isBefore(windowStart)) {
+                aligned = aligned.plusHours(1);
+            }
+            t = aligned;
+        }
         while (t.isBefore(windowEnd)) {
-            slots.add(t.format(SLOT_FORMATTER));
-            t = t.plusMinutes(slotMinutes);
+            if (!slotMode || !t.plusMinutes(durationMinutes).isAfter(windowEnd)) {
+                slots.add(t.format(SLOT_FORMATTER));
+            }
+            t = t.plusMinutes(stepMinutes);
         }
         return slots;
+    }
+
+    /** 服务单位归属校验：未知/无法解析的单位不允许参与预约；历史空单位按 day 兼容。 */
+    private String normalizeServiceUnit(ServiceItem service) {
+        String unit = BookingUnit.normalize(service.getUnit_wsh());
+        if (unit == null) {
+            if (service.getUnit_wsh() == null || service.getUnit_wsh().isBlank()) {
+                // 历史数据 unit_wsh 为空 → 按 day 语义兼容（与 OrderServiceImpl 保持一致）
+                return BookingUnit.DAY;
+            }
+            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
+                    "服务计费单位不受支持，无法预约");
+        }
+        return unit;
     }
 
     private String formatVersion(LocalDateTime updatedAt) {

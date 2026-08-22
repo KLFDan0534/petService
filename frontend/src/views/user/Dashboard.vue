@@ -62,7 +62,7 @@
     <section id="services" class="landing-section services-section" aria-labelledby="services-title">
       <div class="section-heading">
         <div>
-          <span class="section-kicker">Services</span>
+          <span class="section-kicker">服务方案</span>
           <h2 id="services-title">为爱宠准备的服务方案</h2>
         </div>
         <div class="section-heading-action">
@@ -113,7 +113,8 @@
               </div>
               <div class="service-price">
                 <strong>¥{{ formatMoney(service.price_wsh) }}</strong>
-                <span>/ {{ service.unit_wsh || '次' }}</span>
+                <span>/ {{ unitLabel(service.unit_wsh) || '次' }}</span>
+                <em v-if="service.distance_m_wsh != null" class="service-distance">{{ formatServiceDistance(service.distance_m_wsh) }}</em>
               </div>
             </div>
             <p>{{ service.description_wsh || '为爱宠提供稳定、细致的日常照护。' }}</p>
@@ -142,7 +143,7 @@
       <div class="section-inner">
         <div class="section-heading">
           <div>
-            <span class="section-kicker">Care moments</span>
+            <span class="section-kicker">照护瞬间</span>
             <h2 id="gallery-title">每一处细节，都值得被看见</h2>
           </div>
           <p>服务现场的真实图片来自平台已有服务资料，照护前先了解你将选择的环境。</p>
@@ -176,7 +177,7 @@
     <section id="testimonials" class="landing-section testimonials-section" aria-labelledby="testimonials-title">
       <div class="section-heading">
         <div>
-          <span class="section-kicker">Pet parents</span>
+          <span class="section-kicker">宠物家长</span>
           <h2 id="testimonials-title">来自真实订单的反馈</h2>
         </div>
         <p>只展示平台已有评价，让每一句体验都能追溯到具体的服务伙伴。</p>
@@ -227,7 +228,7 @@
     <section id="booking" class="landing-band booking-band" aria-labelledby="booking-title">
       <div class="section-inner booking-inner">
         <div class="booking-copy">
-          <span class="section-kicker">Book a care day</span>
+          <span class="section-kicker">预约好时光</span>
           <h2 id="booking-title">给爱宠安排下一次好时光</h2>
           <p>选定服务后，订单页面会继续补充宠物、商家、看护员和时间信息。</p>
           <div class="booking-proof-list">
@@ -246,7 +247,7 @@
           <select id="quick-service" v-model="selectedServiceId">
             <option value="" disabled>请选择服务方案</option>
             <option v-for="service in services" :key="service.id_wsh" :value="String(service.id_wsh)">
-              {{ service.name_wsh }} · ¥{{ formatMoney(service.price_wsh) }}/{{ service.unit_wsh || '次' }}
+              {{ service.name_wsh }} · ¥{{ formatMoney(service.price_wsh) }}/{{ unitLabel(service.unit_wsh) || '次' }}
             </option>
           </select>
           <div class="quick-booking-summary" aria-live="polite">
@@ -260,25 +261,6 @@
         </form>
       </div>
     </section>
-
-    <footer class="landing-footer">
-      <div class="footer-inner">
-        <div class="footer-brand">
-          <router-link to="/dashboard" class="footer-logo">
-            <span class="brand-mark"><el-icon aria-hidden="true"><House /></el-icon></span>
-            <span>宠物寄养平台</span>
-          </router-link>
-          <p>让每一次托付，都有清晰的服务和温柔的回应。</p>
-        </div>
-        <nav class="footer-links" aria-label="平台导航">
-          <router-link to="/services">预约服务</router-link>
-          <router-link to="/merchants">附近商户</router-link>
-          <router-link to="/orders">我的订单</router-link>
-          <router-link to="/profile">个人中心</router-link>
-        </nav>
-        <p class="footer-meta">© {{ currentYear }} 宠物寄养平台</p>
-      </div>
-    </footer>
   </div>
 </template>
 
@@ -310,10 +292,13 @@ import { useAppStore } from '@/stores/app'
 import request from '@/utils/request'
 import BannerCarousel from '@/components/dashboard/BannerCarousel.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
+import { unitLabel } from '@/domain/BookingUnit'
+import { useServiceDistance, formatServiceDistance } from '@/composables/useServiceDistance'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const { attachDistances } = useServiceDistance()
 
 const services = ref([])
 const banners = ref([])
@@ -364,7 +349,6 @@ const averageRatingDisplay = computed(() => {
   if (!scores.length) return '暂无'
   return (scores.reduce((total, score) => total + score, 0) / scores.length).toFixed(1)
 })
-const currentYear = new Date().getFullYear()
 
 const normalizedServiceType = service => service?.type_wsh || service?.type || ''
 
@@ -448,6 +432,8 @@ async function loadCommunity() {
     const [merchantResponse, keeperResponse] = await Promise.all([getMerchants(), getKeepers()])
     merchants.value = normalizeList(merchantResponse?.data)
     providers.value = normalizeList(keeperResponse?.data)
+    // 服务卡片距离：用户位置 + 商家地址均走高德（不依赖本地经纬度）
+    void attachDistances(services.value, merchants.value)
 
     const serviceMerchantIds = new Set(services.value.map(service => service.merchant_id_wsh).filter(Boolean))
     const relevantMerchants = merchants.value
@@ -952,6 +938,19 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
+.service-distance {
+  display: block;
+  width: fit-content;
+  margin: 6px 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--package-accent) 14%, transparent);
+  color: var(--package-accent);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .service-package-body > p {
   display: -webkit-box;
   min-height: 68px;
@@ -1350,74 +1349,6 @@ onUnmounted(() => {
   width: 100%;
 }
 
-.landing-footer {
-  width: calc(100% + 48px);
-  margin-left: -24px;
-  padding: 38px 0 30px;
-  color: #d8e5e1;
-  background: #182528;
-}
-
-.footer-inner {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto auto;
-  align-items: center;
-  gap: 32px;
-}
-
-.footer-logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  color: #fff;
-  font-family: Fredoka, 'Nunito', 'Microsoft YaHei', sans-serif;
-  font-size: 19px;
-  font-weight: 700;
-}
-
-.brand-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  color: #21150d;
-  background: var(--landing-orange);
-  border-radius: 11px;
-}
-
-.footer-brand p {
-  max-width: 310px;
-  margin-top: 12px;
-  color: #aebfbb;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.footer-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 8px 18px;
-}
-
-.footer-links a {
-  min-height: 44px;
-  padding: 10px 0;
-  color: #d8e5e1;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.footer-links a:hover {
-  color: #ffc18e;
-}
-
-.footer-meta {
-  color: #8da09b;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 @media (max-width: 1100px) {
   .landing-hero,
   .hero-inner {
@@ -1436,14 +1367,6 @@ onUnmounted(() => {
   .booking-inner {
     gap: 40px;
   }
-
-  .footer-inner {
-    grid-template-columns: 1fr auto;
-  }
-
-  .footer-meta {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 720px) {
@@ -1458,14 +1381,12 @@ onUnmounted(() => {
 
   .hero-inner,
   .section-inner,
-  .booking-inner,
-  .footer-inner {
+  .booking-inner {
     width: min(100% - 32px, 1320px);
   }
 
   .landing-hero,
-  .landing-band,
-  .landing-footer {
+  .landing-band {
     width: calc(100% + 32px);
     margin-left: -16px;
   }

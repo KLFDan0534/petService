@@ -9,11 +9,13 @@ import com.pet.common.BusinessException;
 import com.pet.common.PageRequestDTO;
 import com.pet.customer.dto.TicketCreateRequestDTO;
 import com.pet.customer.dto.TicketDTO;
+import com.pet.customer.dto.TicketListRequestDTO;
 import com.pet.customer.dto.TicketMessageDTO;
 import com.pet.customer.entity.Ticket;
 import com.pet.customer.entity.TicketMessage;
 import com.pet.customer.mapper.TicketMapper;
 import com.pet.customer.mapper.TicketMessageMapper;
+import com.pet.customer.service.ChatEventBroadcaster;
 import com.pet.customer.service.MerchantCustomerServiceService;
 import com.pet.customer.service.TicketService;
 import com.pet.operation.entity.Notification;
@@ -26,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -47,6 +50,7 @@ public class TicketServiceImpl implements TicketService {
     private final OrderMapper orderMapper;
     private final MerchantMapper merchantMapper;
     private final MerchantCustomerServiceService merchantCustomerServiceService;
+    private final ChatEventBroadcaster chatEventBroadcaster;
 
     public TicketServiceImpl(TicketMapper ticketMapper,
                              TicketMessageMapper ticketMessageMapper,
@@ -54,7 +58,8 @@ public class TicketServiceImpl implements TicketService {
                              NotificationService notificationService,
                              OrderMapper orderMapper,
                              MerchantMapper merchantMapper,
-                             MerchantCustomerServiceService merchantCustomerServiceService) {
+                             MerchantCustomerServiceService merchantCustomerServiceService,
+                             ChatEventBroadcaster chatEventBroadcaster) {
         this.ticketMapper = ticketMapper;
         this.ticketMessageMapper = ticketMessageMapper;
         this.userMapper = userMapper;
@@ -62,6 +67,7 @@ public class TicketServiceImpl implements TicketService {
         this.orderMapper = orderMapper;
         this.merchantMapper = merchantMapper;
         this.merchantCustomerServiceService = merchantCustomerServiceService;
+        this.chatEventBroadcaster = chatEventBroadcaster;
     }
 
     /**
@@ -113,9 +119,13 @@ public class TicketServiceImpl implements TicketService {
      */
     @Override
     public IPage<TicketDTO> listPage(PageRequestDTO pageParam) {
+        LambdaQueryWrapper<Ticket> wrapper = new LambdaQueryWrapper<Ticket>()
+                .orderByDesc(Ticket::getCreated_at_wsh);
+        if (pageParam instanceof TicketListRequestDTO ticketParam) {
+            applyTicketFilters(wrapper, ticketParam);
+        }
         Page<Ticket> page = new Page<>(pageParam.getPage(), pageParam.getSize());
-        IPage<Ticket> result = ticketMapper.selectPage(page,
-                new LambdaQueryWrapper<Ticket>().orderByDesc(Ticket::getCreated_at_wsh));
+        IPage<Ticket> result = ticketMapper.selectPage(page, wrapper);
         Page<TicketDTO> dtoPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
         dtoPage.setRecords(toDTOList(result.getRecords()));
         return dtoPage;
@@ -133,7 +143,7 @@ public class TicketServiceImpl implements TicketService {
      * 注意事项：无。
      */
     @Override
-    public IPage<TicketDTO> listPageForStaff(PageRequestDTO pageParam, Long staffUserId,
+    public IPage<TicketDTO> listPageForStaff(TicketListRequestDTO pageParam, Long staffUserId,
                                              boolean admin, boolean merchant, boolean customerService) {
         if (admin) {
             return listPage(pageParam);
@@ -145,13 +155,55 @@ public class TicketServiceImpl implements TicketService {
             return emptyPage;
         }
         Page<Ticket> page = new Page<>(pageParam.getPage(), pageParam.getSize());
-        IPage<Ticket> result = ticketMapper.selectPage(page,
-                new LambdaQueryWrapper<Ticket>()
-                        .in(Ticket::getMerchant_id_wsh, merchantIds)
-                        .orderByDesc(Ticket::getCreated_at_wsh));
+        IPage<Ticket> result = ticketMapper.selectPage(page, buildFilterWrapper(pageParam, merchantIds));
         Page<TicketDTO> dtoPage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
         dtoPage.setRecords(toDTOList(result.getRecords()));
         return dtoPage;
+    }
+
+    /**
+     * 【业务名称】构建工单筛选查询条件（实现）
+     * 业务作用：根据筛选参数与可见商家范围构建工单查询条件。
+     * 调用场景：客服/商家/管理员筛选工单列表。
+     * 数据处理：支持状态、分类、优先级、处理人、商家、关键字筛选。
+     * 业务规则：可见商家范围为空时不构建查询（调用方提前返回空页）。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：关键字对标题/内容做 LIKE 模糊匹配。
+     */
+    private LambdaQueryWrapper<Ticket> buildFilterWrapper(TicketListRequestDTO pageParam, Set<Long> merchantIds) {
+        LambdaQueryWrapper<Ticket> wrapper = new LambdaQueryWrapper<Ticket>()
+                .in(Ticket::getMerchant_id_wsh, merchantIds)
+                .orderByDesc(Ticket::getCreated_at_wsh);
+        applyTicketFilters(wrapper, pageParam);
+        return wrapper;
+    }
+
+    private void applyTicketFilters(LambdaQueryWrapper<Ticket> wrapper, TicketListRequestDTO pageParam) {
+        if (pageParam == null) {
+            return;
+        }
+        if (pageParam.getStatus_wsh() != null && !pageParam.getStatus_wsh().isBlank()) {
+            wrapper.eq(Ticket::getStatus_wsh, pageParam.getStatus_wsh().trim());
+        }
+        if (pageParam.getCategory_wsh() != null && !pageParam.getCategory_wsh().isBlank()) {
+            wrapper.eq(Ticket::getCategory_wsh, pageParam.getCategory_wsh().trim());
+        }
+        if (pageParam.getPriority_wsh() != null && !pageParam.getPriority_wsh().isBlank()) {
+            wrapper.eq(Ticket::getPriority_wsh, pageParam.getPriority_wsh().trim());
+        }
+        if (pageParam.getAssignee_id_wsh() != null) {
+            wrapper.eq(Ticket::getAssignee_id_wsh, pageParam.getAssignee_id_wsh());
+        }
+        if (pageParam.getMerchant_id_wsh() != null) {
+            wrapper.eq(Ticket::getMerchant_id_wsh, pageParam.getMerchant_id_wsh());
+        }
+        if (pageParam.getKeyword() != null && !pageParam.getKeyword().isBlank()) {
+            String kw = pageParam.getKeyword().trim();
+            wrapper.and(w -> w.like(Ticket::getTitle_wsh, kw)
+                    .or()
+                    .like(Ticket::getContent_wsh, kw));
+        }
     }
 
     /**
@@ -218,7 +270,39 @@ public class TicketServiceImpl implements TicketService {
         ticket.setPriority_wsh(request.getPriority_wsh() == null ? "medium" : request.getPriority_wsh());
         ticket.setStatus_wsh("pending");
         ticketMapper.insert(ticket);
+        notifyCsStaff(merchantId, ticket.getId_wsh(), ticket.getTitle_wsh());
         return toDTO(ticket);
+    }
+
+    /**
+     * 【业务名称】新工单提醒客服（实现）
+     * 业务作用：工单创建后，向服务该商家的所有已授权客服发送站内通知。
+     * 调用场景：用户提交工单后，客服收到待处理提醒。
+     * 数据处理：查询商家的 approved 客服并逐一创建通知。
+     * 业务规则：商家为空或无需提醒时不发送。
+     * 状态影响：新增通知记录。
+     * 异常情况：通知失败仅记录日志，不影响主流程。
+     * 注意事项：与投诉提醒逻辑保持一致。
+     */
+    private void notifyCsStaff(Long merchantId, Long ticketId, String title) {
+        try {
+            Set<Long> csUserIds = merchantCustomerServiceService.getApprovedCsUserIds(merchantId);
+            for (Long csUserId : csUserIds) {
+                if (csUserId == null) {
+                    continue;
+                }
+                Notification notification = new Notification();
+                notification.setUser_id_wsh(csUserId);
+                notification.setTitle_wsh("新工单待处理");
+                notification.setContent_wsh("收到新工单：「" + title + "」，请及时处理。");
+                notification.setType_wsh("ticket");
+                notification.setRelated_id_wsh(ticketId);
+                notification.setIs_read_wsh(0);
+                notificationService.create(notification);
+            }
+        } catch (Exception e) {
+            log.warn("发送新工单客服提醒失败: ticketId={}", ticketId, e);
+        }
     }
 
     /**
@@ -295,7 +379,8 @@ public class TicketServiceImpl implements TicketService {
         ticketMapper.updateById(ticket);
         addMessage(id,
                 ticket.getAssignee_id_wsh() != null ? ticket.getAssignee_id_wsh() : ticket.getUser_id_wsh(),
-                result != null ? result : "Ticket has been resolved");
+                result != null ? result : "Ticket has been resolved",
+                null);
         sendTicketNotification(ticket.getUser_id_wsh(), ticket.getId_wsh(),
                 "Ticket resolved",
                 "Ticket " + ticket.getTitle_wsh() + " has been resolved");
@@ -380,13 +465,55 @@ public class TicketServiceImpl implements TicketService {
      */
     @Transactional
     @Override
-    public TicketMessageDTO addMessage(Long ticketId, Long userId, String content) {
+    public TicketMessageDTO addMessage(Long ticketId, Long userId, String content, String fileUrl) {
+        String text = content == null ? null : content.trim();
+        String file = fileUrl == null ? null : fileUrl.trim();
+        if ((text == null || text.isEmpty()) && (file == null || file.isEmpty())) {
+            throw new BusinessException(400, "消息内容不能为空");
+        }
         TicketMessage msg = new TicketMessage();
         msg.setTicket_id_wsh(ticketId);
         msg.setUser_id_wsh(userId);
-        msg.setContent_wsh(content);
+        msg.setContent_wsh(text);
+        msg.setFile_url_wsh(file);
+        msg.setIs_read_wsh(0);
         ticketMessageMapper.insert(msg);
+        broadcastTicketMessage(ticketId, userId, text, file, msg.getCreated_at_wsh());
         return toMessageDTO(msg);
+    }
+
+    /**
+     * 【业务名称】广播工单消息给接收方（实现）
+     * 业务作用：用户发言时实时推送给该商家客服；客服/内部发言时实时推送给工单主人。
+     * 调用场景：工单留言后 SSE 实时红点提醒。
+     * 数据处理：取工单及其商家，判断发送方身份后确定接收方。
+     * 业务规则：通知失败仅记录日志，不影响主流程。
+     */
+    private void broadcastTicketMessage(Long ticketId, Long userId, String content, String fileUrl, LocalDateTime createdAt) {
+        try {
+            Ticket ticket = ticketMapper.selectById(ticketId);
+            if (ticket == null) {
+                return;
+            }
+            boolean isOwner = userId != null && userId.equals(ticket.getUser_id_wsh());
+            if (isOwner) {
+                Set<Long> csUserIds = merchantCustomerServiceService.getApprovedCsUserIds(ticket.getMerchant_id_wsh());
+                if (csUserIds != null) {
+                    for (Long csUserId : csUserIds) {
+                        if (csUserId == null || csUserId.equals(userId)) {
+                            continue;
+                        }
+                        chatEventBroadcaster.broadcastThreadMessage(
+                                "ticket", ticketId, csUserId, userId, content, fileUrl, createdAt);
+                    }
+                }
+            } else if (ticket.getUser_id_wsh() != null) {
+                chatEventBroadcaster.broadcastThreadMessage(
+                        "ticket", ticketId, ticket.getUser_id_wsh(), userId, content, fileUrl, createdAt);
+            }
+        } catch (Exception e) {
+            log.warn("广播工单消息失败: {}", e.getMessage());
+        }
     }
 
     /**
@@ -403,10 +530,10 @@ public class TicketServiceImpl implements TicketService {
     @Transactional
     @Override
     public TicketMessageDTO addMessageForUser(Long ticketId, Long userId, boolean admin,
-                                              boolean merchant, boolean customerService, String content) {
+                                              boolean merchant, boolean customerService, String content, String fileUrl) {
         Ticket ticket = getByIdRaw(ticketId);
         assertVisible(ticket, userId, admin, merchant, customerService);
-        return addMessage(ticketId, userId, content);
+        return addMessage(ticketId, userId, content, fileUrl);
     }
 
     /**
@@ -444,6 +571,9 @@ public class TicketServiceImpl implements TicketService {
                                                       boolean admin, boolean merchant, boolean customerService) {
         Ticket ticket = getByIdRaw(ticketId);
         assertVisible(ticket, userId, admin, merchant, customerService);
+        if (userId != null) {
+            ticketMessageMapper.markReadByTicketId(ticketId, userId);
+        }
         return listMessages(ticketId);
     }
 
@@ -559,6 +689,17 @@ public class TicketServiceImpl implements TicketService {
         dto.setAssignee_id_wsh(ticket.getAssignee_id_wsh());
         dto.setCreated_at_wsh(ticket.getCreated_at_wsh());
         dto.setUpdated_at_wsh(ticket.getUpdated_at_wsh());
+
+        User user = ticket.getUser_id_wsh() == null ? null : userMapper.selectById(ticket.getUser_id_wsh());
+        if (user != null) {
+            dto.setUser_name_wsh(user.getNickname_wsh() != null ? user.getNickname_wsh() : user.getUsername_wsh());
+        }
+        Merchant merchant = ticket.getMerchant_id_wsh() == null
+                ? null
+                : merchantMapper.selectById(ticket.getMerchant_id_wsh());
+        if (merchant != null) {
+            dto.setMerchant_name_wsh(merchant.getName_wsh());
+        }
         return dto;
     }
 
@@ -578,6 +719,7 @@ public class TicketServiceImpl implements TicketService {
         dto.setTicket_id_wsh(msg.getTicket_id_wsh());
         dto.setUser_id_wsh(msg.getUser_id_wsh());
         dto.setContent_wsh(msg.getContent_wsh());
+        dto.setFile_url_wsh(msg.getFile_url_wsh());
         dto.setCreated_at_wsh(msg.getCreated_at_wsh());
         return dto;
     }

@@ -33,6 +33,7 @@ import com.pet.order.mapper.RefundMapper;
 import com.pet.order.service.OrderService;
 import com.pet.order.service.OrderSnapshotService;
 import com.pet.order.service.OrderStatusBroadcaster;
+import com.pet.customer.mapper.RatingMapper;
 import com.pet.order.service.impl.OrderServiceImpl;
 import com.pet.order.service.impl.PaymentServiceImpl;
 import com.pet.order.service.impl.RefundServiceImpl;
@@ -93,6 +94,7 @@ class FinanceLedgerTest {
     @Mock private KeeperLeaveService keeperLeaveService;
     @Mock private BusinessHoursService businessHoursService;
     @Mock private BusinessHoursTargetResolver businessHoursTargetResolver;
+    @Mock private RatingMapper ratingMapper;
 
     private PaymentServiceImpl paymentService;
     private RefundServiceImpl refundService;
@@ -132,7 +134,8 @@ class FinanceLedgerTest {
                 membershipBenefitService,
                 new ObjectMapper(),
                 businessHoursService,
-                businessHoursTargetResolver);
+                businessHoursTargetResolver,
+                ratingMapper);
         walletController = new WalletController(walletService, accountingService);
     }
 

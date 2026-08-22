@@ -65,6 +65,16 @@ public class ServiceItem {
     @Schema(description = "单位")
     private String unit_wsh;
 
+    @JsonProperty("duration_minutes_wsh")
+    @TableField(value = "duration_minutes_wsh")
+    @Schema(description = "单次服务时长（分钟）；day=1440，session/hour 自定义")
+    private Integer duration_minutes_wsh;
+
+    @JsonProperty("booking_mode_wsh")
+    @TableField(value = "booking_mode_wsh")
+    @Schema(description = "预约模式：date_range（按日期区间）/ slot（按时长槽位）")
+    private String booking_mode_wsh;
+
     @JsonProperty("images_wsh")
     @TableField(value = "images_wsh")
     @Schema(description = "图片URL(逗号分隔)")

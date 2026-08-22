@@ -2,6 +2,8 @@ package com.pet.finance.service;
 
 import com.pet.finance.dto.WalletDTO;
 import com.pet.finance.entity.Wallet;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.common.PageRequestDTO;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -139,6 +141,22 @@ public interface WalletService {
      * @return 钱包列表
      */
     List<Wallet> listAll();
+
+    /**
+     * 【业务名称】分页获取钱包列表
+     * 业务作用：分页获取所有用户钱包，关联用户名，支持按 id / balance / created 动态排序。
+     * 调用场景：管理后台钱包列表分页展示。
+     * 调用链：listPage() → WalletMapper.selectWalletPage()。
+     * 数据处理：按排序字段与方向（白名单校验）分页。
+     * 业务规则：支持分页参数（page/size）与排序参数（sort_by_wsh / order_wsh）。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     *
+     * @param pageParam 分页与排序参数（页码、每页条数、排序字段、排序方向）
+     * @return 分页结果（含用户名，记录数为 DTO）
+     */
+    IPage<WalletDTO> listPage(PageRequestDTO pageParam);
 
     /**
      * 【业务名称】钱包实体转 DTO

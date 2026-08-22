@@ -8,20 +8,48 @@
       <button class="btn btn-outline btn-sm" type="button" @click="loadWallets">刷新</button>
     </section>
 
-    <DataTable
-      :columns="[
-        { label: 'ID', key: 'id_wsh' },
-        { label: '用户ID', key: 'user_id_wsh' },
-        { label: '余额', key: 'balance_wsh' },
-        { label: '冻结金额', key: 'frozen_amount_wsh' },
-        { label: '创建时间', key: 'created_at_wsh' }
-      ]"
-      :data="wallets"
-    >
-      <template #default="{ row }">
-        <button class="btn btn-sm btn-primary" type="button" @click="openAdjust(row)">调整余额</button>
-      </template>
-    </DataTable>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th v-for="col in sortableColumns" :key="col.key" @click="toggleSort(col.key)">
+              <span class="th-content">
+                {{ col.label }}
+                <span class="sort-indicator" :class="sortIndicatorClass(col.key)" aria-hidden="true"></span>
+              </span>
+            </th>
+            <th>冻结金额</th>
+            <th>用户名</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, i) in wallets" :key="i">
+            <td>{{ row.id_wsh }}</td>
+            <td>{{ row.user_id_wsh }}</td>
+            <td>{{ formatMoney(row.balance_wsh) }}</td>
+            <td>{{ formatMoney(row.frozen_amount_wsh) }}</td>
+            <td>{{ formatTime(row.created_at_wsh) }}</td>
+            <td>{{ row.username_wsh || '-' }}</td>
+            <td>
+              <button class="btn btn-sm btn-primary" type="button" @click="openAdjust(row)">调整余额</button>
+            </td>
+          </tr>
+          <tr v-if="wallets.length === 0">
+            <td :colspan="sortableColumns.length + 3" class="empty">暂无数据</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination-bar">
+      <span style="font-size:13px;color:var(--color-muted-foreground)">共 {{ total }} 条</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" :disabled="page <= 1" @click="page--; loadWallets()">上一页</button>
+        <span style="line-height:32px">第 {{ page }} / {{ pages }} 页</span>
+        <button class="btn btn-sm" :disabled="page >= pages" @click="page++; loadWallets()">下一页</button>
+      </div>
+    </div>
 
     <div v-if="adjusting" class="modal-overlay" @mousedown.self="closeAdjust">
       <div class="modal adjust-modal">
@@ -63,10 +91,15 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { adjustWallet, getWallets } from '@/api/wallet'
-import DataTable from '@/components/common/DataTable.vue'
 
 const appStore = useAppStore()
 const wallets = ref([])
+const page = ref(1)
+const size = ref(10)
+const total = ref(0)
+const pages = ref(0)
+const sortKey = ref('')
+const sortOrder = ref('')
 const adjusting = ref(false)
 const submitting = ref(false)
 const adjustAmount = ref('')
@@ -76,17 +109,59 @@ const adjustForm = reactive({
   remark_wsh: '',
 })
 
+const sortableColumns = [
+  { label: 'ID', key: 'id' },
+  { label: '用户ID', key: 'user_id' },
+  { label: '余额', key: 'balance' },
+  { label: '创建时间', key: 'created' },
+]
+
 const currentWallet = computed(() => wallets.value.find(item => Number(item.user_id_wsh) === Number(adjustForm.user_id_wsh)))
 
 onMounted(loadWallets)
 
 async function loadWallets() {
   try {
-    const res = await getWallets()
-    if (res.code === 200) wallets.value = Array.isArray(res.data) ? res.data : []
+    const params = { page: page.value, size: size.value }
+    if (sortKey.value) {
+      params.sort_by_wsh = sortKey.value
+      params.order_wsh = sortOrder.value
+    }
+    const res = await getWallets(params)
+    if (res.code === 200) {
+      wallets.value = Array.isArray(res.data?.list) ? res.data.list : []
+      total.value = res.data?.total || 0
+      pages.value = res.data?.pages || 0
+    }
   } catch (e) {
     appStore.addToast(e?.message || '钱包加载失败', 'error')
   }
+}
+
+function toggleSort(key) {
+  if (sortKey.value === key) {
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortOrder.value = key === 'balance' ? 'desc' : 'asc'
+  }
+  page.value = 1
+  loadWallets()
+}
+
+function sortIndicatorClass(key) {
+  if (sortKey.value !== key) return 'sort-idle'
+  return sortOrder.value === 'asc' ? 'sort-asc' : 'sort-desc'
+}
+
+function formatMoney(v) {
+  if (v == null) return '0.00'
+  return Number(v).toFixed(2)
+}
+
+function formatTime(v) {
+  if (!v) return '-'
+  return String(v).replace('T', ' ').slice(0, 19)
 }
 
 function openAdjust(row) {
@@ -156,6 +231,72 @@ async function submitAdjust() {
   margin: 0;
   color: var(--color-muted-foreground);
   font-size: 13px;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table-wrap th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.table-wrap th {
+  user-select: none;
+}
+.th-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.sort-indicator {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  opacity: 0.35;
+}
+.sort-indicator.sort-asc {
+  border-bottom: 5px solid var(--color-primary);
+  opacity: 1;
+}
+.sort-indicator.sort-desc {
+  border-top: 5px solid var(--color-primary);
+  opacity: 1;
+}
+.sort-indicator.sort-idle {
+  border-top: 5px solid var(--color-muted-foreground);
+}
+.table-wrap td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.table-wrap tr:hover {
+  background: var(--color-muted);
+}
+.empty {
+  color: var(--color-muted-foreground);
+  padding: 32px;
+  text-align: center;
+}
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
 }
 .adjust-modal {
   max-width: 560px;

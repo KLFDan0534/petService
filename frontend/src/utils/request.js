@@ -104,6 +104,11 @@ async function tryRefresh(config) {
 }
 
 async function handle401Error(config) {
+  // 未登录（无 token）时的 401 直接拒绝，不强制跳转登录页：
+  // 没有 token 可刷新，且不应打断公开页面（主页/服务浏览）的浏览体验
+  if (!localStorage.getItem('token')) {
+    return Promise.reject(new Error('未登录或登录已过期'))
+  }
   const ok = await tryRefresh(config)
   if (ok) return request(config)
   clearAuthAndRedirect()

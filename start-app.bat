@@ -3,6 +3,13 @@ cd /d D:\code\ideaProject\petService
 
 setlocal enabledelayedexpansion
 
+REM Load environment variables from .env (KEY=VALUE lines, # comments ignored)
+if exist ".env" (
+  for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do (
+    set "%%a=%%b"
+  )
+)
+
 REM Build classpath from project module target/classes
 set CP=pet-admin\target\classes
 set CP=%CP%;pet-common\target\classes

@@ -1,7 +1,10 @@
 package com.pet.finance.controller;
 
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
+import com.pet.finance.dto.RechargeRequestDTO;
 import com.pet.finance.dto.WalletAdjustRequestDTO;
 import com.pet.finance.dto.WalletDTO;
 import com.pet.finance.service.AccountingService;
@@ -20,8 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/wallet")
@@ -50,6 +52,40 @@ public class WalletController {
         return Result.success(walletService.toDTO(walletService.getByUserId(token.getUserId())));
     }
 
+    /**
+     * 用户充值
+     * <p>校验金额后入账到用户钱包余额，并记录充值流水。使用幂等请求 ID 防止重复提交。</p>
+     *
+     * @param token 当前用户认证信息
+     * @param body  充值请求（金额 + 可选幂等请求 ID）
+     * @return 充值后的钱包信息
+     */
+    @PostMapping("/recharge")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "用户充值", description = "校验金额后入账到钱包余额，支持幂等防止重复提交")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "充值成功返回更新后的钱包"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误或金额非法")
+    })
+    public Result<WalletDTO> recharge(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                      @RequestBody RechargeRequestDTO body) {
+        log.info("调用 recharge()");
+        body = requireBody(body);
+        String requestId = body.getRequest_id_wsh() == null || body.getRequest_id_wsh().isBlank()
+                ? "recharge:" + token.getUserId() + ":" + System.nanoTime()
+                : body.getRequest_id_wsh().trim();
+        return Result.success(walletService.toDTO(accountingService.credit(
+                token.getUserId(), body.getAmount_wsh(), "recharge", null,
+                "wallet_recharge", String.valueOf(token.getUserId()), requestId, "用户余额充值")));
+    }
+
+    private <T> T requireBody(T body) {
+        if (body == null) {
+            throw new BusinessException(400, "Request body cannot be empty");
+        }
+        return body;
+    }
+
     @GetMapping
     @Operation(summary = "获取钱包列表", description = "管理员获取全部用户钱包信息")
     @ApiResponses(value = {
@@ -58,9 +94,13 @@ public class WalletController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     @PreAuthorize("hasRole('ADMIN')")
-    public Result<List<WalletDTO>> listAll() {
+    public Result<PageResult<WalletDTO>> listAll(PageRequestDTO pageParam) {
         log.info("调用 listAll()");
-        return Result.success(walletService.listAll().stream().map(walletService::toDTO).collect(Collectors.toList()));
+        var page = walletService.listPage(pageParam);
+        PageResult<WalletDTO> result = new PageResult<>();
+        result.setList(page.getRecords());
+        result.copyPageInfo(page);
+        return Result.success(result);
     }
 
     @PostMapping("/admin/adjust")
@@ -86,12 +126,14 @@ public class WalletController {
         if ("add".equals(mode)) {
             return Result.success(walletService.toDTO(accountingService.credit(
                     body.getUser_id_wsh(), body.getAmount_wsh(), "admin_adjust", null,
-                    "wallet_admin", String.valueOf(body.getUser_id_wsh()), requestId, body.getRemark_wsh())));
+                    "wallet_admin", String.valueOf(body.getUser_id_wsh()), requestId, body.getRemark_wsh(),
+                    token.getUserId())));
         }
         if ("subtract".equals(mode)) {
             return Result.success(walletService.toDTO(accountingService.debit(
                     body.getUser_id_wsh(), body.getAmount_wsh(), "admin_adjust", null,
-                    "wallet_admin", String.valueOf(body.getUser_id_wsh()), requestId, body.getRemark_wsh())));
+                    "wallet_admin", String.valueOf(body.getUser_id_wsh()), requestId, body.getRemark_wsh(),
+                    token.getUserId())));
         }
         throw new BusinessException(400, "不支持的调整方式");
     }

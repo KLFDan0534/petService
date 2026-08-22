@@ -47,12 +47,12 @@ defineEmits(['apply', 'goDashboard'])
 .merchant-section {
   margin: 24px 0;
   padding: 20px 0;
-  border-top: 1px solid #dee0e3;
+  border-top: 1px solid var(--color-border);
 }
 .section-label {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--color-foreground);
   margin-bottom: 12px;
 }
 .merchant-entry {
@@ -60,13 +60,14 @@ defineEmits(['apply', 'goDashboard'])
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border: 1px solid #dee0e3;
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, border-color 0.2s;
 }
 .merchant-entry:hover {
-  background: #f5f6f7;
+  background: var(--color-muted);
+  border-color: var(--color-border);
 }
 .merchant-icon {
   font-size: 24px;
@@ -77,15 +78,15 @@ defineEmits(['apply', 'goDashboard'])
 .merchant-title {
   font-size: 14px;
   font-weight: 500;
-  color: #1f2329;
+  color: var(--color-foreground);
 }
 .merchant-desc {
   font-size: 12px;
-  color: #8f959e;
+  color: var(--color-muted-foreground);
   margin-top: 2px;
 }
 .merchant-arrow {
   font-size: 16px;
-  color: #8f959e;
+  color: var(--color-muted-foreground);
 }
 </style>

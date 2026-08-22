@@ -40,8 +40,20 @@ public final class BookingErrorCode {
     /** 客户端提交的商家与服务归属不一致 */
     public static final String SERVICE_MERCHANT_MISMATCH = "SERVICE_MERCHANT_MISMATCH";
 
-    /** 服务计费单位不是 day/天，本期不支持按日以外的单位计价 */
+    /** 服务计费单位未知/不支持（既不是 day/session/hour 的任一规范化形式） */
     public static final String UNSUPPORTED_SERVICE_UNIT = "UNSUPPORTED_SERVICE_UNIT";
+
+    /** 请求提交的计费单位与客户端单位不一致/与订单语义冲突 */
+    public static final String UNIT_MISMATCH = "UNIT_MISMATCH";
+
+    /** 请求提交的计费数量不合法（session 必须为 1、hour 必须大于 0 且不超过上限等） */
+    public static final String QUANTITY_INVALID = "QUANTITY_INVALID";
+
+    /** 服务时长不合法（非 15..1440 分钟、按小时非整小时等） */
+    public static final String DURATION_INVALID = "DURATION_INVALID";
+
+    /** 选择的槽位不可用（已被占用/不在营业时段/时长覆盖不完整） */
+    public static final String SLOT_UNAVAILABLE = "SLOT_UNAVAILABLE";
 
     /** 服务价格不合法（负数、超上限或超过两位小数精度） */
     public static final String PRICE_INVALID = "PRICE_INVALID";

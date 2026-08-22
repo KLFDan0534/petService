@@ -112,6 +112,10 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         orderDTO.setEnd_date_wsh(entity.getEnd_date_wsh());
         orderDTO.setDays_wsh(entity.getDays_wsh());
         orderDTO.setPrice_per_day_wsh(entity.getPrice_per_day_wsh());
+        orderDTO.setBilling_unit_wsh(entity.getBilling_unit_wsh());
+        orderDTO.setQuantity_wsh(entity.getQuantity_wsh());
+        orderDTO.setUnit_price_wsh(entity.getUnit_price_wsh());
+        orderDTO.setDuration_minutes_wsh(entity.getDuration_minutes_wsh());
         orderDTO.setTotal_amount_wsh(entity.getTotal_amount_wsh());
         orderDTO.setDiscount_wsh(entity.getDiscount_wsh());
         orderDTO.setFinal_amount_wsh(entity.getFinal_amount_wsh());

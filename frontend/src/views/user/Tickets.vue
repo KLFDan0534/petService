@@ -57,6 +57,13 @@
               <option value="low">低</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>所属商家</label>
+            <select v-model="form.merchant_id_wsh" required>
+              <option :value="null" disabled>请选择商家</option>
+              <option v-for="m in approvedMerchants" :key="m.id_wsh" :value="m.id_wsh">{{ m.name_wsh }}</option>
+            </select>
+          </div>
           <div class="form-group"><label>标题</label><input v-model="form.title_wsh" required></div>
           <div class="form-group"><label>描述</label><textarea v-model="form.content_wsh" rows="4" required></textarea></div>
           <div class="modal-actions">
@@ -116,6 +123,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { getMyTickets, createTicket as apiCreateTicket, getTicketMessages, sendTicketMessage } from '@/api/ticket'
+import { getMerchants } from '@/api/merchant'
 import { TicketStatus, TicketCategoryMap, getStatusLabel, getStatusBadge } from '@/constants/statusMaps'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -130,8 +138,9 @@ const selectedTicket = ref(null)
 const messages = ref([])
 const editing = ref(false)
 const evidenceContent = ref('')
+const approvedMerchants = ref([])
 
-const form = reactive({ title_wsh: '', content_wsh: '', category_wsh: 'appeal', priority_wsh: 'medium' })
+const form = reactive({ title_wsh: '', content_wsh: '', category_wsh: 'appeal', priority_wsh: 'medium', merchant_id_wsh: null })
 
 const currentUserId = authStore.user?.id_wsh
 
@@ -151,6 +160,10 @@ onMounted(async () => {
     if (r.code === 200) tickets.value = r.data
   } catch (e) {}
   finally { loading.value = false }
+  try {
+    const m = await getMerchants()
+    if (m.code === 200) approvedMerchants.value = (m.data || []).filter(x => x.status_wsh === 1)
+  } catch (e) {}
 })
 
 async function createTicket() {
@@ -160,7 +173,7 @@ async function createTicket() {
       appStore.addToast('创建成功', 'success')
       showForm.value = false
       tickets.value.push(r.data)
-      form.title_wsh = ''; form.content_wsh = ''; form.category_wsh = 'appeal'; form.priority_wsh = 'medium'
+      form.title_wsh = ''; form.content_wsh = ''; form.category_wsh = 'appeal'; form.priority_wsh = 'medium'; form.merchant_id_wsh = null
     }
   } catch (e) { appStore.addToast('创建失败', 'error') }
 }

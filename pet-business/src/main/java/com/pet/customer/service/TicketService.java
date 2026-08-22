@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.pet.common.PageRequestDTO;
 import com.pet.customer.dto.TicketCreateRequestDTO;
 import com.pet.customer.dto.TicketDTO;
+import com.pet.customer.dto.TicketListRequestDTO;
 import com.pet.customer.dto.TicketMessageDTO;
 
 import java.util.List;
@@ -72,14 +73,14 @@ public interface TicketService {
      * 异常情况：无。
      * 注意事项：无。
      *
-     * @param pageParam 分页参数
+     * @param pageParam 分页参数（含筛选条件：状态/分类/优先级/处理人/关键字）
      * @param staffUserId 当前操作用户ID
      * @param admin 是否为管理员
      * @param merchant 是否为商家
      * @param customerService 是否为客服
      * @return 过滤后的工单分页数据
      */
-    IPage<TicketDTO> listPageForStaff(PageRequestDTO pageParam, Long staffUserId, boolean admin, boolean merchant, boolean customerService);
+    IPage<TicketDTO> listPageForStaff(TicketListRequestDTO pageParam, Long staffUserId, boolean admin, boolean merchant, boolean customerService);
 
     /**
      * 【业务名称】查询工单详情
@@ -262,7 +263,7 @@ public interface TicketService {
      * @param content 消息内容
      * @return 创建的消息DTO
      */
-    TicketMessageDTO addMessage(Long ticketId, Long userId, String content);
+    TicketMessageDTO addMessage(Long ticketId, Long userId, String content, String fileUrl);
 
     /**
      * 【业务名称】按角色权限添加工单消息
@@ -283,7 +284,7 @@ public interface TicketService {
      * @param content 消息内容
      * @return 创建的消息DTO
      */
-    TicketMessageDTO addMessageForUser(Long ticketId, Long userId, boolean admin, boolean merchant, boolean customerService, String content);
+    TicketMessageDTO addMessageForUser(Long ticketId, Long userId, boolean admin, boolean merchant, boolean customerService, String content, String fileUrl);
 
     /**
      * 【业务名称】获取工单留言列表

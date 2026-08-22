@@ -18,7 +18,7 @@
           <h1>{{ store.order.service_name_wsh || '宠物寄养订单' }}</h1>
           <p>
             {{ formatDate(store.order.start_date_wsh) }} 至 {{ formatDate(store.order.end_date_wsh) }}
-            <span v-if="store.order.days_wsh"> · {{ store.order.days_wsh }} 天</span>
+            <span v-if="orderBillingText"> · {{ orderBillingText }}</span>
           </p>
         </div>
         <div class="hero-side">
@@ -127,6 +127,7 @@ import OrderChatTab from '@/components/order/detail/OrderChatTab.vue'
 import OrderReportTab from '@/components/order/detail/OrderReportTab.vue'
 import OrderSidebar from '@/components/order/detail/OrderSidebar.vue'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, isPaymentTimeoutExpired } from '@/utils/orderPaymentTimeout'
+import { billingText } from '@/domain/BookingUnit'
 
 const route = useRoute()
 const router = useRouter()
@@ -371,6 +372,13 @@ function formatDate(value) {
   if (!value) return '-'
   return String(value).slice(0, 10)
 }
+
+const orderBillingText = computed(() => billingText(store.order ? {
+  billing_unit_wsh: store.order.billing_unit_wsh,
+  quantity_wsh: store.order.quantity_wsh,
+  duration_minutes_wsh: store.order.duration_minutes_wsh,
+  days_wsh: store.order.days_wsh,
+} : null))
 
 function formatTime(value) {
   if (!value) return '-'

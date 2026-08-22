@@ -61,6 +61,8 @@ const detail = {
     category_id_wsh: 2,
     price_wsh: 299,
     unit_wsh: '天',
+    duration_minutes_wsh: 1440,
+    booking_mode_wsh: 'date_range',
     status_wsh: 1,
     description_wsh: '豪华单间',
     images_wsh: 'http://minio/service/u1.png,http://minio/service/u2.png',
@@ -107,7 +109,7 @@ async function fillRequired(wrapper, overrides = {}) {
   }
   await wrapper.find('select').setValue('2')
   if (overrides.unit) {
-    await wrapper.find('input[placeholder="天 / 次 / 小时"]').setValue(overrides.unit)
+    await wrapper.find('[data-testid="unit-select"]').setValue(overrides.unit)
   }
 }
 
@@ -320,5 +322,118 @@ describe('MerchantServices 服务产品编辑器', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(mocks.updateService).not.toHaveBeenCalled()
+  })
+
+  // ---- A2 多计费单位契约：红灯测试 ----
+
+  it('F-MGT-011 单位受控选择仅提供 day/session/hour 三个规范单位', async () => {
+    const { wrapper } = createWrapper()
+    await openCreateModal(wrapper)
+    const unitSelect = wrapper.find('[data-testid="unit-select"]')
+    expect(unitSelect.exists()).toBe(true)
+    const options = unitSelect.findAll('option').map(o => o.attributes('value'))
+    expect(options).toEqual(['day', 'session', 'hour'])
+  })
+
+  it('F-MGT-012 day 单位时长自动锁定为 1440 分钟', async () => {
+    const { wrapper } = createWrapper()
+    await openCreateModal(wrapper)
+    await wrapper.find('[data-testid="unit-select"]').setValue('day')
+    const durationInput = wrapper.find('[data-testid="duration-input"]')
+    expect(durationInput.exists()).toBe(true)
+    expect(Number(durationInput.element.value)).toBe(1440)
+  })
+
+  it('F-MGT-013 hour 单位时长必须是 60 的整数倍且范围 15..1440', async () => {
+    const { wrapper } = createWrapper()
+    await openCreateModal(wrapper)
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="unit-select"]').setValue('hour')
+    // 非整数倍 90 拒绝
+    await wrapper.find('[data-testid="duration-input"]').setValue('90')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.createService).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="duration-error"]').exists()).toBe(true)
+    // 合法值 120 通过
+    await wrapper.find('[data-testid="duration-input"]').setValue('120')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.createService).toHaveBeenCalledTimes(1)
+    const payload = mocks.createService.mock.calls[0][0]
+    expect(payload.unit_wsh).toBe('hour')
+    expect(payload.duration_minutes_wsh).toBe(120)
+  })
+
+  it('F-MGT-014 session 时长低于 15 或超过 1440 拒绝提交', async () => {
+    const { wrapper } = createWrapper()
+    await openCreateModal(wrapper)
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="unit-select"]').setValue('session')
+    // 低于 15
+    await wrapper.find('[data-testid="duration-input"]').setValue('10')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.createService).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="duration-error"]').exists()).toBe(true)
+    // 超过 1440
+    await wrapper.find('[data-testid="duration-input"]').setValue('1500')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.createService).not.toHaveBeenCalled()
+    // 合法值 60 通过
+    await wrapper.find('[data-testid="duration-input"]').setValue('60')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.createService).toHaveBeenCalledTimes(1)
+    const payload = mocks.createService.mock.calls[0][0]
+    expect(payload.unit_wsh).toBe('session')
+    expect(payload.duration_minutes_wsh).toBe(60)
+  })
+
+  it('F-MGT-015 编辑时回显规范化单位与时长', async () => {
+    mocks.getServiceManageDetail.mockResolvedValue({
+      code: 200,
+      data: {
+        service_wsh: {
+          ...detail.service_wsh,
+          unit_wsh: 'session',
+          duration_minutes_wsh: 90,
+          booking_mode_wsh: 'slot',
+        },
+        media_wsh: detail.media_wsh,
+      },
+    })
+    const { wrapper } = createWrapper()
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text() === '编辑').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="unit-select"]').element.value).toBe('session')
+    expect(Number(wrapper.find('[data-testid="duration-input"]').element.value)).toBe(90)
+  })
+
+  it('F-MGT-016 编辑按天服务回显时长 1440 并随单位切换重算', async () => {
+    const { wrapper } = createWrapper()
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text() === '编辑').trigger('click')
+    await flushPromises()
+    // detail.unit_wsh='天' 应规范化为 day
+    expect(wrapper.find('[data-testid="unit-select"]').element.value).toBe('day')
+    expect(Number(wrapper.find('[data-testid="duration-input"]').element.value)).toBe(1440)
+  })
+
+  it('F-MGT-017 更新提交 payload 包含规范化 unit_wsh 与 duration_minutes_wsh', async () => {
+    const { wrapper } = createWrapper()
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text() === '编辑').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="unit-select"]').setValue('hour')
+    await wrapper.find('[data-testid="duration-input"]').setValue('60')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(mocks.updateService).toHaveBeenCalledTimes(1)
+    const payload = mocks.updateService.mock.calls[0][1]
+    expect(payload.unit_wsh).toBe('hour')
+    expect(payload.duration_minutes_wsh).toBe(60)
   })
 })

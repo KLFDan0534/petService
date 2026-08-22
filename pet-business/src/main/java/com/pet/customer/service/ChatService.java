@@ -1,5 +1,6 @@
 package com.pet.customer.service;
 
+import com.pet.customer.dto.ChatAgentAssignDTO;
 import com.pet.customer.dto.ChatMessageDTO;
 import com.pet.customer.entity.ChatMessage;
 
@@ -136,4 +137,20 @@ public interface ChatService {
      * @param orderId 关联订单ID，为空则标记非订单维度的会话
      */
     void markConversationAsRead(Long currentUserId, Long otherUserId, Long orderId);
+
+    /**
+     * 【业务名称】随机分配人工客服
+     * 业务作用：从系统中拥有客服角色的有效用户中随机挑选一名（排除当前用户自己），用于智能客服转人工后直接接入一对一实时聊天。
+     * 调用场景：智能客服页面点击“转人工客服”按钮。
+     * 调用链：assignCustomerServiceAgent() → UserRoleMapper.selectActiveUserIdsByRoleCode() → UserMapper.selectById()。
+     * 数据处理：按角色编码查询客服用户ID列表 → 排除当前用户 → 随机取一名 → 查询用户昵称/头像。
+     * 业务规则：候选为空（无在线客服）时抛 BusinessException(400) 提示稍后再试。
+     * 状态影响：无。
+     * 异常情况：无可用客服时抛 BusinessException(400)。
+     * 注意事项：无。
+     *
+     * @param userId 当前用户ID
+     * @return 随机分配的客服信息（用户ID/名称/头像）
+     */
+    ChatAgentAssignDTO assignCustomerServiceAgent(Long userId);
 }

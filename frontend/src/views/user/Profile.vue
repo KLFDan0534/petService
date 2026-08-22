@@ -1,32 +1,42 @@
 <template>
   <div class="profile-container">
     <div class="page-header">
-      <h1 class="page-title">Personal Profile</h1>
-      <p class="page-subtitle">Manage your profile and account settings</p>
+      <h1 class="page-title">个人中心</h1>
+      <p class="page-subtitle">管理您的个人资料与账号设置</p>
     </div>
 
     <div class="profile-card">
       <div v-if="loading" class="loading-state">
         <div class="loading-icon"></div>
-        <span>Loading...</span>
+        <span>加载中...</span>
       </div>
 
       <template v-else>
         <div class="user-profile-section">
           <div class="avatar-wrapper">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="avatar">
+            <img v-if="avatarUrl" :src="avatarUrl" alt="头像">
             <span v-else>{{ avatarInitial }}</span>
           </div>
           <div class="user-info-text">
             <h2 class="user-nickname">{{ profile.nickname_wsh || authStore.user?.nickname_wsh || authStore.user?.username_wsh }}</h2>
             <div class="role-tags-group">
-              <span v-for="role in (authStore.user?.roles_wsh || [])" :key="role" class="sys-tag">{{ role }}</span>
-              <span :class="['real-status', realNameStatusClass]">{{ realNameStatusText }}</span>
+              <span v-for="role in (authStore.user?.roles_wsh || [])" :key="role" class="badge badge-secondary">{{ role }}</span>
+              <span :class="['badge', realNameBadgeClass]">{{ realNameStatusText }}</span>
             </div>
           </div>
         </div>
 
         <StatisticsPanel :stats="stats" />
+        <section v-if="!isSupportOnly" class="wallet-section" aria-labelledby="wallet-title">
+          <div class="wallet-card">
+            <div class="wallet-label">账户余额</div>
+            <div class="wallet-balance">¥ {{ walletBalance }}</div>
+            <div class="wallet-actions">
+              <router-link to="/recharge" class="btn btn-primary btn-sm">充值</router-link>
+              <router-link to="/wallet" class="btn btn-outline btn-sm">钱包管理</router-link>
+            </div>
+          </div>
+        </section>
         <section v-if="!isSupportOnly" class="benefits-section" aria-labelledby="benefits-title">
           <h2 id="benefits-title" class="section-label">我的权益</h2>
           <nav class="benefit-links" aria-label="个人权益">
@@ -47,6 +57,31 @@
               <span class="benefit-info">
                 <span class="benefit-title">会员中心</span>
                 <span class="benefit-desc">查看会员套餐、权益和订单</span>
+              </span>
+              <el-icon class="benefit-arrow" aria-hidden="true"><ArrowRight /></el-icon>
+            </router-link>
+          </nav>
+        </section>
+        <section v-if="!isSupportOnly" class="benefits-section" aria-labelledby="feedback-title">
+          <h2 id="feedback-title" class="section-label">问题反馈</h2>
+          <nav class="benefit-links" aria-label="问题反馈">
+            <router-link to="/tickets" class="benefit-entry">
+              <span class="benefit-icon" aria-hidden="true">
+                <el-icon><ChatDotRound /></el-icon>
+              </span>
+              <span class="benefit-info">
+                <span class="benefit-title">我的工单</span>
+                <span class="benefit-desc">查看申诉与客服沟通记录</span>
+              </span>
+              <el-icon class="benefit-arrow" aria-hidden="true"><ArrowRight /></el-icon>
+            </router-link>
+            <router-link to="/complaints" class="benefit-entry">
+              <span class="benefit-icon" aria-hidden="true">
+                <el-icon><Warning /></el-icon>
+              </span>
+              <span class="benefit-info">
+                <span class="benefit-title">我的投诉</span>
+                <span class="benefit-desc">提交并跟踪对订单、商家或寄养师的投诉</span>
               </span>
               <el-icon class="benefit-arrow" aria-hidden="true"><ArrowRight /></el-icon>
             </router-link>
@@ -74,59 +109,59 @@
             <AvatarUpload :avatar-url="avatarUrl" :avatar-initial="avatarInitial" :uploading="avatarUploading" @upload="uploadAvatar" />
 
             <div class="form-item is-disabled">
-              <label class="form-label">Username</label>
-              <input class="form-input" v-model="profile.username_wsh" disabled title="Username is managed by the system">
+              <label class="form-label">用户名</label>
+              <input class="form-input" v-model="profile.username_wsh" disabled title="用户名由系统管理">
             </div>
             <div class="form-item">
-              <label class="form-label">Nickname</label>
-              <input class="form-input" v-model="profile.nickname_wsh" placeholder="Enter nickname" required>
+              <label class="form-label">昵称</label>
+              <input class="form-input" v-model="profile.nickname_wsh" placeholder="请输入昵称" required>
             </div>
             <div class="form-item">
-              <label class="form-label">Gender</label>
+              <label class="form-label">性别</label>
               <select class="form-input" v-model.number="profile.gender_wsh">
-                <option :value="0">Unknown</option>
-                <option :value="1">Male</option>
-                <option :value="2">Female</option>
+                <option :value="0">未知</option>
+                <option :value="1">男</option>
+                <option :value="2">女</option>
               </select>
             </div>
             <div class="form-item account-readonly">
-              <label class="form-label">Phone</label>
+              <label class="form-label">手机号</label>
               <div class="readonly-field">
-                <span>{{ profile.phone_wsh || 'Not bound' }}</span>
-                <button type="button" class="account-action" @click="goAccountEdit('phone')">Change</button>
+                <span>{{ profile.phone_wsh || '未绑定' }}</span>
+                <button type="button" class="account-action" @click="goAccountEdit('phone')">修改</button>
               </div>
             </div>
             <div class="form-item account-readonly">
-              <label class="form-label">Email</label>
+              <label class="form-label">邮箱</label>
               <div class="readonly-field">
-                <span>{{ profile.email_wsh || 'Not bound' }}</span>
-                <button type="button" class="account-action" @click="goAccountEdit('email')">Change</button>
+                <span>{{ profile.email_wsh || '未绑定' }}</span>
+                <button type="button" class="account-action" @click="goAccountEdit('email')">修改</button>
               </div>
             </div>
             <div class="form-item account-readonly form-item--wide">
-              <label class="form-label">Real Name Verification</label>
+              <label class="form-label">实名认证</label>
               <div class="readonly-field">
                 <span>{{ realNameDisplay }}</span>
-                <button type="button" class="account-action" @click="goAccountEdit('real-name')">Verify</button>
+                <button type="button" class="account-action" @click="goAccountEdit('real-name')">去认证</button>
               </div>
             </div>
             <div class="form-item account-readonly form-item--wide">
-              <label class="form-label">Payment Password</label>
+              <label class="form-label">支付密码</label>
               <div class="readonly-field">
-                <span>{{ profile.payment_password_set_wsh ? 'Set' : 'Not set' }}</span>
+                <span>{{ profile.payment_password_set_wsh ? '已设置' : '未设置' }}</span>
                 <button type="button" class="account-action" @click="goAccountEdit('payment-password')">
-                  {{ profile.payment_password_set_wsh ? 'Change' : 'Set' }}
+                  {{ profile.payment_password_set_wsh ? '修改' : '设置' }}
                 </button>
               </div>
             </div>
           </div>
 
           <div class="form-footer">
-            <button type="button" class="danger-button" :disabled="submitting || deleting" @click="handleDeleteAccount">
-              {{ deleting ? 'Deleting...' : 'Delete Account' }}
+            <button type="button" class="btn btn-danger" :disabled="submitting || deleting" @click="handleDeleteAccount">
+              {{ deleting ? '删除中...' : '删除账号' }}
             </button>
-            <button type="submit" class="submit-button" :disabled="submitting || deleting">
-              {{ submitting ? 'Saving...' : 'Save Changes' }}
+            <button type="submit" class="btn btn-primary" :disabled="submitting || deleting">
+              {{ submitting ? '保存中...' : '保存修改' }}
             </button>
           </div>
         </form>
@@ -138,11 +173,12 @@
 <script setup>
 import { computed, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Medal, Ticket } from '@element-plus/icons-vue'
+import { ArrowRight, ChatDotRound, Medal, Ticket, Warning } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { deleteCurrentUser } from '@/api/auth'
 import { getMyCustomerServiceApplications } from '@/api/merchantCustomerService'
+import { getMyWallet } from '@/api/wallet'
 import request from '@/utils/request'
 import AvatarUpload from '@/components/profile/AvatarUpload.vue'
 import MerchantPanel from '@/components/profile/MerchantPanel.vue'
@@ -170,6 +206,7 @@ const profile = reactive({
   payment_password_set_wsh: false,
 })
 const stats = ref({ pets: 0, activeOrders: 0, completedOrders: 0, totalSpent: 0 })
+const walletBalance = ref('0.00')
 const merchantStatus = ref(null)
 const keeperStatus = ref(null)
 const keeperLoading = ref(true)
@@ -179,17 +216,17 @@ const avatarUrl = computed(() => profile.avatar_wsh || authStore.user?.avatar_ws
 const avatarInitial = computed(() => (profile.nickname_wsh || authStore.user?.nickname_wsh || authStore.user?.username_wsh || '?')[0].toUpperCase())
 const realNameStatusText = computed(() => {
   const status = Number(profile.real_name_status_wsh || 0)
-  if (status === 2) return 'Verified'
-  if (status === 1) return 'Pending'
-  if (status === 3) return 'Rejected'
-  return 'Unverified'
+  if (status === 2) return '已认证'
+  if (status === 1) return '待审核'
+  if (status === 3) return '已驳回'
+  return '未认证'
 })
-const realNameStatusClass = computed(() => {
+const realNameBadgeClass = computed(() => {
   const status = Number(profile.real_name_status_wsh || 0)
-  if (status === 2) return 'real-status--verified'
-  if (status === 1) return 'real-status--pending'
-  if (status === 3) return 'real-status--rejected'
-  return 'real-status--empty'
+  if (status === 2) return 'badge-success'
+  if (status === 1) return 'badge-warning'
+  if (status === 3) return 'badge-danger'
+  return 'badge-disabled'
 })
 const realNameDisplay = computed(() => {
   if (profile.real_name_wsh) return profile.real_name_wsh + ' - ' + realNameStatusText.value
@@ -208,8 +245,8 @@ const customerServiceBadgeClass = computed(() => ({
   pending: 'badge-warning',
   approved: 'badge-success',
   rejected: 'badge-danger',
-  resigned: 'badge-muted',
-  terminated: 'badge-muted',
+  resigned: 'badge-disabled',
+  terminated: 'badge-disabled',
 }[latestCustomerServiceApplication.value?.status_wsh] || 'badge-info'))
 const customerServiceTitle = computed(() => {
   const latest = latestCustomerServiceApplication.value
@@ -230,6 +267,17 @@ async function loadMerchantStatus() {
       merchantStatus.value = r.data.data.status_wsh
     }
   } catch (e) {}
+}
+
+async function loadWallet() {
+  try {
+    const res = await getMyWallet()
+    if (res.code === 200 && res.data) {
+      walletBalance.value = Number(res.data.balance_wsh || 0).toFixed(2)
+    }
+  } catch (e) {
+    walletBalance.value = '-'
+  }
 }
 
 async function loadKeeperStatus() {
@@ -307,13 +355,14 @@ onMounted(async () => {
     if (ur.data.code === 200) syncUser(ur.data.data)
     if (sr.data.code === 200) stats.value = sr.data.data
   } catch (e) {
-    appStore.addToast('Failed to load profile', 'error')
+    appStore.addToast('加载个人资料失败', 'error')
   } finally {
     loading.value = false
   }
   loadMerchantStatus()
   loadKeeperStatus()
   loadCustomerServiceApplications()
+  loadWallet()
 })
 
 function customerServiceStatusLabel(status) {
@@ -336,10 +385,10 @@ async function uploadAvatar(file) {
       profile.avatar_wsh = r.data.data.url_wsh
       const updateRes = await request.put('/users/me', { avatar_wsh: profile.avatar_wsh })
       if (updateRes.data.code === 200) syncUser(updateRes.data.data || { avatar_wsh: profile.avatar_wsh })
-      appStore.addToast('Avatar uploaded', 'success')
+      appStore.addToast('头像上传成功', 'success')
     }
   } catch (error) {
-    appStore.addToast('Avatar upload failed', 'error')
+    appStore.addToast('头像上传失败', 'error')
   } finally {
     avatarUploading.value = false
   }
@@ -356,11 +405,11 @@ async function saveProfile() {
     }
     const r = await request.put('/users/me', payload)
     if (r.data.code === 200) {
-      appStore.addToast('Saved successfully', 'success')
+      appStore.addToast('保存成功', 'success')
       syncUser(r.data.data || profile)
     }
   } catch (e) {
-    appStore.addToast('Save failed', 'error')
+    appStore.addToast('保存失败', 'error')
   } finally {
     submitting.value = false
   }
@@ -368,18 +417,18 @@ async function saveProfile() {
 
 async function handleDeleteAccount() {
   if (submitting.value || deleting.value) return
-  if (!window.confirm('Are you sure you want to delete this account? This cannot be undone.')) return
+  if (!window.confirm('确定要删除该账号吗？此操作不可恢复。')) return
 
   deleting.value = true
   try {
     const r = await deleteCurrentUser()
     if (r.code === 200) {
-      appStore.addToast('Account deleted', 'success')
+      appStore.addToast('账号已删除', 'success')
       authStore.clearAuth()
       router.replace('/login')
     }
   } catch (e) {
-    appStore.addToast(e.response?.data?.message || 'Delete failed', 'error')
+    appStore.addToast(e.response?.data?.message || '删除失败', 'error')
   } finally {
     deleting.value = false
   }
@@ -397,18 +446,18 @@ async function handleDeleteAccount() {
 .page-title {
   font-size: 22px;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--color-foreground);
   margin: 0 0 4px 0;
 }
 .page-subtitle {
   font-size: 13px;
-  color: #8f959e;
+  color: var(--color-muted-foreground);
   margin: 0;
 }
 .profile-card {
-  background: #ffffff;
-  border: 1px solid #dee0e3;
-  border-radius: 6px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   padding: 32px;
 }
 .user-profile-section {
@@ -416,14 +465,14 @@ async function handleDeleteAccount() {
   align-items: center;
   gap: 16px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #dee0e3;
+  border-bottom: 1px solid var(--color-border);
 }
 .avatar-wrapper {
   width: 60px;
   height: 60px;
-  border-radius: 4px;
-  background: #3f51b5;
-  color: #ffffff;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -439,54 +488,56 @@ async function handleDeleteAccount() {
 .user-nickname {
   font-size: 18px;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--color-foreground);
   margin: 0 0 6px 0;
 }
 .role-tags-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-}
-.sys-tag {
-  font-size: 12px;
-  padding: 1px 6px;
-  background: #f5f6f7;
-  border: 1px solid #dee0e3;
-  color: #646a73;
-  border-radius: 2px;
-}
-.real-status {
-  font-size: 12px;
-  padding: 1px 6px;
-  border-radius: 2px;
-  border: 1px solid #dee0e3;
-  color: #646a73;
-  background: #ffffff;
-}
-.real-status--verified {
-  color: #237804;
-  border-color: #b7eb8f;
-  background: #f6ffed;
-}
-.real-status--pending {
-  color: #ad6800;
-  border-color: #ffe58f;
-  background: #fffbe6;
-}
-.real-status--rejected {
-  color: #a8071a;
-  border-color: #ffccc7;
-  background: #fff1f0;
 }
 .benefits-section {
   margin: 24px 0;
   padding: 20px 0;
-  border-top: 1px solid #dee0e3;
+  border-top: 1px solid var(--color-border);
+}
+.wallet-section {
+  margin: 24px 0;
+  padding: 20px 0;
+  border-top: 1px solid var(--color-border);
+}
+.wallet-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 24px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 15%, var(--color-card)), var(--color-card));
+  border: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+.wallet-label {
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+  margin-bottom: 4px;
+}
+.wallet-balance {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-foreground);
+  line-height: 1.1;
+}
+.wallet-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
 }
 .benefit-links {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  border-top: 1px solid #dee0e3;
-  border-bottom: 1px solid #dee0e3;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
 }
 .benefit-entry {
   min-height: 72px;
@@ -494,21 +545,21 @@ async function handleDeleteAccount() {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  color: #1f2329;
+  color: var(--color-foreground);
   text-decoration: none;
   transition: background-color 0.2s;
 }
 .benefit-entry + .benefit-entry {
-  border-left: 1px solid #dee0e3;
+  border-left: 1px solid var(--color-border);
 }
 .benefit-entry:hover {
-  background: #f5f6f7;
+  background: var(--color-muted);
 }
 .benefit-entry:focus-visible {
   position: relative;
-  outline: 3px solid #3f51b5;
+  outline: 3px solid var(--color-ring);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .benefit-icon {
   width: 36px;
@@ -517,9 +568,9 @@ async function handleDeleteAccount() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  background: #eef2ff;
-  color: #3f51b5;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-card));
+  color: var(--color-primary);
   font-size: 20px;
 }
 .benefit-info {
@@ -530,29 +581,29 @@ async function handleDeleteAccount() {
   gap: 3px;
 }
 .benefit-title {
-  color: #1f2329;
+  color: var(--color-foreground);
   font-size: 14px;
   font-weight: 600;
 }
 .benefit-desc {
-  color: #646a73;
+  color: var(--color-muted-foreground);
   font-size: 12px;
   line-height: 1.5;
 }
 .benefit-arrow {
   flex: 0 0 auto;
-  color: #8f959e;
+  color: var(--color-muted-foreground);
   font-size: 16px;
 }
 .customer-service-section {
   margin: 24px 0;
   padding: 20px 0;
-  border-top: 1px solid #dee0e3;
+  border-top: 1px solid var(--color-border);
 }
 .section-label {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--color-foreground);
   margin: 0 0 12px;
 }
 .service-entry {
@@ -561,23 +612,23 @@ async function handleDeleteAccount() {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  border: 1px solid #dee0e3;
-  border-radius: 4px;
-  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
   cursor: pointer;
   text-align: left;
   transition: background 0.2s, border-color 0.2s;
 }
 .service-entry:hover {
-  background: #f5f6f7;
-  border-color: #c9cdd4;
+  background: var(--color-muted);
+  border-color: var(--color-border);
 }
 .service-icon {
   width: 28px;
   height: 28px;
-  border-radius: 4px;
-  background: #eef2ff;
-  color: #3f51b5;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-card));
+  color: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -591,44 +642,16 @@ async function handleDeleteAccount() {
 .service-title {
   font-size: 14px;
   font-weight: 500;
-  color: #1f2329;
+  color: var(--color-foreground);
 }
 .service-desc {
   font-size: 12px;
-  color: #8f959e;
+  color: var(--color-muted-foreground);
   margin-top: 2px;
 }
 .service-arrow {
-  color: #8f959e;
+  color: var(--color-muted-foreground);
   font-size: 16px;
-}
-.badge {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 2px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.badge-warning {
-  color: #ad6800;
-  background: #fffbe6;
-  border: 1px solid #ffe58f;
-}
-.badge-success {
-  color: #237804;
-  background: #f6ffed;
-  border: 1px solid #b7eb8f;
-}
-.badge-danger {
-  color: #a8071a;
-  background: #fff1f0;
-  border: 1px solid #ffccc7;
-}
-.badge-muted,
-.badge-info {
-  color: #646a73;
-  background: #f5f6f7;
-  border: 1px solid #dee0e3;
 }
 .form-grid {
   display: grid;
@@ -646,26 +669,16 @@ async function handleDeleteAccount() {
 .form-label {
   font-size: 13px;
   font-weight: 500;
-  color: #1f2329;
+  color: var(--color-foreground);
 }
 .form-input {
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid #bbbfc4;
-  border-radius: 4px;
-  font-size: 14px;
-  color: #1f2329;
-  background-color: #ffffff;
-  transition: border-color 0.2s;
-}
-.form-input:focus {
-  outline: none;
-  border-color: #3f51b5;
+  height: 40px;
+  border-radius: var(--radius-md);
 }
 .form-item.is-disabled .form-input {
-  background-color: #f5f6f7;
-  color: #8f959e;
-  border-color: #dee0e3;
+  background: var(--color-muted);
+  color: var(--color-muted-foreground);
+  border-color: var(--color-border);
   cursor: not-allowed;
 }
 .account-readonly {
@@ -674,19 +687,19 @@ async function handleDeleteAccount() {
 .readonly-field {
   min-height: 40px;
   padding: 0 12px;
-  border: 1px solid #dee0e3;
-  border-radius: 4px;
-  background: #f8f9fb;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-muted);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: #1f2329;
+  color: var(--color-foreground);
 }
 .account-action {
   border: 0;
   background: transparent;
-  color: #3f51b5;
+  color: var(--color-primary);
   cursor: pointer;
   font-size: 13px;
   white-space: nowrap;
@@ -697,47 +710,10 @@ async function handleDeleteAccount() {
   justify-content: flex-end;
   gap: 12px;
 }
-.danger-button {
-  height: 36px;
-  padding: 0 24px;
-  background: #fff1f0;
-  color: #a8071a;
-  border: 1px solid #ffccc7;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-}
-.danger-button:hover:not(:disabled) {
-  background: #fff7f6;
-  border-color: #ffa39e;
-}
-.danger-button:disabled {
-  background: #f5f5f5;
-  color: #bfbfbf;
-  border-color: #d9d9d9;
+.form-footer .btn:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
-}
-.submit-button {
-  height: 36px;
-  padding: 0 24px;
-  background: #3f51b5;
-  color: #ffffff;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.submit-button:hover:not(:disabled) {
-  background: #303f9f;
-}
-.submit-button:disabled {
-  background: #cbd0d6;
-  color: #8f959e;
-  cursor: not-allowed;
+  transform: none;
 }
 .loading-state {
   display: flex;
@@ -745,14 +721,14 @@ async function handleDeleteAccount() {
   justify-content: center;
   gap: 8px;
   padding: 60px 0;
-  color: #646a73;
+  color: var(--color-muted-foreground);
   font-size: 14px;
 }
 .loading-icon {
   width: 16px;
   height: 16px;
-  border: 2px solid #dee0e3;
-  border-left-color: #3f51b5;
+  border: 2px solid var(--color-border);
+  border-left-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -762,7 +738,7 @@ async function handleDeleteAccount() {
     grid-template-columns: 1fr;
   }
   .benefit-entry + .benefit-entry {
-    border-top: 1px solid #dee0e3;
+    border-top: 1px solid var(--color-border);
     border-left: 0;
   }
 }
