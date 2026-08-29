@@ -86,3 +86,9 @@ header-new.png
 
 # 临时备份
 *.java.fixed
+
+# 数据库脚本（敏感，不提交 GitHub）
+database/
+
+# 临时脚本
+_tmp_merge_schema.ps1
