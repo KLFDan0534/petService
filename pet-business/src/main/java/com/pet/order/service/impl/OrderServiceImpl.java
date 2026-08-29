@@ -2275,7 +2275,7 @@ CouponService couponService,
             return Map.of();
         }
         return serviceItemMapper.selectList(new LambdaQueryWrapper<ServiceItem>()
-                        .select(ServiceItem::getId_wsh, ServiceItem::getName_wsh, ServiceItem::getDescription_wsh)
+                        .select(ServiceItem::getId_wsh, ServiceItem::getName_wsh, ServiceItem::getDescription_wsh, ServiceItem::getImages_wsh)
                         .in(ServiceItem::getId_wsh, serviceIds))
                 .stream()
                 .collect(Collectors.toMap(ServiceItem::getId_wsh, Function.identity()));
@@ -2341,6 +2341,7 @@ CouponService couponService,
         if (service != null) {
             dto.setService_name_wsh(service.getName_wsh());
             dto.setService_description_wsh(service.getDescription_wsh());
+            dto.setService_images_wsh(service.getImages_wsh());
         }
         User user = userMap.get(order.getOwner_id_wsh());
         if (user != null) {

@@ -2,10 +2,14 @@ package com.pet.operation.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.pet.common.PageRequestDTO;
 import com.pet.operation.entity.FileRecord;
 import com.pet.operation.mapper.FileRecordMapper;
 import com.pet.operation.service.FileRecordService;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -56,5 +60,17 @@ public class FileRecordServiceImpl implements FileRecordService {
     public void deleteById(Long id) {
         log.info("deleteById() called");
         fileRecordMapper.deleteById(id);
+    }
+
+    /**
+     * 管理员分页查询全部文件上传记录，支持按原始文件名模糊搜索
+     */
+    @Override
+    public IPage<FileRecord> pageAll(PageRequestDTO pageParam, String keyword) {
+        log.info("pageAll() called");
+        LambdaQueryWrapper<FileRecord> wrapper = new LambdaQueryWrapper<FileRecord>()
+                .like(StringUtils.hasText(keyword), FileRecord::getOriginal_name_wsh, keyword)
+                .orderByDesc(FileRecord::getCreated_at_wsh);
+        return fileRecordMapper.selectPage(new Page<>(pageParam.getPage(), pageParam.getSize()), wrapper);
     }
 }

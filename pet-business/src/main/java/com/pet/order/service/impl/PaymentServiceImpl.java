@@ -2,7 +2,10 @@ package com.pet.order.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.OrderStatus;
 import com.pet.config.RabbitMQConfig;
 import com.pet.finance.service.AccountingService;
@@ -314,6 +317,39 @@ public class PaymentServiceImpl implements PaymentService {
         membershipBenefitService.markUsedForOrder(order.getId_wsh(), order.getOrder_no_wsh());
         orderStatusBroadcaster.broadcast(order);
         scheduleAcceptTimeoutCheck(order);
+    }
+
+    /**
+     * 【管理员分页查询支付记录（实现）】
+     *
+     * 业务作用：
+     * 分页查询支付记录，keyword 非空时按订单号/支付编号模糊搜索，按创建时间倒序排列。
+     *
+     * 调用链：
+     * PaymentService.pageAll()
+     * ↓
+     * paymentMapper.selectPage(Page, LambdaQueryWrapper)
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param pageParam 分页参数
+     * @param keyword   搜索关键字（可为null，用于按订单号/支付编号模糊搜索）
+     * @return 分页的支付记录
+     */
+    @Override
+    public IPage<Payment> pageAll(PageRequestDTO pageParam, String keyword) {
+        log.info("分页查询支付记录, page: {}, size: {}, keyword: {}", pageParam.getPage(), pageParam.getSize(), keyword);
+        Page<Payment> page = new Page<>(pageParam.getPage(), pageParam.getSize());
+        LambdaQueryWrapper<Payment> wrapper = new LambdaQueryWrapper<Payment>()
+                .orderByDesc(Payment::getCreated_at_wsh);
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            wrapper.and(w -> w.like(Payment::getOrder_no_wsh, kw)
+                    .or()
+                    .like(Payment::getPay_no_wsh, kw));
+        }
+        return paymentMapper.selectPage(page, wrapper);
     }
 
     /**

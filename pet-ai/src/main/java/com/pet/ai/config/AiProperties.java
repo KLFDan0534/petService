@@ -6,9 +6,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * DeepSeek AI 配置属性类，从 application.yml 的 ai.deepseek 前缀读取配置。
+ * AI 配置属性类，从 application.yml 的 ai.deepseek 前缀读取配置。
  * <p>
- * 可配置项包括 API Key、模型名称、端点地址、最大 Token 数、温度参数和思考类型。
+ * 当前对接质谱 GLM-4.7-Flash（OpenAI 兼容格式），可配置 API Key、模型、端点、Token、温度等。
  */
 @Configuration
 @ConfigurationProperties(prefix = "ai.deepseek")
@@ -16,10 +16,10 @@ import org.springframework.context.annotation.Configuration;
 @Setter
 public class AiProperties {
     private String apiKey = "";
-    private String model = "deepseek-v4-flash";
-    private String endpoint = "https://api.deepseek.com";
-    private int maxTokens = 8192;
-    private double temperature = 0.7;
+    private String model = "glm-4.7-flash";
+    private String endpoint = "https://open.bigmodel.cn/api/paas/v4";
+    private int maxTokens = 65536;
+    private double temperature = 1.0;
     private String thinkingType = "disabled";
 
 //    public String getApiKey() { return apiKey; }

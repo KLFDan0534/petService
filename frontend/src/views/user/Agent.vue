@@ -1,102 +1,255 @@
 <template>
-  <div class="agent-page">
-    <PageHero title="AI 智能体" subtitle="自然语言创建寄养订单，默认停在待支付状态" />
+  <div class="ag-page">
+    <div class="ag-shell">
+      <!-- ═══ Breadcrumb ═══ -->
+      <nav class="ag-crumb" aria-label="面包屑">
+        <router-link to="/dashboard" class="ag-crumb-link">首页</router-link>
+        <span class="ag-crumb-sep" aria-hidden="true">›</span>
+        <router-link to="/ai" class="ag-crumb-link">AI 助手</router-link>
+        <span class="ag-crumb-sep" aria-hidden="true">›</span>
+        <span class="ag-crumb-here">智能下单</span>
+      </nav>
 
-    <section class="agent-shell">
-      <div class="chat-messages">
-        <article v-for="msg in messages" :key="msg.id" :class="['message-row', `message-row--${msg.role}`]">
-          <div class="message-bubble">
-            <p>{{ msg.content }}</p>
-
-            <div v-if="msg.orderNo || msg.payNo" class="result-meta">
-              <span v-if="msg.orderNo">订单号：{{ msg.orderNo }}</span>
-              <span v-if="msg.payNo">支付号：{{ msg.payNo }}</span>
-              <span v-if="msg.paymentStatus">支付状态：{{ paymentStatusText(msg.paymentStatus) }}</span>
-            </div>
-
-            <div v-if="msg.nextAction" class="next-action">
-              {{ nextActionText(msg.nextAction) }}
-            </div>
-
-            <div v-if="msg.payNo && msg.paymentStatus === 'pending'" class="message-actions">
-              <button class="btn btn-primary btn-sm" :disabled="payingPayNo === msg.payNo" @click="manualPay(msg)">
-                {{ payingPayNo === msg.payNo ? '支付中...' : '手动支付' }}
-              </button>
-              <router-link class="btn btn-outline btn-sm" to="/payments">查看支付记录</router-link>
-            </div>
-
-            <details v-if="msg.logs?.length" class="agent-logs">
-              <summary>执行日志</summary>
-              <ol>
-                <li v-for="(log, i) in msg.logs" :key="i">{{ log }}</li>
-              </ol>
-            </details>
+      <!-- ═══ Hero ═══ -->
+      <header class="ag-head">
+        <div class="ag-head-copy">
+          <div class="ag-eyebrow" aria-hidden="true">
+            <span class="ag-eyebrow-line"></span>
+            <span>Act</span>
           </div>
-        </article>
-
-        <div v-if="loading" class="loading">智能体执行中...</div>
-      </div>
-
-      <form class="agent-input-panel" @submit.prevent="executeTask">
-        <textarea
-          v-model.trim="input"
-          rows="3"
-          maxlength="500"
-          placeholder="例如：帮我的 golden 寄养 3 天，找附近评分高的看护人"
-          :disabled="loading"
-        />
-
-        <div class="auth-row">
-          <label class="switch-line">
-            <input v-model="autoPay" type="checkbox" :disabled="loading">
-            <span>授权 Agent 自动支付本次订单</span>
-          </label>
-          <router-link to="/profile/payment-password">设置支付密码</router-link>
+          <h1 class="ag-title">智能下单</h1>
+          <p class="ag-sub">用一句话描述需求，助手会匹配门店与服务、校验档期并生成订单。默认只生成订单，不会自动付款。</p>
         </div>
-
-        <input
-          v-if="autoPay"
-          v-model.trim="paymentPassword"
-          class="payment-password"
-          type="password"
-          inputmode="numeric"
-          maxlength="6"
-          autocomplete="one-time-code"
-          placeholder="输入 6 位支付密码"
-          :disabled="loading"
-        >
-
-        <div class="submit-row">
-          <span>{{ input.length }}/500</span>
-          <button class="btn btn-primary" type="submit" :disabled="loading || !input">
-            {{ loading ? '执行中...' : autoPay ? '授权下单并支付' : '创建待支付订单' }}
-          </button>
+        <div class="ag-actions">
+          <router-link to="/orders" class="cta cta-outline">查看我的订单</router-link>
         </div>
-      </form>
-    </section>
+      </header>
+
+      <!-- ═══ 01 · 描述需求 ═══ -->
+      <section class="ag-section" aria-label="描述你的需求">
+        <header class="ag-sec-head">
+          <div class="ag-head-copy">
+            <p class="ag-eyebrow ag-sec-eyebrow">
+              <span class="ag-idx">01</span>
+              <span class="ag-line" aria-hidden="true"></span>
+              <span>Task</span>
+            </p>
+            <h2 class="ag-sec-title">描述你的需求</h2>
+            <p class="ag-sec-desc">写清宠物、时间与偏好门店，匹配会更准。</p>
+          </div>
+        </header>
+
+        <div class="ag-grid">
+          <!-- 表单 -->
+          <div class="ag-form">
+            <label class="ag-field">
+              <span class="ag-label">任务描述<span class="ag-req">*</span></span>
+              <textarea
+                v-model.trim="input"
+                rows="5"
+                maxlength="300"
+                :disabled="loading"
+                placeholder="例如：帮布丁订 9 月 15 日到 18 日的品质寄养套房，优先衡山路照护中心"
+                class="ag-textarea"
+              />
+            </label>
+
+            <div class="ag-examples">
+              <button v-for="example in examples" :key="example" type="button" class="ag-chip" @click="input = example">
+                {{ example }}
+              </button>
+            </div>
+
+            <div class="ag-options">
+              <label class="ag-check">
+                <input v-model="autoPay" type="checkbox" :disabled="loading">
+                <span class="ag-check-box" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
+                <span class="ag-check-copy">
+                  <span class="ag-check-label">下单后自动支付</span>
+                  <span class="ag-check-desc">开启后助手会用余额直接完成支付；关闭时只生成订单，由你手动确认。</span>
+                </span>
+              </label>
+
+              <template v-if="autoPay">
+                <label class="ag-field ag-field-password">
+                  <span class="ag-label">支付密码</span>
+                  <input
+                    v-model.trim="paymentPassword"
+                    type="password"
+                    inputmode="numeric"
+                    maxlength="6"
+                    autocomplete="one-time-code"
+                    placeholder="6 位数字"
+                    :disabled="loading"
+                    class="ag-input"
+                  >
+                  <span class="ag-hint">仅本次执行使用，不会保存在本地或服务端。</span>
+                </label>
+              </template>
+            </div>
+
+            <div class="ag-submit">
+              <button type="button" class="cta cta-primary" :disabled="loading || !input" @click="executeTask">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+                  <path d="M6 4l14 8-14 8V4z" />
+                </svg>
+                {{ loading ? '执行中...' : autoPay ? '授权下单并支付' : '创建待支付订单' }}
+              </button>
+              <button v-if="hasResult || failed" type="button" class="cta cta-outline" @click="reset">
+                清空结果
+              </button>
+            </div>
+          </div>
+
+          <!-- How it works -->
+          <aside class="ag-steps">
+            <p class="ag-steps-eyebrow">How it works</p>
+            <ol class="ag-step-list">
+              <li v-for="(step, index) in steps" :key="step.title" class="ag-step">
+                <span class="ag-step-index tabular">0{{ index + 1 }}</span>
+                <span class="ag-step-copy">
+                  <span class="ag-step-title">{{ step.title }}</span>
+                  <span class="ag-step-desc">{{ step.desc }}</span>
+                </span>
+              </li>
+            </ol>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ═══ 02 · 执行失败 ═══ -->
+      <section v-if="failed" class="ag-section" aria-label="执行失败">
+        <header class="ag-sec-head">
+          <div class="ag-head-copy">
+            <p class="ag-eyebrow ag-sec-eyebrow">
+              <span class="ag-idx">02</span>
+              <span class="ag-line" aria-hidden="true"></span>
+              <span>Result</span>
+            </p>
+            <h2 class="ag-sec-title">执行失败</h2>
+          </div>
+        </header>
+        <div class="ag-failed">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z" /><path d="M12 9v4" /><path d="M12 17h.01" />
+          </svg>
+          <div class="ag-failed-copy">
+            <p class="ag-failed-text">{{ failed }}</p>
+            <p class="ag-failed-desc">可以把需求写得更具体后重试，或直接到服务列表手动下单。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ 02 · 执行结果 ═══ -->
+      <section v-else-if="result" class="ag-section" aria-label="执行结果">
+        <header class="ag-sec-head">
+          <div class="ag-head-copy">
+            <p class="ag-eyebrow ag-sec-eyebrow">
+              <span class="ag-idx">02</span>
+              <span class="ag-line" aria-hidden="true"></span>
+              <span>Result</span>
+            </p>
+            <h2 class="ag-sec-title">执行结果</h2>
+            <p class="ag-sec-desc">每一步都记录在案，可与订单中心逐项核对。</p>
+          </div>
+        </header>
+
+        <div class="ag-result-grid">
+          <div class="ag-result-summary">
+            <span class="ag-result-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" /><path d="M6 6h.01M6 18h.01" />
+              </svg>
+            </span>
+            <p class="ag-result-text">{{ result.message_wsh || '助手已完成本次任务。' }}</p>
+
+            <dl class="ag-result-facts">
+              <div class="ag-result-fact">
+                <dt>订单号</dt>
+                <dd class="tabular">{{ result.orderNo || '未生成' }}</dd>
+              </div>
+              <div class="ag-result-fact">
+                <dt>支付状态</dt>
+                <dd>
+                  <span v-if="result.paymentStatus" :class="['badge', result.paymentStatus === 'paid' ? 'badge-active' : 'badge-action']">
+                    {{ paymentStatusText(result.paymentStatus) }}
+                  </span>
+                  <span v-else>未支付</span>
+                </dd>
+              </div>
+              <div class="ag-result-fact">
+                <dt>下一步</dt>
+                <dd>{{ nextActionText(result.nextAction || '') }}</dd>
+              </div>
+            </dl>
+
+            <div v-if="result.payNo && result.paymentStatus === 'pending'" class="ag-result-actions">
+              <button type="button" class="cta cta-primary" :disabled="payingPayNo === result.payNo" @click="manualPay(result)">
+                {{ payingPayNo === result.payNo ? '支付中...' : '手动支付' }}
+              </button>
+              <router-link to="/payments" class="cta cta-outline">查看支付记录</router-link>
+            </div>
+            <div v-else class="ag-result-actions">
+              <router-link to="/orders" class="cta cta-outline">到订单中心确认</router-link>
+            </div>
+          </div>
+
+          <div class="ag-result-logs">
+            <header class="ag-logs-head">
+              <h3 class="ag-logs-title">执行日志</h3>
+            </header>
+            <ol v-if="result.logs?.length" class="ag-log-list">
+              <li v-for="(log, index) in result.logs" :key="index" class="ag-log">
+                <span class="ag-log-index tabular">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span class="ag-log-text">{{ log }}</span>
+              </li>
+            </ol>
+            <p v-else class="ag-logs-empty">本次执行没有返回日志。</p>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { executeAgent } from '@/api/ai'
 import { executePayment } from '@/api/payment'
 import { useAppStore } from '@/stores/app'
-import PageHero from '@/components/common/PageHero.vue'
+
+const examples = [
+  '帮布丁订 9 月 15 日到 18 日的寄养，优先衡山路门店',
+  '下周三上午给芋圆约一次上门喂养',
+  '给毛豆约一次长毛犬深层洗护，本周末',
+]
+
+const steps = [
+  { title: '解析需求', desc: '识别宠物、服务类型、日期与门店偏好。' },
+  { title: '匹配与校验', desc: '筛选可用门店与服务，校验档期与容量。' },
+  { title: '生成订单', desc: '写入订单并返回订单号，可在订单中心查看。' },
+  { title: '支付', desc: '仅在你开启自动支付时执行，否则等待手动确认。' },
+]
 
 const appStore = useAppStore()
-const messages = ref([
-  {
-    id: 0,
-    role: 'ai',
-    content: '我可以帮你选择宠物、匹配附近商家和看护人，并创建待支付订单。支付默认由你手动确认。',
-  },
-])
 const input = ref('')
 const loading = ref(false)
 const autoPay = ref(false)
 const paymentPassword = ref('')
 const payingPayNo = ref('')
+const result = ref(null)
+const failed = ref('')
+
+const hasResult = computed(() => Boolean(result.value) || Boolean(failed.value))
+
+function reset() {
+  result.value = null
+  failed.value = ''
+}
 
 async function executeTask() {
   if (!input.value || loading.value) return
@@ -107,9 +260,7 @@ async function executeTask() {
 
   const task = input.value
   const password = paymentPassword.value
-  messages.value.push({ id: Date.now(), role: 'user', content: task })
-  input.value = ''
-  paymentPassword.value = ''
+  failed.value = ''
   loading.value = true
 
   try {
@@ -119,21 +270,17 @@ async function executeTask() {
       payment_password_wsh: autoPay.value ? password : undefined,
     })
     if (r.code === 200) {
-      messages.value.push(toAgentMessage(r.data))
+      result.value = toAgentResult(r.data)
       if (r.data?.status === 'success') {
         appStore.addToast('订单已支付', 'success')
       } else if (r.data?.status === 'pending_payment') {
         appStore.addToast('订单已创建，等待手动支付', 'success')
       }
     } else {
-      messages.value.push({
-        id: Date.now(),
-        role: 'ai',
-        content: r.message || '任务执行失败，请稍后重试。',
-      })
+      failed.value = r.message || '任务执行失败，请稍后重试。'
     }
   } catch (e) {
-    messages.value.push({ id: Date.now(), role: 'ai', content: '任务执行失败，请检查网络后重试。' })
+    failed.value = '任务执行失败，请检查网络后重试。'
   } finally {
     loading.value = false
   }
@@ -146,7 +293,7 @@ async function manualPay(msg) {
     const r = await executePayment({ pay_no_wsh: msg.payNo })
     if (r.code === 200) {
       msg.paymentStatus = 'paid'
-      msg.content = '支付已完成，订单已进入后续处理。'
+      msg.message_wsh = '支付已完成，订单已进入后续处理。'
       appStore.addToast('支付成功', 'success')
     }
   } catch (e) {
@@ -156,11 +303,9 @@ async function manualPay(msg) {
   }
 }
 
-function toAgentMessage(data = {}) {
+function toAgentResult(data = {}) {
   return {
-    id: Date.now() + Math.random(),
-    role: 'ai',
-    content: data.message_wsh || data.error || '任务已处理。',
+    message_wsh: data.message_wsh || data.error || '任务已处理。',
     orderNo: data.orderNo,
     payNo: data.payNo,
     logs: Array.isArray(data.logs) ? data.logs : [],
@@ -185,146 +330,498 @@ function nextActionText(action) {
     create_pet_profile: '请先添加宠物档案。',
     retry_later: '请稍后再试。',
   }
-  return map[action] || action
+  return map[action] || action || '无需操作'
 }
 </script>
 
 <style scoped>
-.agent-page {
+.ag-page {
+  width: 100%;
+  padding: 6px 0 72px;
+  background: var(--ref-canvas);
+  color: var(--ref-ink);
+}
+
+.ag-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ═══ Breadcrumb ═══ */
+.ag-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12.5px;
+  color: var(--ref-muted);
+}
+.ag-crumb-link { color: var(--ref-muted); text-decoration: none; }
+.ag-crumb-link:hover { color: var(--ref-ink); }
+.ag-crumb-sep { color: var(--ref-line); }
+.ag-crumb-here { color: var(--ref-ink-soft); }
+
+/* ═══ Eyebrow ═══ */
+.ag-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 9.5px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ref-muted);
+}
+.ag-eyebrow-line { width: 32px; height: 1px; background: var(--ref-line); }
+.ag-idx { font-variant-numeric: tabular-nums; }
+.ag-line { width: 24px; height: 1px; background: var(--ref-line); }
+
+/* ═══ Hero ═══ */
+.ag-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px 24px;
+  padding: 40px 0 28px;
+}
+.ag-head-copy { min-width: 0; }
+.ag-title {
+  margin: 18px 0 0;
+  font-family: var(--ref-font-display);
+  font-size: clamp(34px, 4.4vw, 52px);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  font-weight: 500;
+  color: var(--ref-ink);
+  text-wrap: balance;
+}
+.ag-sub {
+  margin: 14px 0 0;
+  max-width: 640px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: color-mix(in srgb, var(--ref-ink-soft) 82%, transparent);
+}
+.ag-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ═══ CTA ═══ */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+}
+.cta:hover { transform: translateY(-1px); }
+.cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.cta-primary { background: var(--ref-brand); color: #fff; }
+.cta-primary:hover:not(:disabled) { background: var(--ref-brand-deep); }
+.cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
+.cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
+
+/* ═══ Badges ═══ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+.badge-action { background: var(--ref-brand); color: #fff; }
+.badge-active { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
+
+/* ═══ Section ═══ */
+.ag-section { margin-top: 56px; }
+.ag-sec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+.ag-sec-eyebrow { font-size: 10px; letter-spacing: 0.22em; }
+.ag-sec-title {
+  margin: 10px 0 0;
+  font-family: var(--ref-font-display);
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ref-ink);
+}
+.ag-sec-desc {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ref-ink-soft);
+  opacity: 0.8;
+}
+
+/* ═══ 01 · 表单 ═══ */
+.ag-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 18px;
+  margin-top: 20px;
+  align-items: start;
+}
+.ag-form {
+  border: 1px solid var(--ref-line);
+  border-radius: 18px;
+  background: var(--ref-surface);
+  padding: 24px;
+}
+.ag-field { display: block; }
+.ag-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ref-ink-soft);
+}
+.ag-req { margin-left: 4px; color: var(--ref-brand); }
+.ag-textarea {
+  width: 100%;
+  margin-top: 8px;
+  resize: vertical;
+  min-height: 118px;
+  padding: 12px 14px;
+  border: 1px solid var(--ref-line);
+  border-radius: 10px;
+  background: var(--ref-surface);
+  color: var(--ref-ink);
+  font-size: 13.5px;
+  line-height: 1.7;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ag-textarea::placeholder { color: color-mix(in srgb, var(--ref-muted) 75%, transparent); }
+.ag-textarea:focus {
+  outline: none;
+  border-color: var(--ref-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 18%, transparent);
+}
+.ag-textarea:disabled { opacity: 0.6; }
+.ag-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.ag-chip {
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--ref-line);
+  background: var(--ref-surface);
+  color: var(--ref-ink-soft);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.ag-chip:hover {
+  border-color: color-mix(in srgb, var(--ref-ink) 25%, transparent);
+  background: color-mix(in srgb, var(--ref-sand) 50%, transparent);
+  color: var(--ref-ink);
+}
+
+.ag-options {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--ref-line);
   display: grid;
   gap: 16px;
 }
-
-.agent-shell {
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface, #fff);
-  min-height: 620px;
-  display: grid;
-  grid-template-rows: 1fr auto;
-}
-
-.chat-messages {
-  padding: 18px;
-  overflow-y: auto;
-}
-
-.message-row {
+.ag-check {
   display: flex;
-  margin-bottom: 14px;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
 }
-
-.message-row--user {
-  justify-content: flex-end;
+.ag-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
-
-.message-bubble {
-  max-width: min(760px, 88%);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 12px 14px;
-  background: var(--color-muted);
-  color: var(--color-foreground);
+.ag-check-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  border: 1px solid var(--ref-line);
+  border-radius: 6px;
+  background: var(--ref-surface);
+  color: transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-
-.message-row--user .message-bubble {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: transparent;
+.ag-check input:checked + .ag-check-box {
+  background: var(--ref-brand);
+  border-color: var(--ref-brand);
+  color: #fff;
 }
-
-.message-bubble p {
-  margin: 0;
+.ag-check input:focus-visible + .ag-check-box {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 20%, transparent);
+}
+.ag-check-copy { min-width: 0; }
+.ag-check-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ref-ink);
+}
+.ag-check-desc {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
   line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
+  color: var(--ref-muted);
 }
-
-.result-meta,
-.message-actions,
-.auth-row,
-.submit-row {
+.ag-field-password { display: grid; gap: 8px; }
+.ag-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--ref-line);
+  border-radius: 10px;
+  background: var(--ref-surface);
+  color: var(--ref-ink);
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ag-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 12%, transparent);
+}
+.ag-hint {
+  font-size: 11.5px;
+  color: var(--ref-muted);
+}
+.ag-submit {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: center;
+  margin-top: 22px;
 }
 
-.result-meta {
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--color-muted-foreground);
+/* ═══ 01 · 流程说明 ═══ */
+.ag-steps {
+  border: 1px solid var(--ref-line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--ref-cream) 40%, var(--ref-surface));
+  padding: 24px;
 }
-
-.next-action {
-  margin-top: 10px;
-  color: #ad6800;
-  font-size: 13px;
+.ag-steps-eyebrow {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ref-muted);
 }
-
-.message-actions {
-  margin-top: 12px;
-}
-
-.agent-logs {
-  margin-top: 12px;
-  font-size: 13px;
-}
-
-.agent-logs ol {
-  margin: 8px 0 0 18px;
+.ag-step-list {
+  list-style: none;
+  margin: 20px 0 0;
   padding: 0;
-  color: var(--color-muted-foreground);
-}
-
-.agent-input-panel {
-  border-top: 1px solid var(--color-border);
-  padding: 14px;
   display: grid;
-  gap: 12px;
+  gap: 20px;
+}
+.ag-step {
+  display: flex;
+  gap: 14px;
+}
+.ag-step-index {
+  padding-top: 2px;
+  font-size: 12px;
+  color: var(--ref-muted);
+}
+.ag-step-copy {
+  min-width: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--ref-line);
+}
+.ag-step-title {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ref-ink);
+}
+.ag-step-desc {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ref-muted);
 }
 
-.agent-input-panel textarea,
-.payment-password {
-  width: 100%;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 10px 12px;
-  resize: vertical;
-  background: var(--color-background, #fff);
-  color: var(--color-foreground);
+/* ═══ 02 · 失败 ═══ */
+.ag-failed {
+  margin-top: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 24px;
+  border: 1px solid color-mix(in srgb, var(--ref-brand-deep) 20%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ref-brand-deep) 5%, var(--ref-surface));
+  color: var(--ref-brand-deep);
+}
+.ag-failed-copy { min-width: 0; }
+.ag-failed-text {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ref-ink);
+}
+.ag-failed-desc {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ref-muted);
 }
 
-.auth-row,
-.submit-row {
-  justify-content: space-between;
+/* ═══ 02 · 结果 ═══ */
+.ag-result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 20px;
+  align-items: stretch;
 }
-
-.switch-line {
-  display: inline-flex;
+.ag-result-summary {
+  border: 1px solid var(--ref-line);
+  border-radius: 18px;
+  background: var(--ref-surface);
+  padding: 24px;
+}
+.ag-result-icon {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--color-foreground);
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ref-sand);
+  color: var(--ref-brand);
 }
-
-.submit-row span {
-  color: var(--color-muted-foreground);
+.ag-result-text {
+  margin: 18px 0 0;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: color-mix(in srgb, var(--ref-ink-soft) 90%, transparent);
+}
+.ag-result-facts {
+  margin: 20px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--ref-line);
+  display: grid;
+  gap: 16px;
+}
+.ag-result-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.ag-result-fact dt {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ref-muted);
+}
+.ag-result-fact dd {
+  margin: 0;
+  max-width: 60%;
+  text-align: right;
   font-size: 13px;
+  color: var(--ref-ink);
+  overflow-wrap: anywhere;
+}
+.ag-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.ag-result-logs {
+  border: 1px solid var(--ref-line);
+  border-radius: 18px;
+  background: var(--ref-surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ag-logs-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ref-line);
+}
+.ag-logs-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ref-ink);
+}
+.ag-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  max-height: 22rem;
+}
+.ag-log {
+  display: flex;
+  gap: 12px;
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--ref-line);
+}
+.ag-log:last-child { border-bottom: none; }
+.ag-log-index {
+  flex: 0 0 auto;
+  padding-top: 1px;
+  font-size: 11px;
+  color: var(--ref-muted);
+}
+.ag-log-text {
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--ref-ink-soft) 85%, transparent);
+}
+.ag-logs-empty {
+  margin: 0;
+  padding: 34px 20px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ref-muted);
 }
 
+/* ═══ Responsive ═══ */
+@media (max-width: 980px) {
+  .ag-grid, .ag-result-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 640px) {
-  .agent-shell {
-    min-height: 560px;
-  }
-
-  .message-bubble {
-    max-width: 100%;
-  }
-
-  .auth-row,
-  .submit-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
+  .ag-shell { padding: 0 16px; }
+  .ag-head { padding: 30px 0 22px; }
+  .ag-sub { font-size: 13.5px; }
+  .ag-section { margin-top: 44px; }
+  .ag-form, .ag-steps { padding: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta { transition: none; }
 }
 </style>

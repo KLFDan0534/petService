@@ -249,6 +249,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { useCsChatStore } from '@/stores/csChat'
 import { getCsConversations, getCsThreads, markCsThreadRead } from '@/api/csWorkbench'
 import { getConversations, sendChatMessage, markConversationRead } from '@/api/chat'
 import { getComplaintMessages, sendComplaintMessage, getComplaintEvidence } from '@/api/complaint'
@@ -258,6 +259,7 @@ import { uploadFileToDirectory } from '@/api/file'
 const route = useRoute()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const csChatStore = useCsChatStore()
 const conversations = ref([])
 const threads = ref([])
 const convLoading = ref(true)
@@ -279,6 +281,9 @@ const threadDraft = ref('')
 const threadSending = ref(false)
 const threadPhotoUrls = ref([])
 const threadFileInput = ref(null)
+// 订阅全局客服消息中心（SSE 由 csChat store 统一维护）
+let unsubscribeChat = null
+let unsubscribeThread = null
 let eventSource = null
 
 const currentUserId = computed(() => authStore.user?.id_wsh)
@@ -336,6 +341,7 @@ async function openConversation(userId) {
   activeThreadKey.value = null
   threadContext.value = {}
   activeUserId.value = userId
+  csChatStore.setActive('conv', userId)
   const conv = conversations.value.find(c => c.other_user_id_wsh === userId)
   activeUserName.value = conv?.other_user_name_wsh || `用户#${userId}`
   messages.value = []
@@ -359,6 +365,7 @@ async function openThread(thread) {
   const key = `${thread.type_wsh}-${thread.biz_id_wsh}`
   activeThreadKey.value = key
   activeUserId.value = null
+  csChatStore.setActive('thread', key)
   threadContext.value = { ...thread }
   threadMessages.value = []
   threadEvidence.value = null
@@ -606,74 +613,73 @@ function isImageUrl(value) {
   return /\.(jpe?g|png|gif|webp|bmp|svg|avif)(\?.*)?$/i.test(String(value))
 }
 
+// 订阅全局客服消息中心（SSE 由 csChat store 统一维护，任意页面都能收到提醒）
 function connectSse() {
   if (!token.value) return
-  try {
-    eventSource = new EventSource(`/api/chat-events/stream?token=${encodeURIComponent(token.value)}`)
-    eventSource.addEventListener('chat-message', (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        if (!msg || msg.from_user_id_wsh === currentUserId.value) return
-        const conv = conversations.value.find(c => c.other_user_id_wsh === msg.from_user_id_wsh)
-        if (conv && msg.to_user_id_wsh === currentUserId.value) {
-          if (activeUserId.value !== msg.from_user_id_wsh) {
-            conv.unread_count = (conv.unread_count || 0) + 1
-          }
-          conv.last_message_wsh = msg.content_wsh
-          conv.last_time_wsh = msg.created_at_wsh
-          conversations.value = [conv, ...conversations.value.filter(c => c.other_user_id_wsh !== conv.other_user_id_wsh)]
-        } else if (conv) {
-          conv.last_message_wsh = msg.content_wsh
-          conv.last_time_wsh = msg.created_at_wsh
+  // 进入聊天页：重置全局未读角标，避免与页面内会话未读重复
+  csChatStore.resetUnread()
+  unsubscribeChat = csChatStore.on('chat-message', (msg) => {
+    try {
+      if (!msg || msg.from_user_id_wsh === currentUserId.value) return
+      const conv = conversations.value.find(c => c.other_user_id_wsh === msg.from_user_id_wsh)
+      if (conv && msg.to_user_id_wsh === currentUserId.value) {
+        if (activeUserId.value !== msg.from_user_id_wsh) {
+          conv.unread_count = (conv.unread_count || 0) + 1
         }
-        if (activeUserId.value === msg.from_user_id_wsh && msg.to_user_id_wsh === currentUserId.value) {
-          messages.value.push(msg)
-          markConversationRead({ other_user_id_wsh: msg.from_user_id_wsh }).catch(() => {})
+        conv.last_message_wsh = msg.content_wsh
+        conv.last_time_wsh = msg.created_at_wsh
+        conversations.value = [conv, ...conversations.value.filter(c => c.other_user_id_wsh !== conv.other_user_id_wsh)]
+      } else if (conv) {
+        conv.last_message_wsh = msg.content_wsh
+        conv.last_time_wsh = msg.created_at_wsh
+      }
+      if (activeUserId.value === msg.from_user_id_wsh && msg.to_user_id_wsh === currentUserId.value) {
+        messages.value.push(msg)
+        markConversationRead({ other_user_id_wsh: msg.from_user_id_wsh }).catch(() => {})
+        nextTick(scrollToBottom)
+      }
+    } catch (e) { /* ignore malformed event */ }
+  })
+  unsubscribeThread = csChatStore.on('thread-message', (data) => {
+    try {
+      const key = `${data.type}-${data.biz_id_wsh}`
+      const activeKey = activeThreadKey.value
+      if (key === activeKey) {
+        // 当前打开的线程：直接追加消息并标记已读
+        const fromUserId = data.from_user_id_wsh
+        if (fromUserId !== currentUserId.value) {
+          threadMessages.value.push({
+            id_wsh: Date.now(),
+            fromUserId,
+            fromName: threadContext.value.other_user_name_wsh || `用户#${fromUserId}`,
+            content: data.content_wsh,
+            fileUrl: data.file_url_wsh,
+            time: data.created_at_wsh,
+          })
+          markCsThreadRead(data.type, data.biz_id_wsh).catch(() => {})
           nextTick(scrollToBottom)
         }
-      } catch (e) { /* ignore malformed event */ }
-    })
-    eventSource.addEventListener('thread-message', (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        const key = `${data.type}-${data.biz_id_wsh}`
-        const activeKey = activeThreadKey.value
-        if (key === activeKey) {
-          // 当前打开的线程：直接追加消息并标记已读
-          const fromUserId = data.from_user_id_wsh
-          if (fromUserId !== currentUserId.value) {
-            threadMessages.value.push({
-              id_wsh: Date.now(),
-              fromUserId,
-              fromName: threadContext.value.other_user_name_wsh || `用户#${fromUserId}`,
-              content: data.content_wsh,
-              fileUrl: data.file_url_wsh,
-              time: data.created_at_wsh,
-            })
-            markCsThreadRead(data.type, data.biz_id_wsh).catch(() => {})
-            nextTick(scrollToBottom)
+      } else {
+        const thread = threads.value.find(t => `${t.type_wsh}-${t.biz_id_wsh}` === key)
+        if (thread) {
+          if (data.from_user_id_wsh !== currentUserId.value) {
+            thread.unread_count = (thread.unread_count || 0) + 1
+          }
+          thread.last_message_wsh = data.content_wsh
+          thread.last_time_wsh = data.created_at_wsh
+          const idx = threads.value.indexOf(thread)
+          if (idx > 0) {
+            threads.value.splice(idx, 1)
+            threads.value.unshift(thread)
           }
         } else {
-          const thread = threads.value.find(t => `${t.type_wsh}-${t.biz_id_wsh}` === key)
-          if (thread) {
-            if (data.from_user_id_wsh !== currentUserId.value) {
-              thread.unread_count = (thread.unread_count || 0) + 1
-            }
-            thread.last_message_wsh = data.content_wsh
-            thread.last_time_wsh = data.created_at_wsh
-            const idx = threads.value.indexOf(thread)
-            if (idx > 0) {
-              threads.value.splice(idx, 1)
-              threads.value.unshift(thread)
-            }
-          } else {
-            // 新线程（如刚创建的投诉）出现在列表
-            loadThreads()
-          }
+          // 新线程（如刚创建的投诉）出现在列表
+          loadThreads()
         }
-      } catch (e) { /* ignore malformed event */ }
-    })
-  } catch (e) { /* SSE unavailable */ }
+      }
+    } catch (e) { /* ignore malformed event */ }
+  })
+  csChatStore.connect()
 }
 
 function openThreadFromRoute() {
@@ -718,7 +724,12 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (unsubscribeChat) unsubscribeChat()
+  if (unsubscribeThread) unsubscribeThread()
+  csChatStore.clearActive()
+  csChatStore.resetUnread()
   if (eventSource) eventSource.close()
+  eventSource = null
 })
 </script>
 

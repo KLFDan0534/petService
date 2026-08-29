@@ -26,6 +26,8 @@ public class KeeperLeaveDTO {
     private LocalDate end_date_wsh;
     @Schema(description = "请假原因")
     private String reason_wsh;
+    @Schema(description = "审批状态 pending/approved/rejected")
+    private String status_wsh;
     @Schema(description = "创建人")
     private Long created_by_wsh;
     @Schema(description = "创建时间")

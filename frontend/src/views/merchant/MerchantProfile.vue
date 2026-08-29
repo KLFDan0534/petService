@@ -1,10 +1,5 @@
 <template>
   <div class="merchant-profile-page">
-    <PageHero
-      :title="merchant?.name_wsh || '商家资料'"
-      subtitle="查看商家基础资料、审核状态和当前店铺状态。"
-    />
-
     <LoadingSpinner v-if="loading" text="加载商家资料..." />
 
     <EmptyState
@@ -60,7 +55,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import PageHero from '@/components/common/PageHero.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { getMy } from '@/services/merchantService'

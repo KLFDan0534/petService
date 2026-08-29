@@ -104,8 +104,17 @@ const routeName = computed(() => {
     'AdminNotices': '公告管理',
     'AdminBanner': '广告管理',
     'AdminRag': '知识库管理',
+    'AdminAiConfig': 'AI 配置',
     'AdminOperationLogs': '操作日志',
     'AdminRecycleBin': '回收站',
+    'AdminPayments': '支付记录',
+    'AdminTips': '打赏记录',
+    'AdminFiles': '文件资源',
+    'AdminNotifications': '通知推送',
+    'AdminFavorites': '收藏数据',
+    'AdminAttendance': '看护出勤',
+    'AdminLeaves': '请假审批',
+    'AdminCsApplications': '客服人员审核',
   }
   return names[route.name] || '控制台'
 })
@@ -149,6 +158,21 @@ const navGroups = [
       { route: '/admin/withdrawals', label: '提现审核' },
       { route: '/admin/wallets', label: '钱包管理' },
       { route: '/admin/transactions', label: '交易记录' },
+      { route: '/admin/payments', label: '支付记录' },
+      { route: '/admin/tips', label: '打赏记录' },
+    ]
+  },
+  {
+    label: '商家与宠物',
+    items: [
+      { route: '/admin/merchants', label: '商家审核' },
+      { route: '/admin/keepers', label: '寄养员管理' },
+      { route: '/admin/qualifications', label: '资质审核' },
+      { route: '/admin/pets', label: '宠物查看' },
+      { route: '/admin/categories', label: '宠物品种管理' },
+      { route: '/admin/service-categories', label: '服务分类管理' },
+      { route: '/admin/attendance', label: '看护出勤' },
+      { route: '/admin/leaves', label: '请假审批' },
     ]
   },
   {
@@ -157,6 +181,7 @@ const navGroups = [
       { route: '/admin/tickets', label: '工单管理' },
       { route: '/admin/complaints', label: '投诉处理' },
       { route: '/admin/reviews', label: '内容审核' },
+      { route: '/admin/cs-applications', label: '客服人员审核' },
     ]
   },
   {
@@ -165,6 +190,15 @@ const navGroups = [
       { route: '/admin/notices', label: '公告管理' },
       { route: '/admin/banners', label: '广告管理' },
       { route: '/admin/rag', label: '知识库管理' },
+      { route: '/admin/ai-config', label: 'AI 配置' },
+      { route: '/admin/files', label: '文件资源' },
+      { route: '/admin/notifications', label: '通知推送' },
+    ]
+  },
+  {
+    label: '数据管理',
+    items: [
+      { route: '/admin/favorites', label: '收藏数据' },
     ]
   },
   {
@@ -193,6 +227,7 @@ const expandedGroups = reactive({
   '订单与财务': false,
   '客服与审核': false,
   '内容与运营': false,
+  '数据管理': false,
   '系统': false,
 })
 

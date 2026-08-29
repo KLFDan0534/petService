@@ -9,7 +9,8 @@ import com.pet.ai.service.AiChatService;
 import com.pet.ai.service.RagService;
 import com.pet.common.BusinessException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import com.pet.ai.service.AiChatHistoryService;
+import com.pet.ai.service.AiConfigService;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -47,28 +48,17 @@ public class AiChatServiceImpl implements AiChatService {
     private final RagService ragService;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+    private final AiConfigService aiConfigService;
+    private final AiChatHistoryService historyService;
 
     /** 每用户滑动窗口限流：userId → 最近时间戳列表 */
     private final Map<Long, List<Long>> rateBuckets = new ConcurrentHashMap<>();
 
-    @Value("${ai.kenari.api-key:${KENARI_API_KEY:}}")
-    private String apiKey;
-
-    @Value("${ai.kenari.model:${KENARI_MODEL:gpt-4o-mini}}")
-    private String model;
-
-    @Value("${ai.kenari.endpoint:${KENARI_ENDPOINT:https://kenari.id/v1}}")
-    private String endpoint;
-
-    @Value("${ai.kenari.max-tokens:${KENARI_MAX_TOKENS:1024}}")
-    private int maxTokens;
-
-    @Value("${ai.kenari.temperature:${KENARI_TEMPERATURE:0.3}}")
-    private double temperature;
-
-    public AiChatServiceImpl(RagService ragService, ObjectMapper objectMapper) {
+    public AiChatServiceImpl(RagService ragService, ObjectMapper objectMapper, AiConfigService aiConfigService, AiChatHistoryService historyService) {
         this.ragService = ragService;
         this.objectMapper = objectMapper;
+        this.aiConfigService = aiConfigService;
+        this.historyService = historyService;
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
         requestFactory.setReadTimeout(Duration.ofSeconds(20));
@@ -86,12 +76,25 @@ public class AiChatServiceImpl implements AiChatService {
         }
         assertNotRateLimited(userId);
 
+        // 0) 确定会话ID并保存用户消息
+        String sessionId = request.getSession_id_wsh();
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = AiChatHistoryService.newSessionId();
+        }
+        final String sid = sessionId;
+        try {
+            historyService.saveSimple(userId, sid, "user", message);
+        } catch (Exception e) {
+            log.warn("保存用户消息到历史记录失败: {}", e.getMessage());
+        }
+
         // 1) 用户明确要求人工服务 → 直接转人工
         if (containsAny(message, HANDOFF_KEYWORDS)) {
             AiChatResponseDTO response = new AiChatResponseDTO();
             response.setReply_wsh("您需要人工服务，正在为您转接。您可以点击下方按钮创建客服工单，客服将尽快与您联系。");
             response.setNeed_human_wsh(true);
             response.setSources_wsh(List.of());
+            response.setSession_id_wsh(sid);
             return response;
         }
 
@@ -118,6 +121,7 @@ public class AiChatServiceImpl implements AiChatService {
         // 4) 转人工判定
         AiChatResponseDTO response = new AiChatResponseDTO();
         response.setSources_wsh(sourceTitles);
+        response.setSession_id_wsh(sid);
         if (!aiOk) {
             response.setReply_wsh("AI 服务暂时不可用，已为您转接人工客服。您可以点击下方按钮创建客服工单，客服将尽快处理您的问题。");
             response.setNeed_human_wsh(true);
@@ -131,6 +135,14 @@ public class AiChatServiceImpl implements AiChatService {
         boolean aiAsksHuman = containsAny(reply, AI_HANDOFF_MARKERS);
         response.setReply_wsh(reply);
         response.setNeed_human_wsh(aiAsksHuman);
+
+        // 5) 保存 AI 回复到历史记录
+        try {
+            historyService.save(userId, sid, "assistant", reply, sourceTitles, aiAsksHuman);
+        } catch (Exception e) {
+            log.warn("保存AI回复到历史记录失败: {}", e.getMessage());
+        }
+
         return response;
     }
 
@@ -213,8 +225,13 @@ public class AiChatServiceImpl implements AiChatService {
      * 注意事项：endpoint 为 https://kenari.id/v1，走标准 OpenAI 协议。
      */
     private String callKenari(String systemPrompt, List<Map<String, String>> messages) throws Exception {
+        String apiKey = aiConfigService.getApiKey();
+        String model = aiConfigService.getModel();
+        int maxTokens = aiConfigService.getMaxTokens();
+        double temperature = aiConfigService.getTemperature();
+
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("未配置 KENARI_API_KEY");
+            throw new IllegalStateException("AI API Key 未配置，请在管理后台 → AI 配置中设置");
         }
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -232,7 +249,7 @@ public class AiChatServiceImpl implements AiChatService {
         body.put("max_tokens", maxTokens);
         body.put("temperature", temperature);
 
-        String url = endpoint + (endpoint.endsWith("/") ? "" : "/") + "chat/completions";
+        String url = aiConfigService.getChatCompletionsUrl();
         String raw;
         try {
             raw = restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);

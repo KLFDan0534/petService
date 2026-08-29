@@ -1,5 +1,7 @@
 package com.pet.order.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.common.PageRequestDTO;
 import com.pet.order.dto.TipCreateRequestDTO;
 import com.pet.order.dto.TipDTO;
 import com.pet.order.entity.Tip;
@@ -66,6 +68,30 @@ public interface TipService {
      * @return 打赏记录列表
      */
     List<Tip> listMyTips(Long userId);
+
+    /**
+     * 【管理员分页查询打赏记录】
+     *
+     * 业务作用：
+     * 分页查询打赏记录，按创建时间倒序排列。
+     *
+     * 调用场景：
+     * 管理员后台打赏记录列表。
+     *
+     * 调用链：
+     * Controller
+     * ↓
+     * pageAll(pageParam)
+     * ↓
+     * tipMapper.selectPage(Page, LambdaQueryWrapper)
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param pageParam 分页参数
+     * @return 分页的打赏记录
+     */
+    IPage<Tip> pageAll(PageRequestDTO pageParam);
 
     /**
      * 【打赏实体转DTO】

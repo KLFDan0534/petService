@@ -47,7 +47,6 @@ function mountOrders() {
   return mount(Orders, {
     global: {
       stubs: {
-        PageHero: true,
         TipDialog: true,
         ReviewDialog: true,
         OrderCard: true,

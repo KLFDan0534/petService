@@ -3,15 +3,19 @@ package com.pet.boarding.controller;
 import com.pet.boarding.dto.AttendanceCheckRequestDTO;
 import com.pet.boarding.dto.KeeperAttendanceDTO;
 import com.pet.boarding.service.KeeperAttendanceService;
+import com.pet.common.PageRequestDTO;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.security.JwtAuthenticationToken;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,10 +24,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/keeper-attendance")
 @Tag(name = "【用户端】考勤管理", description = "看护者打卡考勤管理（看护者签到/商家查看）")
+@Slf4j
 public class KeeperAttendanceController {
 
     private final KeeperAttendanceService attendanceService;
@@ -171,5 +177,35 @@ public class KeeperAttendanceController {
     })
     public Result<List<KeeperAttendanceDTO>> merchantToday(@AuthenticationPrincipal JwtAuthenticationToken token) {
         return Result.success(attendanceService.listMerchantToday(token.getUserId()));
+    }
+
+    /**
+     * 管理员分页查询全部考勤记录
+     *
+     * <p>API: GET /api/keeper-attendance/admin-list</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：分页参数（page/size），可选按商家精确过滤</p>
+     * <p>返回数据：PageResult&lt;KeeperAttendanceDTO&gt; - 考勤记录分页（含看护者、商家名称、上岗状态）</p>
+     */
+    @GetMapping("/admin-list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "分页查询全部考勤记录", description = "管理员分页查看所有看护者的考勤记录，可按商家过滤")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "成功返回考勤记录分页"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<KeeperAttendanceDTO>> adminList(PageRequestDTO pageParam,
+                                                             @RequestParam(required = false) Long merchant_id_wsh) {
+        log.info("Calling adminList(merchant_id_wsh={})", merchant_id_wsh);
+        var page = attendanceService.pageAll(pageParam, merchant_id_wsh);
+        var dtoList = page.getRecords()
+                .stream()
+                .map(attendanceService::toDTO)
+                .collect(Collectors.toList());
+        PageResult<KeeperAttendanceDTO> result = new PageResult<>();
+        result.setList(dtoList);
+        result.copyPageInfo(page);
+        return Result.success(result);
     }
 }

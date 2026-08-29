@@ -74,7 +74,7 @@ describe('Dashboard booking CTA (F-NAV-002)', () => {
     await flushPromises()
     await flushPromises()
 
-    const cta = wrapper.find('.hero-primary')
+    const cta = wrapper.find('.cta-primary')
     expect(cta.exists()).toBe(true)
     await cta.trigger('click')
 

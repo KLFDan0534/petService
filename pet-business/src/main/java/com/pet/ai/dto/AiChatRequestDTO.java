@@ -13,6 +13,9 @@ public class AiChatRequestDTO {
     @NotBlank(message = "消息不能为空")
     private String message_wsh;
 
+    @Schema(description = "会话ID（可选，前端传入以关联历史记录）")
+    private String session_id_wsh;
+
     @Schema(description = "历史对话（可选，最多携带最近10条）")
     private List<ChatTurn> history_wsh;
 

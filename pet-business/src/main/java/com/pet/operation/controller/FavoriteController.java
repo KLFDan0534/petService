@@ -1,6 +1,7 @@
 package com.pet.operation.controller;
 
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.operation.dto.FavoriteCardDTO;
@@ -10,6 +11,8 @@ import com.pet.operation.dto.FavoriteToggleRequestDTO;
 import com.pet.operation.entity.Favorite;
 import com.pet.operation.service.FavoriteService;
 import com.pet.security.JwtAuthenticationToken;
+import com.pet.system.entity.User;
+import com.pet.system.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,6 +30,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
@@ -36,9 +41,11 @@ import java.util.stream.Collectors;
 public class FavoriteController {
 
     private final FavoriteService favoriteService;
+    private final UserMapper userMapper;
 
-    public FavoriteController(FavoriteService favoriteService) {
+    public FavoriteController(FavoriteService favoriteService, UserMapper userMapper) {
         this.favoriteService = favoriteService;
+        this.userMapper = userMapper;
     }
 
     @GetMapping
@@ -129,6 +136,63 @@ public class FavoriteController {
             throw new BusinessException(400, "target_id_wsh is required");
         }
         return Result.success(favoriteService.isFavorited(token.getUserId(), targetId, targetType));
+    }
+
+    /**
+     * 管理员分页查看全部收藏数据
+     * @param pageParam 分页参数
+     * @param target_type_wsh 目标类型，精确匹配（可选）
+     * @return 分页收藏DTO列表，含用户昵称/用户名
+     * @author: wsh
+     * @date: 2026/8/22
+     **/
+    @GetMapping("/admin-list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "管理员收藏列表", description = "管理员分页查看全部收藏数据，支持按目标类型筛选")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "无权限访问"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<FavoriteDTO>> adminList(PageRequestDTO pageParam,
+            @Parameter(description = "目标类型，精确匹配") @RequestParam(value = "target_type_wsh", required = false) String target_type_wsh) {
+        log.info("adminList()");
+        var page = favoriteService.pageAll(pageParam, target_type_wsh);
+        List<FavoriteDTO> dtoList = page.getRecords().stream().map(this::toDTO).collect(Collectors.toList());
+        fillUserName(dtoList);
+        PageResult<FavoriteDTO> result = new PageResult<>();
+        result.setList(dtoList);
+        result.copyPageInfo(page);
+        return Result.success(result);
+    }
+
+    /**
+     * 批量填充用户昵称/用户名
+     */
+    private void fillUserName(List<FavoriteDTO> dtoList) {
+        if (dtoList == null || dtoList.isEmpty()) {
+            return;
+        }
+        List<Long> userIds = dtoList.stream()
+                .map(FavoriteDTO::getUser_id_wsh)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (userIds.isEmpty()) {
+            return;
+        }
+        Map<Long, String> nameMap = userMapper.selectBatchIds(userIds).stream()
+                .collect(Collectors.toMap(
+                        User::getId_wsh,
+                        u -> (u.getNickname_wsh() != null && !u.getNickname_wsh().isBlank())
+                                ? u.getNickname_wsh() : u.getUsername_wsh(),
+                        (a, b) -> a));
+        for (FavoriteDTO dto : dtoList) {
+            if (dto.getUser_id_wsh() != null) {
+                dto.setUser_name_wsh(nameMap.get(dto.getUser_id_wsh()));
+            }
+        }
     }
 
     private String firstNonBlank(String primary, String fallback) {

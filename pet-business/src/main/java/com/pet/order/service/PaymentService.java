@@ -1,5 +1,7 @@
 package com.pet.order.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.common.PageRequestDTO;
 import com.pet.order.dto.PaymentDTO;
 import com.pet.order.entity.Payment;
 import java.util.List;
@@ -179,6 +181,34 @@ public interface PaymentService {
      * @param payNo  支付编号（PAY前缀）
      */
     void pay(Long userId, String payNo);
+
+    /**
+     * 【管理员分页查询支付记录】
+     *
+     * 业务作用：
+     * 分页查询支付记录，支持按订单号/支付编号模糊搜索，按创建时间倒序排列。
+     *
+     * 调用场景：
+     * 管理员后台支付记录列表。
+     *
+     * 调用链：
+     * Controller
+     * ↓
+     * pageAll(pageParam, keyword)
+     * ↓
+     * paymentMapper.selectPage(Page, LambdaQueryWrapper)
+     *
+     * 数据处理：
+     * keyword 非空时按 order_no_wsh/pay_no_wsh 做 like 模糊查询。
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param pageParam 分页参数
+     * @param keyword   搜索关键字（可为null，用于按订单号/支付编号模糊搜索）
+     * @return 分页的支付记录
+     */
+    IPage<Payment> pageAll(PageRequestDTO pageParam, String keyword);
 
     /**
      * 【支付实体转DTO】

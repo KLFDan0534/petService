@@ -8,7 +8,8 @@
     @click.stop="handleClick"
   >
     <el-icon class="favorite-toggle-icon">
-      <Star />
+      <StarFilled v-if="isFavorited" />
+      <Star v-else />
     </el-icon>
     <span v-if="showText">{{ isFavorited ? favoritedLabel : unfavoritedLabel }}</span>
   </button>
@@ -17,7 +18,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Star } from '@element-plus/icons-vue'
+import { Star, StarFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useFavoriteState } from '@/composables/useFavoriteState'
@@ -46,11 +47,11 @@ const props = defineProps({
   },
   activeClass: {
     type: String,
-    default: 'btn-primary',
+    default: 'is-favorited',
   },
   inactiveClass: {
     type: String,
-    default: 'btn-outline',
+    default: 'is-unfavorited',
   },
 })
 
@@ -96,11 +97,45 @@ async function handleClick() {
 .favorite-toggle {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  white-space: nowrap;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  flex-shrink: 0;
+}
+
+.favorite-toggle:hover {
+  color: #f59e0b;
+  transform: scale(1.1);
+}
+
+.favorite-toggle.is-favorited {
+  color: #f59e0b;
+}
+
+.favorite-toggle.is-favorited .favorite-toggle-icon {
+  color: #f59e0b;
+  filter: drop-shadow(0 0 3px rgba(245, 158, 11, 0.5));
+}
+
+.favorite-toggle.is-unfavorited {
+  color: var(--color-muted-foreground);
+}
+
+.favorite-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .favorite-toggle-icon {
-  font-size: 16px;
+  font-size: 20px;
 }
 </style>

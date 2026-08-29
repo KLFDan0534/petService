@@ -1,11 +1,15 @@
 package com.pet.order.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import com.pet.common.PageRequestDTO;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.order.dto.TipDTO;
 import com.pet.order.dto.TipCreateRequestDTO;
 import com.pet.order.service.TipService;
 import com.pet.security.JwtAuthenticationToken;
+import com.pet.system.entity.User;
+import com.pet.system.mapper.UserMapper;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -32,9 +36,11 @@ import java.util.stream.Collectors;
 public class TipController {
 
     private final TipService tipService;
+    private final UserMapper userMapper;
 
-    public TipController(TipService tipService) {
+    public TipController(TipService tipService, UserMapper userMapper) {
         this.tipService = tipService;
+        this.userMapper = userMapper;
     }
 
     /**
@@ -68,6 +74,75 @@ public class TipController {
         log.info("create() called");
         tipService.create(token.getUserId(), request);
         return Result.success();
+    }
+
+    /**
+     * 管理员分页查询打赏记录
+     *
+     * <p>API: GET /api/tips/admin-list</p>
+     * <p>请求来源：前端管理员后台-打赏记录页</p>
+     * <p>权限要求：管理员（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：@pageParam PageRequestDTO 分页参数</p>
+     * <p>返回数据：Result&lt;PageResult&lt;TipDTO&gt;&gt; - 分页的打赏记录，并填充打赏人/收款人昵称或用户名</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>401 - 未登录</li>
+     *   <li>403 - 无权限（非管理员）</li>
+     *   <li>500 - 服务器内部错误</li>
+     * </ul>
+     * </p>
+     */
+    @GetMapping("/admin-list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "管理员分页查询打赏记录", description = "管理员分页查询所有打赏记录，并填充打赏人/收款人昵称或用户名")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "成功返回分页打赏记录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<TipDTO>> adminList(PageRequestDTO pageParam) {
+        log.info("adminList() called, page: {}, size: {}", pageParam.getPage(), pageParam.getSize());
+        var page = tipService.pageAll(pageParam);
+        var dtoList = page.getRecords()
+                .stream()
+                .map(tip -> fillUserName(tipService.toDTO(tip)))
+                .collect(Collectors.toList());
+        PageResult<TipDTO> result = new PageResult<>();
+        result.setList(dtoList);
+        result.copyPageInfo(page);
+        return Result.success(result);
+    }
+
+    /**
+     * 为打赏DTO填充打赏人/收款人昵称或用户名
+     *
+     * 业务作用：
+     * 根据 from_user_id/to_user_id 查询对应用户，优先取 nickname_wsh，为空时回退 username_wsh。
+     *
+     * @param dto 打赏DTO（可为null）
+     * @return 填充昵称/用户名后的打赏DTO
+     */
+    private TipDTO fillUserName(TipDTO dto) {
+        if (dto == null) return null;
+        dto.setFrom_user_name_wsh(resolveUserName(dto.getFrom_user_id_wsh()));
+        dto.setTo_user_name_wsh(resolveUserName(dto.getTo_user_id_wsh()));
+        return dto;
+    }
+
+    /**
+     * 根据用户ID解析昵称或用户名
+     *
+     * @param userId 用户ID（可为null）
+     * @return 用户昵称或用户名，查不到时返回null
+     */
+    private String resolveUserName(Long userId) {
+        if (userId == null) return null;
+        User user = userMapper.selectById(userId);
+        if (user == null) return null;
+        if (user.getNickname_wsh() != null && !user.getNickname_wsh().isBlank()) {
+            return user.getNickname_wsh();
+        }
+        return user.getUsername_wsh();
     }
 
     /**

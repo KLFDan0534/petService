@@ -1,8 +1,11 @@
 package com.pet.customer.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.common.PageRequestDTO;
 import com.pet.customer.dto.MerchantCustomerServiceApplyRequestDTO;
 import com.pet.customer.dto.MerchantCustomerServiceDTO;
 import com.pet.customer.dto.MerchantCustomerServiceReviewRequestDTO;
+import com.pet.customer.entity.MerchantCustomerService;
 
 import java.util.List;
 import java.util.Set;
@@ -209,4 +212,89 @@ public interface MerchantCustomerServiceService {
      * @return 该商家的已授权客服用户ID集合
      */
     Set<Long> getApprovedCsUserIds(Long merchantId);
+
+    /**
+     * 【业务名称】管理员分页查询全平台客服申请
+     * 业务作用：管理员查看全平台所有商家的客服申请列表（可按状态筛选）。
+     * 调用场景：管理后台客服审核列表页。
+     * 调用链：pageAll() → Mapper.selectPage()。
+     * 数据处理：按状态精确筛选，按创建时间倒序分页。
+     * 业务规则：status_wsh 为空时查询全部状态。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：仅供 ADMIN 角色调用。
+     *
+     * @param pageParam 分页参数
+     * @param status_wsh 状态（可空，如 pending/approved/rejected）
+     * @return 分页的申请记录实体
+     */
+    IPage<MerchantCustomerService> pageAll(PageRequestDTO pageParam, String status_wsh);
+
+    /**
+     * 【业务名称】管理员通过客服申请
+     * 业务作用：管理员通过指定客服申请，自动为用户授予 CUSTOMER_SERVICE 角色。
+     * 调用场景：管理后台审核客服申请通过。
+     * 调用链：approveByAdmin() → 查记录 → 校验 → update → 授予角色。
+     * 数据处理：仅 pending 可改为 approved，记录审核人、审核备注、审核时间。
+     * 业务规则：不校验商家归属，管理员可审批全平台申请。
+     * 状态影响：申请记录状态 approved；用户新增 CUSTOMER_SERVICE 角色。
+     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
+     * 注意事项：仅供 ADMIN 角色调用。
+     *
+     * @param id 申请记录ID
+     * @param adminUserId 管理员用户ID
+     * @param reviewNote 审核备注
+     * @return 更新后的申请记录DTO
+     */
+    MerchantCustomerServiceDTO approveByAdmin(Long id, Long adminUserId, String reviewNote);
+
+    /**
+     * 【业务名称】管理员驳回客服申请
+     * 业务作用：管理员驳回指定客服申请。
+     * 调用场景：管理后台审核客服申请驳回。
+     * 调用链：rejectByAdmin() → 查记录 → 校验 → update。
+     * 数据处理：仅 pending 可改为 rejected，记录审核人、审核备注、审核时间。
+     * 业务规则：不校验商家归属，管理员可审批全平台申请。
+     * 状态影响：申请记录状态 rejected。
+     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
+     * 注意事项：仅供 ADMIN 角色调用。
+     *
+     * @param id 申请记录ID
+     * @param adminUserId 管理员用户ID
+     * @param reviewNote 审核备注
+     * @return 更新后的申请记录DTO
+     */
+    MerchantCustomerServiceDTO rejectByAdmin(Long id, Long adminUserId, String reviewNote);
+
+    /**
+     * 【业务名称】申请记录实体转DTO
+     * 业务作用：将单个申请记录实体转换为DTO，关联商家名称和用户信息。
+     * 调用场景：Controller 组装分页结果时批量转换。
+     * 调用链：toDTO()。
+     * 数据处理：字段拷贝，关联查询商家名称、用户名和昵称。
+     * 业务规则：入参为 null 时返回 null。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     *
+     * @param entity 申请记录实体
+     * @return 申请记录DTO
+     */
+    MerchantCustomerServiceDTO toDTO(MerchantCustomerService entity);
+
+    /**
+     * 【业务名称】申请记录实体列表转DTO列表
+     * 业务作用：将申请记录实体列表批量转换为DTO列表。
+     * 调用场景：Controller 组装分页结果。
+     * 调用链：toDTOList() → toDTO()。
+     * 数据处理：遍历转换。
+     * 业务规则：入参为 null 时返回空列表。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：无。
+     *
+     * @param list 申请记录实体列表
+     * @return 申请记录DTO列表
+     */
+    List<MerchantCustomerServiceDTO> toDTOList(List<MerchantCustomerService> list);
 }

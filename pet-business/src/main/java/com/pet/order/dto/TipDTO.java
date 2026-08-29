@@ -24,6 +24,10 @@ public class TipDTO {
     private BigDecimal amount_wsh;
     @Schema(description = "小费留言")
     private String message_wsh;
+    @Schema(description = "打赏人昵称/用户名")
+    private String from_user_name_wsh;
+    @Schema(description = "收款人昵称/用户名")
+    private String to_user_name_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
 }

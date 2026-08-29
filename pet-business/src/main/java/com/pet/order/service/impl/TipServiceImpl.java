@@ -1,9 +1,12 @@
 package com.pet.order.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.OrderStatus;
 import com.pet.finance.service.AccountingService;
 import com.pet.order.dto.TipCreateRequestDTO;
@@ -111,6 +114,31 @@ public class TipServiceImpl implements TipService {
                         .eq(Tip::getFrom_user_id_wsh, userId)
                         .or()
                         .eq(Tip::getTo_user_id_wsh, userId));
+    }
+
+    /**
+     * 【管理员分页查询打赏记录（实现）】
+     *
+     * 业务作用：
+     * 分页查询打赏记录，按创建时间倒序排列。
+     *
+     * 调用链：
+     * TipService.pageAll()
+     * ↓
+     * tipMapper.selectPage(Page, LambdaQueryWrapper)
+     *
+     * 状态影响：
+     * 只读操作。
+     *
+     * @param pageParam 分页参数
+     * @return 分页的打赏记录
+     */
+    @Override
+    public IPage<Tip> pageAll(PageRequestDTO pageParam) {
+        log.info("分页查询打赏记录, page: {}, size: {}", pageParam.getPage(), pageParam.getSize());
+        Page<Tip> page = new Page<>(pageParam.getPage(), pageParam.getSize());
+        return tipMapper.selectPage(page,
+                new LambdaQueryWrapper<Tip>().orderByDesc(Tip::getCreated_at_wsh));
     }
 
     /**

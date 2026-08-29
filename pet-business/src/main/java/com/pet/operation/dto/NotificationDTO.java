@@ -10,6 +10,8 @@ public class NotificationDTO {
     private Long id_wsh;
     @Schema(description = "用户ID")
     private Long user_id_wsh;
+    @Schema(description = "目标用户昵称或用户名")
+    private String user_name_wsh;
     @Schema(description = "通知标题")
     private String title_wsh;
     @Schema(description = "通知内容")

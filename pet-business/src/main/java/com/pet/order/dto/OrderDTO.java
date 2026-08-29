@@ -32,6 +32,8 @@ public class OrderDTO {
     private String service_name_wsh;
     @Schema(description = "服务描述")
     private String service_description_wsh;
+    @Schema(description = "服务图片（当前最新）")
+    private String service_images_wsh;
     @Schema(description = "主人姓名")
     private String owner_name_wsh;
     @Schema(description = "宠物名称")

@@ -1,5 +1,7 @@
 package com.pet.operation.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.common.PageRequestDTO;
 import com.pet.operation.entity.FileRecord;
 import java.util.List;
 
@@ -33,5 +35,14 @@ public interface FileRecordService {
      * @param id 文件记录ID
      */
     void deleteById(Long id);
+
+    /**
+     * 管理员分页查询全部文件上传记录，支持按原始文件名模糊搜索
+     *
+     * @param pageParam 分页参数（页码、每页条数）
+     * @param keyword   搜索关键词，按原始文件名模糊匹配，为空时查询全部
+     * @return 分页文件记录，按创建时间倒序
+     */
+    IPage<FileRecord> pageAll(PageRequestDTO pageParam, String keyword);
 }
 

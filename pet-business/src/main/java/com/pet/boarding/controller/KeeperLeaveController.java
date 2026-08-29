@@ -3,9 +3,12 @@ package com.pet.boarding.controller;
 import com.pet.boarding.dto.KeeperLeaveCreateRequestDTO;
 import com.pet.boarding.dto.KeeperLeaveDTO;
 import com.pet.boarding.service.KeeperLeaveService;
+import com.pet.common.PageRequestDTO;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.security.JwtAuthenticationToken;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +27,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 【请假管理控制器】
@@ -39,6 +45,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/keeper-leaves")
 @Tag(name = "【用户端】请假管理", description = "看护者请假管理（商家查看和创建）")
+@Slf4j
 public class KeeperLeaveController {
 
     private final KeeperLeaveService leaveService;
@@ -161,5 +168,99 @@ public class KeeperLeaveController {
                                          @Parameter(description = "请假记录ID") @PathVariable Long id) {
         leaveService.deleteByMerchant(token.getUserId(), id);
         return Result.success();
+    }
+
+    /**
+     * 管理员分页查询全部请假记录
+     *
+     * <p>API: GET /api/keeper-leaves/admin-list</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：分页参数（page/size），可选按审批状态精确过滤</p>
+     * <p>返回数据：PageResult&lt;KeeperLeaveDTO&gt; - 请假记录分页（含看护者、商家名称）</p>
+     */
+    @GetMapping("/admin-list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "分页查询全部请假记录", description = "管理员分页查看所有看护者的请假记录，可按审批状态过滤")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "成功返回请假记录分页"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<KeeperLeaveDTO>> adminList(PageRequestDTO pageParam,
+                                                        @RequestParam(required = false) String status_wsh) {
+        log.info("Calling adminList(status_wsh={})", status_wsh);
+        var page = leaveService.pageAll(pageParam, status_wsh);
+        var dtoList = page.getRecords()
+                .stream()
+                .map(leaveService::toDTO)
+                .collect(Collectors.toList());
+        PageResult<KeeperLeaveDTO> result = new PageResult<>();
+        result.setList(dtoList);
+        result.copyPageInfo(page);
+        return Result.success(result);
+    }
+
+    /**
+     * 管理员审批通过请假申请
+     *
+     * <p>API: POST /api/keeper-leaves/{id}/approve</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：@path id - 请假记录ID；@body 可选，Map 中可携带 reason 审批备注</p>
+     * <p>返回数据：KeeperLeaveDTO - 审批后的请假记录（含看护者、商家名称）</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 请假记录非待审批状态</li>
+     *   <li>404 - 请假记录不存在</li>
+     * </ul>
+     * </p>
+     */
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "审批通过请假", description = "管理员审批通过待审批的请假申请")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "审批通过成功"),
+            @ApiResponse(responseCode = "400", description = "请假记录非待审批状态"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "请假记录不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<KeeperLeaveDTO> approve(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                          @Parameter(description = "请假记录ID") @PathVariable Long id,
+                                          @RequestBody(required = false) Map<String, String> body) {
+        log.info("Calling approve(id={})", id);
+        String reason = body == null ? null : body.get("reason");
+        return Result.success(leaveService.toDTO(leaveService.approve(id, token.getUserId(), reason)));
+    }
+
+    /**
+     * 管理员驳回请假申请
+     *
+     * <p>API: POST /api/keeper-leaves/{id}/reject</p>
+     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
+     * <p>输入参数：@path id - 请假记录ID；@body 可选，Map 中可携带 reason 驳回原因</p>
+     * <p>返回数据：KeeperLeaveDTO - 驳回后的请假记录（含看护者、商家名称）</p>
+     * <p>异常情况：
+     * <ul>
+     *   <li>400 - 请假记录非待审批状态</li>
+     *   <li>404 - 请假记录不存在</li>
+     * </ul>
+     * </p>
+     */
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "驳回请假", description = "管理员驳回待审批的请假申请")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "驳回成功"),
+            @ApiResponse(responseCode = "400", description = "请假记录非待审批状态"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "请假记录不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<KeeperLeaveDTO> reject(@AuthenticationPrincipal JwtAuthenticationToken token,
+                                         @Parameter(description = "请假记录ID") @PathVariable Long id,
+                                         @RequestBody(required = false) Map<String, String> body) {
+        log.info("Calling reject(id={})", id);
+        String reason = body == null ? null : body.get("reason");
+        return Result.success(leaveService.toDTO(leaveService.reject(id, token.getUserId(), reason)));
     }
 }

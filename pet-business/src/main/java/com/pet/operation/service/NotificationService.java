@@ -1,5 +1,7 @@
 package com.pet.operation.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.common.PageRequestDTO;
 import com.pet.operation.entity.Notification;
 
 import java.util.List;
@@ -60,5 +62,15 @@ public interface NotificationService {
      * @param relatedId 关联业务ID（如公告ID）
      */
     void deleteByRelatedId(Long relatedId);
+
+    /**
+     * 管理员分页查询全部通知，支持按类型及已读状态精确筛选
+     *
+     * @param pageParam 分页参数（页码、每页条数）
+     * @param type      通知类型，精确匹配，为空时查询全部类型
+     * @param isRead    是否已读，精确匹配，为空时不区分已读状态
+     * @return 分页通知列表，按创建时间倒序
+     */
+    IPage<Notification> pageAll(PageRequestDTO pageParam, String type, Integer isRead);
 }
 

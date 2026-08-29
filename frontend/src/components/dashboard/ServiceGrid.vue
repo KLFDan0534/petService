@@ -84,6 +84,7 @@ import FavoriteToggleButton from '@/components/common/FavoriteToggleButton.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
 import { unitLabel } from '@/domain/BookingUnit'
+import { coverForService } from '@/data/localPhotos'
 import { formatServiceDistance } from '@/composables/useServiceDistance'
 const props = defineProps({
   services: { type: Array, default: () => [] },
@@ -96,7 +97,7 @@ const categoryStore = useCategoryStore()
 
 const normalizedServices = computed(() => props.services.map(service => ({
   ...service,
-  firstImage: String(service.images_wsh || '').split(',').map(url => url.trim()).find(Boolean) || '',
+  firstImage: coverForService(service),
 })))
 
 function categoryLabel(service) {

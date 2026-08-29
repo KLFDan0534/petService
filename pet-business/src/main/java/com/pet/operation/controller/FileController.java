@@ -1,6 +1,9 @@
 package com.pet.operation.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.operation.dto.FileRecordDTO;
 import com.pet.operation.entity.FileRecord;
@@ -165,6 +168,59 @@ public class FileController {
         }
         String url = minIoService.getFileUrl(record.getObject_name_wsh());
         response.sendRedirect(url);
+    }
+
+    /**
+     * 管理员分页查看全部文件资源列表
+     * @param pageParam 分页参数
+     * @param keyword 按原始文件名模糊搜索（可选）
+     * @return 分页文件记录DTO列表
+     * @author: wsh
+     * @date: 2026/8/22
+     **/
+    @GetMapping("/admin-list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "管理员文件列表", description = "管理员分页查看全部文件资源，支持按原始文件名模糊搜索")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<FileRecordDTO>> adminList(PageRequestDTO pageParam,
+            @Parameter(description = "按原始文件名模糊搜索") @RequestParam(required = false) String keyword) {
+        log.info("调用 adminList()");
+        var page = fileRecordService.pageAll(pageParam, keyword);
+        var dtoList = page.getRecords().stream().map(this::toDTO).collect(Collectors.toList());
+        PageResult<FileRecordDTO> result = new PageResult<>();
+        result.setList(dtoList);
+        result.copyPageInfo(page);
+        return Result.success(result);
+    }
+
+    /**
+     * 管理员删除文件资源记录
+     * @param id 文件记录ID
+     * @return 操作结果
+     * @author: wsh
+     * @date: 2026/8/22
+     **/
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "删除文件记录", description = "管理员删除指定文件记录")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "404", description = "文件不存在"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> delete(@Parameter(description = "文件记录ID") @PathVariable Long id) {
+        log.info("调用 delete()");
+        if (fileRecordService.getById(id) == null) {
+            throw new BusinessException(404, "文件不存在");
+        }
+        fileRecordService.deleteById(id);
+        return Result.success();
     }
 
     private FileRecordDTO toDTO(FileRecord entity) {

@@ -33,7 +33,7 @@ function mountDetail() {
   return mount(MerchantDetail, {
     global: {
       plugins: [pinia],
-      stubs: { PageHero: true, LoadingSpinner: true, EmptyState: true, Star: true },
+      stubs: { LoadingSpinner: true, EmptyState: true, Star: true },
     },
   })
 }

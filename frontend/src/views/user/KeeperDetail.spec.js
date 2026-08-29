@@ -71,7 +71,6 @@ function mountDetail() {
   return mount(KeeperDetail, {
     global: {
       stubs: {
-        PageHero: true,
         LoadingSpinner: true,
         EmptyState: true,
         'el-icon': { template: '<span class="el-icon-stub"><slot /></span>' },

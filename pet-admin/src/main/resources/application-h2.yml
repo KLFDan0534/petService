@@ -39,12 +39,18 @@ springdoc:
 
 ai:
   deepseek:
-    api-key: ${DEEPSEEK_API_KEY:}
-    model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
-    endpoint: ${DEEPSEEK_ENDPOINT:https://api.deepseek.com}
-    max-tokens: ${DEEPSEEK_MAX_TOKENS:8192}
-    temperature: ${DEEPSEEK_TEMPERATURE:0.7}
-    thinking-type: ${DEEPSEEK_THINKING_TYPE:disabled}
+    api-key: ${ZHIPU_API_KEY:ff49794d56204c31a281c695b97d4875.t5t1ymE6wUwY4gHa}
+    model: ${ZHIPU_MODEL:glm-4.7-flash}
+    endpoint: ${ZHIPU_ENDPOINT:https://open.bigmodel.cn/api/paas/v4}
+    max-tokens: ${ZHIPU_MAX_TOKENS:65536}
+    temperature: ${ZHIPU_TEMPERATURE:1.0}
+    thinking-type: ${ZHIPU_THINKING_TYPE:disabled}
+  kenari:
+    api-key: ${KENARI_API_KEY:ff49794d56204c31a281c695b97d4875.t5t1ymE6wUwY4gHa}
+    model: ${KENARI_MODEL:glm-4.7-flash}
+    endpoint: ${KENARI_ENDPOINT:https://open.bigmodel.cn/api/paas/v4}
+    max-tokens: ${KENARI_MAX_TOKENS:65536}
+    temperature: ${KENARI_TEMPERATURE:1.0}
 
 gao:
   map:

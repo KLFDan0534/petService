@@ -1,6 +1,8 @@
 package com.pet.boarding.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.boarding.dto.KeeperLeaveCreateRequestDTO;
 import com.pet.boarding.dto.KeeperLeaveDTO;
 import com.pet.boarding.entity.Keeper;
@@ -11,6 +13,8 @@ import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.service.KeeperLeaveService;
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +33,7 @@ import java.util.stream.Collectors;
  * 支持重叠检测。休假记录在考勤打卡和订单分配时被其他服务调用校验。
  */
 @Service
+@Slf4j
 public class KeeperLeaveServiceImpl implements KeeperLeaveService {
 
     private final KeeperLeaveMapper leaveMapper;
@@ -109,6 +114,92 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
             throw new BusinessException(403, "无权删除此休假记录");
         }
         leaveMapper.deleteById(id);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>实现细节：</b>按创建时间倒序、ID 倒序排列；状态为空时不限条件，否则精确匹配审批状态。
+     */
+    @Override
+    public IPage<KeeperLeave> pageAll(PageRequestDTO pageParam, String status) {
+        Page<KeeperLeave> page = new Page<>(pageParam.getPage(), pageParam.getSize());
+        LambdaQueryWrapper<KeeperLeave> wrapper = new LambdaQueryWrapper<>();
+        if (status != null && !status.isBlank()) {
+            wrapper.eq(KeeperLeave::getStatus_wsh, status);
+        }
+        wrapper.orderByDesc(KeeperLeave::getCreated_at_wsh).orderByDesc(KeeperLeave::getId_wsh);
+        return leaveMapper.selectPage(page, wrapper);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>事务边界：</b>包含请假记录状态更新。
+     * <p>
+     * <b>实现细节：</b>校验请假记录存在 → 仅待审批（pending）状态可改为 通过（approved）。
+     */
+    @Transactional
+    @Override
+    public KeeperLeave approve(Long id, Long adminUserId, String reason) {
+        KeeperLeave leave = requireLeave(id);
+        if (!"pending".equals(leave.getStatus_wsh())) {
+            throw new BusinessException(400, "仅待审批的请假可批准");
+        }
+        leave.setStatus_wsh("approved");
+        leaveMapper.updateById(leave);
+        log.info("管理员[{}]批准请假[{}]成功，备注:{}", adminUserId, id, reason);
+        return leave;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>事务边界：</b>包含请假记录状态更新。
+     * <p>
+     * <b>实现细节：</b>校验请假记录存在 → 仅待审批（pending）状态可改为 驳回（rejected）。
+     */
+    @Transactional
+    @Override
+    public KeeperLeave reject(Long id, Long adminUserId, String reason) {
+        KeeperLeave leave = requireLeave(id);
+        if (!"pending".equals(leave.getStatus_wsh())) {
+            throw new BusinessException(400, "仅待审批的请假可驳回");
+        }
+        leave.setStatus_wsh("rejected");
+        leaveMapper.updateById(leave);
+        log.info("管理员[{}]驳回请假[{}]成功，原因:{}", adminUserId, id, reason);
+        return leave;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>实现细节：</b>加载请假记录关联的看护者与商家，填充名称后转为 DTO。
+     */
+    @Override
+    public KeeperLeaveDTO toDTO(KeeperLeave entity) {
+        if (entity == null) {
+            return null;
+        }
+        Keeper keeper = entity.getKeeper_id_wsh() == null ? null : keeperMapper.selectById(entity.getKeeper_id_wsh());
+        Merchant merchant = entity.getMerchant_id_wsh() == null ? null : merchantMapper.selectById(entity.getMerchant_id_wsh());
+        return toDTO(entity, keeper, merchant);
+    }
+
+    /**
+     * 根据请假记录ID查询并校验存在性。
+     *
+     * @param id 请假记录ID
+     * @return 请假记录实体
+     * @throws BusinessException 如果请假记录不存在
+     */
+    private KeeperLeave requireLeave(Long id) {
+        KeeperLeave leave = leaveMapper.selectById(id);
+        if (leave == null) {
+            throw new BusinessException(404, "休假记录不存在");
+        }
+        return leave;
     }
 
     /**
@@ -276,6 +367,7 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
         dto.setStart_date_wsh(entity.getStart_date_wsh());
         dto.setEnd_date_wsh(entity.getEnd_date_wsh());
         dto.setReason_wsh(entity.getReason_wsh());
+        dto.setStatus_wsh(entity.getStatus_wsh());
         dto.setCreated_by_wsh(entity.getCreated_by_wsh());
         dto.setCreated_at_wsh(entity.getCreated_at_wsh());
         dto.setUpdated_at_wsh(entity.getUpdated_at_wsh());

@@ -1,9 +1,12 @@
 package com.pet.customer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.StatusCode;
 import com.pet.customer.dto.MerchantCustomerServiceApplyRequestDTO;
 import com.pet.customer.dto.MerchantCustomerServiceDTO;
@@ -326,6 +329,90 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 【业务名称】管理员分页查询全平台客服申请（实现）
+     * 业务作用：管理员查看全平台所有商家的客服申请列表，可按状态筛选。
+     * 调用场景：管理后台客服审核列表页。
+     * 调用链：pageAll() → mapper.selectPage()。
+     * 数据处理：按状态精确筛选（状态为空则查全部），按创建时间倒序分页。
+     * 业务规则：不校验商家归属。
+     * 状态影响：无。
+     * 异常情况：无。
+     * 注意事项：仅供 ADMIN 角色调用。
+     */
+    @Override
+    public IPage<MerchantCustomerService> pageAll(PageRequestDTO pageParam, String status_wsh) {
+        LambdaQueryWrapper<MerchantCustomerService> wrapper = new LambdaQueryWrapper<MerchantCustomerService>()
+                .eq(org.springframework.util.StringUtils.hasText(status_wsh),
+                        MerchantCustomerService::getStatus_wsh, status_wsh)
+                .orderByDesc(MerchantCustomerService::getCreated_at_wsh);
+        Page<MerchantCustomerService> page = new Page<>(pageParam.getPage(), pageParam.getSize());
+        return mapper.selectPage(page, wrapper);
+    }
+
+    /**
+     * 【业务名称】管理员通过客服申请（实现）
+     * 业务作用：管理员通过指定客服申请，自动授予 CUSTOMER_SERVICE 角色。
+     * 调用场景：管理后台审核客服申请通过。
+     * 调用链：approveByAdmin() → requirePendingApplication() → update() → roleGrantService.grantRoleToUser()。
+     * 数据处理：仅 pending 改为 approved，记录审核人和审核时间，授予角色。
+     * 业务规则：不校验商家归属。
+     * 状态影响：申请状态 approved；用户新增 CUSTOMER_SERVICE 角色。
+     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
+     * 注意事项：仅供 ADMIN 角色调用。
+     */
+    @Transactional
+    @Override
+    public MerchantCustomerServiceDTO approveByAdmin(Long id, Long adminUserId, String reviewNote) {
+        MerchantCustomerService entity = requirePendingApplication(id);
+        entity.setStatus_wsh(STATUS_APPROVED);
+        entity.setReviewer_id_wsh(adminUserId);
+        entity.setReview_note_wsh(trimToNull(reviewNote));
+        entity.setReviewed_at_wsh(LocalDateTime.now());
+        mapper.updateById(entity);
+        if (entity.getUser_id_wsh() != null) {
+            roleGrantService.grantRoleToUser(entity.getUser_id_wsh(), "CUSTOMER_SERVICE");
+        }
+        return toDTO(entity);
+    }
+
+    /**
+     * 【业务名称】管理员驳回客服申请（实现）
+     * 业务作用：管理员驳回指定客服申请。
+     * 调用场景：管理后台审核客服申请驳回。
+     * 调用链：rejectByAdmin() → requirePendingApplication() → update()。
+     * 数据处理：仅 pending 改为 rejected，记录审核人和审核时间。
+     * 业务规则：不校验商家归属。
+     * 状态影响：申请状态 rejected。
+     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
+     * 注意事项：仅供 ADMIN 角色调用。
+     */
+    @Transactional
+    @Override
+    public MerchantCustomerServiceDTO rejectByAdmin(Long id, Long adminUserId, String reviewNote) {
+        MerchantCustomerService entity = requirePendingApplication(id);
+        entity.setStatus_wsh(STATUS_REJECTED);
+        entity.setReviewer_id_wsh(adminUserId);
+        entity.setReview_note_wsh(trimToNull(reviewNote));
+        entity.setReviewed_at_wsh(LocalDateTime.now());
+        mapper.updateById(entity);
+        return toDTO(entity);
+    }
+
+    private MerchantCustomerService requirePendingApplication(Long id) {
+        if (id == null) {
+            throw new BusinessException(400, "application id is required");
+        }
+        MerchantCustomerService entity = mapper.selectById(id);
+        if (entity == null) {
+            throw new BusinessException(404, "customer service application not found");
+        }
+        if (!STATUS_PENDING.equals(entity.getStatus_wsh())) {
+            throw new BusinessException(400, "only pending applications can be reviewed");
+        }
+        return entity;
+    }
+
     private MerchantCustomerService requireApprovedApplication(Long id) {
         if (id == null) {
             throw new BusinessException(400, "application id is required");
@@ -396,7 +483,8 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
      * 异常情况：无。
      * 注意事项：关联查询商家和用户表。
      */
-    private MerchantCustomerServiceDTO toDTO(MerchantCustomerService entity) {
+    @Override
+    public MerchantCustomerServiceDTO toDTO(MerchantCustomerService entity) {
         if (entity == null) {
             return null;
         }
@@ -427,7 +515,8 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return dto;
     }
 
-    private List<MerchantCustomerServiceDTO> toDTOList(List<MerchantCustomerService> list) {
+    @Override
+    public List<MerchantCustomerServiceDTO> toDTOList(List<MerchantCustomerService> list) {
         if (list == null) {
             return List.of();
         }

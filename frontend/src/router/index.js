@@ -51,6 +51,7 @@ export const constantRoutes = [
   { path: '/notices/:id', name: 'NoticeDetail', component: () => import('@/views/user/NoticeDetail.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
   { path: '/favorites', name: 'Favorites', component: () => import('@/views/user/Favorites.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/tickets', name: 'Tickets', component: () => import('@/views/user/Tickets.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
+  { path: '/tickets/:id', name: 'TicketDetail', component: () => import('@/views/user/TicketDetail.vue'), meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES } },
   { path: '/complaints', name: 'Complaints', component: () => import('@/views/user/Complaints.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/ratings', name: 'Ratings', component: () => import('@/views/user/Ratings.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
   { path: '/credit-reputation', name: 'CreditReputation', component: () => import('@/views/user/CreditReputation.vue'), meta: { layout: 'user', requiresAuth: true, roles: USER_AREA_ROLES } },
@@ -116,7 +117,16 @@ export const adminRoutes = [
   { path: '/admin/transactions', name: 'AdminTransactions', component: () => import('@/views/admin/AdminTransactions.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
   { path: '/admin/wallets', name: 'AdminWallets', component: () => import('@/views/admin/AdminWallets.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
   { path: '/admin/rag', name: 'AdminRag', component: () => import('@/views/admin/AdminRag.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/ai-config', name: 'AdminAiConfig', component: () => import('@/views/admin/AdminAiConfig.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
   { path: '/admin/qualifications', name: 'AdminQualifications', component: () => import('@/views/admin/AdminQualifications.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/payments', name: 'AdminPayments', component: () => import('@/views/admin/AdminPayments.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/tips', name: 'AdminTips', component: () => import('@/views/admin/AdminTips.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/files', name: 'AdminFiles', component: () => import('@/views/admin/AdminFiles.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/notifications', name: 'AdminNotifications', component: () => import('@/views/admin/AdminNotifications.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/favorites', name: 'AdminFavorites', component: () => import('@/views/admin/AdminFavorites.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/attendance', name: 'AdminAttendance', component: () => import('@/views/admin/AdminAttendance.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/leaves', name: 'AdminLeaves', component: () => import('@/views/admin/AdminLeaves.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
+  { path: '/admin/cs-applications', name: 'AdminCsApplications', component: () => import('@/views/admin/AdminCsApplications.vue'), meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] } },
 ]
 
 // ====== Router instance (initially only constant routes) ======

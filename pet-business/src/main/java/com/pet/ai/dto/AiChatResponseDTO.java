@@ -15,4 +15,7 @@ public class AiChatResponseDTO {
 
     @Schema(description = "命中的知识库文档标题")
     private List<String> sources_wsh;
+
+    @Schema(description = "会话ID（前端用于关联历史记录）")
+    private String session_id_wsh;
 }

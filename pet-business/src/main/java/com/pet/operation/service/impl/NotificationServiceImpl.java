@@ -1,6 +1,9 @@
 package com.pet.operation.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.StatusCode;
 import com.pet.operation.entity.Notice;
 import com.pet.operation.entity.Notification;
@@ -11,6 +14,7 @@ import com.pet.operation.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Objects;
@@ -141,5 +145,18 @@ public class NotificationServiceImpl implements NotificationService {
         notificationMapper.delete(
                 new LambdaQueryWrapper<Notification>()
                         .eq(Notification::getRelated_id_wsh, relatedId));
+    }
+
+    /**
+     * 管理员分页查询全部通知，支持按类型及已读状态精确筛选
+     */
+    @Override
+    public IPage<Notification> pageAll(PageRequestDTO pageParam, String type, Integer isRead) {
+        log.info("pageAll() called");
+        LambdaQueryWrapper<Notification> wrapper = new LambdaQueryWrapper<Notification>()
+                .eq(StringUtils.hasText(type), Notification::getType_wsh, type)
+                .eq(isRead != null, Notification::getIs_read_wsh, isRead)
+                .orderByDesc(Notification::getCreated_at_wsh);
+        return notificationMapper.selectPage(new Page<>(pageParam.getPage(), pageParam.getSize()), wrapper);
     }
 }

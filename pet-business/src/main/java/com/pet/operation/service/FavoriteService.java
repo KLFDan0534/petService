@@ -1,5 +1,7 @@
 package com.pet.operation.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.PageResult;
 import com.pet.operation.dto.FavoriteCardDTO;
 import com.pet.operation.dto.FavoriteTargetTypeDTO;
@@ -62,4 +64,13 @@ public interface FavoriteService {
      * @return 目标类型 DTO 列表
      */
     List<FavoriteTargetTypeDTO> listTargetTypes();
+
+    /**
+     * 管理员分页查询全部收藏数据，支持按目标类型精确筛选
+     *
+     * @param pageParam   分页参数（页码、每页条数）
+     * @param targetType  目标类型，精确匹配，为空时查询全部类型
+     * @return 分页收藏记录，按创建时间倒序
+     */
+    IPage<Favorite> pageAll(PageRequestDTO pageParam, String targetType);
 }

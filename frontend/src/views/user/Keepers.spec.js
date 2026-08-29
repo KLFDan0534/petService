@@ -18,7 +18,7 @@ vi.mock('@/api/keeper', () => ({
 function mountKeepers() {
   return mount(Keepers, {
     global: {
-      stubs: { PageHero: true },
+      stubs: {},
       mocks: { $router: state.router },
     },
   })

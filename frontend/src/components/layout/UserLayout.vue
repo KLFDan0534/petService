@@ -1,6 +1,6 @@
 <template>
-  <div class="user-layout" :class="{ 'is-dashboard': route.name === 'Dashboard' }">
-    <header class="user-header" :class="{ 'user-header-scrolled': navScrolled }">
+  <div class="user-layout" :class="{ 'is-dashboard': route.name === 'Dashboard', 'is-dark': appStore.isDarkTheme }">
+    <header class="user-header" :class="{ 'user-header-scrolled': navScrolled, 'is-dashboard-header': route.name === 'Dashboard' }">
       <div class="user-header-shell">
         <router-link to="/dashboard" class="user-logo" @click="closeMobileMenu">
           <img src="/logo.png" alt="Logo" class="logo-img">
@@ -19,8 +19,6 @@
           <router-link to="/services">预约服务</router-link>
           <router-link v-if="!isSupportOnly" to="/pets">我的宠物</router-link>
           <router-link v-if="!isSupportOnly" to="/orders">订单</router-link>
-          <router-link v-if="!isSupportOnly" to="/wallet">我的钱包</router-link>
-          <router-link v-if="!isSupportOnly" to="/recharge">充值</router-link>
           <router-link v-if="!isSupportOnly" to="/favorites">收藏</router-link>
           <router-link v-if="!isSupportOnly" to="/chat">消息</router-link>
           <router-link v-if="!isSupportOnly" to="/ai">AI助手</router-link>
@@ -58,16 +56,39 @@
 
           <div class="user-header-end" :class="{ 'is-open': mobileMenuOpen }">
             <template v-if="authStore.isLoggedIn">
-              <router-link to="/ai/chat" class="cs-ai-entry" aria-label="智能客服" title="智能客服">
-                <svg class="cs-ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M12 3v2" />
-                  <circle cx="12" cy="2.5" r="1.2" />
-                  <rect width="16" height="12" x="4" y="7" rx="2.5" />
-                  <circle cx="9.5" cy="13" r="1" />
-                  <circle cx="14.5" cy="13" r="1" />
-                  <path d="M9 17h6" />
-                </svg>
-              </router-link>
+              <div class="ai-dropdown-wrapper" @mouseenter="openAiDropdown" @mouseleave="scheduleCloseAiDropdown">
+                <router-link to="/ai/chat" class="cs-ai-entry" aria-label="智能客服" title="智能客服">
+                  <svg class="cs-ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3v2" />
+                    <circle cx="12" cy="2.5" r="1.2" />
+                    <rect width="16" height="12" x="4" y="7" rx="2.5" />
+                    <circle cx="9.5" cy="13" r="1" />
+                    <circle cx="14.5" cy="13" r="1" />
+                    <path d="M9 17h6" />
+                  </svg>
+                </router-link>
+                <div v-if="aiDropdownOpen" class="ai-dropdown" @mouseenter="cancelCloseAiDropdown" @mouseleave="scheduleCloseAiDropdown">
+                  <div class="ai-dropdown-header">
+                    <span>历史对话</span>
+                    <router-link to="/ai/chat" class="ai-dropdown-new" @click="aiDropdownOpen = false">新对话</router-link>
+                  </div>
+                  <div v-if="aiSessionsLoading" class="ai-dropdown-loading">加载中...</div>
+                  <div v-else-if="aiSessions.length" class="ai-dropdown-list">
+                    <router-link
+                      v-for="s in aiSessions.slice(0, 8)"
+                      :key="s.session_id_wsh"
+                      :to="{ path: '/ai/chat', query: { session: s.session_id_wsh } }"
+                      class="ai-dropdown-item"
+                      @click="aiDropdownOpen = false"
+                    >
+                      <span class="ai-dropdown-item-title">{{ s.first_message_wsh || '新对话' }}</span>
+                      <span class="ai-dropdown-item-meta">{{ s.message_count_wsh }} 条消息</span>
+                    </router-link>
+                  </div>
+                  <div v-else class="ai-dropdown-empty">暂无历史对话</div>
+                  <router-link to="/ai/chat" class="ai-dropdown-footer" @click="aiDropdownOpen = false">查看全部 →</router-link>
+                </div>
+              </div>
               <MessageIndicator />
               <button class="user-avatar" type="button" aria-label="打开个人中心" @click="goProfile">
                 <img v-if="avatarUrl" :src="avatarUrl" alt="个人头像">
@@ -151,14 +172,48 @@ import { Close, Clock, House, Location, Menu, Message, Phone, SwitchButton } fro
 import MessageIndicator from '@/components/common/MessageIndicator.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
+
+import { getAiChatSessions } from '@/api/ai'
 
 const authStore = useAuthStore()
+const appStore = useAppStore()
 const router = useRouter()
 const route = computed(() => router.currentRoute?.value || {})
 const mobileMenuOpen = ref(false)
 const navScrolled = ref(false)
 const indicatorRef = ref(null)
 const indicatorStyle = ref({ opacity: 0 })
+
+// --- AI 历史对话下拉 ---
+const aiDropdownOpen = ref(false)
+const aiSessions = ref([])
+const aiSessionsLoading = ref(false)
+let aiCloseTimer = null
+
+async function loadAiSessions() {
+  if (aiSessions.value.length > 0) return
+  aiSessionsLoading.value = true
+  try {
+    const r = await getAiChatSessions()
+    if (r.code === 200) aiSessions.value = r.data || []
+  } catch { /* ignore */ }
+  aiSessionsLoading.value = false
+}
+
+function openAiDropdown() {
+  if (aiCloseTimer) { clearTimeout(aiCloseTimer); aiCloseTimer = null }
+  aiDropdownOpen.value = true
+  loadAiSessions()
+}
+
+function scheduleCloseAiDropdown() {
+  aiCloseTimer = setTimeout(() => { aiDropdownOpen.value = false }, 200)
+}
+
+function cancelCloseAiDropdown() {
+  if (aiCloseTimer) { clearTimeout(aiCloseTimer); aiCloseTimer = null }
+}
 
 function updateIndicator() {
   nextTick(() => {
@@ -529,9 +584,134 @@ watch(() => route.value.fullPath, () => {
   height: 20px;
 }
 
+/* --- AI 历史对话下拉 --- */
+.ai-dropdown-wrapper {
+  position: relative;
+}
+.ai-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+  z-index: 60;
+  overflow: hidden;
+}
+.ai-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+.ai-dropdown-new {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.ai-dropdown-new:hover {
+  text-decoration: underline;
+}
+.ai-dropdown-loading,
+.ai-dropdown-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+}
+.ai-dropdown-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.ai-dropdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  text-decoration: none;
+  color: var(--color-foreground);
+  border-bottom: 1px solid var(--color-border);
+  transition: background 0.15s;
+}
+.ai-dropdown-item:last-child {
+  border-bottom: none;
+}
+.ai-dropdown-item:hover {
+  background: var(--color-muted);
+}
+.ai-dropdown-item-title {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.ai-dropdown-item-meta {
+  font-size: 11px;
+  color: var(--color-muted-foreground);
+}
+.ai-dropdown-footer {
+  display: block;
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-muted);
+}
+.ai-dropdown-footer:hover {
+  background: var(--color-border);
+}
+
 :global(.user-layout.is-dashboard .user-content) {
   max-width: 1440px;
   padding-top: 0;
+  background: transparent;
+}
+
+:global(.user-layout.is-dashboard .user-footer) {
+  display: none;
+}
+
+:global(header.user-header.is-dashboard-header) {
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
+}
+
+:global(header.user-header.is-dashboard-header.user-header-scrolled .user-header-shell) {
+  background: rgba(251, 248, 244, 0.88);
+  border-color: rgba(231, 222, 210, 0.6);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  box-shadow: 0 14px 48px rgba(36, 52, 58, 0.08);
+}
+
+.user-layout.is-dark header.user-header.user-header-scrolled .user-header-shell {
+  background: rgba(16, 17, 20, 0.88);
+  border-color: rgba(52, 57, 70, 0.6);
+}
+
+.user-layout.is-dark {
+  background: var(--color-background);
+}
+
+.user-layout.is-dark .user-content {
+  background: transparent;
+}
+
+.user-layout.is-dark header.user-header {
+  background: transparent;
+  border-bottom-color: transparent;
 }
 
 @media (max-width: 1100px) {
@@ -539,6 +719,7 @@ watch(() => route.value.fullPath, () => {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0 12px;
     padding: 12px 16px;
+    border-radius: 12px;
   }
 
   .user-logo {
@@ -552,6 +733,10 @@ watch(() => route.value.fullPath, () => {
 
   .header-menu-toggle {
     display: grid;
+  }
+
+  :global(header.user-header.user-header-scrolled .user-header-shell) {
+    border-radius: 12px;
   }
 
   .user-nav {

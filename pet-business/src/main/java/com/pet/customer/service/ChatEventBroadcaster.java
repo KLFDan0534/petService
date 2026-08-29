@@ -2,6 +2,8 @@ package com.pet.customer.service;
 
 import com.pet.customer.dto.ChatMessageDTO;
 import com.pet.customer.dto.ChatMessageEventDTO;
+import com.pet.system.entity.User;
+import com.pet.system.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class ChatEventBroadcaster {
     /** 用户ID -> SSE Emitter 列表的映射，使用线程安全的并发容器 */
     private final Map<Long, CopyOnWriteArrayList<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();
+    private final UserMapper userMapper;
+
+    public ChatEventBroadcaster(UserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
 
     /**
      * 建立指定用户的 SSE 连接。
@@ -80,6 +87,7 @@ public class ChatEventBroadcaster {
         event.put("type", type);
         event.put("biz_id_wsh", bizId);
         event.put("from_user_id_wsh", fromUserId);
+        event.put("from_user_name_wsh", userName(fromUserId));
         event.put("to_user_id_wsh", toUserId);
         event.put("content_wsh", content);
         event.put("file_url_wsh", fileUrl);
@@ -138,11 +146,23 @@ public class ChatEventBroadcaster {
         event.setMessage_id_wsh(message.getId_wsh());
         event.setOrder_id_wsh(message.getOrder_id_wsh());
         event.setFrom_user_id_wsh(message.getFrom_user_id_wsh());
+        event.setFrom_user_name_wsh(userName(message.getFrom_user_id_wsh()));
         event.setTo_user_id_wsh(message.getTo_user_id_wsh());
         event.setType_wsh(message.getType_wsh());
         event.setContent_wsh(message.getContent_wsh());
         event.setFile_url_wsh(message.getFile_url_wsh());
         event.setCreated_at_wsh(message.getCreated_at_wsh() != null ? message.getCreated_at_wsh() : LocalDateTime.now());
         return event;
+    }
+
+    private String userName(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return null;
+        }
+        return user.getNickname_wsh() != null ? user.getNickname_wsh() : user.getUsername_wsh();
     }
 }

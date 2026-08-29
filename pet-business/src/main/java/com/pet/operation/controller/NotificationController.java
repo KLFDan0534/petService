@@ -4,12 +4,16 @@ package com.pet.operation.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.extern.slf4j.Slf4j;
+import com.pet.common.PageRequestDTO;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.operation.dto.NotificationDTO;
 import com.pet.operation.dto.UnreadCountResponseDTO;
 import com.pet.operation.entity.Notification;
 import com.pet.operation.service.NotificationService;
 import com.pet.security.JwtAuthenticationToken;
+import com.pet.system.entity.User;
+import com.pet.system.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -18,6 +22,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
@@ -27,9 +33,11 @@ import java.util.stream.Collectors;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final UserMapper userMapper;
 
-    public NotificationController(NotificationService notificationService) {
+    public NotificationController(NotificationService notificationService, UserMapper userMapper) {
         this.notificationService = notificationService;
+        this.userMapper = userMapper;
     }
 
     /**
@@ -120,6 +128,65 @@ public class NotificationController {
         log.info("markAllAsRead() called");
         notificationService.markAllAsRead(token.getUserId());
         return Result.success();
+    }
+
+    /**
+     * 管理员分页查看全部通知列表
+     * @param pageParam 分页参数
+     * @param type_wsh 通知类型，精确匹配（可选）
+     * @param is_read_wsh 是否已读（0-未读 1-已读），精确匹配（可选）
+     * @return 分页通知DTO列表，含目标用户昵称/用户名
+     * @author: wsh
+     * @date: 2026/8/22
+     **/
+    @GetMapping("/admin-list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "管理员通知列表", description = "管理员分页查看全部通知，支持按类型、已读状态筛选")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<NotificationDTO>> adminList(PageRequestDTO pageParam,
+            @Parameter(description = "通知类型，精确匹配") @RequestParam(required = false) String type_wsh,
+            @Parameter(description = "是否已读（0-未读 1-已读）") @RequestParam(required = false) Integer is_read_wsh) {
+        log.info("调用 adminList()");
+        var page = notificationService.pageAll(pageParam, type_wsh, is_read_wsh);
+        List<NotificationDTO> dtoList = page.getRecords().stream().map(this::toDTO).collect(Collectors.toList());
+        fillUserName(dtoList);
+        PageResult<NotificationDTO> result = new PageResult<>();
+        result.setList(dtoList);
+        result.copyPageInfo(page);
+        return Result.success(result);
+    }
+
+    /**
+     * 批量填充目标用户昵称/用户名
+     */
+    private void fillUserName(List<NotificationDTO> dtoList) {
+        if (dtoList == null || dtoList.isEmpty()) {
+            return;
+        }
+        List<Long> userIds = dtoList.stream()
+                .map(NotificationDTO::getUser_id_wsh)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (userIds.isEmpty()) {
+            return;
+        }
+        Map<Long, String> nameMap = userMapper.selectBatchIds(userIds).stream()
+                .collect(Collectors.toMap(
+                        User::getId_wsh,
+                        u -> (u.getNickname_wsh() != null && !u.getNickname_wsh().isBlank())
+                                ? u.getNickname_wsh() : u.getUsername_wsh(),
+                        (a, b) -> a));
+        for (NotificationDTO dto : dtoList) {
+            if (dto.getUser_id_wsh() != null) {
+                dto.setUser_name_wsh(nameMap.get(dto.getUser_id_wsh()));
+            }
+        }
     }
 
     private NotificationDTO toDTO(Notification entity) {

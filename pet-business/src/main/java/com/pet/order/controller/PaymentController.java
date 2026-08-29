@@ -2,6 +2,8 @@ package com.pet.order.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.order.dto.PaymentDTO;
 import com.pet.security.JwtAuthenticationToken;
@@ -88,6 +90,38 @@ public class PaymentController {
         }
         paymentService.pay(token.getUserId(), body.getPay_no_wsh());
         return Result.success();
+    }
+
+    /**
+     * 管理员分页查询支付记录
+     * @param pageParam 分页参数
+     * @param keyword 搜索关键字（可按订单号/支付编号模糊搜索）
+     * @return 分页的支付记录
+     * @author: wsh
+     * @date: 2026/6/24 11:05
+     **/
+    @GetMapping("/admin-list")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "管理员分页查询支付记录", description = "管理员分页查询所有支付记录，支持按订单号/支付编号模糊搜索")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "401", description = "未登录"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<PaymentDTO>> adminList(PageRequestDTO pageParam,
+                                                    @Parameter(description = "搜索关键字（按订单号/支付编号模糊搜索）")
+                                                    @RequestParam(required = false) String keyword) {
+        log.info("调用 adminList(), page: {}, size: {}, keyword: {}", pageParam.getPage(), pageParam.getSize(), keyword);
+        var page = paymentService.pageAll(pageParam, keyword);
+        var dtoList = page.getRecords()
+                .stream()
+                .map(paymentService::toDTO)
+                .collect(Collectors.toList());
+        PageResult<PaymentDTO> result = new PageResult<>();
+        result.setList(dtoList);
+        result.copyPageInfo(page);
+        return Result.success(result);
     }
 
     /**

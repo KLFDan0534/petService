@@ -842,3 +842,17 @@ CREATE TABLE IF NOT EXISTS `keeper_leave_wsh` (
     INDEX `idx_keeper_range` (`keeper_id_wsh`, `start_date_wsh`, `end_date_wsh`),
     INDEX `idx_merchant_range` (`merchant_id_wsh`, `start_date_wsh`, `end_date_wsh`)
 );
+
+CREATE TABLE IF NOT EXISTS `ai_chat_history_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id_wsh` BIGINT NOT NULL,
+    `session_id_wsh` VARCHAR(64) NOT NULL,
+    `role_wsh` VARCHAR(20) NOT NULL,
+    `content_wsh` TEXT NOT NULL,
+    `sources_wsh` VARCHAR(500),
+    `need_human_wsh` TINYINT DEFAULT 0,
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_ai_chat_user` (`user_id_wsh`),
+    INDEX `idx_ai_chat_session` (`session_id_wsh`)
+);

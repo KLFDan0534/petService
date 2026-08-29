@@ -15,6 +15,8 @@ public class ChatMessageEventDTO {
     private Long order_id_wsh;
     @Schema(description = "发送者用户ID")
     private Long from_user_id_wsh;
+    @Schema(description = "发送者昵称")
+    private String from_user_name_wsh;
     @Schema(description = "接收者用户ID")
     private Long to_user_id_wsh;
     @Schema(description = "消息类型")

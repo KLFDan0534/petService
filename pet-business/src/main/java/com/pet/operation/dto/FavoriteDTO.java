@@ -10,6 +10,8 @@ public class FavoriteDTO {
     private Long id_wsh;
     @Schema(description = "用户ID")
     private Long user_id_wsh;
+    @Schema(description = "用户昵称或用户名")
+    private String user_name_wsh;
     @Schema(description = "目标ID")
     private Long target_id_wsh;
     @Schema(description = "目标类型")

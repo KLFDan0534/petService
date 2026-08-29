@@ -1,6 +1,8 @@
 package com.pet.boarding.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.boarding.dto.AttendanceCheckRequestDTO;
 import com.pet.boarding.dto.KeeperAttendanceDTO;
 import com.pet.boarding.entity.Keeper;
@@ -12,6 +14,7 @@ import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.service.KeeperAttendanceService;
 import com.pet.boarding.service.KeeperLeaveService;
 import com.pet.common.BusinessException;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.StatusCode;
 import com.pet.common.geo.GeoDistanceUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -174,6 +177,37 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         return records.stream()
                 .map(record -> toDTO(record, keeperMap.get(record.getKeeper_id_wsh()), merchant))
                 .toList();
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>实现细节：</b>按创建时间倒序排列；商家ID为空时不限条件，否则精确匹配商家。
+     */
+    @Override
+    public IPage<KeeperAttendance> pageAll(PageRequestDTO pageParam, Long merchantId) {
+        Page<KeeperAttendance> page = new Page<>(pageParam.getPage(), pageParam.getSize());
+        LambdaQueryWrapper<KeeperAttendance> wrapper = new LambdaQueryWrapper<>();
+        if (merchantId != null) {
+            wrapper.eq(KeeperAttendance::getMerchant_id_wsh, merchantId);
+        }
+        wrapper.orderByDesc(KeeperAttendance::getCreated_at_wsh);
+        return attendanceMapper.selectPage(page, wrapper);
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <b>实现细节：</b>加载考勤记录关联的看护者与商家，填充名称后转为 DTO。
+     */
+    @Override
+    public KeeperAttendanceDTO toDTO(KeeperAttendance entity) {
+        if (entity == null) {
+            return null;
+        }
+        Keeper keeper = entity.getKeeper_id_wsh() == null ? null : keeperMapper.selectById(entity.getKeeper_id_wsh());
+        Merchant merchant = entity.getMerchant_id_wsh() == null ? null : merchantMapper.selectById(entity.getMerchant_id_wsh());
+        return toDTO(entity, keeper, merchant);
     }
 
     /**

@@ -2,6 +2,9 @@ package com.pet.boarding.service;
 
 import com.pet.boarding.dto.AttendanceCheckRequestDTO;
 import com.pet.boarding.dto.KeeperAttendanceDTO;
+import com.pet.boarding.entity.KeeperAttendance;
+import com.pet.common.PageRequestDTO;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import java.util.List;
 
@@ -101,6 +104,28 @@ public interface KeeperAttendanceService {
      * @return 当天该商家所有看护者的考勤记录（含看护者名称）
      */
     List<KeeperAttendanceDTO> listMerchantToday(Long merchantUserId);
+
+    /**
+     * 分页查询全部考勤记录（管理员）。
+     * <p>
+     * <b>业务说明：</b>管理员后台查看出勤情况使用。可按照商家精确过滤，
+     * 商家ID为空时返回全部记录；按创建时间倒序排列。
+     *
+     * @param pageParam  分页参数
+     * @param merchantId 商家ID，可为 null 表示不过滤
+     * @return 考勤实体分页结果
+     */
+    IPage<KeeperAttendance> pageAll(PageRequestDTO pageParam, Long merchantId);
+
+    /**
+     * 将考勤实体转换为 DTO，并关联填充看护者名称和商家名称。
+     * <p>
+     * <b>业务说明：</b>供 Controller 在分页列表返回时，将实体转换为带名称和上岗状态的 DTO。
+     *
+     * @param entity 考勤实体
+     * @return 考勤DTO（含看护者名称、商家名称、上岗状态）
+     */
+    KeeperAttendanceDTO toDTO(KeeperAttendance entity);
 
     /**
      * 判断指定看护者在指定商家是否有活跃班次（已签到未签退）。

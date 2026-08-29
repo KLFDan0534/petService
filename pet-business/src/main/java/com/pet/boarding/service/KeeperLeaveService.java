@@ -2,6 +2,9 @@ package com.pet.boarding.service;
 
 import com.pet.boarding.dto.KeeperLeaveCreateRequestDTO;
 import com.pet.boarding.dto.KeeperLeaveDTO;
+import com.pet.boarding.entity.KeeperLeave;
+import com.pet.common.PageRequestDTO;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -58,6 +61,54 @@ public interface KeeperLeaveService {
      * @throws BusinessException 如果休假记录不存在或不属于该商家
      */
     void deleteByMerchant(Long merchantUserId, Long id);
+
+    /**
+     * 分页查询全部请假记录（管理员）。
+     * <p>
+     * <b>业务说明：</b>管理员后台审批请假使用。可按照审批状态精确过滤，
+     * 状态为空时返回全部记录；按创建时间倒序排列。
+     *
+     * @param pageParam 分页参数
+     * @param status    审批状态（pending/approved/rejected），可为 null 表示不过滤
+     * @return 请假实体分页结果
+     */
+    IPage<KeeperLeave> pageAll(PageRequestDTO pageParam, String status);
+
+    /**
+     * 管理员审批通过请假申请。
+     * <p>
+     * <b>前置条件：</b>仅当请假状态为 {@code pending} 时才可将其改为 {@code approved}。
+     *
+     * @param id          请假记录ID
+     * @param adminUserId 管理员用户ID
+     * @param reason      审批备注（可为 null，仅记录日志）
+     * @return 审批后的请假实体
+     * @throws BusinessException 如果请假记录不存在（404）或非待审批状态（400）
+     */
+    KeeperLeave approve(Long id, Long adminUserId, String reason);
+
+    /**
+     * 管理员驳回请假申请。
+     * <p>
+     * <b>前置条件：</b>仅当请假状态为 {@code pending} 时才可将其改为 {@code rejected}。
+     *
+     * @param id          请假记录ID
+     * @param adminUserId 管理员用户ID
+     * @param reason      驳回原因（可为 null，仅记录日志）
+     * @return 驳回后的请假实体
+     * @throws BusinessException 如果请假记录不存在（404）或非待审批状态（400）
+     */
+    KeeperLeave reject(Long id, Long adminUserId, String reason);
+
+    /**
+     * 将请假实体转换为 DTO，并关联填充看护者名称和商家名称。
+     * <p>
+     * <b>业务说明：</b>供 Controller 在分页列表和审批结果返回时，将实体转换为带名称的 DTO。
+     *
+     * @param entity 请假实体
+     * @return 请假DTO（含看护者名称、商家名称、审批状态）
+     */
+    KeeperLeaveDTO toDTO(KeeperLeave entity);
 
     /**
      * 判断指定看护者在指定日期是否处于休假状态。

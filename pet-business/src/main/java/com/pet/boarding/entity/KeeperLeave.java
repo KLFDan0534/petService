@@ -47,6 +47,9 @@ public class KeeperLeave {
     @Schema(description = "原因")
     private String reason_wsh;
 
+    @Schema(description = "审批状态 pending/approved/rejected")
+    private String status_wsh;
+
     @Schema(description = "创建人")
     private Long created_by_wsh;
 

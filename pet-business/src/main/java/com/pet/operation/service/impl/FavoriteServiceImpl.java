@@ -1,8 +1,10 @@
 package com.pet.operation.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.common.FavoriteTargetType;
+import com.pet.common.PageRequestDTO;
 import com.pet.common.PageResult;
 import com.pet.operation.dto.FavoriteCardDTO;
 import com.pet.operation.dto.FavoriteTargetTypeDTO;
@@ -13,6 +15,7 @@ import com.pet.operation.service.FavoriteTargetResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -71,7 +74,12 @@ public class FavoriteServiceImpl implements FavoriteService {
     }
 
     /**
-     * 切换收藏状态：已收藏则取消，未收藏则新增
+     * 切换收藏状态：已收藏则取消，未收藏则新增。
+     *
+     * 注意：deleteById 是软删除（UPDATE deleted_wsh=1），唯一索引 uk_user_target
+     * 仍包含软删除的行。如果直接 INSERT 会唯一索引冲突（500 错误）。
+     * 修复策略：插入前先检查是否有软删除记录并恢复（UPDATE deleted_wsh=0），
+     * 避免唯一索引冲突。
      */
     @Override
     @Transactional
@@ -84,9 +92,17 @@ public class FavoriteServiceImpl implements FavoriteService {
                         .eq(Favorite::getTarget_id_wsh, targetId)
                         .eq(Favorite::getTarget_type_wsh, normalizedType));
         if (existing != null) {
+            // 有活跃记录 → 软删除
             favoriteMapper.deleteById(existing.getId_wsh());
             return;
         }
+        // 无活跃记录 → 尝试恢复软删除记录（防止唯一索引冲突）。
+        // 必须用原生 SQL 绕过 @TableLogic 过滤，见 FavoriteMapper.reactivate
+        int reactivated = favoriteMapper.reactivate(userId, targetId, normalizedType);
+        if (reactivated > 0) {
+            return;
+        }
+        // 完全没有记录 → 插入新记录
         Favorite favorite = new Favorite();
         favorite.setUser_id_wsh(userId);
         favorite.setTarget_id_wsh(targetId);
@@ -127,14 +143,26 @@ public class FavoriteServiceImpl implements FavoriteService {
      */
     @Override
     public List<FavoriteTargetTypeDTO> listTargetTypes() {
-        List<FavoriteTargetTypeDTO> list = new ArrayList<>();
+        List<FavoriteTargetTypeDTO> result = new ArrayList<>();
         for (String code : FavoriteTargetType.codes()) {
             FavoriteTargetTypeDTO dto = new FavoriteTargetTypeDTO();
             dto.setCode_wsh(code);
             dto.setLabel_wsh(FavoriteTargetType.labelOf(code));
-            list.add(dto);
+            result.add(dto);
         }
-        return list;
+        return result;
+    }
+
+    /**
+     * 管理员分页查询全部收藏数据，支持按目标类型精确筛选
+     */
+    @Override
+    public IPage<Favorite> pageAll(PageRequestDTO pageParam, String targetType) {
+        log.info("pageAll() called");
+        LambdaQueryWrapper<Favorite> wrapper = new LambdaQueryWrapper<Favorite>()
+                .eq(StringUtils.hasText(targetType), Favorite::getTarget_type_wsh, targetType)
+                .orderByDesc(Favorite::getCreated_at_wsh);
+        return favoriteMapper.selectPage(new Page<>(pageParam.getPage(), pageParam.getSize()), wrapper);
     }
 
     private List<FavoriteCardDTO> buildCards(List<Favorite> records) {

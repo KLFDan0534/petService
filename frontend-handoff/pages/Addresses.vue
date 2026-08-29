@@ -1,0 +1,136 @@
+<template>
+  <div>
+    <button class="btn btn-primary" style="margin-bottom:24px" @click="openAdd">+ 添加地址</button>
+    <div v-for="a in addresses" :key="a.id_wsh" class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:600">{{ a.name_wsh }} <span style="font-weight:400;color:var(--color-muted-foreground)">{{ a.phone_wsh }}</span></div>
+          <div style="font-size:14px;color:var(--color-muted-foreground);margin-top:4px">{{ a.address_wsh }} {{ a.detail_wsh }}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button v-if="!a.is_default_wsh" class="btn btn-sm btn-primary" @click="setDefault(a.id_wsh)">设为默认</button>
+          <span v-else class="badge badge-success" style="padding:4px 8px">默认地址</span>
+          <button class="btn btn-sm btn-outline" @click="openEdit(a)">编辑</button>
+          <button class="btn btn-sm btn-danger" @click="removeAddress(a.id_wsh)">删除</button>
+        </div>
+      </div>
+    </div>
+    <EmptyState v-if="!loading && addresses.length === 0" title="暂无地址" icon="📍" description="添加您的常用地址" />
+    
+    <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
+      <div class="modal">
+        <h2>{{ editingId ? '编辑地址' : '添加地址' }}</h2>
+        <form @submit.prevent="saveAddress">
+          <div class="form-row">
+            <div class="form-group"><label>联系人</label><input v-model="form.name_wsh" required></div>
+            <div class="form-group"><label>电话</label><input v-model="form.phone_wsh" required></div>
+          </div>
+          <div class="form-group">
+            <label>地址</label>
+            <AmapAddressPicker
+              v-model="form.address_wsh"
+              v-model:latitude="form.latitude_wsh"
+              v-model:longitude="form.longitude_wsh"
+              placeholder="搜索地址或点击定位"
+            />
+          </div>
+          <div class="form-group"><label>详细地址</label><input v-model="form.detail_wsh" required></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
+            <button type="submit" class="btn btn-primary btn-sm">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { useAppStore } from '@/stores/app'
+import EmptyState from '@/components/common/EmptyState.vue'
+import AmapAddressPicker from '@/components/common/AmapAddressPicker.vue'
+import { getAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress } from '@/api/address'
+
+const appStore = useAppStore()
+const addresses = ref([])
+const loading = ref(true)
+const showForm = ref(false)
+const editingId = ref(null)
+const form = reactive({ name_wsh: '', phone_wsh: '', address_wsh: '', detail_wsh: '', latitude_wsh: null, longitude_wsh: null })
+
+function resetForm() { form.name_wsh = ''; form.phone_wsh = ''; form.address_wsh = ''; form.detail_wsh = ''; form.latitude_wsh = null; form.longitude_wsh = null; editingId.value = null }
+
+function openAdd() { resetForm(); showForm.value = true }
+
+function openEdit(a) {
+  editingId.value = a.id_wsh
+  form.name_wsh = a.name_wsh || ''
+  form.phone_wsh = a.phone_wsh || ''
+  form.address_wsh = a.address_wsh || ''
+  form.detail_wsh = a.detail_wsh || ''
+  form.latitude_wsh = a.latitude_wsh ?? null
+  form.longitude_wsh = a.longitude_wsh ?? null
+  showForm.value = true
+}
+
+onMounted(async () => {
+  try { const r = await getAddresses(); if (r.code === 200) addresses.value = r.data }
+  catch (e) {}
+  finally { loading.value = false }
+})
+
+async function saveAddress() {
+  try {
+    if (!form.address_wsh || form.latitude_wsh == null || form.longitude_wsh == null) {
+      appStore.addToast('请选择或定位地址', 'warning')
+      return
+    }
+    const payload = {
+      name_wsh: form.name_wsh,
+      phone_wsh: form.phone_wsh,
+      address_wsh: form.address_wsh,
+      detail_wsh: form.detail_wsh,
+      latitude_wsh: form.latitude_wsh,
+      longitude_wsh: form.longitude_wsh,
+    }
+    let r
+    if (editingId.value) {
+      r = await updateAddress(editingId.value, payload)
+    } else {
+      r = await createAddress(payload)
+    }
+    if (r.code === 200) {
+      appStore.addToast(editingId.value ? '更新成功' : '添加成功', 'success')
+      showForm.value = false
+      const idx = addresses.value.findIndex(a => a.id_wsh === editingId.value)
+      if (editingId.value && idx !== -1) {
+        addresses.value[idx] = r.data
+      } else {
+        addresses.value.push(r.data)
+      }
+    }
+  } catch (e) { appStore.addToast('保存失败', 'error') }
+}
+
+async function removeAddress(id) {
+  if (!confirm('确定删除该地址？')) return
+  try {
+    const r = await deleteAddress(id)
+    if (r.code === 200) {
+      appStore.addToast('删除成功', 'success')
+      addresses.value = addresses.value.filter(a => a.id_wsh !== id)
+    }
+  } catch (e) { appStore.addToast('删除失败', 'error') }
+}
+
+async function setDefault(id) {
+  try {
+    const r = await setDefaultAddress(id)
+    if (r.code === 200) {
+      appStore.addToast('已设为默认', 'success')
+      addresses.value.forEach(a => { a.is_default_wsh = a.id_wsh === id })
+    }
+  } catch (e) { appStore.addToast('操作失败', 'error') }
+}
+</script>

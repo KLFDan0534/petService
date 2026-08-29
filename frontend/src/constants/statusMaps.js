@@ -123,6 +123,43 @@ export const ServiceStatus = {
   1: { label: '上架中', badge: 'badge-success' },
 }
 
+export const PaymentStatus = {
+  pending: { label: '待支付', badge: 'badge-warning' },
+  success: { label: '支付成功', badge: 'badge-success' },
+  failed: { label: '支付失败', badge: 'badge-danger' },
+}
+
+export const NotificationTypeMap = {
+  system: { label: '系统', badge: 'badge-info' },
+  order: { label: '订单', badge: 'badge-primary' },
+  notice: { label: '公告', badge: 'badge-warning' },
+}
+
+export const FavoriteTargetTypeMap = {
+  merchant: { label: '商家', badge: 'badge-info' },
+  keeper: { label: '寄养员', badge: 'badge-primary' },
+  service: { label: '服务', badge: 'badge-success' },
+}
+
+export const LeaveApprovalStatus = {
+  pending: { label: '待审批', badge: 'badge-warning' },
+  approved: { label: '已通过', badge: 'badge-success' },
+  rejected: { label: '已拒绝', badge: 'badge-danger' },
+}
+
+export const CsApplicationStatus = {
+  pending: { label: '待审核', badge: 'badge-warning' },
+  approved: { label: '已通过', badge: 'badge-success' },
+  rejected: { label: '已拒绝', badge: 'badge-danger' },
+  resigned: { label: '已辞职', badge: 'badge-secondary' },
+  terminated: { label: '已终止', badge: 'badge-secondary' },
+}
+
+export const ReadStatus = {
+  0: { label: '未读', badge: 'badge-warning' },
+  1: { label: '已读', badge: 'badge-success' },
+}
+
 export const TicketCategoryMap = {
   appeal: { label: '申诉', badge: 'badge-warning' },
   complaint: { label: '投诉', badge: 'badge-error' },
