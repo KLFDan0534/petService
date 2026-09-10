@@ -63,41 +63,46 @@
       </template>
     </DataTable>
 
-    <div v-if="pendingReview" class="modal-overlay" @mousedown.self="cancelReview">
-      <div class="modal" style="max-width:500px">
-        <h3>{{ pendingReview.action === 'resolve' ? '处理投诉' : '驳回投诉' }}</h3>
-        <p style="margin:10px 0 0;color:var(--color-muted-foreground)">{{ pendingReview.title }}</p>
-        <div class="form-group" style="margin-top:16px">
-          <label>处理意见</label>
-          <textarea v-model="reviewResult" rows="4" placeholder="请输入处理意见"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="cancelReview">取消</button>
-          <button
-            :class="['btn', 'btn-sm', pendingReview.action === 'resolve' ? 'btn-success' : 'btn-danger']"
-            type="button"
-            :disabled="!reviewResult.trim()"
-            @click="submitReview"
-          >
-            {{ pendingReview.action === 'resolve' ? '确认处理' : '确认驳回' }}
-          </button>
-        </div>
+    <AppDialog
+      :visible="pendingReview"
+      :width="500"
+      :title="pendingReview.action === 'resolve' ? '处理投诉' : '驳回投诉'"
+      @close="cancelReview"
+    >
+      <p style="margin:10px 0 0;color:var(--color-muted-foreground)">{{ pendingReview.title }}</p>
+      <div class="form-group" style="margin-top:16px">
+        <label>处理意见</label>
+        <textarea v-model="reviewResult" rows="4" placeholder="请输入处理意见"></textarea>
       </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="cancelReview">取消</button>
+        <button
+          :class="['btn', 'btn-sm', pendingReview.action === 'resolve' ? 'btn-success' : 'btn-danger']"
+          type="button"
+          :disabled="!reviewResult.trim()"
+          @click="submitReview"
+        >
+          {{ pendingReview.action === 'resolve' ? '确认处理' : '确认驳回' }}
+        </button>
+      </template>
+    </AppDialog>
 
-    <div v-if="evidenceVisible" class="modal-overlay" @mousedown.self="closeEvidence">
-      <div class="modal evidence-modal">
+    <AppDialog
+      :visible="evidenceVisible"
+      :width="920"
+      title="投诉证据"
+      @close="closeEvidence"
+    >
+      <template #header>
         <div class="modal-header">
-          <div>
-            <h2>投诉证据</h2>
-            <p v-if="selectedEvidence?.summary_wsh">
-              订单 {{ selectedEvidence.summary_wsh.order_no_wsh || `#${selectedEvidence.summary_wsh.order_id_wsh}` }}
-            </p>
-          </div>
-          <button class="btn btn-outline btn-sm" type="button" @click="closeEvidence">关闭</button>
+          <h2>投诉证据</h2>
+          <p v-if="selectedEvidence?.summary_wsh">
+            订单 {{ selectedEvidence.summary_wsh.order_no_wsh || `#${selectedEvidence.summary_wsh.order_id_wsh}` }}
+          </p>
         </div>
+      </template>
 
-        <div v-if="evidenceLoading" class="loading">加载中...</div>
+      <div v-if="evidenceLoading" class="loading">加载中...</div>
         <div v-else-if="selectedEvidence" class="evidence-content">
           <section class="evidence-summary">
             <div>
@@ -170,8 +175,7 @@
             <div v-else class="empty-inline">暂无照护记录</div>
           </section>
         </div>
-      </div>
-    </div>
+    </AppDialog>
   </div>
 </template>
 
@@ -188,6 +192,7 @@ import {
 } from '@/api/complaint'
 import { ComplaintStatus, enrichWithStatus } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
 const route = useRoute()
@@ -375,13 +380,6 @@ onMounted(() => {
   width: min(920px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
   overflow-y: auto;
-}
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 16px;
 }
 .modal-header p {
   margin: 4px 0 0;

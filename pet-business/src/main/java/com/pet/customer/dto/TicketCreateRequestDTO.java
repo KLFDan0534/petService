@@ -14,11 +14,11 @@ public class TicketCreateRequestDTO {
     private Long order_id_wsh;
 
     @Schema(description = "工单标题")
-    @NotBlank(message = "宸ュ崟鏍囬涓嶈兘涓虹┖")
+    @NotBlank(message = "工单标题不能为空")
         private String title_wsh;
 
     @Schema(description = "工单内容")
-    @NotBlank(message = "宸ュ崟鍐呭涓嶈兘涓虹┖")
+    @NotBlank(message = "工单内容不能为空")
         private String content_wsh;
 
     @Schema(description = "工单分类")

@@ -23,8 +23,12 @@ import com.pet.common.BookingUnit;
 import com.pet.common.BusinessException;
 import com.pet.common.ServiceVersions;
 import com.pet.common.StatusCode;
+import com.pet.common.geo.GeoDistanceUtils;
 import com.pet.customer.mapper.RatingMapper;
+import jdk.jshell.Snippet;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -77,23 +81,6 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【查询所有已启用服务项目】
-     *
-     * 业务作用：获取全系统已启用的服务项目列表。
-     * 调用场景：用户端浏览全部可预约服务时调用。
-     * 调用链：ServiceItemController → listAll → ServiceItemMapper.selectList（按 status=ENABLED）
-     * 数据处理：仅返回已启用的服务项目。
-     * 状态影响：只读操作。
-     */
-    @Override
-    public List<ServiceItem> listAll() {
-        log.info("listAll() called");
-        return serviceItemMapper.selectList(
-                new LambdaQueryWrapper<ServiceItem>()
-                        .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
-    }
-
-    /**
      * 【查询商家下已启用服务项目】
      *
      * 业务作用：查询某个商家下所有已启用的服务项目（对外展示）。
@@ -102,14 +89,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 数据处理：按 merchant_id + status=ENABLED 查询。
      * 状态影响：只读操作。
      */
+/*    // TODO 未来将删除,已被queryPublic替换
     @Override
     public List<ServiceItem> listByMerchant(Long merchantId) {
-        log.info("listByMerchant() called");
+        log.info("listByMerchant() 被调用");
         return serviceItemMapper.selectList(
                 new LambdaQueryWrapper<ServiceItem>()
                         .eq(ServiceItem::getMerchant_id_wsh, merchantId)
                         .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
-    }
+    }*/
 
     /**
      * 【查询商家下所有服务项目（含禁用）】
@@ -122,7 +110,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      */
     @Override
     public List<ServiceItem> listByMerchantForManage(Long merchantId) {
-        log.info("listByMerchantForManage() called");
+        log.info("listByMerchantForManage() 被调用");
         return serviceItemMapper.selectList(
                 new LambdaQueryWrapper<ServiceItem>()
                         .eq(ServiceItem::getMerchant_id_wsh, merchantId)
@@ -141,8 +129,9 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 异常情况：服务项目不存在时抛 BusinessException。
      */
     @Override
+    @Cacheable(value = "serviceItem", key = "#id", unless = "#result == null || #result == ''")
     public ServiceItem getById(Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         ServiceItem item = serviceItemMapper.selectById(id);
         if (item == null) {
             throw new BusinessException("服务项目不存在");
@@ -160,7 +149,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      */
     @Override
     public List<ServiceItem> listByIds(Collection<Long> ids) {
-        log.info("listByIds() called");
+        log.info("listByIds() 被调用");
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
@@ -178,8 +167,10 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"},
+            allEntries = true)
     public ServiceItem create(Long merchantId, ServiceItemCreateRequestDTO dto) {
-        log.info("create() called");
+        log.info("create() 被调用");
         validateName(dto.getName_wsh());
         validateDescription(dto.getDescription_wsh());
         validatePrice(dto.getPrice_wsh());
@@ -213,8 +204,10 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"},
+            allEntries = true)
     public ServiceItem update(Long id, ServiceItemUpdateRequestDTO dto) {
-        log.info("update() called");
+        log.info("update() 被调用");
         assertPositiveId(id);
         ServiceItem existing = serviceItemMapper.selectByIdForUpdate(id);
         if (existing == null) {
@@ -265,8 +258,10 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"},
+            allEntries = true)
     public void delete(Long id) {
-        log.info("delete() called");
+        log.info("delete() 被调用");
         assertPositiveId(id);
         getById(id);
         serviceItemMapper.deleteById(id);
@@ -283,8 +278,9 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
     public void toggleStatus(Long id) {
-        log.info("toggleStatus() called");
+        log.info("toggleStatus() 被调用");
         assertPositiveId(id);
         ServiceItem item = getById(id);
         item.setStatus_wsh(item.getStatus_wsh() == null || item.getStatus_wsh() == StatusCode.SERVICE_DISABLED.getValue()
@@ -304,8 +300,9 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
     public ServiceItem updateImages(Long id, String images) {
-        log.info("updateImages() called");
+        log.info("updateImages() 被调用");
         assertPositiveId(id);
         ServiceItem item = getById(id);
         item.setImages_wsh(images);
@@ -322,14 +319,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 数据处理：按 category_id + status=ENABLED 查询。
      * 状态影响：只读操作。
      */
-    @Override
+    // TODO 后期可删除
+/*    @Override
     public List<ServiceItem> listByCategory(Long categoryId) {
-        log.info("listByCategory() called");
+        log.info("listByCategory() 被调用");
         return serviceItemMapper.selectList(
                 new LambdaQueryWrapper<ServiceItem>()
                         .eq(ServiceItem::getCategory_id_wsh, categoryId)
                         .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
-    }
+    }*/
 
     /**
      * 【服务项目实体转DTO】
@@ -351,6 +349,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return dto;
     }
 
+    /** 复制实体字段到DTO */
     private ServiceItemDTO copyFields(ServiceItem entity) {
         ServiceItemDTO dto = new ServiceItemDTO();
         dto.setId_wsh(entity.getId_wsh());
@@ -368,106 +367,165 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return dto;
     }
 
+    /**
+     * 【公开查询服务项目列表】
+     *
+     * 业务作用：对外提供可预约服务的分页查询，支持按分类、商家、关键字筛选，
+     * 支持按价格、评分、距离排序，支持基于用户经纬度计算距离。
+     *
+     * 调用场景：用户端服务列表页、商家详情页服务列表。
+     *
+     * 调用链：ServiceItemController → queryPublic → ServiceItemMapper.selectList
+     *
+     * 数据处理流程：
+     * 1. 参数校验（分页、排序、坐标）
+     * 2. 数据库查询（按条件筛选已启用服务）
+     * 3. 批量加载关联数据（商家、分类、评分、媒体）
+     * 4. 可见性过滤（只显示已审核商家 + 启用分类的服务）
+     * 5. 内存排序（价格/评分/距离）
+     * 6. 分页截取
+     *
+     * 状态影响：只读操作，结果缓存（key="'list:page'"）。
+     *
+     * @param query 查询参数（分类、商家、关键字、排序、经纬度、分页）
+     * @return 分页结果（服务列表 + 总数 + 分页信息）
+     */
     @Override
+    @Cacheable(value = "service-item-page",
+            key = "(#query?.category_id_wsh ?: '') + ':' + (#query?.merchant_id_wsh ?: '') + ':' + (#query?.keyword_wsh ?: '') + ':' + (#query?.sort_wsh ?: 'default') + ':' + (#query?.latitude_wsh ?: '') + ':' + (#query?.longitude_wsh ?: '') + ':' + #query?.page_wsh + ':' + #query?.size_wsh",
+            unless = "#result == null || #result.items_wsh == null || #result.items_wsh.isEmpty()")
     public ServiceQueryResultVO queryPublic(ServiceItemQueryDTO query) {
+        // 参数空值处理：无参数时返回全部上架服务
         if (query == null) query = new ServiceItemQueryDTO();
-        int page = query.getPage_wsh() != null ? query.getPage_wsh() : 1;
-        int size = query.getSize_wsh() != null ? query.getSize_wsh() : 20;
+
+        // ========== 分页参数校验 ==========
+        int page = query.getPage_wsh();
+        int size = query.getSize_wsh();
         if (page < 1) throw new BusinessException(400, "page must be >= 1");
         if (size < 1) throw new BusinessException(400, "size must be >= 1");
-        if (size > MAX_SIZE) size = MAX_SIZE;
+        if (size > MAX_SIZE) size = MAX_SIZE;  // 防止恶意请求过大分页
+
+        // ========== 排序参数校验 ==========
+        // 支持的排序方式：default（默认）、price_asc（价格升序）、rating_desc（评分降序）、distance_asc（距离升序）
         String sort = query.getSort_wsh() == null || query.getSort_wsh().isBlank() ? "default" : query.getSort_wsh();
         if (!SUPPORTED_SORTS.contains(sort)) {
             throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "unsupported sort: " + sort);
         }
+
+        // ========== 经纬度参数校验 ==========
+        // 用于计算用户与服务提供商家之间的距离（基于高德 GCJ02 坐标系）
         Double lat = toDouble(query.getLatitude_wsh());
         Double lng = toDouble(query.getLongitude_wsh());
         boolean hasCoords = lat != null || lng != null;
+        // 经纬度必须成对提供，不能只提供其中一个
         if (hasCoords && (lat == null || lng == null)) {
             throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "latitude and longitude must be provided together");
         }
+        // 坐标范围校验：纬度 [-90, 90]，经度 [-180, 180]
         if (hasCoords && (lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
             throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "coordinate out of range");
         }
+        // 距离排序必须提供经纬度参数
         if ("distance_asc".equals(sort) && !hasCoords) {
             throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "distance sort requires coordinates");
         }
 
+        // ========== 构建数据库查询条件 ==========
         LambdaQueryWrapper<ServiceItem> wrapper = new LambdaQueryWrapper<ServiceItem>()
-                .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue());
+                .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue());  // 只查询已上架服务
+        // 分类筛选
         if (query.getCategory_id_wsh() != null) {
             wrapper.eq(ServiceItem::getCategory_id_wsh, query.getCategory_id_wsh());
         }
+        // 商家筛选（商家维度列表用）
         if (query.getMerchant_id_wsh() != null) {
             wrapper.eq(ServiceItem::getMerchant_id_wsh, query.getMerchant_id_wsh());
         }
+        // 关键字模糊匹配（服务名称或描述）
         if (query.getKeyword_wsh() != null && !query.getKeyword_wsh().isBlank()) {
             String keyword = query.getKeyword_wsh().trim();
             wrapper.and(w -> w.like(ServiceItem::getName_wsh, keyword)
                     .or().like(ServiceItem::getDescription_wsh, keyword));
         }
+        // 数据库层排序：价格升序或创建时间倒序（默认）
+        // 注意：评分排序和距离排序需要在内存中进行，因为涉及关联表计算
         if ("price_asc".equals(sort)) {
             wrapper.orderByAsc(ServiceItem::getPrice_wsh);
         } else {
-            wrapper.orderByDesc(ServiceItem::getCreated_at_wsh);
+            wrapper.orderByDesc(ServiceItem::getCreated_at_wsh);  // 默认按创建时间倒序
         }
+        // 执行数据库查询
         List<ServiceItem> services = serviceItemMapper.selectList(wrapper);
         if (services.isEmpty()) {
-            return new ServiceQueryResultVO(List.of(), 0, page, size);
+            return new ServiceQueryResultVO(new ArrayList<>(), 0, page, size);
         }
 
-        // 批量加载商家/分类/评分，禁止逐行 selectById（SVC-U-08）
-        Map<Long, Merchant> merchants = new HashMap<>(batchMerchants(services));
-        Map<Long, ServiceCategory> categories = new HashMap<>(batchCategories(services));
+        // ========== 批量加载关联数据 ==========
+        // 性能优化：一次性批量加载所有关联数据，避免 N+1 查询问题（SVC-U-08）
+        Map<Long, Merchant> merchants = new HashMap<>(batchMerchants(services));      // 批量加载商家信息
+        Map<Long, ServiceCategory> categories = new HashMap<>(batchCategories(services));  // 批量加载分类信息
 
+        // ========== 可见性过滤 ==========
+        // 只显示满足以下条件的服务：
+        // 1. 服务已上架（已在 SQL 过滤）
+        // 2. 商家已审核通过
+        // 3. 分类已启用（如果服务有关联分类）
         List<ServiceItem> visible = services.stream()
                 .filter(s -> isPubliclyVisible(s, merchants, categories))
                 .toList();
         if (visible.isEmpty()) {
-            return new ServiceQueryResultVO(List.of(), 0, page, size);
+            return new ServiceQueryResultVO(new ArrayList<>(), 0, page, size);
         }
 
+        // ========== 批量加载扩展数据 ==========
         Set<Long> serviceIds = visible.stream().map(ServiceItem::getId_wsh).collect(Collectors.toSet());
-        // 图册批量解析（单次媒体查询 + 单次文件记录查询），列表只展示媒体行可信 URL
+        // 图册批量解析：单次媒体查询 + 单次文件记录查询，列表只展示媒体行可信 URL
         Map<Long, List<ServiceMediaDTO>> mediaByService = serviceMediaService.listMediaByServiceIds(serviceIds);
+        // 聚合服务评分统计
         Map<Long, RatingStats> serviceStats = aggregate(serviceIds, "service");
+        // 聚合商家评分统计
         Set<Long> merchantIds = visible.stream().map(ServiceItem::getMerchant_id_wsh)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, RatingStats> merchantStats = aggregate(merchantIds, "merchant");
 
+        // ========== 转换为 DTO ==========
+        // 包含：服务基本信息 + 商家名称 + 分类名称 + 评分统计 + 距离计算（如果提供了用户坐标）
         List<ServiceItemDTO> dtos = visible.stream()
                 .map(s -> toPublicDTO(s, merchants, categories, serviceStats, merchantStats, lat, lng,
                         mediaByService.get(s.getId_wsh())))
-                .toList();
+                .collect(Collectors.toList());
 
+        // ========== 内存排序 ==========
+        // 评分排序和距离排序需要在内存中进行，因为涉及关联表计算
         if ("price_asc".equals(sort)) {
+            // 价格升序：空值视为 0
             dtos = dtos.stream()
                     .sorted(Comparator.comparing(d -> d.getPrice_wsh() == null
                             ? BigDecimal.ZERO : d.getPrice_wsh()))
-                    .toList();
+                    .collect(Collectors.toList());
         } else if ("rating_desc".equals(sort)) {
+            // 评分降序：高分在前，空值排在最后
             dtos = dtos.stream()
                     .sorted(Comparator.comparing(ServiceItemDTO::getService_rating_wsh,
                             Comparator.nullsLast(Comparator.reverseOrder())))
-                    .toList();
+                    .collect(Collectors.toList());
         } else if ("distance_asc".equals(sort)) {
+            // 距离升序：近的在前，空值（无商家坐标或无用户坐标）排在最后
             dtos = dtos.stream()
                     .sorted(Comparator.comparing(ServiceItemDTO::getDistance_km_wsh,
                             Comparator.nullsLast(Comparator.naturalOrder())))
-                    .toList();
+                    .collect(Collectors.toList());
         }
 
+        // ========== 分页截取 ==========
         int total = dtos.size();
         int from = (page - 1) * size;
-        List<ServiceItemDTO> items = from >= total ? List.of() : dtos.subList(from, Math.min(from + size, total));
+        List<ServiceItemDTO> items = from >= total ? new ArrayList<>()
+                : new ArrayList<>(dtos.subList(from, Math.min(from + size, total)));
         return new ServiceQueryResultVO(items, total, page, size);
     }
 
-    @Override
-    public List<ServiceItemDTO> listPublic(ServiceItemQueryDTO query) {
-        return queryPublic(query).getItems_wsh();
-    }
-
+    /** 判断服务是否对外可见（商家已审核+分类已启用） */
     private boolean isPubliclyVisible(ServiceItem service, Map<Long, Merchant> merchants,
                                       Map<Long, ServiceCategory> categories) {
         Merchant merchant = merchants.get(service.getMerchant_id_wsh());
@@ -485,6 +543,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return true;
     }
 
+    /** 批量加载商家信息 */
     private Map<Long, Merchant> batchMerchants(List<ServiceItem> services) {
         Set<Long> merchantIds = services.stream().map(ServiceItem::getMerchant_id_wsh)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
@@ -493,6 +552,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 .collect(Collectors.toMap(Merchant::getId_wsh, Function.identity()));
     }
 
+    /** 批量加载分类信息 */
     private Map<Long, ServiceCategory> batchCategories(List<ServiceItem> services) {
         Set<Long> categoryIds = services.stream().map(ServiceItem::getCategory_id_wsh)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
@@ -501,6 +561,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 .collect(Collectors.toMap(ServiceCategory::getId_wsh, Function.identity()));
     }
 
+    /** 聚合评分统计（平均分+评价数） */
     private Map<Long, RatingStats> aggregate(Set<Long> targetIds, String targetType) {
         if (targetIds.isEmpty()) return Map.of();
         Map<Long, RatingStats> stats = new HashMap<>();
@@ -515,6 +576,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return stats;
     }
 
+    /** 转换为公开DTO（含商家名称、分类名称、评分、距离、可信图册） */
     private ServiceItemDTO toPublicDTO(ServiceItem entity, Map<Long, Merchant> merchants,
                                        Map<Long, ServiceCategory> categories,
                                        Map<Long, RatingStats> serviceStats,
@@ -551,32 +613,24 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         }
         if (lat != null && lng != null && merchant != null
                 && merchant.getLatitude_wsh() != null && merchant.getLongitude_wsh() != null) {
-            dto.setDistance_km_wsh(computeDistanceKm(lat, lng,
-                    merchant.getLatitude_wsh().doubleValue(), merchant.getLongitude_wsh().doubleValue()));
+            dto.setDistance_km_wsh(BigDecimal.valueOf(GeoDistanceUtils.distanceKm(lat, lng,
+                    merchant.getLatitude_wsh().doubleValue(), merchant.getLongitude_wsh().doubleValue())).setScale(1, RoundingMode.HALF_UP));
         }
         dto.setService_version_wsh(ServiceVersions.format(entity.getUpdated_at_wsh()));
         return dto;
     }
 
-    private BigDecimal computeDistanceKm(double lat1, double lng1, double lat2, double lng2) {
-        double earthRadiusKm = 6371.0;
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLng = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return BigDecimal.valueOf(earthRadiusKm * c).setScale(1, RoundingMode.HALF_UP);
-    }
-
+    /** BigDecimal转Double */
     private Double toDouble(BigDecimal value) {
         return value == null ? null : value.doubleValue();
     }
 
+    /** 对象转long */
     private long toLong(Object value) {
         return value instanceof Number number ? number.longValue() : 0L;
     }
 
+    /** 获取公开服务详情（兼容旧客户端） */
     @Override
     public ServiceItemDTO getByIdPublic(Long id) {
         assertPositiveId(id);
@@ -586,6 +640,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return dto;
     }
 
+    /** 获取服务产品公开详情（权威数据源） */
     @Override
     public ServiceProductDetailVO getPublicDetail(Long id) {
         assertPositiveId(id);
@@ -632,6 +687,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return vo;
     }
 
+    /** 获取服务管理详情（含全部字段+图册） */
     @Override
     public ServiceManageDetailVO getManageDetail(Long id) {
         assertPositiveId(id);
@@ -645,6 +701,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 公共可见性不变量：上架服务 + 已审核商家 + （存在分类时）启用分类。
      * 与列表过滤（isPubliclyVisible）语义一致，保证详情不会暴露列表隐藏的数据。
      */
+    /** 校验服务公共可见性并返回上下文 */
     private PublicContext requirePublicService(Long id) {
         ServiceItem service = serviceItemMapper.selectById(id);
         if (service == null) {
@@ -673,6 +730,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 详情图片：优先媒体行可信 URL；无媒体行时仅回退到能解析到内部
      * 文件记录的历史值（外部/data/协议相对地址丢弃，仅审计记录）。
      */
+    /** 解析公开图片（优先媒体行，回退历史可信图片） */
     private String resolvePublicImages(ServiceItem service) {
         List<ServiceMediaDTO> media = serviceMediaService.listMedia(service.getId_wsh());
         if (!media.isEmpty()) {
@@ -683,6 +741,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return trusted.isEmpty() ? null : String.join(",", trusted);
     }
 
+    /** 解析公开媒体列表 */
     private List<ServiceProductMediaVO> resolvePublicMedia(ServiceItem service) {
         List<ServiceProductMediaVO> result = new ArrayList<>();
         for (ServiceMediaDTO m : serviceMediaService.listMedia(service.getId_wsh())) {
@@ -710,6 +769,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 可预约性：商家开放未来预约且服务计费单位是受支持的规范单位（day/session/hour）。
      * 未知/无法解析的单位仍视为不可预约（UNSUPPORTED_SERVICE_UNIT）。
      */
+    /** 判断服务是否可预约（返回不可预约原因或null） */
     private String bookableReason(ServiceItem service, Merchant merchant) {
         boolean futureBookingOn = merchant != null && merchant.getFuture_booking_enabled_wsh() != null
                 && merchant.getFuture_booking_enabled_wsh() == 1;
@@ -722,12 +782,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return null;
     }
 
+
+    /** 校验ID是否为正数 */
     private void assertPositiveId(Long id) {
         if (id == null || id <= 0) {
             throw new BusinessException(400, BookingErrorCode.INVALID_PRODUCT_ID, "服务ID必须为正数");
         }
     }
 
+    /** 校验服务名称 */
     private void validateName(String name) {
         if (name == null || name.isBlank()) {
             throw new BusinessException(400, "服务名称不能为空");
@@ -737,12 +800,14 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         }
     }
 
+    /** 校验服务描述 */
     private void validateDescription(String description) {
         if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new BusinessException(400, "服务描述不能超过" + MAX_DESCRIPTION_LENGTH + "个字符");
         }
     }
 
+    /** 校验价格 */
     private void validatePrice(BigDecimal price) {
         if (price == null) {
             throw new BusinessException(400, BookingErrorCode.PRICE_INVALID, "价格不能为空");
@@ -758,6 +823,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         }
     }
 
+    /** 校验服务状态 */
     private void validateStatus(Integer status) {
         if (status == null
                 || (status != StatusCode.SERVICE_ENABLED.getValue()
@@ -766,11 +832,13 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         }
     }
 
+    /** 获取已启用的分类（不存在或禁用时抛异常） */
     private ServiceCategory requireEnabledCategory(Long categoryId) {
         if (categoryId == null) {
             throw new BusinessException(400, BookingErrorCode.CATEGORY_NOT_FOUND, "服务分类不能为空");
         }
         ServiceCategory cat = categoryMapper.selectById(categoryId);
+
         if (cat == null) {
             throw new BusinessException(400, BookingErrorCode.CATEGORY_NOT_FOUND, "服务分类不存在");
         }
@@ -781,11 +849,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return cat;
     }
 
-    /**
-     * 单位契约落地：将请求单位规范化为 day/session/hour（未知/超长拒绝），
-     * 校验并归一服务时长（BookingUnit.resolveDurationMinutes），并推导预约模式。
-     * unit 为空时保留既有单位；durationMinutes 为空时按该单位默认时长回填。
-     */
+    /** 应用单位契约（规范化单位+时长+预约模式） */
     private void applyUnitContract(ServiceItem item, String unit, Integer durationMinutes) {
         String canonical;
         if (unit == null || unit.isBlank()) {
@@ -803,9 +867,11 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         item.setBooking_mode_wsh(BookingUnit.bookingMode(canonical));
     }
 
+    /** 公共服务上下文（服务+商家+分类） */
     private record PublicContext(ServiceItem service, Merchant merchant, ServiceCategory category) {
     }
 
+    /** 评分统计（平均分+评价数） */
     private record RatingStats(BigDecimal avgScore, long count) {
     }
 }

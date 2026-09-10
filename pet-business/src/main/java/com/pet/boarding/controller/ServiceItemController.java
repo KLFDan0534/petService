@@ -44,16 +44,13 @@ import java.util.stream.Collectors;
 
 /**
  * 【服务项目管理控制器】
- *
  * 业务作用：
  * 管理商家提供的宠物寄养服务项目，包括服务项的 CRUD、状态切换、
  * 图片更新、按分类/商家查询等。
- *
  * 权限要求：
  * - 公开接口（GET）：任意用户
  * - 管理接口（POST/PUT/DELETE）：ADMIN 或 MERCHANT
- *
- * API 路由前缀：/api/services
+ * * API 路由前缀：/api/services
  */
 @RestController
 @RequestMapping("/api/services")
@@ -77,53 +74,41 @@ public class ServiceItemController {
 
     /**
      * 【获取所有启用的服务项目列表】
-     *
+
      * API: GET /api/services
-     *
+
      * 权限：公开
-     *
-     * 场景：用户浏览平台提供的所有服务项目。
+     * 场景：用户浏览平台提供的所有服务项目（无筛选/排序/分页参数，
+     * 固定返回第 1 页、默认每页 20 条）。需要分类/关键字/排序/分页/
+     * 距离查询请使用 GET /api/services/public。
      * 仅返回 status = ENABLED 的服务项。
      */
     @GetMapping
-    @Operation(summary = "获取启用的服务项目列表", description = "获取所有启用的服务项目列表（支持分类/关键字/排序/分页）")
+    @Operation(summary = "获取启用的服务项目列表", description = "无参查询：固定返回第 1 页（默认 20 条）启用的服务项目；筛选/排序/分页请使用 /api/services/public")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "操作成功"),
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
-    public Result<List<ServiceItemDTO>> listAll(@RequestParam(required = false) Long categoryId,
-                                                @RequestParam(required = false) Long merchantId,
-                                                @RequestParam(required = false) String keyword,
-                                                @RequestParam(required = false) String sort,
-                                                @RequestParam(required = false) BigDecimal latitude,
-                                                @RequestParam(required = false) BigDecimal longitude,
-                                                @RequestParam(required = false) Integer page,
-                                                @RequestParam(required = false) Integer size) {
-        log.info("listAll() called");
-        return Result.success(serviceItemService.listPublic(query(categoryId, merchantId, keyword, sort, latitude, longitude, page, size)));
+    public Result<List<ServiceItemDTO>> listAll() {
+        log.info("listAll() 被调用");
+        return Result.success(serviceItemService.queryPublic(new ServiceItemQueryDTO()).getItems_wsh());
     }
 
     /**
      * 【公开服务列表分页查询】
-     *
+
      * API: GET /api/services/public
-     *
+
      * 权限：公开
-     *
+
      * 场景：用户端服务浏览分页查询，返回总数。
+     * 安卓端预留
      */
     @GetMapping("/public")
     @Operation(summary = "获取启用的服务项目分页列表", description = "公开服务浏览：分类/关键字/排序/分页/距离")
-    public Result<ServiceQueryResultVO> pagePublic(@RequestParam(required = false) Long categoryId,
-                                                   @RequestParam(required = false) Long merchantId,
-                                                   @RequestParam(required = false) String keyword,
-                                                   @RequestParam(required = false) String sort,
-                                                   @RequestParam(required = false) BigDecimal latitude,
-                                                   @RequestParam(required = false) BigDecimal longitude,
-                                                   @RequestParam(required = false) Integer page,
-                                                   @RequestParam(required = false) Integer size) {
-        log.info("pagePublic() called");
-        return Result.success(serviceItemService.queryPublic(query(categoryId, merchantId, keyword, sort, latitude, longitude, page, size)));
+    public Result<ServiceQueryResultVO> pagePublic(ServiceItemQueryDTO queryDTO) {
+        log.info("pagePublic() 被调用");
+        return Result.success(serviceItemService.queryPublic(queryDTO));
     }
 
     private ServiceItemQueryDTO query(Long categoryId, Long merchantId, String keyword, String sort,
@@ -142,11 +127,11 @@ public class ServiceItemController {
 
     /**
      * 【获取商家服务项目列表】
-     *
+
      * API: GET /api/services/merchant/{merchantId}
-     *
+
      * 权限：公开
-     *
+
      * 场景：用户在商家详情页查看该商家提供的所有服务项目。
      *
      * @param merchantId 商家 ID
@@ -159,21 +144,21 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<ServiceItemDTO>> listByMerchant(@Parameter(description = "商家ID") @PathVariable Long merchantId) {
-        log.info("listByMerchant() called");
+        log.info("listByMerchant() 被调用");
         ServiceItemQueryDTO q = new ServiceItemQueryDTO();
         q.setMerchant_id_wsh(merchantId);
         q.setPage_wsh(1);
         q.setSize_wsh(100);
-        return Result.success(serviceItemService.listPublic(q));
+        return Result.success(serviceItemService.queryPublic(q).getItems_wsh());
     }
 
     /**
      * 【获取服务项目详情（公共可见性受控）】
-     *
+
      * API: GET /api/services/{id}
-     *
+
      * 权限：公开
-     *
+
      * 场景：兼容旧客户端的服务详情读取。只返回通过公共可见性不变量
      * （上架服务 + 已审核商家 + 启用分类）的服务，图册字段只含可信URL。
      * 详情页权威数据请使用 GET /api/services/{serviceId}/detail。
@@ -188,17 +173,17 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<ServiceItemDTO> getById(@Parameter(description = "服务项目ID") @PathVariable Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         return Result.success(serviceItemService.getByIdPublic(id));
     }
 
     /**
      * 【获取服务产品公开详情投影】
-     *
+
      * API: GET /api/services/{serviceId}/detail
-     *
+
      * 权限：公开
-     *
+
      * 场景：服务详情页的权威数据源。返回白名单字段 + 有序可信图册 +
      * 评分聚合 + 服务版本 + 可预约性标记；禁用/未审核商家/禁用分类一律拒绝。
      *
@@ -213,17 +198,17 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<ServiceProductDetailVO> detail(@Parameter(description = "服务产品ID") @PathVariable Long serviceId) {
-        log.info("detail() called, serviceId={}", serviceId);
+        log.info("detail() 被调用, serviceId={}", serviceId);
         return Result.success(serviceItemService.getPublicDetail(serviceId));
     }
 
     /**
      * 【获取服务产品管理详情】
-     *
+
      * API: GET /api/services/{serviceId}/manage
-     *
+
      * 权限：ADMIN 或 MERCHANT（归属商家本人）
-     *
+
      * 场景：管理端编辑单个服务时回显全部标量字段与图册条目。
      *
      * @param serviceId 服务产品ID
@@ -238,18 +223,18 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<ServiceManageDetailVO> manageDetail(@Parameter(description = "服务产品ID") @PathVariable Long serviceId) {
-        log.info("manageDetail() called, serviceId={}", serviceId);
+        log.info("manageDetail() 被调用, serviceId={}", serviceId);
         assertServiceOwnerOrAdmin(serviceId);
         return Result.success(serviceItemService.getManageDetail(serviceId));
     }
 
     /**
      * 【查询服务动态可预约性】
-     *
+
      * API: GET /api/services/{serviceId}/availability?from=2026-08-12&to=2026-08-13&keeperId=5
-     *
+
      * 权限：公开
-     *
+
      * 场景：用户在服务详情页选择日期/看护员后，查询每天的可预约窗口与起始槽位。
      * 只读接口，不产生任何写操作。
      *
@@ -265,20 +250,20 @@ public class ServiceItemController {
             @Parameter(description = "起始日期 yyyy-MM-dd") @RequestParam LocalDate from,
             @Parameter(description = "结束日期 yyyy-MM-dd") @RequestParam LocalDate to,
             @Parameter(description = "可选看护员ID") @RequestParam(required = false) Long keeperId) {
-        log.info("availability() called, serviceId={}, from={}, to={}, keeperId={}", serviceId, from, to, keeperId);
+        log.info("availability() 被调用, serviceId={}, from={}, to={}, keeperId={}", serviceId, from, to, keeperId);
         return Result.success(serviceAvailabilityService.getAvailability(serviceId, from, to, keeperId));
     }
 
     /**
      * 【创建服务项目（聚合）】
-     *
+
      * API: POST /api/services
-     *
+
      * 权限：ADMIN 或 MERCHANT
-     *
+
      * 场景：商家在后台新增一项宠物寄养服务（如"标准寄养"、"VIP 寄养"）。
      * 创建后默认状态为 ENABLED，标量与图册在同一事务内写入。
-     *
+
      * 归属：MERCHANT 自动派生自己所属商家；ADMIN 必须显式指定目标商家
      * merchantId（请求参数）。客户端提交的归属不参与选择。
      *
@@ -299,18 +284,18 @@ public class ServiceItemController {
             @Parameter(description = "ADMIN显式指定的目标商家ID（MERCHANT可省略）")
             @RequestParam(required = false) Long merchantId,
             @Valid @RequestBody ServiceItemCreateRequestDTO dto) {
-        log.info("create() called");
+        log.info("create() 被调用");
         Long derivedMerchantId = merchantScopeResolver.resolve(merchantId, currentToken());
         return Result.success(serviceItemService.toDTO(serviceItemService.create(derivedMerchantId, dto)));
     }
 
     /**
      * 【更新服务项目】
-     *
+
      * API: PUT /api/services/{id}
-     *
+
      * 权限：ADMIN 或 MERCHANT
-     *
+
      * 校验：assertServiceOwnerOrAdmin — 仅服务项所属商家或平台管理员可操作。
      *
      * @param id  服务项目 ID
@@ -327,18 +312,18 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<ServiceItemDTO> update(@Parameter(description = "服务项目ID") @PathVariable Long id, @Valid @RequestBody ServiceItemUpdateRequestDTO dto) {
-        log.info("update() called");
+        log.info("update() 被调用");
         assertServiceOwnerOrAdmin(id);
         return Result.success(serviceItemService.toDTO(serviceItemService.update(id, dto)));
     }
 
     /**
      * 【删除服务项目】
-     *
+
      * API: DELETE /api/services/{id}
-     *
-     * 权限：ADMIN 或 MERCHANT
-     *
+
+     * 限：ADMIN 或 MERCHANT
+
      * 业务校验：物理删除，需确认该服务项未被任何订单引用。
      * 若有引用则不允许删除（由 Service 层处理）。
      *
@@ -354,7 +339,7 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<Void> delete(@Parameter(description = "服务项目ID") @PathVariable Long id) {
-        log.info("delete() called");
+        log.info("delete() 被调用");
         assertServiceOwnerOrAdmin(id);
         serviceItemService.delete(id);
         return Result.success();
@@ -362,13 +347,13 @@ public class ServiceItemController {
 
     /**
      * 【切换服务项目状态】
-     *
+
      * API: POST /api/services/{id}/toggle-status
-     *
+
      * 权限：ADMIN 或 MERCHANT
-     *
+
      * 场景：商家临时下架某项服务（如寄养满员时），或重新上架。
-     *
+
      * 状态变化：ENABLED ↔ DISABLED 来回切换。
      *
      * @param id 服务项目 ID
@@ -383,7 +368,7 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<Void> toggleStatus(@Parameter(description = "服务项目ID") @PathVariable Long id) {
-        log.info("toggleStatus() called");
+        log.info("toggleStatus() 被调用");
         assertServiceOwnerOrAdmin(id);
         serviceItemService.toggleStatus(id);
         return Result.success();
@@ -391,11 +376,11 @@ public class ServiceItemController {
 
     /**
      * 【按分类获取服务项目列表】
-     *
+
      * API: GET /api/services/category/{categoryId}
-     *
+
      * 权限：公开
-     *
+
      * 场景：用户在分类浏览页面，查看某分类下的所有服务项目。
      *
      * @param categoryId 分类 ID
@@ -408,21 +393,21 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<ServiceItemDTO>> listByCategory(@Parameter(description = "分类ID") @PathVariable Long categoryId) {
-        log.info("listByCategory() called");
+        log.info("listByCategory() 被调用");
         ServiceItemQueryDTO q = new ServiceItemQueryDTO();
         q.setCategory_id_wsh(categoryId);
         q.setPage_wsh(1);
         q.setSize_wsh(100);
-        return Result.success(serviceItemService.listPublic(q));
+        return Result.success(serviceItemService.queryPublic(q).getItems_wsh());
     }
 
     /**
      * 【获取商家服务项目管理列表】
-     *
-     * API: GET /api/services/merchant/{merchantId}/manage
-     *
+
+     * API:GET /api/services/merchant/{merchantId}/manage
+
      * 权限：ADMIN 或 MERCHANT
-     *
+
      * 场景：商家在管理后台查看自己所有的服务项目（含已禁用的），
      * 与 listByMerchant 的区别在于包含 DISABLED 状态的项目。
      *
@@ -438,19 +423,19 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<ServiceItemDTO>> listByMerchantForManage(@Parameter(description = "商家ID") @PathVariable Long merchantId) {
-        log.info("listByMerchantForManage() called");
+        log.info("listByMerchantForManage() 被调用");
         assertMerchantOwnerOrAdmin(merchantId);
         return Result.success(serviceItemService.listByMerchantForManage(merchantId).stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
     }
 
     /**
      * 【更新服务项目图片】
-     *
+
      * API: PUT /api/services/{id}/images
-     *
+
      * 权限：ADMIN 或 MERCHANT
-     *
-     * 场景：商家更新服务项目的展示图片（如封面图、详情图集）。
+
+     * 场：商家更新服务项目的展示图片（如封面图、详情图集）。
      *
      * @param id   服务项目 ID
      * @param body 包含 images_wsh 图片链接数组的请求体
@@ -466,7 +451,7 @@ public class ServiceItemController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<ServiceItemDTO> updateImages(@Parameter(description = "服务项目ID") @PathVariable Long id, @Valid @RequestBody ServiceItemUpdateImagesRequestDTO body) {
-        log.info("updateImages() called");
+        log.info("updateImages() 被调用");
         assertServiceOwnerOrAdmin(id);
         return Result.success(serviceItemService.toDTO(serviceItemService.updateImages(id, body.getImages_wsh())));
     }

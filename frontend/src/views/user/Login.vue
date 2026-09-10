@@ -1,21 +1,21 @@
-<template>
+﻿<template>
   <div class="auth-page">
     <div class="auth-shell">
       <!-- ═══ 左侧：表单 ═══ -->
       <main class="auth-main">
         <div class="auth-inner">
-          <!-- brand mark -->
+          <!-- 品牌标识 -->
           <router-link to="/dashboard" class="auth-brand" aria-label="返回栖屿宠护首页">
             <span class="auth-brand-mark" aria-hidden="true">栖</span>
             <span class="auth-brand-copy">
               <span class="auth-brand-name">栖屿宠护</span>
-              <span class="auth-brand-sub">Pet Boarding</span>
+              <span class="auth-brand-sub">宠物寄养</span>
             </span>
           </router-link>
 
-          <!-- header -->
+          <!-- 标题区 -->
           <header class="auth-head">
-            <p class="auth-eyebrow">Sign in</p>
+            <p class="auth-eyebrow">登录</p>
             <h1 class="auth-title">欢迎回来</h1>
             <p class="auth-lede">登录后可以查看订单进度、照护日报，以及管理宠物档案。</p>
           </header>
@@ -23,7 +23,7 @@
           <!-- 服务端错误（非字段校验） -->
           <div v-if="formError" class="auth-alert auth-alert-error" role="alert">{{ formError }}</div>
 
-          <!-- form -->
+          <!-- 表单 -->
           <form class="auth-form" novalidate @submit.prevent="handleLogin">
             <div class="auth-field">
               <label class="auth-label" for="login-username">用户名<span class="auth-req">*</span></label>
@@ -36,7 +36,7 @@
                 autocomplete="username"
                 autofocus
                 placeholder="手机号或用户名"
-                aria-invalid="false"
+                :aria-invalid="!!errors.username"
               >
               <p v-if="errors.username" class="auth-error">{{ errors.username }}</p>
             </div>
@@ -60,6 +60,11 @@
               <router-link to="/forget-password" class="auth-link-sm">忘记密码？</router-link>
             </div>
 
+            <div class="auth-field">
+              <div ref="turnstileRef" class="turnstile-wrap" aria-label="人机验证"></div>
+              <p v-if="turnstileError" class="auth-error">{{ turnstileError }}</p>
+            </div>
+
             <button type="submit" class="cta cta-dark cta-lg" :disabled="loading">
               {{ loading ? '登录中…' : '登录' }}
               <span class="cta-arrow" aria-hidden="true">→</span>
@@ -68,7 +73,7 @@
 
           <p class="auth-note">登录即表示你同意《服务协议》与《隐私政策》。账号仅用于订单与照护记录，不会用于营销推送。</p>
 
-          <!-- footer -->
+          <!-- 页脚 -->
           <div class="auth-foot">
             <span>还没有账号？</span>
             <router-link to="/register" class="auth-link">注册新账号</router-link>
@@ -127,6 +132,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { addDynamicRoutes } from '@/router'
 import { safeRedirect } from '@/utils/safeRedirect'
+import { useTurnstile } from '@/composables/useTurnstile'
 import axios from 'axios'
 
 const router = useRouter()
@@ -139,8 +145,12 @@ const errors = reactive({ username: '', password: '' })
 const formError = ref('')
 const loading = ref(false)
 
+// Cloudflare Turnstile 人机验证
+const turnstileRef = ref(null)
+const { token: turnstileToken, error: turnstileError, reset: resetTurnstile } = useTurnstile(turnstileRef)
+
 async function handleLogin() {
-  // 逐字段校验（对齐 React Login）
+  // 逐字段校验
   const next = { username: '', password: '' }
   if (!username_wsh.value.trim()) next.username = '请输入用户名'
   if (password_wsh.value.length < 6) next.password = '密码至少 6 位'
@@ -149,11 +159,17 @@ async function handleLogin() {
   formError.value = ''
   if (next.username || next.password) return
 
+  if (!turnstileToken.value) {
+    formError.value = '请先完成人机验证'
+    return
+  }
+
   loading.value = true
   try {
     const r = await axios.post('/api/auth/login', {
       username_wsh: username_wsh.value.trim(),
       password_wsh: password_wsh.value,
+      turnstileToken: turnstileToken.value,
     })
     if (r.data.code === 200) {
       authStore.setAuth(r.data.data)
@@ -162,9 +178,11 @@ async function handleLogin() {
       router.push(redirect)
     } else {
       errors.password = r.data.msg || r.data.message || '用户名或密码不正确'
+      resetTurnstile()
     }
   } catch (e) {
     formError.value = e.response?.data?.message || '登录服务暂时无法连接，请稍后重试'
+    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -173,9 +191,9 @@ async function handleLogin() {
 
 <style scoped>
 /* ═══════════════════════════════════════════════════════
-   Uses shared --ref-* tokens from assets/css/design-tokens.css.
-   Dark mode handled globally via html[data-theme="dark"].
-   The dark "paper" aside uses the same fixed slab as Profile.vue.
+   使用 assets/css/design-tokens.css 中的共享 --ref-* 设计令牌。
+   暗色模式由全局的 html[data-theme="dark"] 统一处理。
+   右侧深色「纸张」侧栏与 Profile.vue 复用同一块固定色板。
    ═══════════════════════════════════════════════════════ */
 .auth-page {
   --paper: #17130f;
@@ -207,7 +225,7 @@ async function handleLogin() {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ═══ Brand ═══ */
+/* ═══ 品牌标识 ═══ */
 .auth-brand {
   display: inline-flex; align-items: center; gap: 12px;
   text-decoration: none; color: var(--ref-ink);
@@ -228,7 +246,7 @@ async function handleLogin() {
 .auth-brand-name { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.1; }
 .auth-brand-sub { margin-top: 5px; font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ref-muted); }
 
-/* ═══ Header ═══ */
+/* ═══ 标题区 ═══ */
 .auth-head { margin-top: 44px; }
 .auth-eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ref-muted); }
 .auth-title {
@@ -238,7 +256,7 @@ async function handleLogin() {
 }
 .auth-lede { margin: 14px 0 0; font-size: 13.5px; line-height: 1.75; color: var(--ref-ink-soft); }
 
-/* ═══ Alerts ═══ */
+/* ═══ 警告提示 ═══ */
 .auth-alert {
   margin-top: 24px; padding: 12px 14px;
   border-radius: var(--r-btn); font-size: 13px; line-height: 1.6;
@@ -249,13 +267,13 @@ async function handleLogin() {
   color: var(--ref-brand-deep);
 }
 
-/* ═══ Form ═══ */
+/* ═══ 表单 ═══ */
 .auth-form { margin-top: 30px; display: grid; gap: 20px; }
 .auth-field { display: grid; gap: 8px; }
 .auth-label { font-size: 12.5px; font-weight: 500; color: var(--ref-ink-soft); }
 .auth-req { margin-left: 3px; color: var(--ref-brand); }
 .auth-input {
-  width: 100%; height: 44px; padding: 0 14px;
+  width: 100%; height: var(--control-height); padding: 0 14px;
   border: 1px solid var(--ref-line); border-radius: var(--r-btn);
   background: var(--ref-surface); color: var(--ref-ink); font-size: 14px;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -273,7 +291,14 @@ async function handleLogin() {
 .auth-link-sm { font-size: 12.5px; color: var(--ref-muted); text-decoration: none; transition: color 0.15s; }
 .auth-link-sm:hover { color: var(--ref-brand); }
 
-/* ═══ CTA ═══ */
+/* ═══ Turnstile 人机验证 ═══ */
+.turnstile-wrap {
+  min-height: 65px; width: 100%;
+  display: flex; align-items: center; justify-content: flex-start;
+}
+.turnstile-wrap:empty + p { display: none; }
+
+/* ═══ 主按钮（CTA） ═══ */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -284,13 +309,13 @@ async function handleLogin() {
 .cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .cta-dark { background: var(--ref-ink); color: var(--ref-cream); }
 .cta-dark:hover:not(:disabled) { filter: brightness(1.18); }
-.cta-lg { height: 48px; width: 100%; font-size: 14px; padding: 0 20px; }
+.cta-lg { height: var(--control-height-lg); width: 100%; font-size: 14px; padding: 0 20px; }
 .cta .cta-arrow { font-size: 15px; transition: transform 0.15s; }
 .cta:hover .cta-arrow { transform: translateX(3px); }
 
 .auth-note { margin: 18px 0 0; font-size: 11px; line-height: 1.7; color: var(--ref-muted); }
 
-/* ═══ Footer ═══ */
+/* ═══ 页脚 ═══ */
 .auth-foot {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin-top: 32px; padding-top: 22px; border-top: 1px solid var(--ref-line);
@@ -316,7 +341,7 @@ async function handleLogin() {
 .tl-arrow { transition: transform 0.15s; }
 .text-link:hover .tl-arrow { transform: translateX(4px); }
 
-/* ═══ Aside ═══ */
+/* ═══ 右侧品牌栏 ═══ */
 .auth-side { display: none; }
 .auth-side-label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); }
 .auth-side-title {
@@ -332,7 +357,7 @@ async function handleLogin() {
 .auth-side-item-desc { display: block; margin-top: 6px; max-width: 300px; font-size: 13px; line-height: 1.7; color: rgba(255, 255, 255, 0.55); }
 .auth-side-addr { margin: 0; font-size: 11px; color: rgba(255, 255, 255, 0.35); font-variant-numeric: tabular-nums; }
 
-/* ═══ Responsive ═══ */
+/* ═══ 响应式 ═══ */
 @media (min-width: 900px) {
   .auth-main { flex: 1 1 52%; padding: 64px 40px 80px; }
   .auth-side {

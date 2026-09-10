@@ -17,10 +17,8 @@
     </DataTable>
     <p v-if="!loading" class="pager-hint">共 {{ total }} 条文档</p>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
-      <div class="modal">
-        <h2>{{ editing ? '编辑文档' : '新增文档' }}</h2>
-        <form @submit.prevent="handleSubmit">
+    <AppDialog :visible="showForm" :title="editing ? '编辑文档' : '新增文档'" @close="showForm = false">
+        <form id="ragForm" @submit.prevent="handleSubmit">
           <div class="form-group"><label>标题</label><input v-model="form.title_wsh" required></div>
           <div class="form-group"><label>分类</label>
             <select v-model="form.category_wsh">
@@ -52,13 +50,12 @@
               已选择: {{ selectedFile.name }} ({{ (selectedFile.size / 1024).toFixed(1) }} KB)
             </div>
           </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="submitting">{{ submitting ? '提交中...' : (editing ? '保存' : '创建') }}</button>
-          </div>
         </form>
-      </div>
-    </div>
+        <template #footer>
+          <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
+          <button type="submit" form="ragForm" class="btn btn-primary btn-sm" :disabled="submitting">{{ submitting ? '提交中...' : (editing ? '保存' : '创建') }}</button>
+        </template>
+      </AppDialog>
   </div>
 </template>
 
@@ -67,6 +64,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import DataTable from '@/components/common/DataTable.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { getRagDocuments, searchRag, createRagDocument, uploadRagDocument, deleteRagDocument, updateRagDocument, getRagDocument } from '@/api/ai'
 
 

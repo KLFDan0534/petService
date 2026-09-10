@@ -32,7 +32,7 @@ public interface ServiceItemService {
      *
      * @return 已启用的服务项目列表
      */
-    List<ServiceItem> listAll();
+//    List<ServiceItem> listAll();
 
     /**
      * 【查询商家下已启用服务项目】
@@ -46,7 +46,7 @@ public interface ServiceItemService {
      * @param merchantId 商家ID
      * @return 已启用的服务项目列表
      */
-    List<ServiceItem> listByMerchant(Long merchantId);
+//    List<ServiceItem> listByMerchant(Long merchantId);
 
     /**
      * 【查询商家下所有服务项目（含禁用）】
@@ -181,7 +181,7 @@ public interface ServiceItemService {
      * @param categoryId 服务分类ID
      * @return 已启用的服务项目列表
      */
-    List<ServiceItem> listByCategory(Long categoryId);
+//    List<ServiceItem> listByCategory(Long categoryId);
 
     /**
      * 【服务项目实体转DTO】
@@ -208,16 +208,6 @@ public interface ServiceItemService {
      * @return 分页结果（含总数）
      */
     ServiceQueryResultVO queryPublic(ServiceItemQueryDTO query);
-
-    /**
-     * 【公开服务列表（非分页语义）】
-     *
-     * 业务作用：兼容旧客户端与商品级列表，返回 {@link #queryPublic} 的分页切片结果。
-     *
-     * @param query 查询参数
-     * @return 服务 DTO 列表
-     */
-    List<ServiceItemDTO> listPublic(ServiceItemQueryDTO query);
 
     /**
      * 【公共可见性受控的旧详情读取】

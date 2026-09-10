@@ -15,7 +15,7 @@
         <div class="nt-head-copy">
           <div class="nt-eyebrow" aria-hidden="true">
             <span class="nt-eyebrow-line" />
-            <span>Notifications</span>
+            <span>通知</span>
           </div>
           <h1 class="nt-title">站内通知</h1>
           <p class="nt-sub">照护日报、订单进度与平台公告都会推送到这里。未读消息排在前面标注。</p>
@@ -45,13 +45,8 @@
            ═══════════════════════════════════════════ -->
       <section class="nt-section" aria-labelledby="nt-inbox-title">
         <header class="nt-sec-head">
-          <p class="nt-sec-eyebrow" aria-hidden="true">
-            <span class="nt-idx">01</span>
-            <span class="nt-sec-line" />
-            <span>Inbox</span>
-          </p>
           <h2 id="nt-inbox-title" class="nt-sec-title">消息列表</h2>
-          <p class="nt-sec-desc">点开任意一条查看完整内容。</p>
+          <p class="nt-sec-desc">点击查看</p>
         </header>
 
         <!-- loading -->
@@ -133,7 +128,15 @@ const notifications = computed(() => notificationStore.notifications)
 const unreadCount = computed(() => notificationStore.unreadCount)
 
 function typeLabel(type) {
-  return { system: '系统', order: '订单' }[type] || type
+  return {
+    system: '系统',
+    order: '订单',
+    notice: '公告',
+    complaint: '投诉',
+    ticket: '工单',
+    order_fulfillment: '服务进度',
+    order_feedback: '订单评价',
+  }[type] || (type ? type : '通知')
 }
 
 onMounted(async () => {
@@ -367,7 +370,7 @@ function closeDetail() {
 .nt-tag {
   display: inline-flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   padding: 3px 8px;
@@ -451,7 +454,7 @@ function closeDetail() {
   border-radius: 20px;
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: nt-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-head {
@@ -496,7 +499,7 @@ function closeDetail() {
 .dlg-tag {
   display: inline-flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid var(--ref-line);
   background: var(--ref-sand);
   padding: 3px 8px;
@@ -545,7 +548,7 @@ function closeDetail() {
   .nt-section { margin-top: 28px; }
   .nt-row { padding: 15px 16px; gap: 12px; }
   .nt-empty { padding: 52px 20px; }
-  .dlg-panel { border-radius: 16px; }
+  .dlg-panel { border-radius: var(--radius-lg); }
   .dlg-head { padding: 18px 18px 0; }
   .dlg-body { padding: 16px 18px 4px; }
   .dlg-foot { padding: 14px 18px 18px; }

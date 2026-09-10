@@ -11,23 +11,23 @@
       <!-- 统计卡片 -->
       <section class="stat-grid">
         <div class="stat-card" @click="goTickets('pending')">
-          <span class="stat-value">{{ stats.pending_tickets }}</span>
+          <span class="stat-value">{{ stats.pending_tickets_wsh }}</span>
           <span class="stat-label">待处理工单</span>
         </div>
         <div class="stat-card" @click="goTickets('processing', true)">
-          <span class="stat-value">{{ stats.my_processing_tickets }}</span>
+          <span class="stat-value">{{ stats.my_processing_tickets_wsh }}</span>
           <span class="stat-label">我处理中</span>
         </div>
         <div class="stat-card" @click="goComplaints('pending')">
-          <span class="stat-value">{{ stats.pending_complaints }}</span>
+          <span class="stat-value">{{ stats.pending_complaints_wsh }}</span>
           <span class="stat-label">待处理投诉</span>
         </div>
         <div class="stat-card">
-          <span class="stat-value">{{ stats.resolved_tickets_today + stats.resolved_complaints_today }}</span>
+          <span class="stat-value">{{ stats.resolved_tickets_today_wsh + stats.resolved_complaints_today_wsh }}</span>
           <span class="stat-label">今日解决</span>
         </div>
         <div class="stat-card">
-          <span class="stat-value">{{ stats.merchant_count }}</span>
+          <span class="stat-value">{{ stats.merchant_count_wsh }}</span>
           <span class="stat-label">服务商家</span>
         </div>
       </section>
@@ -41,8 +41,8 @@
             <div class="merchant-info">
               <strong>{{ m.merchant_name_wsh }}</strong>
               <span class="merchant-badges">
-                <span class="badge badge-warning">工单 {{ m.pending_ticket_count }}</span>
-                <span class="badge badge-danger">投诉 {{ m.pending_complaint_count }}</span>
+                <span class="badge badge-warning">工单 {{ m.pending_ticket_count_wsh }}</span>
+                <span class="badge badge-danger">投诉 {{ m.pending_complaint_count_wsh }}</span>
               </span>
             </div>
             <div class="merchant-actions">
@@ -72,7 +72,7 @@
               <strong>{{ c.other_user_name_wsh }}</strong>
               <span class="conv-preview">{{ c.last_message_wsh || '(空)' }}</span>
             </div>
-            <span v-if="c.unread_count > 0" class="badge badge-danger">{{ c.unread_count }}</span>
+            <span v-if="c.unread_count_wsh > 0" class="badge badge-danger">{{ c.unread_count_wsh }}</span>
           </router-link>
         </section>
       </div>
@@ -91,7 +91,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const loading = ref(true)
-const stats = ref({ pending_tickets: 0, my_processing_tickets: 0, pending_complaints: 0, resolved_tickets_today: 0, resolved_complaints_today: 0, merchant_count: 0 })
+const stats = ref({ pending_tickets_wsh: 0, my_processing_tickets_wsh: 0, pending_complaints_wsh: 0, resolved_tickets_today_wsh: 0, resolved_complaints_today_wsh: 0, merchant_count_wsh: 0 })
 const merchants = ref([])
 const conversations = ref([])
 

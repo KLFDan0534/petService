@@ -327,8 +327,8 @@ class ServicePublicQueryTest {
         ServiceItemQueryDTO q = query();
         q.setKeyword_wsh("标准");
 
-        service.listPublic(q);
-        service.listPublic(q);
+        service.queryPublic(q);
+        service.queryPublic(q);
         verify(serviceItemMapper, org.mockito.Mockito.times(2)).selectList(any());
 
         ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ServiceItem>> captor =
@@ -340,7 +340,7 @@ class ServicePublicQueryTest {
                         .anyMatch(v -> String.valueOf(v).contains("标准")),
                 "keyword value must be carried into the query");
 
-        List<ServiceItemDTO> dtos = service.listPublic(q);
+        List<ServiceItemDTO> dtos = service.queryPublic(q).getItems_wsh();
         assertEquals(1, dtos.size());
         assertEquals(301L, dtos.get(0).getId_wsh());
     }

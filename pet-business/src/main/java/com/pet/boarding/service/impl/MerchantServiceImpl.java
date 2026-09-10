@@ -14,10 +14,12 @@ import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.constant.MerchantStoreConstants;
 import com.pet.common.BusinessException;
 import com.pet.common.StatusCode;
+import com.pet.common.geo.GeoDistanceUtils;
 import com.pet.qualification.service.QualificationService;
 import com.pet.system.entity.User;
 import com.pet.system.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -87,7 +89,7 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     public List<Merchant> listAll() {
-        log.info("listAll() called");
+        log.info("listAll() 被调用");
         return merchantMapper.selectList(
                 new LambdaQueryWrapper<Merchant>().orderByDesc(Merchant::getCreated_at_wsh));
     }
@@ -122,7 +124,7 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     public Merchant getById(Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         Merchant merchant = merchantMapper.selectById(id);
         if (merchant == null) {
             throw new BusinessException("商家不存在");
@@ -157,7 +159,7 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     public List<Merchant> listByIds(Collection<Long> ids) {
-        log.info("listByIds() called");
+        log.info("listByIds() 被调用");
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
@@ -191,11 +193,11 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     public List<MerchantDTO> searchNearby(double lat, double lng, double radius) {
-        log.info("searchNearby() called");
+        log.info("searchNearby() 被调用");
         List<Merchant> merchants = merchantMapper.searchNearby(lat, lng, radius);
         return merchants.stream().map(m -> {
             MerchantDTO dto = toDTO(m);
-            double d = calculateDistance(lat, lng,
+            double d = GeoDistanceUtils.distanceKm(lat, lng,
                     m.getLatitude_wsh().doubleValue(), m.getLongitude_wsh().doubleValue());
             dto.setDistance_wsh(Math.round(d * 100.0) / 100.0);
             return dto;
@@ -229,29 +231,9 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     public Merchant findByUserId(Long userId) {
-        log.info("findByUserId() called");
+        log.info("findByUserId() 被调用");
         return merchantMapper.selectOne(
                 new LambdaQueryWrapper<Merchant>().eq(Merchant::getUser_id_wsh, userId));
-    }
-
-    /**
-     * 使用 Haversine 公式计算两点之间的球面距离。
-     *
-     * @param lat1 起点纬度
-     * @param lng1 起点经度
-     * @param lat2 终点纬度
-     * @param lng2 终点经度
-     * @return 距离（公里）
-     */
-    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
-        double radLat1 = Math.toRadians(lat1);
-        double radLat2 = Math.toRadians(lat2);
-        double a = radLat1 - radLat2;
-        double b = Math.toRadians(lng1) - Math.toRadians(lng2);
-        double s = 2 * Math.asin(Math.sqrt(
-                Math.pow(Math.sin(a / 2), 2) +
-                Math.cos(radLat1) * Math.cos(radLat2) * Math.pow(Math.sin(b / 2), 2)));
-        return s * 6371;
     }
 
     /**
@@ -286,7 +268,7 @@ public class MerchantServiceImpl implements MerchantService {
     @Override
     @Transactional
     public Merchant create(MerchantCreateRequestDTO dto, Long userId) {
-        log.info("create() called");
+        log.info("create() 被调用");
         Merchant merchant = new Merchant();
         merchant.setUser_id_wsh(userId);
         merchant.setName_wsh(dto.getName_wsh());
@@ -344,7 +326,7 @@ public class MerchantServiceImpl implements MerchantService {
     @Override
     @Transactional
     public Merchant update(Long id, MerchantUpdateRequestDTO dto) {
-        log.info("update() called");
+        log.info("update() 被调用");
         Merchant existing = getById(id);
         if (dto.getName_wsh() != null) existing.setName_wsh(dto.getName_wsh());
         if (dto.getPhone_wsh() != null) existing.setPhone_wsh(dto.getPhone_wsh());
@@ -477,8 +459,9 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
     public void approve(Long id) {
-        log.info("approve() called");
+        log.info("approve() 被调用");
         Merchant merchant = getById(id);
         merchant.setStatus_wsh(StatusCode.MERCHANT_APPROVED.getValue());
         merchant.setStore_mode_wsh(MerchantStoreConstants.MODE_AUTO);
@@ -518,8 +501,9 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
     public void reject(Long id) {
-        log.info("reject() called");
+        log.info("reject() 被调用");
         Merchant merchant = getById(id);
         merchant.setStatus_wsh(StatusCode.MERCHANT_REJECTED.getValue());
         merchant.setStore_mode_wsh(MerchantStoreConstants.MODE_MANUAL_CLOSED);
@@ -562,7 +546,7 @@ public class MerchantServiceImpl implements MerchantService {
     @Override
     @Transactional
     public Merchant updateStoreMode(Long id, Integer storeMode) {
-        log.info("updateStoreMode() called");
+        log.info("updateStoreMode() 被调用");
         Merchant merchant = getById(id);
         if (storeMode == null) {
             throw new BusinessException(400, "营业模式不能为空");

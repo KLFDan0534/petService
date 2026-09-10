@@ -1,0 +1,273 @@
+/* --- MANAGED FONT IMPORTS START (do not edit manually) --- */
+/* INTERNAL USE NAME: Heading */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+/* INTERNAL USE NAME: Body */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+/* --- MANAGED FONT IMPORTS END --- */
+
+/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS — DO NOT DELETE THIS COMMENT */
+
+/* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED — DO NOT DELETE THIS COMMENT */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+
+:root {
+  --primary-visual-reference-src-views-user-services-vue: var(--ref-brand);
+  --ref-canvas: #FBF7F0;
+  --ref-surface: #FFFFFF;
+  --ref-sand: #F1E9DB;
+  --ref-cream: #F6EFE3;
+  --ref-line: #E9DFCD;
+  --ref-ink: #241C14;
+  --ref-ink-soft: #55463A;
+  --ref-muted: #8A7A6A;
+  --ref-brand: #BF5B2B;
+  --ref-brand-deep: #9A411A;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-info: #3B82F6;
+  --color-destructive: #DC2626;
+  --ref-focus-ring-recipe-proposed-token: var(--ref-brand);
+  --ledger-governing-removal-rules: var(--ref-line);
+  --color-muted-foreground: #64748B;
+  --color-border: #E2E8F0;
+  --color-primary: #F97316;
+  --color-on-primary: #0F172A;
+  --color-secondary: #FB923C;
+  --color-on-secondary: #0F172A;
+  --color-on-accent: #FFFFFF;
+  --clay-shadow: var(--shadow-sm);
+  --clay-radius: var(--radius-md);
+  --clay-border: var(--color-border);
+  --color-danger: #DC2626;
+  --color-error: #DC2626;
+  --color-on-destructive: #FFFFFF;
+  --color-accent: #2563EB;
+  --color-background: #F8FAFC;
+  --color-foreground: #0F172A;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #111827;
+  --color-muted: #F1F5F9;
+  --color-ring: #F97316;
+  --el-color-primary-element-plus-bridge: #F97316;
+  --rule-services-vue-is-the-primary-visual-reference-any-value-conflicting-between-views-resolves-to-the-src-views-user-services-vue-value: 'authority: src/views/user/Services.vue';
+  --rule-removal-safety-remove-a-token-only-when-confirmed-zero-source-and-zero-runtime-refs-never-remove-a-still-referenced-token-migrate-call-sites-first-src-stores-design-js-and-src-stores-app-js-are-runtime-dependencies-that-set-css-vars-in-js-verification-of-both-is-mandatory-before-any-destructive-cleanup-confirmed: 'verified: stores/app.js sets --shadow-sm/md/lg/xl/--shadow-inner at runtime; stores/design.js sets colors only';
+  --shell-max-width-applied-confirmed-services-vue-229: 1180px;
+  --shell-gutter-applied-confirmed-services-vue-231: 24px;
+  --shell-gutter-sm-applied-confirmed-services-vue-632-under-560-px: 16px;
+  --band-rhythm-applied-section-band-confirmed-services-vue-359-s-catalogue-margin-top: 56px;
+  --band-rhythm-sm-applied-confirmed-services-vue-501-results-head-44-px-and-647-catalogue-44-px-under-560-px: 44px;
+  --hero-gap-applied-confirmed-services-vue-278: 48px;
+  --hero-gap-sm-applied-confirmed-services-vue-622-under-900-px: 32px;
+  --card-body-padding-applied-confirmed-services-vue-538: 20px;
+  --rail-gap-applied-chip-rail-gap-confirmed-services-vue-382: 8px;
+  --toolbar-gap-applied-confirmed-services-vue-427: 12px;
+  --control-height-button-button-cta-intentionally-distinct-from-chip-input-do-not-collapse-or-fix-to-44-px-confirmed-across-40-views-e-g-customer-service-apply-vue-479-revenue-center-vue-283-profile-vue-1248: 42px;
+  --control-height-chip-input-chip-input-intentionally-distinct-from-button-confirmed-services-vue-396-chip-446-search-input-487-reset: 44px;
+  --shadow-1-px-border-is-the-primary-structural-device-cards-have-no-shadow-at-rest-confirmed-services-vue-517-519: 1px;
+  --breakpoint-lg-hero-collapses-to-one-column-confirmed-services-vue-619: 900px;
+  --breakpoint-sm-gutters-tighten-type-steps-down-confirmed-services-vue-630: 560px;
+  --radius-hero-hero-media-frames-confirmed-services-vue-335: 26px;
+  --radius-card-cards-empty-states-confirmed-services-vue-518-599-order-card-vue-268-order-detail-view-vue-502-506-638: 18px;
+  --radius-control-chips-inputs-buttons-confirmed-services-vue-398-449-489-582: 11px;
+  --radius-icon-button-small-icon-buttons-confirmed-services-vue-473-order-detail-view-vue-644: 8px;
+  --shadow-the-only-elevation-hover-only-standardised-on-the-services-vue-60-ink-mix-confirmed-services-vue-524: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  --deviation-55-ink-mix-migrates-to-60-confirmed-11-source-sites-user-addresses-vue-399-complaints-vue-965-coupons-vue-326-421-favorites-vue-368-528-files-vue-446-membership-vue-697-ratings-vue-437-refunds-vue-337-tickets-vue-539-plus-frontend-handoff-examples-orders-vue-532: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  --shadow-confirmed-services-vue-464-uses-12-12-22-range-observed-elsewhere-standardise-on-12: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 12%, transparent);
+  --shadow-confirmed-order-detail-view-vue-638: 0 40px 80px -40px;
+  --duration-fast-color-border-transitions-confirmed-services-vue-405-453: 150ms;
+  --duration-normal-transforms-confirmed-services-vue-520: 200ms;
+  --duration-slow-media-zoom-scroll-reveals-confirmed-services-vue-532-reveal-vue-86-88: 300ms;
+  --ease-editorial-confirmed-reveal-vue-36-86-88-inferred-recommendation-standardise-all-transition-on-this-curve-the-refined-views-already-use-it-while-declared-tokens-still-use-plain-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --shadow-paired-with-shadow-card-hover-confirmed-services-vue-525: translateY(-4px);
+  --media-hover-scale-confirmed-services-vue-535: scale(1.06);
+  --reveal-rise-confirmed-reveal-vue-26: 18px;
+  --reveal-blur-confirmed-reveal-vue-10-28-reduced-motion-short-circuits-to-visible: 6px;
+  --ref-shimmer-gradient-skeleton-confirmed-services-vue-347-611: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
+  --ref-shimmer-size-confirmed-services-vue-348-612: 200% 100%;
+  --ref-shimmer-animation-confirmed-services-vue-349-keyframes-ref-shimmer-at-615: ref-shimmer 1.3s linear infinite;
+  --reduced-motion-guard-global-confirmed-src-assets-css-app-css-75-the-only-prefers-reduced-motion-block-in-assets-css: '@media (prefers-reduced-motion: reduce)';
+  --consolidation-67-keyframes-blocks-across-src-vue-31-of-them-per-view-shimmer-ad-cp-csa-fv-fl-ka-kd-kpr-kp-ms-md-nd-nt-od-pm-pd-pt-pr-ae-rg-rt-rf-rv-td-tk-ch-catalog-plus-matching-fade-pop-triplets-collapse-into-one-global-ref-shimmer-ref-fade-ref-pop-set-confirmed: collapse ~31 duplicated keyframe triplets into one global set;
+  --ledger-radius-md-declared-12-px-still-actively-used-keep-app-css-59-241-299-342-363-app-vue-168-create-order-dialog-vue-1662-1674-1684-1766-admin-ai-config-vue-183-238-admin-member-plans-vue-722-774-795-15-refs-migrates-toward-applied-radius-control-11-px-on-refined-surfaces-confirmed: 12px;
+  --ledger-radius-lg-declared-16-px-still-actively-used-keep-user-layout-vue-598-in-src-plus-frontend-handoff-pages-ai-vue-296-and-ai-chat-vue-240-near-duplicate-of-applied-radius-card-18-px-confirmed: 16px;
+  --ledger-radius-sm-declared-6-px-still-actively-used-keep-cs-chat-vue-760-788-822-874-903-cs-workbench-vue-142-175-admin-complaints-vue-401-423-449-merchant-customer-service-vue-152-11-refs-needs-decision-6-px-matches-neither-applied-8-px-nor-11-px-so-its-migration-target-for-cs-admin-surfaces-is-a-product-call: 6px;
+  --ledger-radius-xl-declared-24-px-safe-to-remove-zero-source-refs-only-its-own-declaration-at-design-tokens-css-45-and-zero-runtime-refs-in-stores-design-js-or-stores-app-js-superseded-by-radius-hero-26-px-confirmed: 24px;
+  --ledger-radius-full-declared-9999-px-keep-reference-count-not-verified-in-this-pass-do-not-remove-until-re-grepped-needs-decision: 9999px;
+  --shadow-light: inset -2px -2px 8px rgba(0,0,0,0.04), 4px 4px 8px rgba(0,0,0,0.08);
+  --ledger-clay-radius-safe-to-remove-zero-source-refs-declaration-only-design-tokens-css-68-and-zero-runtime-refs-confirmed: var(--radius-md);
+  --shadow-declaration-only-design-tokens-css-67: var(--shadow-sm);
+  --ledger-clay-border-still-actively-used-keep-app-css-577-and-640-equivalent-to-the-applied-1-px-hairline-confirmed: 1px solid var(--color-border);
+  --ledger-space-md-still-actively-used-keep-app-css-570-607-632-3-refs-confirmed: 16px;
+  --ledger-space-xs-safe-to-remove-zero-source-refs-zero-runtime-refs-confirmed: 4px;
+  --ledger-space-sm-safe-to-remove-zero-source-refs-zero-runtime-refs-confirmed: 8px;
+  --ledger-space-lg-safe-to-remove-zero-refs-near-duplicate-of-applied-24-px-gutter-confirmed: 24px;
+  --ledger-space-xl-safe-to-remove-zero-source-refs-zero-runtime-refs-confirmed: 32px;
+  --ledger-space-2-xl-safe-to-remove-zero-refs-near-duplicate-of-applied-48-px-hero-gap-confirmed: 48px;
+  --ledger-space-3-xl-safe-to-remove-zero-source-refs-zero-runtime-refs-confirmed: 64px;
+  --shadow-service-grid-vue-138-144-pet-list-vue-164-170-banner-carousel-vue-140-amap-address-picker-vue-529-588-user-layout-vue-599-admin-coupons-vue-698-admin-dashboard-vue-158-admin-statistics-vue-200-merchant-customer-service-vue-154: 0 1px 2px rgba(15,23,42,0.05) / 0 8px 20px rgba(15,23,42,0.08) / 0 14px 32px rgba(15,23,42,0.1) / 0 24px 48px rgba(15,23,42,0.16);
+  --ledger-transition-fast-transition-normal-transition-slow-still-actively-used-keep-app-css-30-37-46-62-135-inferred-retarget-from-plain-ease-to-ease-editorial-so-declared-tokens-match-the-refined-views: 150ms ease / 200ms ease / 300ms ease;
+  --ledger-r-btn-local-per-view-radius-alias-seen-in-14-user-views-login-vue-279-register-vue-417-merchants-vue-503-profile-vue-1248-keeper-workflow-vue-633-needs-decision-value-not-read-in-this-pass-fold-into-radius-control-11-px-once-verified: unverified — per-view alias for button radius;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2-xl: 48px;
+  --space-3-xl: 64px;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
+  --shadow-md: 0 8px 20px rgba(15,23,42,0.08);
+  --shadow-lg: 0 14px 32px rgba(15,23,42,0.1);
+  --shadow-xl: 0 24px 48px rgba(15,23,42,0.16);
+  --shadow-inner: inset -2px -2px 8px rgba(0,0,0,0.04), 4px 4px 8px rgba(0,0,0,0.08);
+  --font-heading: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+  --clay-border: 1px solid var(--color-border);
+  --shadow-shadow: 0 1px 2px rgba(15,23,42,0.05);
+  --clay-radius: 12px;
+  --ref-font-display: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, 'Times New Roman', serif;
+  /* ------------------------------------------------------------------
+   * APPLIED SCALE — short aliases over the audited ledger tokens above.
+   * Values are copied verbatim from the CONFIRMED entries; nothing is
+   * renamed or removed. These are the names the components consume via
+   * tailwind.config.js.
+   * ---------------------------------------------------------------- */
+
+  /* Status ink — the restrained washes used by StatusBadge / form errors */
+  --ref-critical: #B3402A;
+  --ref-caution: #B45309;
+  --ref-moss: #3F5347;
+  --ref-positive: var(--ref-moss);
+  --ref-informative: #3F5A6B;
+  /* Radii — services.vue 398/449/489 (control), 518 (card), 335 (frame), 473 (tile) */
+  --ref-radius-tile: 8px;
+  --ref-radius-control: 11px;
+  --ref-radius-card: 18px;
+  --ref-radius-frame: 26px;
+  /* Elevation — the ONLY resting device is the 1px hairline; lift is hover-only */
+  --ref-shadow-lift: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  --ref-shadow-focus: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 12%, transparent);
+  /* Motion — services.vue 405/453 (fast), 520 (normal), 532 (slow), reveal.vue 36 (ease) */
+  --ref-duration-fast: 150ms;
+  --ref-duration-normal: 200ms;
+  --ref-duration-slow: 300ms;
+  --ref-ease-editorial: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Shell rhythm — services.vue 229 (max width), 231 (gutter), 359 (band) */
+  --ref-shell-max: 1180px;
+  --ref-gutter: 24px;
+  --ref-band: 56px;
+}
+/* --- MANAGED TYPOGRAPHY VARS START (do not edit manually) --- */
+html {
+  --font-body: Inter, "Segoe UI", system-ui, sans-serif;
+  --font-heading: "Noto Serif SC", "Songti SC", STSong, SimSun, Georgia, "Times New Roman", serif;
+}
+/* --- MANAGED TYPOGRAPHY VARS END --- */
+
+/* --- BASE TYPOGRAPHY START (do not edit manually) --- */
+@layer base {
+  body {
+    font-family: var(--font-body, inherit);
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading, var(--font-body, inherit));
+  }
+}
+/* --- BASE TYPOGRAPHY END --- */
+
+/* ====================================================================
+ * GLOBAL BASE — canvas, ink and the shared focus ring
+ * ================================================================= */
+@layer base {
+  body {
+    background-color: var(--ref-canvas);
+    color: var(--ref-ink);
+  }
+  /* Business identifiers, money and countdowns align in columns */
+  [data-numeric='true'] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--ref-shadow-focus);
+  }
+}
+/* ====================================================================
+ * SHARED UTILITIES — the consolidated replacements for the ~31 per-view
+ * shimmer / clamp / truncate duplications found in the audit.
+ * ================================================================= */
+@layer utilities {
+  /* Long names, order ids and service titles shrink rather than break */
+  .ref-truncate {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ref-clamp-2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .ref-clamp-3 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+  /* The single skeleton fill — services.vue 347/611, keyframes at 615 */
+  .ref-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--ref-sand) 25%,
+      var(--ref-surface) 50%,
+      var(--ref-sand) 75%
+    );
+    background-size: 200% 100%;
+    animation: ref-shimmer 1.3s linear infinite;
+  }
+}
+@keyframes ref-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+/* ====================================================================
+ * REDUCED MOTION — the single global guard (app.css:75)
+ * ================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .ref-shimmer {
+    animation: none;
+    background: var(--ref-sand);
+  }
+}

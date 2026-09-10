@@ -70,11 +70,14 @@
       </div>
     </div>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="closeForm">
-      <div class="modal service-modal">
-        <h2>{{ editingService ? '编辑服务' : '新增服务' }}</h2>
-        <p v-if="detailLoading" class="detail-loading">正在加载服务详情...</p>
-        <form @submit.prevent="saveService">
+    <AppDialog
+      :visible="showForm"
+      :width="620"
+      :title="editingService ? '编辑服务' : '新增服务'"
+      @close="closeForm"
+    >
+      <p v-if="detailLoading" class="detail-loading">正在加载服务详情...</p>
+      <form id="service-form" @submit.prevent="saveService">
           <div class="form-group">
             <label>服务名称</label>
             <input v-model.trim="form.name_wsh" required maxlength="100" placeholder="例如：标准寄养">
@@ -163,22 +166,22 @@
               <option :value="0">下架</option>
             </select>
           </div>
+      </form>
 
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="saving || imageUploading || detailLoading" @click="closeForm">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="saving || imageUploading || detailLoading">
-              {{ saving ? '保存中...' : '保存' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      <template #footer>
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="saving || imageUploading || detailLoading" @click="closeForm">取消</button>
+        <button form="service-form" type="submit" class="btn btn-primary btn-sm" :disabled="saving || imageUploading || detailLoading">
+          {{ saving ? '保存中...' : '保存' }}
+        </button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { getMy } from '@/services/merchantService'
 import {
   createService,
@@ -680,7 +683,7 @@ onMounted(loadPage)
 .service-summary img {
   width: 52px;
   height: 52px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   object-fit: cover;
   border: 1px solid var(--color-border);
   background: var(--color-muted);
@@ -703,10 +706,6 @@ onMounted(loadPage)
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-.service-modal {
-  max-width: 620px;
 }
 
 .detail-loading {
@@ -841,7 +840,7 @@ textarea {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   line-height: 18px;
   background: rgba(0, 0, 0, 0.08);

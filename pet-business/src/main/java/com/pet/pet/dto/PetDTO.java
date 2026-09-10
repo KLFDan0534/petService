@@ -1,6 +1,5 @@
 package com.pet.pet.dto;
 
-import com.fasterxml.jackson.annotation.JsonGetter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -45,24 +44,4 @@ public class PetDTO {
     private String habits_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
-
-    @JsonGetter("id")
-    public Long getId() {
-        return id_wsh;
-    }
-
-    @JsonGetter("name")
-    public String getName() {
-        return name_wsh;
-    }
-
-    @JsonGetter("type")
-    public String getType() {
-        return type_wsh;
-    }
-
-    @JsonGetter("breed")
-    public String getBreed() {
-        return breed_wsh;
-    }
 }

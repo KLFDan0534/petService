@@ -1,10 +1,11 @@
 <template>
-  <div v-if="visible" class="modal-overlay" @mousedown.self="handleClose">
-    <div class="modal order-modal">
+  <AppDialog :visible="visible" :width="960" @close="handleClose">
+    <template #header>
       <div class="order-modal__header">
         <h2>创建订单</h2>
         <p class="order-modal__subtitle">先选好宠物与看护人，再安排送达、接回时间</p>
       </div>
+    </template>
 
       <!-- 服务信息卡片 -->
       <div v-if="serviceId" class="service-info-card">
@@ -213,7 +214,7 @@
             placeholder="搜索地点，或点击地图选址"
           />
           <div v-if="deliveryDistanceVisible" class="delivery-distance" :class="{ 'delivery-distance--loading': distanceLoading, 'delivery-distance--error': distanceError }">
-            <el-icon v-if="!distanceError" class="delivery-distance__icon"><Location /></el-icon>
+            <AppIcon v-if="!distanceError" class="delivery-distance__icon"><Location /></AppIcon>
             <span class="delivery-distance__text">{{ deliveryDistanceText }}</span>
             <button v-if="distanceError" type="button" class="btn btn-outline btn-sm" @click.prevent="retryDeliveryDistance">重试定位</button>
           </div>
@@ -256,19 +257,18 @@
           优惠券由平台补贴，商家结算不受影响
         </div>
       </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary btn-sm" type="button" @click="handleClose">取消</button>
-        <button class="btn btn-primary btn-sm" type="button" :disabled="submitting || merchantLoading || keeperLoading" @click="submitOrder">
-          {{ submitting ? '提交中...' : '确认下单' }}
-        </button>
-      </div>
-    </div>
-  </div>
+      <template #footer>
+      <button class="btn btn-secondary btn-sm" type="button" @click="handleClose">取消</button>
+      <button class="btn btn-primary btn-sm" type="button" :disabled="submitting || merchantLoading || keeperLoading" @click="submitOrder">
+        {{ submitting ? '提交中...' : '确认下单' }}
+      </button>
+    </template>
+  </AppDialog>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
-import { ElIcon } from 'element-plus'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { Location } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -1723,15 +1723,15 @@ function isSameDate(first, second) {
   color: var(--color-muted-foreground);
 }
 .readonly-label { font-size: 13px; }
-/* 高度与 .form-control 对齐（input/select 全局内边距 12px 16px + 边框 ≈ 51px） */
-.readonly-value-row { display: flex; align-items: center; gap: 8px; min-height: 51px; }
+/* 高度与 .form-control 对齐（全局 input/select 控件高度） */
+.readonly-value-row { display: flex; align-items: center; gap: 8px; min-height: var(--control-height); }
 .readonly-value { font-size: 14px; color: var(--color-foreground); font-weight: 500; }
 .readonly-badge {
   font-size: 11px;
   padding: 2px 8px;
   background: var(--color-primary);
   color: #fff;
-  border-radius: 4px;
+  border-radius: var(--radius-inline);
   white-space: nowrap;
 }
 

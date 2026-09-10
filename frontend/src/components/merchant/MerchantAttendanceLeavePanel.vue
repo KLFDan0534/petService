@@ -77,6 +77,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
+import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 import { createMerchantLeave, deleteMerchantLeave, getMerchantLeaves, getMerchantTodayAttendance } from '@/api/attendance'
 
 const props = defineProps({
@@ -165,8 +166,7 @@ async function removeLeave(id) {
 }
 
 function formatDateTime(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return utilFormatDateTime(value, { fallback: '-' })
 }
 
 function formatMeters(value) {
@@ -209,7 +209,7 @@ function formatMeters(value) {
   gap: 4px;
   padding: 12px;
   border: 1px solid #dee0e3;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: #fff;
 }
 .summary-item span {
@@ -228,7 +228,7 @@ function formatMeters(value) {
 .table-wrap {
   overflow-x: auto;
   border: 1px solid #dee0e3;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: #fff;
 }
 table {
@@ -264,7 +264,7 @@ th {
   gap: 12px;
   padding: 12px;
   border: 1px solid #dee0e3;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: #fff;
 }
 .leave-row div {

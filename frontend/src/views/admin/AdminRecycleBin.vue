@@ -78,5 +78,5 @@ function formatValue(v) {
 .table { width:100%; border-collapse:collapse; font-size:13px }
 .table th, .table td { padding:8px 10px; border-bottom:1px solid var(--color-border); text-align:left }
 .table th { background:var(--color-muted); font-weight:600; color:var(--color-muted-foreground) }
-.input { padding:6px 10px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-background); color:var(--color-foreground); font-size:13px }
+.input { padding:6px 10px; border:1px solid var(--color-border); border-radius:var(--radius-inline); background:var(--color-background); color:var(--color-foreground); font-size:13px }
 </style>

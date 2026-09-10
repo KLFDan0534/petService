@@ -15,7 +15,7 @@
         <div class="ka-head-copy">
           <div class="ka-eyebrow" aria-hidden="true">
             <span class="ka-eyebrow-line"></span>
-            <span>Become a Keeper</span>
+            <span>申请成为寄养师</span>
           </div>
           <h1 class="ka-title">申请成为照护师</h1>
           <p class="ka-sub">照护师需加入一家已认证门店，并通过资质核验后才能接单。审核通常在 3 个工作日内完成。</p>
@@ -39,7 +39,7 @@
             <p class="ka-eyebrow">
               <span class="ka-idx">01</span>
               <span class="ka-line" aria-hidden="true"></span>
-              <span>Application</span>
+              <span>申请</span>
             </p>
             <h2 class="ka-sec-title">申请进度</h2>
             <p class="ka-sec-desc">资料提交后由门店初审、平台复核。</p>
@@ -96,7 +96,7 @@
             <p class="ka-eyebrow">
               <span class="ka-idx">01</span>
               <span class="ka-line" aria-hidden="true"></span>
-              <span>Your Details</span>
+              <span>基本信息</span>
             </p>
             <h2 class="ka-sec-title">基本资料</h2>
             <p class="ka-sec-desc">姓名与手机号仅用于门店核验与派单联系，从业信息帮助门店判断你的照护能力。</p>
@@ -157,14 +157,14 @@
         </section>
 
         <!-- ═══════════════════════════════════════════
-             02 · Credentials
+             02 · 资质
              ═══════════════════════════════════════════ -->
         <section class="ka-section">
           <header class="ka-sec-head">
             <p class="ka-eyebrow">
               <span class="ka-idx">02</span>
               <span class="ka-line" aria-hidden="true"></span>
-              <span>Credentials</span>
+              <span>资质</span>
             </p>
             <h2 class="ka-sec-title">资质证明</h2>
             <p class="ka-sec-desc">请上传资格证正面和反面，至少 2 张。资质图片仅用于门店与平台核验，不会公开展示原件。</p>
@@ -213,6 +213,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import request from '@/utils/request'
 import { getMyKeeperInfo } from '@/api/keeper'
+import { formatDate as utilFormatDate } from '@/utils/format'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -249,8 +250,7 @@ function statusBadge(status) {
 }
 
 function formatDate(dt) {
-  if (!dt) return ''
-  return String(dt).slice(0, 10)
+  return utilFormatDate(dt, '')
 }
 
 function resetAndShowForm() {
@@ -421,7 +421,7 @@ async function submitApplication() {
 .ka-label { font-size: 12.5px; font-weight: 500; color: var(--ref-ink-soft); }
 .ka-req { color: var(--ref-brand); }
 .ka-input {
-  width: 100%; height: 44px; padding: 0 14px;
+  width: 100%; height: var(--control-height); padding: 0 14px;
   border: 1px solid var(--ref-line); border-radius: var(--r-btn);
   background: var(--ref-surface); color: var(--ref-ink); font-size: 14px;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -491,7 +491,7 @@ async function submitApplication() {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -583,7 +583,7 @@ async function submitApplication() {
 }
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  height: 44px; padding: 0 22px; border-radius: var(--r-btn);
+  height: var(--control-height); padding: 0 22px; border-radius: var(--r-btn);
   font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent;
   transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
 }

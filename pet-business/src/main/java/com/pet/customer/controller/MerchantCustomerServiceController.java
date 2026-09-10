@@ -325,7 +325,7 @@ public class MerchantCustomerServiceController {
     public Result<PageResult<MerchantCustomerServiceDTO>> listAllByAdmin(
             PageRequestDTO pageParam,
             @Parameter(description = "状态筛选（可空）") @RequestParam(required = false) String status_wsh) {
-        log.info("Calling admin-list(), page={}, size={}, status={}", pageParam.getPage(), pageParam.getSize(), status_wsh);
+        log.info("调用 admin-list(), page={}, size={}, status={}", pageParam.getPage(), pageParam.getSize(), status_wsh);
         var page = service.pageAll(pageParam, status_wsh);
         var dtoList = service.toDTOList(page.getRecords());
         PageResult<MerchantCustomerServiceDTO> result = new PageResult<>();
@@ -371,7 +371,7 @@ public class MerchantCustomerServiceController {
             @AuthenticationPrincipal JwtAuthenticationToken token,
             @Parameter(description = "客服申请记录ID") @PathVariable Long id,
             @RequestBody(required = false) MerchantCustomerServiceReviewRequestDTO request) {
-        log.info("Calling admin/approve(), id={}", id);
+        log.info("调用 admin/approve(), id={}", id);
         return Result.success(service.approveByAdmin(id, token.getUserId(), request == null ? null : request.getReview_note_wsh()));
     }
 
@@ -412,7 +412,7 @@ public class MerchantCustomerServiceController {
             @AuthenticationPrincipal JwtAuthenticationToken token,
             @Parameter(description = "客服申请记录ID") @PathVariable Long id,
             @RequestBody(required = false) MerchantCustomerServiceReviewRequestDTO request) {
-        log.info("Calling admin/reject(), id={}", id);
+        log.info("调用 admin/reject(), id={}", id);
         return Result.success(service.rejectByAdmin(id, token.getUserId(), request == null ? null : request.getReview_note_wsh()));
     }
 }

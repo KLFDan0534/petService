@@ -66,7 +66,7 @@ export const useCategoryStore = defineStore('category', {
           this.loaded = true
         }
       } catch (e) {
-        console.error('Failed to load service categories', e)
+        console.error('加载服务分类失败', e)
       }
     }
   }

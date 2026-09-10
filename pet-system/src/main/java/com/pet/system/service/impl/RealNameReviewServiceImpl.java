@@ -46,7 +46,7 @@ public class RealNameReviewServiceImpl implements RealNameReviewService {
      */
     @Override
     public IPage<RealNameReviewVO> listPage(PageRequestDTO pageParam, Integer status, String keyword) {
-        log.info("call listPage(), status={}, keyword={}", status, keyword);
+        log.info("调用 listPage(), status={}, keyword={}", status, keyword);
         Page<User> page = new Page<>(pageParam.getPage(), pageParam.getSize());
         LambdaQueryWrapper<User> qw = new LambdaQueryWrapper<User>()
                 .orderByDesc(User::getUpdated_at_wsh);
@@ -88,7 +88,7 @@ public class RealNameReviewServiceImpl implements RealNameReviewService {
     @Transactional
     @Override
     public void approve(Long userId, Long reviewerId, String remark) {
-        log.info("call approve(), userId={}, reviewerId={}", userId, reviewerId);
+        log.info("调用 approve(), userId={}, reviewerId={}", userId, reviewerId);
         User user = getUserById(userId);
         if (user.getReal_name_status_wsh() == null
                 || user.getReal_name_status_wsh() != UserProfileConstants.REAL_NAME_PENDING) {
@@ -121,7 +121,7 @@ public class RealNameReviewServiceImpl implements RealNameReviewService {
     @Transactional
     @Override
     public void reject(Long userId, Long reviewerId, String remark) {
-        log.info("call reject(), userId={}, reviewerId={}", userId, reviewerId);
+        log.info("调用 reject(), userId={}, reviewerId={}", userId, reviewerId);
         User user = getUserById(userId);
         if (user.getReal_name_status_wsh() == null
                 || user.getReal_name_status_wsh() != UserProfileConstants.REAL_NAME_PENDING) {

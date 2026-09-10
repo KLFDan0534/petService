@@ -1,7 +1,7 @@
 package com.pet.ai.service.impl;
 
 import com.pet.ai.dto.RagDocumentCreateRequestDTO;
-import com.pet.ai.service.AiChatService;
+import com.pet.ai.service.LlmChatService;
 import com.pet.ai.service.ChromaService;
 import com.pet.ai.service.ChromaService.ChromaGetResult;
 import com.pet.ai.service.EmbeddingService;
@@ -71,7 +71,7 @@ public class RagServiceImpl implements RagService {
 
     private final ChromaService chromaService;
     private final EmbeddingService embeddingService;
-    private final AiChatService aiChatService;
+    private final LlmChatService aiChatService;
     private final String chromaBaseUrl;
     private final String chromaTenant;
     private final String chromaDatabase;
@@ -80,7 +80,7 @@ public class RagServiceImpl implements RagService {
 
     public RagServiceImpl(ChromaService chromaService,
                           EmbeddingService embeddingService,
-                          AiChatService aiChatService,
+                          LlmChatService aiChatService,
                           @org.springframework.beans.factory.annotation.Value("${chroma.url:http://localhost:8000}") String chromaBaseUrl,
                           @org.springframework.beans.factory.annotation.Value("${chroma.tenant:default_tenant}") String chromaTenant,
                           @org.springframework.beans.factory.annotation.Value("${chroma.database:default_database}") String chromaDatabase) {
@@ -235,7 +235,7 @@ public class RagServiceImpl implements RagService {
      * 【业务名称】AI问答（带宠物档案）实现
      * <p>业务作用：检索相关知识文档，构建系统提示词和用户提示词，调用AI模型生成回答。三阶段降级策略：AI在线→AI回答、AI不可用且有宠物档案→宠物档案模板、AI不可用且知识库非空→知识库模板。</p>
      * <p>调用场景：用户在知识库页面提问时关联了宠物，或AI报告生成等需要个性化回答的场景。</p>
-     * <p>调用链：Controller → answer(question, petProfile) → search()检索 → 构建systemPrompt+userPrompt → AiChatService.chat(systemPrompt, userPrompt) → AI成功返回 | AI失败且有宠物档案→buildPetProfileFallback() | 知识库非空→知识库模板 | 空→引导提示</p>
+     * <p>调用链：Controller → answer(question, petProfile) → search()检索 → 构建systemPrompt+userPrompt → LlmChatService.chat(systemPrompt, userPrompt) → AI成功返回 | AI失败且有宠物档案→buildPetProfileFallback() | 知识库非空→知识库模板 | 空→引导提示</p>
      * <p>数据处理：search()检索相关内容；systemPrompt优先从classpath:rag-system-prompt.txt加载，失败使用英文默认提示词；buildUserPrompt()拼接petProfile+知识库上下文（最多5条）+问题+要求中文回答；AI返回null时降级处理。</p>
      * <p>业务规则：AI返回优先；有宠物档案且AI不可用时使用5条通用护理建议模板+知识库参考（最多2条）；无宠物档案但知识库非空时使用最相关3条文档作为回答；都空时返回引导提示。</p>
      * <p>状态影响：只读操作。</p>

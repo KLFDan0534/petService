@@ -13,7 +13,7 @@
       <header class="ms-head">
         <div class="ms-head-copy">
           <p class="ms-eyebrow">
-            <span class="ms-idx">Our stores</span>
+            <span class="ms-idx">商家名录</span>
             <span class="ms-line" aria-hidden="true"></span>
             <span>门店</span>
           </p>
@@ -88,7 +88,7 @@
             <p class="ms-eyebrow">
               <span class="ms-idx">01</span>
               <span class="ms-line" aria-hidden="true"></span>
-              <span>Stores</span>
+              <span>商家</span>
             </p>
             <h2 class="ms-section-title">{{ nearby ? '附近的门店' : '全部门店' }}</h2>
             <p class="ms-desc">
@@ -146,7 +146,7 @@
                   <span class="ms-star" aria-hidden="true">★</span>
                   <b>{{ Number(m.rating_wsh || 0).toFixed(1) }}</b>
                 </span>
-                <span v-if="m.distance_wsh" class="ms-dist">{{ formatServiceDistance(m.distance_wsh) }}</span>
+                <span v-if="m.distance_wsh" class="ms-dist">{{ formatDistanceKm(m.distance_wsh) }}</span>
                 <span v-if="m.address_wsh" class="ms-addr">{{ m.address_wsh }}</span>
               </div>
 
@@ -242,7 +242,7 @@ import AmapAddressPicker from '@/components/common/AmapAddressPicker.vue'
 import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
 import { MerchantStatus, MerchantStoreStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
-import { formatServiceDistance } from '@/composables/useServiceDistance'
+import { formatDistanceKm } from '@/composables/useServiceDistance'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 
 const SORTS = [

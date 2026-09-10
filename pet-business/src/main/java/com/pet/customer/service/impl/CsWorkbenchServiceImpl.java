@@ -83,16 +83,16 @@ public class CsWorkbenchServiceImpl implements CsWorkbenchService {
         Set<Long> merchantIds = admin ? null : staffMerchantIds(staffUserId, merchant, customerService);
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
 
-        dto.setPending_tickets(countTickets(merchantIds, "pending", null, null, null));
-        dto.setMy_processing_tickets(countTickets(null, "processing", staffUserId, null, null));
-        dto.setPending_complaints(countComplaints(merchantIds, "pending", null));
-        dto.setResolved_tickets_today(countTickets(merchantIds, "resolved", null, null, todayStart));
-        dto.setResolved_complaints_today(countComplaints(merchantIds, "resolved", todayStart));
+        dto.setPending_tickets_wsh(countTickets(merchantIds, "pending", null, null, null));
+        dto.setMy_processing_tickets_wsh(countTickets(null, "processing", staffUserId, null, null));
+        dto.setPending_complaints_wsh(countComplaints(merchantIds, "pending", null));
+        dto.setResolved_tickets_today_wsh(countTickets(merchantIds, "resolved", null, null, todayStart));
+        dto.setResolved_complaints_today_wsh(countComplaints(merchantIds, "resolved", todayStart));
         if (admin) {
             Long merchantTotal = merchantMapper.selectCount(null);
-            dto.setMerchant_count(merchantTotal == null ? 0 : merchantTotal);
+            dto.setMerchant_count_wsh(merchantTotal == null ? 0 : merchantTotal);
         } else {
-            dto.setMerchant_count(merchantIds == null ? 0 : merchantIds.size());
+            dto.setMerchant_count_wsh(merchantIds == null ? 0 : merchantIds.size());
         }
         return dto;
     }
@@ -122,13 +122,13 @@ public class CsWorkbenchServiceImpl implements CsWorkbenchService {
             dto.setMerchant_id_wsh(merchantId);
             dto.setMerchant_name_wsh(merchant.getName_wsh());
             dto.setMerchant_status_wsh(merchant.getStatus_wsh());
-            dto.setPending_ticket_count(countTickets(Set.of(merchantId), "pending", null, null, null));
-            dto.setPending_complaint_count(countComplaints(Set.of(merchantId), "pending", null));
+            dto.setPending_ticket_count_wsh(countTickets(Set.of(merchantId), "pending", null, null, null));
+            dto.setPending_complaint_count_wsh(countComplaints(Set.of(merchantId), "pending", null));
             result.add(dto);
         }
         result.sort((a, b) -> Long.compare(
-                b.getPending_ticket_count() + b.getPending_complaint_count(),
-                a.getPending_ticket_count() + a.getPending_complaint_count()));
+                b.getPending_ticket_count_wsh() + b.getPending_complaint_count_wsh(),
+                a.getPending_ticket_count_wsh() + a.getPending_complaint_count_wsh()));
         return result;
     }
 
@@ -165,7 +165,7 @@ public class CsWorkbenchServiceImpl implements CsWorkbenchService {
             dto.setOther_user_name_wsh(displayName(otherUserId));
             dto.setLast_message_wsh(message.getContent_wsh());
             dto.setLast_time_wsh(message.getCreated_at_wsh());
-            dto.setUnread_count(unreadBySender.getOrDefault(otherUserId, 0L));
+            dto.setUnread_count_wsh(unreadBySender.getOrDefault(otherUserId, 0L));
             result.add(dto);
         }
         return result;
@@ -208,7 +208,7 @@ public class CsWorkbenchServiceImpl implements CsWorkbenchService {
                 dto.setOther_user_id_wsh(c.getOwner_id_wsh());
                 dto.setOther_user_name_wsh(displayName(c.getOwner_id_wsh()));
                 dto.setStatus_wsh(c.getStatus_wsh());
-                dto.setUnread_count(unreadByComplaint.getOrDefault(c.getId_wsh(), 0L));
+                dto.setUnread_count_wsh(unreadByComplaint.getOrDefault(c.getId_wsh(), 0L));
                 PetOrder order = c.getOrder_id_wsh() == null ? null : orderMap.get(c.getOrder_id_wsh());
                 dto.setOrder_no_wsh(order == null ? null : order.getOrder_no_wsh());
                 if (latest != null) {
@@ -248,7 +248,7 @@ public class CsWorkbenchServiceImpl implements CsWorkbenchService {
                 dto.setOther_user_id_wsh(t.getUser_id_wsh());
                 dto.setOther_user_name_wsh(displayName(t.getUser_id_wsh()));
                 dto.setStatus_wsh(t.getStatus_wsh());
-                dto.setUnread_count(unreadByTicket.getOrDefault(t.getId_wsh(), 0L));
+                dto.setUnread_count_wsh(unreadByTicket.getOrDefault(t.getId_wsh(), 0L));
                 PetOrder order = t.getOrder_id_wsh() == null ? null : orderMap.get(t.getOrder_id_wsh());
                 dto.setOrder_no_wsh(order == null ? null : order.getOrder_no_wsh());
                 if (latest != null) {

@@ -62,7 +62,7 @@ defineProps({
 .sh-lbl-dark { color: rgba(255,255,255,0.5); }
 .sh-title {
   margin-top: 16px;
-  font-family: 'Fraunces', 'Noto Serif SC', Georgia, serif;
+  font-family: var(--ref-font-display);
   font-size: clamp(28px, 3.4vw, 42px);
   font-weight: 400;
   line-height: 1.15;

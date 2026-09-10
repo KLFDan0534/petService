@@ -6,10 +6,10 @@
     :title="label"
     @click="appStore.toggleTheme()"
   >
-    <el-icon aria-hidden="true">
+    <AppIcon aria-hidden="true">
       <Moon v-if="appStore.isDarkTheme" />
       <Sunny v-else />
-    </el-icon>
+    </AppIcon>
   </button>
 </template>
 

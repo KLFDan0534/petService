@@ -68,6 +68,20 @@ public final class GeoDistanceUtils {
     }
 
     /**
+     * 计算两个 BigDecimal 经纬度坐标之间的距离（公里）
+     */
+    public static double distanceKm(BigDecimal lat1, BigDecimal lng1, BigDecimal lat2, BigDecimal lng2) {
+        return distanceKm(lat1.doubleValue(), lng1.doubleValue(), lat2.doubleValue(), lng2.doubleValue());
+    }
+
+    /**
+     * 计算两个 double 类型经纬度坐标之间的距离（公里）
+     */
+    public static double distanceKm(double lat1, double lng1, double lat2, double lng2) {
+        return distanceMeters(lat1, lng1, lat2, lng2) / 1000.0;
+    }
+
+    /**
      * 【坐标合法性校验】
      * 验证经纬度是否在有效范围内。
      * 纬度范围：-90 ~ 90

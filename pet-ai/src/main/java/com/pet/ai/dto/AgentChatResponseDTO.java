@@ -7,10 +7,10 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AgentChatResponseDTO {
-    @Schema(description = "鍥炵瓟鍐呭")
+    @Schema(description = "回答内容")
     private String reply;
-    @Schema(description = "瀵硅瘽ID")
+    @Schema(description = "对话ID")
     private String conversationId;
-    @Schema(description = "缁撴潫鍘熷洜")
+    @Schema(description = "结束原因")
     private String finishReason;
 }

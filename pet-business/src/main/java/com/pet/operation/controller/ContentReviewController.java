@@ -54,7 +54,7 @@ public class ContentReviewController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<PageResult<ContentReviewDTO>> listPending(PageRequestDTO pageParam) {
-        log.info("listPending() called");
+        log.info("listPending() 被调用");
         return Result.success(new PageResult<>(toDTOPage(contentReviewService.listPendingPage(pageParam))));
     }
 
@@ -76,7 +76,7 @@ public class ContentReviewController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<PageResult<ContentReviewDTO>> listAll(PageRequestDTO pageParam) {
-        log.info("listAll() called");
+        log.info("listAll() 被调用");
         return Result.success(new PageResult<>(toDTOPage(contentReviewService.listPage(pageParam))));
     }
 
@@ -99,7 +99,7 @@ public class ContentReviewController {
     })
     public Result<ContentReviewDTO> report(@AuthenticationPrincipal JwtAuthenticationToken token,
                                            @Valid @RequestBody ContentReviewReportRequestDTO body) {
-        log.info("report() called");
+        log.info("report() 被调用");
         return Result.success(toDTO(contentReviewService.report(body.getTarget_type_wsh(), body.getTarget_id_wsh(), token.getUserId(), body.getReason_wsh())));
     }
 
@@ -126,7 +126,7 @@ public class ContentReviewController {
     public Result<ContentReviewDTO> approve(@AuthenticationPrincipal JwtAuthenticationToken token,
                                             @Parameter(description = "审核记录ID") @PathVariable Long id,
                                             @RequestBody(required = false) ContentReviewReviewRequestDTO body) {
-        log.info("approve() called");
+        log.info("approve() 被调用");
         return Result.success(toDTO(contentReviewService.approve(id, token.getUserId(),
                 body != null ? body.getRemark_wsh() : null)));
     }
@@ -154,7 +154,7 @@ public class ContentReviewController {
     public Result<ContentReviewDTO> reject(@AuthenticationPrincipal JwtAuthenticationToken token,
                                            @Parameter(description = "审核记录ID") @PathVariable Long id,
                                            @RequestBody(required = false) ContentReviewReviewRequestDTO body) {
-        log.info("reject() called");
+        log.info("reject() 被调用");
         return Result.success(toDTO(contentReviewService.reject(id, token.getUserId(),
                 body != null ? body.getRemark_wsh() : null)));
     }

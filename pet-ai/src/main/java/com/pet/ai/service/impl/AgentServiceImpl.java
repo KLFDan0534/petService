@@ -1,15 +1,21 @@
 package com.pet.ai.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.pet.ai.dto.AgentContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.ai.dto.AgentExecuteResult;
+import com.pet.ai.dto.AgentPlanResult;
+import com.pet.ai.dto.AgentPlanSnapshot;
+import com.pet.ai.dto.AgentPromptResult;
 import com.pet.ai.service.AgentService;
+import com.pet.ai.service.LlmChatService;
+import com.pet.ai.service.PlanTokenStore;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.vo.KeeperVO;
+import com.pet.common.BookingUnit;
 import com.pet.common.BusinessException;
 import com.pet.common.StatusCode;
 import com.pet.mq.MessageSender;
@@ -27,72 +33,43 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.HtmlUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * AI 代理服务实现，通过多步骤流水线自动完成宠物寄养下单。
+ * AI 代理服务实现：用户一句话描述需求，Agent 生成寄养方案，用户确认后落单。
  * <p>
  * 核心设计：
- * - 语义解析：正则提取宠物品种关键词和天数
- * - 多品种匹配：内置 20+ 常用品种的中英文映射表
- * - 评分算法：综合评分(40%) + 距离(20%) + 价格(20%) + 投诉率(10%) + 完成率(10%)
- * - 异常处理：缺信息时抛出 NeedUserInputException 中断流程并提示用户
- * - 事务回滚：任何步骤失败时回滚已创建的订单和支付
+ * - plan 阶段：LLM 结构化提取需求（替代原正则引擎）→ 匹配宠物/商家/看护人 → 生成方案（不落库）
+ * - confirm 阶段：凭方案 token 原子认领后创建订单/支付，事务失败回滚并释放 token 供重试
+ * - 服务类型门控：本轮仅支持日间寄养（day 计费）；洗护/遛宠/训练/医疗明确提示不支持
+ * - 评分排序：评分40% + 距离20% + 价格20% + 投诉率10% + 完成率10%（原算法保留）
+ * - 幂等：方案 token 状态机 NEW → CLAIMED →（成功 afterCommit 移除 / 失败 release 回 NEW）
  */
 @Service
 @Slf4j
 public class AgentServiceImpl implements AgentService {
 
-    private static final Map<String, List<String>> BREED_CN_MAP = new HashMap<>();
     private static final double SEARCH_RADIUS_KM = 5.0;
-
-    static {
-        BREED_CN_MAP.put("poodle", Arrays.asList("Poodle", "Toy Poodle", "Miniature Poodle"));
-        BREED_CN_MAP.put("贵宾", Arrays.asList("Poodle", "Toy Poodle", "Miniature Poodle", "贵宾", "泰迪"));
-        BREED_CN_MAP.put("泰迪", Arrays.asList("Poodle", "Toy Poodle", "Miniature Poodle", "贵宾", "泰迪"));
-        BREED_CN_MAP.put("golden", Arrays.asList("Golden Retriever", "Golden"));
-        BREED_CN_MAP.put("金毛", Arrays.asList("Golden Retriever", "Golden", "金毛"));
-        BREED_CN_MAP.put("husky", Arrays.asList("Husky", "Siberian Husky"));
-        BREED_CN_MAP.put("哈士奇", Arrays.asList("Husky", "Siberian Husky", "哈士奇"));
-        BREED_CN_MAP.put("corgi", Arrays.asList("Corgi", "Pembroke", "Cardigan"));
-        BREED_CN_MAP.put("柯基", Arrays.asList("Corgi", "Pembroke", "Cardigan", "柯基"));
-        BREED_CN_MAP.put("labrador", Arrays.asList("Labrador", "Labrador Retriever"));
-        BREED_CN_MAP.put("拉布拉多", Arrays.asList("Labrador", "Labrador Retriever", "拉布拉多"));
-        BREED_CN_MAP.put("samoyed", Collections.singletonList("Samoyed"));
-        BREED_CN_MAP.put("萨摩耶", Arrays.asList("Samoyed", "萨摩耶"));
-        BREED_CN_MAP.put("shiba", Arrays.asList("Shiba Inu", "Shiba"));
-        BREED_CN_MAP.put("柴犬", Arrays.asList("Shiba Inu", "Shiba", "柴犬"));
-        BREED_CN_MAP.put("pomeranian", Collections.singletonList("Pomeranian"));
-        BREED_CN_MAP.put("博美", Arrays.asList("Pomeranian", "博美"));
-        BREED_CN_MAP.put("ragdoll", Collections.singletonList("Ragdoll"));
-        BREED_CN_MAP.put("布偶", Arrays.asList("Ragdoll", "布偶"));
-        BREED_CN_MAP.put("british", Arrays.asList("British Shorthair", "British"));
-        BREED_CN_MAP.put("英短", Arrays.asList("British Shorthair", "British", "英短"));
-        BREED_CN_MAP.put("american", Arrays.asList("American Shorthair", "American"));
-        BREED_CN_MAP.put("美短", Arrays.asList("American Shorthair", "American", "美短"));
-        BREED_CN_MAP.put("exotic", Arrays.asList("Exotic Shorthair", "Persian"));
-        BREED_CN_MAP.put("persian", Collections.singletonList("Persian"));
-        BREED_CN_MAP.put("波斯", Arrays.asList("Persian", "波斯"));
-        BREED_CN_MAP.put("dog", Arrays.asList("Dog", "dog"));
-        BREED_CN_MAP.put("狗", Arrays.asList("Dog", "dog", "狗", "犬"));
-        BREED_CN_MAP.put("犬", Arrays.asList("Dog", "dog", "狗", "犬"));
-        BREED_CN_MAP.put("cat", Arrays.asList("Cat", "cat"));
-        BREED_CN_MAP.put("猫", Arrays.asList("Cat", "cat", "猫"));
-    }
+    private static final int MAX_DAYS = 365;
+    /** 本轮支持的服务类型（前缀匹配 type_wsh） */
+    private static final String SUPPORTED_SERVICE_TYPE = "BOARDING";
+    /** 明确不支持的服务类型 */
+    private static final Set<String> NON_BOARDING_TYPES = Set.of("GROOMING", "TRAINING", "WALK", "MEDICAL");
 
     private final PetMapper petMapper;
     private final MerchantMapper merchantMapper;
@@ -103,6 +80,9 @@ public class AgentServiceImpl implements AgentService {
     private final OrderService orderService;
     private final PaymentService paymentService;
     private final MessageSender messageSender;
+    private final LlmChatService aiChatService;
+    private final ObjectMapper objectMapper;
+    private final PlanTokenStore planTokenStore;
 
     public AgentServiceImpl(PetMapper petMapper,
                             MerchantMapper merchantMapper,
@@ -112,7 +92,10 @@ public class AgentServiceImpl implements AgentService {
                             UserService userService,
                             OrderService orderService,
                             PaymentService paymentService,
-                            MessageSender messageSender) {
+                            MessageSender messageSender,
+                            LlmChatService aiChatService,
+                            ObjectMapper objectMapper,
+                            PlanTokenStore planTokenStore) {
         this.petMapper = petMapper;
         this.merchantMapper = merchantMapper;
         this.keeperService = keeperService;
@@ -122,275 +105,386 @@ public class AgentServiceImpl implements AgentService {
         this.orderService = orderService;
         this.paymentService = paymentService;
         this.messageSender = messageSender;
+        this.aiChatService = aiChatService;
+        this.objectMapper = objectMapper;
+        this.planTokenStore = planTokenStore;
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // plan 阶段
+    // ═══════════════════════════════════════════════════════════
 
     /**
-     * 【业务名称】AI Agent自动下单执行实现
-     * <p>业务作用：实现9步Agent流水线：1-意图识别(正则提取宠物类型和天数) → 2-查询宠物档案(匹配用户宠物) → 3-搜索附近商家(5km) → 4-搜索附近看护人 → 5-多维度评分排序 → 6-生成推荐(按预算过滤) → 7-创建待支付订单 → 8-创建待支付记录 → 9-发送MQ通知。支持自动支付模式。</p>
-     * <p>调用场景：用户在前端通过自然语言让AI自动完成下单全流程。</p>
-     * <p>调用链：AgentController → execute() → step1~step9 → OrderService.createOrder() → PaymentService.createPayment() → (autoPay时) PaymentService.pay() → MessageSender.sendOrderCreate()</p>
-     * <p>数据处理：初始化AgentContext（userId/userInput/location）；正则抽取宠物品种关键词（中英文20+品种映射）和天数；fillLocation优先使用请求参数坐标，null时从User档案取；matchPet按品种/类型/名称模糊匹配；searchNearby按经纬度搜索5km内商家和看护人；rankKeepers综合评分算法排序；generateRecommendation按预算500/天过滤；buildResult构造返回结果。</p>
-     * <p>业务规则：缺信息时抛出NeedUserInputException中断流程并返回前端补充提示；autoPay=true时先verifyAutoPayAuthorization再payWithVerifiedAuthorization；@Transactional事务注解保证任意步骤失败回滚；天数范围1~365天；MQ通知失败非致命仅warn日志。</p>
-     * <p>状态影响：成功时新建一条订单（状态pending）和支付记录（状态pending）或直接变为paid；更新数据库多条记录（Order+Payment）。</p>
-     * <p>异常情况：NeedUserInputException（业务可控异常）→ 返回前端需用户补充信息；BusinessException（支付密码错误等）→ 回滚事务；DataAccessException → 返回"系统内部错误"安全提示；其他Exception → 返回异常消息并回滚。</p>
-     * <p>注意事项：所有步骤日志记录在ctx.logs中返回前端展示；返回的status字段驱动前端UI状态切换（success/pending_payment/needs_user_input/failed）；每次调用都会创建新AgentContext实例，无状态安全。</p>
+     * 【业务名称】智能下单 plan 阶段
+     * <p>业务作用：LLM 结构化提取用户需求，匹配宠物与附近看护人，生成推荐方案（不落库），返回方案 token 供用户确认。</p>
+     * <p>业务规则：LLM 不可用/解析失败 → failed（不做规则兜底）；非寄养服务类型 → 明确提示不支持；日期晚于今天；天数 1..365；无坐标回退用户档案坐标。</p>
+     * <p>状态影响：无。调用方注意：返回的状态有 plan_generated / needs_user_input / failed。</p>
      */
-    @Transactional
     @Override
-    public AgentExecuteResult execute(Long userId, String userInput, Double latitude, Double longitude,
-                                      Boolean autoPay, String paymentPassword) {
-        AgentContext ctx = new AgentContext();
-        ctx.setUserId(userId);
-        ctx.setUserInput(userInput);
-        fillLocation(ctx, latitude, longitude);
-        ctx.setCurrentStep(0);
-        ctx.setLogs(new ArrayList<>());
-        ctx.setStatus("running");
-
+    public AgentPlanResult plan(Long userId, String userInput, Double latitude, Double longitude, String address) {
+        AgentPlanResult result = new AgentPlanResult();
+        List<String> logs = new ArrayList<>();
+        result.setLogs(logs);
         try {
-            step1IdentifyRequirement(ctx);
-            step2QueryPetProfile(ctx);
-            step3SearchMerchants(ctx);
-            step4SearchKeepers(ctx);
-            step5RankKeepers(ctx);
-            step6GenerateRecommendation(ctx);
-            if (Boolean.TRUE.equals(autoPay)) {
-                verifyAutoPayAuthorization(ctx, paymentPassword);
-            }
-            step7CreatePendingOrder(ctx);
-            Payment payment = step8CreatePendingPayment(ctx);
-
-            if (Boolean.TRUE.equals(autoPay)) {
-                payWithVerifiedAuthorization(ctx, payment);
-                step9SendNotification(ctx);
-                return buildResult(ctx, "success", "支付已完成，订单已进入待商家处理状态。", "paid", false);
-            }
-
-            step9SendNotification(ctx);
-            return buildResult(ctx, "pending_payment", "订单已创建，当前为待支付状态。请手动支付，或在授权自动支付时输入支付密码。", "manual_payment", false);
+            AgentPlanSnapshot snapshot = buildPlan(logs, userId, userInput, latitude, longitude);
+            String token = planTokenStore.put(userId, snapshot);
+            result.setPlan_token_wsh(token);
+            result.setStatus_wsh("plan_generated");
+            result.setMessage_wsh("已为你生成寄养方案，请核对后确认下单。");
+            result.setRequires_user_input_wsh(false);
+            fillPlanFields(result, snapshot);
+            return result;
         } catch (NeedUserInputException e) {
-            ctx.setStatus("needs_user_input");
-            ctx.setError(e.getMessage());
-            ctx.getLogs().add("Need user input: " + e.getMessage());
-            return buildResult(ctx, "needs_user_input", e.getMessage(), e.nextAction, true);
+            result.setStatus_wsh("needs_user_input");
+            result.setRequires_user_input_wsh(true);
+            result.setNext_action_wsh(e.getNextAction());
+            result.setMessage_wsh(e.getMessage());
+            return result;
         } catch (Exception e) {
-            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
-            log.error("Agent execution failed at step {}: {}", ctx.getCurrentStep(), e.getMessage(), e);
-            String safeMsg = e instanceof org.springframework.dao.DataAccessException
-                    ? "系统内部错误，请稍后重试。"
-                    : e.getMessage();
-            ctx.setStatus("failed");
-            ctx.setError(safeMsg);
-            ctx.getLogs().add("Step " + ctx.getCurrentStep() + " FAILED: " + safeMsg);
-            return buildResult(ctx, "failed", safeMsg, "retry", false);
+            log.error("Agent plan 失败: {}", e.getMessage(), e);
+            result.setStatus_wsh("failed");
+            result.setRequires_user_input_wsh(false);
+            result.setNext_action_wsh("retry_later");
+            result.setMessage_wsh(safeMessage(e));
+            return result;
         }
     }
 
-    private void step1IdentifyRequirement(AgentContext ctx) {
-        ctx.setCurrentStep(1);
-        String input = ctx.getUserInput();
-        if (!StringUtils.hasText(input)) {
-            throw new NeedUserInputException("请描述要下单的宠物类型和寄养天数，例如：金毛寄养 3 天。", "ask_requirement");
-        }
-        ctx.getLogs().add("Step 1: Identify requirement");
+    private AgentPlanSnapshot buildPlan(List<String> logs, Long userId, String userInput,
+                                        Double latitude, Double longitude) {
+        // 1. 位置：请求坐标 → 用户档案坐标
+        double[] loc = resolveLocation(userId, latitude, longitude);
+        logs.add("位置已确定");
 
-        List<String> breedKeys = new ArrayList<>(BREED_CN_MAP.keySet());
-        breedKeys.sort((a, b) -> Integer.compare(b.length(), a.length()));
-        String breedAlternation = breedKeys.stream().map(Pattern::quote).collect(Collectors.joining("|"));
-        Pattern petPattern = Pattern.compile("(" + breedAlternation + ")", Pattern.CASE_INSENSITIVE);
-        Matcher petMatcher = petPattern.matcher(input);
-        if (petMatcher.find()) {
-            ctx.setPetType(petMatcher.group(1).toLowerCase());
-        } else {
-            throw new NeedUserInputException("我还不能确定宠物类型，请补充品种或类型，例如 dog、cat、golden。", "ask_pet_type");
+        // 2. LLM 结构化提取
+        AgentPromptResult prompt = extractRequirement(userInput);
+        if (prompt == null) {
+            throw new BusinessException(500, "智能下单暂时无法解析你的需求，请稍后重试或直接手动下单。");
         }
+        logs.add("需求已解析: " + userInput);
 
-        Pattern dayPattern = Pattern.compile("(\\d+)\\s*(天|日|day|days)?", Pattern.CASE_INSENSITIVE);
-        Matcher dayMatcher = dayPattern.matcher(input);
-        if (!dayMatcher.find()) {
-            throw new NeedUserInputException("请补充需要寄养的天数，例如 3 天。", "ask_days");
+        // 3. 服务类型门控：仅支持日间寄养
+        String unit = BookingUnit.normalize(prompt.getUnit());
+        if (unit != null && !BookingUnit.DAY.equals(unit)) {
+            throw new NeedUserInputException("智能下单目前仅支持按天寄养，按次/按小时服务请手动下单。", "unsupported_service_type");
         }
-        int days = Integer.parseInt(dayMatcher.group(1));
+        if (prompt.getServiceType() != null && NON_BOARDING_TYPES.contains(prompt.getServiceType().trim().toUpperCase())) {
+            throw new NeedUserInputException("智能下单目前仅支持寄养类日间服务，洗护/遛宠/训练/医疗请手动下单。", "unsupported_service_type");
+        }
+        logs.add("服务类型: 日间寄养");
+
+        // 4. 宠物匹配
+        List<Pet> pets = petMapper.selectList(new LambdaQueryWrapper<Pet>().eq(Pet::getOwner_id_wsh, userId));
+        if (pets.isEmpty()) {
+            throw new NeedUserInputException("未找到你的宠物档案，请先添加宠物信息后再让智能下单帮你下单。", "create_pet_profile");
+        }
+        Pet pet = matchPet(pets, prompt);
+        if (pet == null) {
+            throw new NeedUserInputException("无法确定是哪只宠物，请在描述中带上宠物昵称（如：帮布丁订 3 天寄养）。", "ask_pet_identity");
+        }
+        logs.add("宠物: " + pet.getName_wsh());
+
+        // 5. 日期与天数
+        LocalDate start = parseStartDate(prompt.getStartDate());
+        if (start == null) {
+            start = LocalDate.now().plusDays(1);
+        }
+        if (!start.isAfter(LocalDate.now())) {
+            throw new NeedUserInputException("开始日期需晚于今天，请核对日期后重试。", "ask_days");
+        }
+        int days = prompt.getDays() == null ? 0 : prompt.getDays();
         if (days <= 0) {
-            throw new NeedUserInputException("寄养天数必须大于 0，请重新输入。", "ask_days");
+            throw new NeedUserInputException("请补充寄养天数，例如 3 天。", "ask_days");
         }
-        if (days > 365) {
+        if (days > MAX_DAYS) {
             throw new NeedUserInputException("寄养天数不能超过 365 天，请调整天数。", "ask_days");
         }
-        ctx.setDays(days);
-        ctx.getLogs().add("  Pet type: " + ctx.getPetType() + ", days: " + ctx.getDays());
-    }
+        LocalDate end = start.plusDays(days);
+        logs.add("日期: " + start + " ~ " + end + "（" + days + " 天）");
 
-    private void fillLocation(AgentContext ctx, Double latitude, Double longitude) {
-        if (latitude != null && longitude != null) {
-            ctx.setUserLatitude(latitude);
-            ctx.setUserLongitude(longitude);
-            return;
+        // 6. 附近商家（可筛门店偏好）
+        List<Merchant> merchants = merchantMapper.searchNearby(loc[0], loc[1], SEARCH_RADIUS_KM);
+        if (merchants.isEmpty()) {
+            throw new NeedUserInputException("附近 5 公里内没有可用商家，请更换位置或稍后再试。", "ask_location");
         }
-        User user = userMapper.selectById(ctx.getUserId());
-        if (user != null && user.getLatitude_wsh() != null && user.getLongitude_wsh() != null) {
-            ctx.setUserLatitude(user.getLatitude_wsh().doubleValue());
-            ctx.setUserLongitude(user.getLongitude_wsh().doubleValue());
-        }
-    }
-
-    private void step2QueryPetProfile(AgentContext ctx) {
-        ctx.setCurrentStep(2);
-        ctx.getLogs().add("Step 2: Query pet profile");
-
-        List<Pet> pets = petMapper.selectList(new LambdaQueryWrapper<Pet>().eq(Pet::getOwner_id_wsh, ctx.getUserId()));
-        if (pets.isEmpty()) {
-            throw new NeedUserInputException("未找到你的宠物档案，请先添加宠物信息后再让 Agent 下单。", "create_pet_profile");
-        }
-
-        Pet matchedPet = matchPet(pets, ctx.getPetType());
-        if (matchedPet == null) {
-            matchedPet = pets.get(0);
-        }
-        ctx.setPetId(matchedPet.getId_wsh());
-        ctx.setPetName(matchedPet.getName_wsh());
-        ctx.getLogs().add("  Pet: " + matchedPet.getName_wsh());
-    }
-
-    private Pet matchPet(List<Pet> pets, String petType) {
-        List<String> keywords = BREED_CN_MAP.getOrDefault(petType, Collections.emptyList());
-        for (Pet pet : pets) {
-            String breed = lower(pet.getBreed_wsh());
-            String type = lower(pet.getType_wsh());
-            for (String keyword : keywords) {
-                String normalized = keyword.toLowerCase();
-                if (breed.contains(normalized) || type.contains(normalized)) {
-                    return pet;
-                }
+        if (StringUtils.hasText(prompt.getMerchantKeyword())) {
+            String kw = prompt.getMerchantKeyword().trim();
+            final String need = lower(kw);
+            merchants = merchants.stream()
+                    .filter(m -> lower(m.getName_wsh()).contains(need))
+                    .collect(Collectors.toList());
+            if (merchants.isEmpty()) {
+                throw new NeedUserInputException("没有找到你偏好的门店（关键词：" + kw + "），请修改描述后重试。", "ask_requirement");
             }
-            if (breed.contains(petType) || type.contains(petType) || lower(pet.getName_wsh()).contains(petType)) {
-                return pet;
+        }
+        Map<Long, Merchant> merchantMap = merchants.stream()
+                .collect(Collectors.toMap(Merchant::getId_wsh, m -> m));
+
+        // 7. 看护人（仅保留已筛选商家下的）并评分排序
+        Set<Long> merchantIds = merchantMap.keySet();
+        List<KeeperVO> keepers = keeperService.searchNearby(loc[0], loc[1], SEARCH_RADIUS_KM).stream()
+                .filter(k -> merchantIds.contains(k.getMerchant_id_wsh()))
+                .collect(Collectors.toList());
+        if (keepers.isEmpty()) {
+            throw new NeedUserInputException("这些门店下暂无可用看护人，请更换位置或稍后再试。", "ask_location");
+        }
+        rankKeepers(keepers);
+
+        // 8. 挑选看护人 + day 寄养服务
+        Map<Long, List<ServiceItem>> serviceCache = new HashMap<>();
+        Picked picked = pickKeeperAndService(keepers, merchantMap, serviceCache, prompt);
+        if (picked == null) {
+            throw new NeedUserInputException("该区域暂无提供寄养日间服务的门店，请调整位置或预算后重试。", "retry_later");
+        }
+        logs.add("推荐: " + picked.keeper.getName_wsh() + " - " + picked.service.getName_wsh());
+
+        // 9. 生成快照
+        BigDecimal unitPrice = picked.service.getPrice_wsh() != null
+                ? picked.service.getPrice_wsh()
+                : picked.keeper.getPrice_per_day_wsh();
+        BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(days));
+
+        AgentPlanSnapshot snapshot = new AgentPlanSnapshot();
+        snapshot.setPet_id_wsh(pet.getId_wsh());
+        snapshot.setPet_name_wsh(pet.getName_wsh());
+        snapshot.setKeeper_id_wsh(picked.keeper.getId_wsh());
+        snapshot.setKeeper_name_wsh(picked.keeper.getName_wsh());
+        snapshot.setMerchant_id_wsh(picked.merchant.getId_wsh());
+        snapshot.setMerchant_name_wsh(picked.merchant.getName_wsh());
+        snapshot.setMerchant_address_wsh(picked.merchant.getAddress_wsh());
+        snapshot.setService_id_wsh(picked.service.getId_wsh());
+        snapshot.setService_name_wsh(picked.service.getName_wsh());
+        snapshot.setUnit_wsh(BookingUnit.DAY);
+        snapshot.setStart_date_wsh(start);
+        snapshot.setEnd_date_wsh(end);
+        snapshot.setDays_wsh(days);
+        snapshot.setUnit_price_wsh(unitPrice);
+        snapshot.setTotal_price_wsh(totalPrice);
+        snapshot.setDistance_wsh(picked.keeper.getDistance_wsh());
+        snapshot.setUser_input_wsh(userInput);
+        return snapshot;
+    }
+
+    /** 评分排序看护人（算法与重构前一致）。 */
+    private void rankKeepers(List<KeeperVO> keepers) {
+        double maxRating = maxOf(keepers, k -> dv(k.getRating_wsh()), 5.0);
+        double maxDistance = maxOf(keepers, k -> dv(k.getDistance_wsh()), 1.0);
+        double maxPrice = maxOf(keepers, k -> dv(k.getPrice_per_day_wsh()), 1.0);
+        double maxComplaint = maxOf(keepers, k -> dv(k.getComplaint_rate_wsh()), 1.0);
+        double maxCompletion = maxOf(keepers, k -> dv(k.getCompletion_rate_wsh()), 100.0);
+
+        Map<Long, Double> scores = new LinkedHashMap<>();
+        for (KeeperVO keeper : keepers) {
+            double ratingScore = boundedRatio(dv(keeper.getRating_wsh()), maxRating) * 40;
+            double distanceScore = (1 - boundedRatio(dv(keeper.getDistance_wsh()), maxDistance)) * 20;
+            double priceScore = (1 - boundedRatio(dv(keeper.getPrice_per_day_wsh()), maxPrice)) * 20;
+            double complaintScore = (1 - boundedRatio(dv(keeper.getComplaint_rate_wsh()), maxComplaint)) * 10;
+            double completionScore = boundedRatio(dv(keeper.getCompletion_rate_wsh()), maxCompletion) * 10;
+            double total = ratingScore + distanceScore + priceScore + complaintScore + completionScore;
+            scores.put(keeper.getId_wsh(), Math.round(Math.max(0.0, total) * 100.0) / 100.0);
+        }
+        keepers.sort((a, b) -> Double.compare(scores.getOrDefault(b.getId_wsh(), 0.0), scores.getOrDefault(a.getId_wsh(), 0.0)));
+    }
+
+    /** 依次尝试评分排序后的看护人，返回首个该商家有 day 寄养服务的组合。 */
+    private Picked pickKeeperAndService(List<KeeperVO> rankedKeepers, Map<Long, Merchant> merchantMap,
+                                        Map<Long, List<ServiceItem>> serviceCache, AgentPromptResult prompt) {
+        for (KeeperVO keeper : rankedKeepers) {
+            Merchant merchant = merchantMap.get(keeper.getMerchant_id_wsh());
+            if (merchant == null) continue;
+            ServiceItem service = pickDayService(dayServicesOf(keeper.getMerchant_id_wsh(), serviceCache), prompt);
+            if (service != null) {
+                return new Picked(keeper, merchant, service);
             }
         }
         return null;
     }
 
-    private void step3SearchMerchants(AgentContext ctx) {
-        ctx.setCurrentStep(3);
-        ctx.getLogs().add("Step 3: Search nearby merchants");
-        if (ctx.getUserLatitude() == null || ctx.getUserLongitude() == null) {
-            throw new NeedUserInputException("需要你的位置信息才能推荐附近商家，请授权定位或提供经纬度。", "ask_location");
-        }
-
-        List<Merchant> merchants = merchantMapper.searchNearby(ctx.getUserLatitude(), ctx.getUserLongitude(), SEARCH_RADIUS_KM);
-        if (merchants.isEmpty()) {
-            throw new NeedUserInputException("附近 5 公里内没有可用商家，请扩大范围或更换位置。", "ask_location");
-        }
-
-        ctx.setMerchants(merchants.stream().map(m -> {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("id", m.getId_wsh());
-            map.put("name", m.getName_wsh());
-            map.put("rating", m.getRating_wsh());
-            map.put("address", m.getAddress_wsh());
-            return map;
-        }).collect(Collectors.toList()));
-        ctx.getLogs().add("  Merchants: " + ctx.getMerchants().size());
+    /** 获取指定商家的启用服务（含非 day 单元，由 pickDayService 过滤）。 */
+    private List<ServiceItem> dayServicesOf(Long merchantId, Map<Long, List<ServiceItem>> cache) {
+        return cache.computeIfAbsent(merchantId, id -> serviceItemMapper.selectList(
+                new LambdaQueryWrapper<ServiceItem>()
+                        .eq(ServiceItem::getMerchant_id_wsh, id)
+                        .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue())));
     }
 
-    private void step4SearchKeepers(AgentContext ctx) {
-        ctx.setCurrentStep(4);
-        ctx.getLogs().add("Step 4: Search keepers");
-        List<KeeperVO> keepers = keeperService.searchNearby(ctx.getUserLatitude(), ctx.getUserLongitude(), SEARCH_RADIUS_KM);
-        if (keepers.isEmpty()) {
-            throw new NeedUserInputException("附近没有可用看护人，请更换位置或稍后再试。", "ask_location");
-        }
+    /** 从启用服务中挑选 day 单元、类型匹配、预算内的最便宜服务；无匹配返回 null。 */
+    private ServiceItem pickDayService(List<ServiceItem> services, AgentPromptResult prompt) {
+        if (services == null || services.isEmpty()) return null;
+        List<ServiceItem> day = services.stream()
+                .filter(s -> {
+                    String u = BookingUnit.normalize(s.getUnit_wsh());
+                    return u == null || BookingUnit.DAY.equals(u); // 历史数据 unit 为空按 day 兼容
+                })
+                .collect(Collectors.toList());
+        if (day.isEmpty()) return null;
 
-        ctx.setKeepers(keepers.stream().map(k -> {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("id", k.getId_wsh());
-            map.put("name", k.getName_wsh());
-            map.put("merchantId", k.getMerchant_id_wsh());
-            map.put("merchantName", k.getMerchant_name_wsh());
-            map.put("rating", k.getRating_wsh());
-            map.put("pricePerDay", k.getPrice_per_day_wsh());
-            map.put("distance", k.getDistance_wsh());
-            map.put("experienceYears", k.getExperience_years_wsh());
-            map.put("completionRate", k.getCompletion_rate_wsh());
-            map.put("complaintRate", k.getComplaint_rate_wsh());
-            map.put("currentPets", k.getCurrent_pets_wsh());
-            map.put("maxPets", k.getMax_pets_wsh());
-            return map;
-        }).collect(Collectors.toList()));
-        ctx.getLogs().add("  Keepers: " + ctx.getKeepers().size());
-    }
-
-    private void step5RankKeepers(AgentContext ctx) {
-        ctx.setCurrentStep(5);
-        ctx.getLogs().add("Step 5: Rank keepers");
-        List<Map<String, Object>> keepers = ctx.getKeepers();
-        if (keepers == null || keepers.isEmpty()) {
-            throw new NeedUserInputException("暂时没有可推荐的看护人。", "retry_later");
-        }
-
-        double maxRating = positiveMaxOf(keepers, "rating", 5.0);
-        double maxDistance = positiveMaxOf(keepers, "distance", 1.0);
-        double maxPrice = positiveMaxOf(keepers, "pricePerDay", 1.0);
-        double maxComplaint = positiveMaxOf(keepers, "complaintRate", 1.0);
-        double maxCompletion = positiveMaxOf(keepers, "completionRate", 100.0);
-
-        for (Map<String, Object> keeper : keepers) {
-            double ratingScore = boundedRatio(number(keeper.get("rating"), 0.0), maxRating) * 40;
-            double distanceScore = (1 - boundedRatio(number(keeper.get("distance"), maxDistance), maxDistance)) * 20;
-            double priceScore = (1 - boundedRatio(number(keeper.get("pricePerDay"), maxPrice), maxPrice)) * 20;
-            double complaintScore = (1 - boundedRatio(number(keeper.get("complaintRate"), maxComplaint), maxComplaint)) * 10;
-            double completionScore = boundedRatio(number(keeper.get("completionRate"), 100.0), maxCompletion) * 10;
-            double totalScore = ratingScore + distanceScore + priceScore + complaintScore + completionScore;
-            keeper.put("totalScore", Math.round(Math.max(0.0, totalScore) * 100.0) / 100.0);
-        }
-        keepers.sort((a, b) -> Double.compare(number(b.get("totalScore"), 0.0), number(a.get("totalScore"), 0.0)));
-    }
-
-    private void step6GenerateRecommendation(AgentContext ctx) {
-        ctx.setCurrentStep(6);
-        ctx.getLogs().add("Step 6: Generate recommendation");
-        List<Map<String, Object>> keepers = ctx.getKeepers();
-        Map<String, Object> bestKeeper = keepers.get(0);
-        double budgetPerDay = 500.0 / Math.max(ctx.getDays(), 1);
-        for (Map<String, Object> keeper : keepers) {
-            if (number(keeper.get("pricePerDay"), Double.MAX_VALUE) <= budgetPerDay) {
-                bestKeeper = keeper;
-                break;
+        List<ServiceItem> filtered = day;
+        if (prompt.getServiceType() != null) {
+            String type = prompt.getServiceType().trim().toUpperCase();
+            if (type.startsWith(SUPPORTED_SERVICE_TYPE)) {
+                filtered = day.stream()
+                        .filter(s -> s.getType_wsh() != null && lower(s.getType_wsh()).startsWith("boarding"))
+                        .collect(Collectors.toList());
             }
+            if (filtered.isEmpty()) return null;
         }
-        ctx.setSelectedKeeper(bestKeeper);
-        ctx.getLogs().add("  Recommended keeper: " + bestKeeper.get("name"));
+        if (prompt.getMaxPricePerDay() != null) {
+            BigDecimal budget = prompt.getMaxPricePerDay();
+            List<ServiceItem> affordable = filtered.stream()
+                    .filter(s -> s.getPrice_wsh() != null && s.getPrice_wsh().compareTo(budget) <= 0)
+                    .collect(Collectors.toList());
+            if (affordable.isEmpty()) return null;
+            filtered = affordable;
+        }
+        return filtered.stream()
+                .min(Comparator.comparing(s -> s.getPrice_wsh() == null ? BigDecimal.valueOf(Long.MAX_VALUE) : s.getPrice_wsh()))
+                .orElse(null);
     }
 
-    private void step7CreatePendingOrder(AgentContext ctx) {
-        ctx.setCurrentStep(7);
-        ctx.getLogs().add("Step 7: Create pending order");
-
-        Map<String, Object> keeper = ctx.getSelectedKeeper();
-        Long keeperId = ((Number) keeper.get("id")).longValue();
-        Long merchantId = ((Number) keeper.get("merchantId")).longValue();
-        Merchant merchant = merchantMapper.selectById(merchantId);
-        User owner = userMapper.selectById(ctx.getUserId());
-        if (owner == null) {
-            throw new BusinessException(404, "用户不存在");
+    /** LLM 结构化提取需求；LLM 不可用/解析失败返回 null。 */
+    private AgentPromptResult extractRequirement(String userInput) {
+        List<Map<String, String>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", buildExtractionPrompt()));
+        messages.add(Map.of("role", "user", "content", userInput));
+        String raw = aiChatService.chat(messages);
+        if (raw == null || raw.isBlank()) {
+            log.warn("Agent 智能下单：LLM 未返回内容（可能未配置 API Key）");
+            return null;
         }
-        if (!StringUtils.hasText(owner.getPhone_wsh())) {
-            throw new NeedUserInputException("下单需要紧急联系人手机号，请先在个人资料中绑定手机号。", "complete_profile");
+        return parseJson(raw);
+    }
+
+    private AgentPromptResult parseJson(String raw) {
+        try {
+            String cleaned = raw.trim();
+            // 去掉可能的 Markdown 代码块围栏
+            if (cleaned.startsWith("```")) {
+                int firstLine = cleaned.indexOf('\n');
+                int last = cleaned.lastIndexOf("```");
+                if (firstLine > 0 && last > firstLine) {
+                    cleaned = cleaned.substring(firstLine + 1, last).trim();
+                }
+            }
+            return objectMapper.readValue(cleaned, AgentPromptResult.class);
+        } catch (Exception e) {
+            log.warn("Agent 智能下单：LLM 返回无法解析为 JSON: {}", raw);
+            return null;
         }
+    }
 
-        LocalDate start = LocalDate.now().plusDays(1);
-        LocalDate end = start.plusDays(ctx.getDays());
+    private String buildExtractionPrompt() {
+        return """
+                你是“宠物之家”平台的智能下单解析器。用户输入一条自然语言寄养预约需求，请提取为结构化 JSON。
 
+                要求：
+                1. 只输出一个 JSON 对象，不要输出任何其他文字、解释或 Markdown 代码块。
+                2. 当前日期：%s。凡提到“今天/明天/这周/下周/几号”等相对时间，都基于当前日期计算并换算成具体日期。
+                3. 输出字段定义：
+                   - pet_name：宠物昵称；找不到则为 null。
+                   - pet_type：宠物类型或品种（如 狗/猫/金毛/泰迪/布偶）；找不到则为 null。
+                   - service_type：服务类型，只能是以下之一：BOARDING、GROOMING、TRAINING、WALK、MEDICAL；
+                     用户指代寄养/住宿/托管等或无法判断时输出 BOARDING；确定是洗护/美容输出 GROOMING；遛宠输出 WALK；
+                     训练输出 TRAINING；医疗输出 MEDICAL；完全无法判断输出 null。
+                   - start_date：开始日期，格式 yyyy-MM-dd；用户给出具体日期或可推算日期则输出，否则 null。
+                   - days：寄养天数（正整数）；用户给出起止日期（如“9月15日到18日”）时按其包含的天数计算；未提及则为 null。
+                   - merchant_keyword：用户偏好的门店名/地名/商圈关键词；没有则为 null。
+                   - max_price_per_day：用户提到的每日价格预算上限（数字）；没有则为 null。
+                   - unit：计费单位，只能是 "day"、"session"、"hour"；寄养类默认 "day"；用户明确说按次/按小时时填对应值。
+                4. 拿不准的字段一律输出 null，绝不编造。
+                5. 只输出合法 JSON，字段名、类型严格按定义，不要注释、不要尾逗号。
+                """.formatted(LocalDate.now());
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // confirm 阶段
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 【业务名称】智能下单 confirm 阶段
+     * <p>业务作用：凭方案 token 原子认领后创建订单与支付记录；autoPay=true 时校验支付密码并直接支付。</p>
+     * <p>业务规则：token 防重复下单（同一方案只允许一个执行者）；支付密码缺失/错误不创建订单；成功提交后才消费 token，失败释放 token 供重试。</p>
+     * <p>状态影响：新增订单与支付记录。事务失败整体回滚。</p>
+     */
+    @Transactional
+    @Override
+    public AgentExecuteResult confirm(Long userId, String planToken, Boolean autoPay, String paymentPassword) {
+        AgentPlanSnapshot snapshot = planTokenStore.claim(planToken, userId);
+        List<String> logs = new ArrayList<>();
+        logs.add("方案已认领");
+        AgentExecuteResult result = new AgentExecuteResult();
+        try {
+            if (Boolean.TRUE.equals(autoPay)) {
+                verifyAutoPayAuthorization(userId, paymentPassword);
+            }
+            User owner = userMapper.selectById(userId);
+            if (owner == null) {
+                throw new BusinessException(404, "用户不存在");
+            }
+            if (!StringUtils.hasText(owner.getPhone_wsh())) {
+                throw new NeedUserInputException("下单需要紧急联系人手机号，请先在个人资料中绑定手机号。", "complete_profile");
+            }
+            logs.add("用户资料已校验");
+
+            OrderDTO order = orderService.createOrder(userId, buildOrderRequest(snapshot, owner));
+            logs.add("订单已创建: " + order.getOrder_no_wsh());
+
+            Payment payment = paymentService.createPayment(userId, order.getOrder_no_wsh(), "balance");
+            logs.add("支付记录已创建: " + payment.getPay_no_wsh());
+
+            if (Boolean.TRUE.equals(autoPay)) {
+                paymentService.pay(userId, payment.getPay_no_wsh());
+                logs.add("支付已完成");
+                step9SendNotification(order.getOrder_no_wsh());
+                consumeOnCommit(planToken, userId);
+                return buildConfirmResult(snapshot, order, payment, logs, "success",
+                        "支付已完成，订单已进入待商家处理状态。", "paid", false);
+            }
+
+            step9SendNotification(order.getOrder_no_wsh());
+            consumeOnCommit(planToken, userId);
+            return buildConfirmResult(snapshot, order, payment, logs, "pending_payment",
+                    "订单已创建，当前为待支付状态。请手动支付，或在授权自动支付时输入支付密码。", "manual_payment", false);
+        } catch (NeedUserInputException e) {
+            planTokenStore.release(planToken, userId);
+            result.setStatus("needs_user_input");
+            result.setRequires_user_input_wsh(true);
+            result.setNext_action_wsh(e.getNextAction());
+            result.setMessage_wsh(e.getMessage());
+            result.setLogs(logs);
+            result.setPetName(snapshot.getPet_name_wsh());
+            result.setDays(snapshot.getDays_wsh());
+            return result;
+        } catch (Exception e) {
+            planTokenStore.release(planToken, userId);
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            log.error("Agent confirm 失败: {}", e.getMessage(), e);
+            result.setStatus("failed");
+            result.setRequires_user_input_wsh(false);
+            result.setNext_action_wsh("retry_later");
+            result.setMessage_wsh(safeMessage(e));
+            result.setLogs(logs);
+            result.setPetName(snapshot.getPet_name_wsh());
+            result.setDays(snapshot.getDays_wsh());
+            return result;
+        }
+    }
+
+    private OrderCreateRequestDTO buildOrderRequest(AgentPlanSnapshot s, User owner) {
+        LocalDate start = s.getStart_date_wsh();
+        LocalDate end = s.getEnd_date_wsh();
         OrderCreateRequestDTO request = new OrderCreateRequestDTO();
-        request.setPet_id_wsh(ctx.getPetId());
-        request.setKeeper_id_wsh(keeperId);
-        request.setMerchant_id_wsh(merchantId);
-        request.setService_id_wsh(resolveServiceId(merchantId));
+        request.setPet_id_wsh(s.getPet_id_wsh());
+        request.setKeeper_id_wsh(s.getKeeper_id_wsh());
+        request.setMerchant_id_wsh(s.getMerchant_id_wsh());
+        request.setService_id_wsh(s.getService_id_wsh());
+        request.setBilling_unit_wsh(s.getUnit_wsh());
+        request.setExpected_unit_price_wsh(s.getUnit_price_wsh());
         request.setStart_date_wsh(start);
         request.setEnd_date_wsh(end);
-        request.setDelivery_address_wsh(merchant != null ? merchant.getAddress_wsh() : null);
+        request.setDelivery_address_wsh(s.getMerchant_address_wsh());
         request.setDelivery_location_source_wsh("merchant");
-        request.setPickup_address_wsh(merchant != null ? merchant.getAddress_wsh() : null);
+        request.setPickup_address_wsh(s.getMerchant_address_wsh());
         request.setPickup_location_source_wsh("merchant");
         request.setDelivery_time_wsh(start.atTime(10, 0));
         request.setReceiver_available_start_wsh(start.atTime(10, 0));
@@ -398,89 +492,140 @@ public class AgentServiceImpl implements AgentService {
         request.setPickup_time_wsh(end.atTime(18, 0));
         request.setEmergency_contact_name_wsh(defaultText(owner.getReal_name_wsh(), defaultText(owner.getNickname_wsh(), owner.getUsername_wsh())));
         request.setEmergency_contact_phone_wsh(owner.getPhone_wsh());
-        request.setRemark_wsh("AI Agent pending order - " + HtmlUtils.htmlEscape(ctx.getUserInput()));
-
-        OrderDTO order = orderService.createOrder(ctx.getUserId(), request);
-        ctx.setOrderNo(order.getOrder_no_wsh());
-        ctx.getLogs().add("  Pending order created: " + order.getOrder_no_wsh());
+        request.setRemark_wsh("AI Agent order - " + HtmlUtils.htmlEscape(s.getUser_input_wsh()));
+        return request;
     }
 
-    private Payment step8CreatePendingPayment(AgentContext ctx) {
-        ctx.setCurrentStep(8);
-        ctx.getLogs().add("Step 8: Create pending payment");
-        Payment payment = paymentService.createPayment(ctx.getUserId(), ctx.getOrderNo(), "balance");
-        ctx.setPayNo(payment.getPay_no_wsh());
-        ctx.getLogs().add("  Pending payment created: " + payment.getPay_no_wsh());
-        return payment;
+    private AgentExecuteResult buildConfirmResult(AgentPlanSnapshot s, OrderDTO order, Payment payment,
+                                                  List<String> logs, String status, String message,
+                                                  String nextAction, boolean requiresUserInput) {
+        AgentExecuteResult result = new AgentExecuteResult();
+        result.setStatus(status);
+        result.setMessage_wsh(message);
+        result.setNext_action_wsh(nextAction);
+        result.setRequires_user_input_wsh(requiresUserInput);
+        result.setLogs(logs);
+        result.setPetName(s.getPet_name_wsh());
+        result.setDays(s.getDays_wsh());
+        if (order != null) {
+            result.setOrderNo(order.getOrder_no_wsh());
+        }
+        if (payment != null) {
+            result.setPayNo(payment.getPay_no_wsh());
+            result.setPayment_status_wsh("success".equals(status) ? "paid" : "pending");
+        }
+        return result;
     }
 
-    private void verifyAutoPayAuthorization(AgentContext ctx, String paymentPassword) {
-        ctx.getLogs().add("Step 7: Verify payment authorization");
+    /** 事务提交成功后才消费方案 token；无活动事务（如单元测试）则立即消费。 */
+    private void consumeOnCommit(String planToken, Long userId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    planTokenStore.consumeAndRemove(planToken, userId);
+                }
+            });
+        } else {
+            planTokenStore.consumeAndRemove(planToken, userId);
+        }
+    }
+
+    private void verifyAutoPayAuthorization(Long userId, String paymentPassword) {
         if (!StringUtils.hasText(paymentPassword)) {
-            throw new NeedUserInputException("如需 Agent 自动支付，请先输入支付密码；否则我会只创建待支付订单，由你手动支付。", "ask_payment_password");
+            throw new NeedUserInputException("如需智能下单自动支付，请先输入支付密码；否则我会只创建待支付订单，由你手动支付。", "ask_payment_password");
         }
         try {
-            userService.verifyPaymentPassword(ctx.getUserId(), paymentPassword);
+            userService.verifyPaymentPassword(userId, paymentPassword);
         } catch (BusinessException e) {
             if (e.getCode() == 400 || e.getCode() == 403) {
                 throw new NeedUserInputException(e.getMessage(), "ask_payment_password");
             }
             throw e;
         }
-        ctx.getLogs().add("  Payment authorization verified");
     }
 
-    private void payWithVerifiedAuthorization(AgentContext ctx, Payment payment) {
-        paymentService.pay(ctx.getUserId(), payment.getPay_no_wsh());
-        ctx.getLogs().add("  Payment completed by explicit authorization");
-    }
-
-    private void step9SendNotification(AgentContext ctx) {
-        ctx.setCurrentStep(9);
-        ctx.getLogs().add("Step 9: Send MQ notification");
+    private void step9SendNotification(String orderNo) {
         try {
-            messageSender.sendOrderCreate(ctx.getOrderNo());
-            ctx.getLogs().add("  MQ message sent");
+            messageSender.sendOrderCreate(orderNo);
+            log.debug("Agent 订单通知已发送: {}", orderNo);
         } catch (Exception e) {
-            log.warn("Agent MQ notification failed: {}", e.getMessage());
-            ctx.getLogs().add("  MQ notification failed (non-fatal): " + e.getMessage());
+            log.warn("Agent 订单 MQ 通知失败（非致命）: {}", e.getMessage());
         }
     }
 
-    private Long resolveServiceId(Long merchantId) {
-        ServiceItem service = serviceItemMapper.selectOne(
-                new LambdaQueryWrapper<ServiceItem>()
-                        .eq(ServiceItem::getMerchant_id_wsh, merchantId)
-                        .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue())
-                        .last("LIMIT 1"));
-        return service == null ? null : service.getId_wsh();
-    }
+    // ═══════════════════════════════════════════════════════════
+    // 辅助方法
+    // ═══════════════════════════════════════════════════════════
 
-    private AgentExecuteResult buildResult(AgentContext ctx, String status, String message, String nextAction, boolean requiresUserInput) {
-        ctx.setStatus(status);
-        Map<String, Object> result = new HashMap<>();
-        result.put("status", status);
-        result.put("message_wsh", message);
-        result.put("next_action_wsh", nextAction);
-        result.put("requires_user_input_wsh", requiresUserInput);
-        result.put("payment_status_wsh", "success".equals(status) ? "paid" : (ctx.getPayNo() == null ? null : "pending"));
-        result.put("orderNo", ctx.getOrderNo());
-        result.put("payNo", ctx.getPayNo());
-        result.put("selectedKeeper", ctx.getSelectedKeeper());
-        result.put("petName", ctx.getPetName());
-        result.put("days", ctx.getDays());
-        result.put("logs", ctx.getLogs());
-        result.put("currentStep", ctx.getCurrentStep());
-        result.put("error", ctx.getError());
-        return AgentExecuteResult.fromMap(result);
-    }
-
-    private double positiveMaxOf(List<Map<String, Object>> rows, String key, double fallback) {
-        double max = rows.stream().mapToDouble(row -> number(row.get(key), 0.0)).max().orElse(0.0);
-        if (!Double.isFinite(max) || max <= 0.0) {
-            return fallback > 0.0 ? fallback : 1.0;
+    /** 坐标回退：请求坐标 → 用户档案坐标 → 无坐标抛 ask_location。 */
+    private double[] resolveLocation(Long userId, Double latitude, Double longitude) {
+        if (latitude != null && longitude != null) {
+            return new double[]{latitude, longitude};
         }
-        return max;
+        User user = userMapper.selectById(userId);
+        if (user != null && user.getLatitude_wsh() != null && user.getLongitude_wsh() != null) {
+            return new double[]{user.getLatitude_wsh().doubleValue(), user.getLongitude_wsh().doubleValue()};
+        }
+        throw new NeedUserInputException("需要你的位置信息才能推荐附近商家，请授权定位或先完善个人资料中的位置。", "ask_location");
+    }
+
+    /** 按 LLM 提取的宠物昵称/类型匹配用户宠物；无法唯一确定返回 null。 */
+    private Pet matchPet(List<Pet> pets, AgentPromptResult prompt) {
+        String name = prompt.getPetName();
+        if (StringUtils.hasText(name)) {
+            String need = lower(name);
+            List<Pet> byName = pets.stream()
+                    .filter(p -> lower(p.getName_wsh()).contains(need) || need.contains(lower(p.getName_wsh())))
+                    .collect(Collectors.toList());
+            if (byName.size() == 1) return byName.get(0);
+            if (byName.size() > 1) return null; // 重名，需用户确认
+        }
+        String type = prompt.getPetType();
+        if (StringUtils.hasText(type)) {
+            String want = lower(type.trim());
+            List<Pet> byType = pets.stream()
+                    .filter(p -> lower(p.getBreed_wsh()).contains(want)
+                            || want.contains(lower(p.getBreed_wsh()))
+                            || lower(p.getType_wsh()).contains(want)
+                            || want.contains(lower(p.getType_wsh())))
+                    .collect(Collectors.toList());
+            if (byType.size() == 1) return byType.get(0);
+        }
+        // 用户没提宠物名/类型，但只有一只宠物时直接使用
+        return pets.size() == 1 ? pets.get(0) : null;
+    }
+
+    private LocalDate parseStartDate(String value) {
+        if (!StringUtils.hasText(value)) return null;
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private void fillPlanFields(AgentPlanResult result, AgentPlanSnapshot s) {
+        result.setPet_name_wsh(s.getPet_name_wsh());
+        result.setPet_id_wsh(s.getPet_id_wsh());
+        result.setMerchant_name_wsh(s.getMerchant_name_wsh());
+        result.setMerchant_id_wsh(s.getMerchant_id_wsh());
+        result.setKeeper_name_wsh(s.getKeeper_name_wsh());
+        result.setKeeper_id_wsh(s.getKeeper_id_wsh());
+        result.setService_name_wsh(s.getService_name_wsh());
+        result.setService_id_wsh(s.getService_id_wsh());
+        result.setUnit_wsh(s.getUnit_wsh());
+        result.setStart_date_wsh(s.getStart_date_wsh());
+        result.setEnd_date_wsh(s.getEnd_date_wsh());
+        result.setDays_wsh(s.getDays_wsh());
+        result.setUnit_price_wsh(s.getUnit_price_wsh());
+        result.setTotal_price_wsh(s.getTotal_price_wsh());
+        result.setDistance_wsh(s.getDistance_wsh());
+    }
+
+    private double maxOf(List<KeeperVO> rows, java.util.function.ToDoubleFunction<KeeperVO> fn, double fallback) {
+        double max = rows.stream().mapToDouble(fn).max().orElse(0.0);
+        return (!Double.isFinite(max) || max <= 0.0) ? fallback : max;
     }
 
     private double boundedRatio(double value, double denominator) {
@@ -490,18 +635,8 @@ public class AgentServiceImpl implements AgentService {
         return Math.max(0.0, Math.min(1.0, value / denominator));
     }
 
-    private double number(Object value, double fallback) {
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        if (value == null) {
-            return fallback;
-        }
-        try {
-            return Double.parseDouble(String.valueOf(value));
-        } catch (NumberFormatException e) {
-            return fallback;
-        }
+    private double dv(Number value) {
+        return value == null ? 0.0 : value.doubleValue();
     }
 
     private String lower(String value) {
@@ -512,12 +647,36 @@ public class AgentServiceImpl implements AgentService {
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
+    private String safeMessage(Exception e) {
+        return e instanceof org.springframework.dao.DataAccessException
+                ? "系统内部错误，请稍后重试。"
+                : (e.getMessage() == null || e.getMessage().isBlank() ? "操作失败，请稍后重试。" : e.getMessage());
+    }
+
+    /** plan 结果缺距离字段时兼容（当前快照未保存距离，返回 null 由前端忽略）。 */
+    private static final class Picked {
+        private final KeeperVO keeper;
+        private final Merchant merchant;
+        private final ServiceItem service;
+
+        private Picked(KeeperVO keeper, Merchant merchant, ServiceItem service) {
+            this.keeper = keeper;
+            this.merchant = merchant;
+            this.service = service;
+        }
+    }
+
+    /** 缺信息中断流程：返回 needs_user_input 状态并提示用户补充。 */
     private static class NeedUserInputException extends BusinessException {
         private final String nextAction;
 
         private NeedUserInputException(String message, String nextAction) {
             super(400, message);
             this.nextAction = nextAction;
+        }
+
+        private String getNextAction() {
+            return nextAction;
         }
     }
 }

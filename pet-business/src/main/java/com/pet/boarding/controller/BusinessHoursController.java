@@ -72,7 +72,7 @@ public class BusinessHoursController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<BusinessHoursDTO>> list(@Parameter(description = "商家ID") @PathVariable Long merchantId) {
-        log.info("list() called");
+        log.info("list() 被调用");
         return Result.success(businessHoursService.getByMerchantId(merchantId).stream().map(businessHoursService::toDTO).collect(Collectors.toList()));
     }
 
@@ -103,7 +103,7 @@ public class BusinessHoursController {
     public Result<BusinessHoursDTO> upsert(@AuthenticationPrincipal JwtAuthenticationToken token,
                                            @Parameter(description = "商家ID") @PathVariable Long merchantId,
                                            @RequestBody BusinessHoursUpsertRequestDTO dto) {
-        log.info("upsert() called");
+        log.info("upsert() 被调用");
         if (!isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
             return Result.error(403, "无权修改此商家的营业时间");
         }
@@ -135,7 +135,7 @@ public class BusinessHoursController {
     public Result<Void> delete(@AuthenticationPrincipal JwtAuthenticationToken token,
                                @Parameter(description = "商家ID") @PathVariable Long merchantId,
                                @Parameter(description = "营业时间记录ID") @PathVariable Long id) {
-        log.info("delete() called");
+        log.info("delete() 被调用");
         if (!isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
             return Result.error(403, "无权修改此商家的营业时间");
         }

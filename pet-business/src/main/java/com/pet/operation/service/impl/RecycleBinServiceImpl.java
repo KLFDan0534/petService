@@ -36,7 +36,7 @@ public class RecycleBinServiceImpl implements RecycleBinService {
      */
     @Override
     public List<Map<String, Object>> listDeleted(String tableName) {
-        log.info("listDeleted() called");
+        log.info("listDeleted() 被调用");
         validateTable(tableName);
         return recycleBinMapper.selectDeleted(tableName);
     }
@@ -47,7 +47,7 @@ public class RecycleBinServiceImpl implements RecycleBinService {
     @Override
     @Transactional
     public void restore(String tableName, Long id) {
-        log.info("restore() called");
+        log.info("restore() 被调用");
         validateTable(tableName);
         int rows = recycleBinMapper.restore(tableName, id);
         if (rows == 0) {
@@ -61,7 +61,7 @@ public class RecycleBinServiceImpl implements RecycleBinService {
     @Override
     @Transactional
     public void softDelete(String tableName, Long id) {
-        log.info("softDelete() called");
+        log.info("softDelete() 被调用");
         validateTable(tableName);
         int rows = recycleBinMapper.softDelete(tableName, id);
         if (rows == 0) {
@@ -74,7 +74,7 @@ public class RecycleBinServiceImpl implements RecycleBinService {
      */
     @Override
     public List<String> listSoftDeletableTables() {
-        log.info("listSoftDeletableTables() called");
+        log.info("listSoftDeletableTables() 被调用");
         return SOFT_DELETABLE_TABLES;
     }
 

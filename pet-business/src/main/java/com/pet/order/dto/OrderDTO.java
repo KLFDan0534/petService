@@ -1,7 +1,6 @@
 package com.pet.order.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -161,30 +160,5 @@ public class OrderDTO {
     @Schema(description = "是否已有反馈（评价）")
     private Boolean has_feedback_wsh;
 
-    @JsonProperty("id")
-    public Long getId() { return id_wsh; }
 
-    @JsonProperty("orderNo")
-    public String getOrderNo() { return order_no_wsh; }
-
-    @JsonProperty("status")
-    public String getStatus() { return status_wsh; }
-
-    @JsonProperty("amount")
-    public BigDecimal getAmount() { return final_amount_wsh; }
-
-    @JsonProperty("startDate")
-    public LocalDate getStartDate() { return start_date_wsh; }
-
-    @JsonProperty("endDate")
-    public LocalDate getEndDate() { return end_date_wsh; }
-
-    @JsonProperty("handoverCode")
-    public String getHandoverCode() { return handover_code_wsh; }
-
-    @JsonProperty("emergencyContactName")
-    public String getEmergencyContactName() { return emergency_contact_name_wsh; }
-
-    @JsonProperty("emergencyContactPhone")
-    public String getEmergencyContactPhone() { return emergency_contact_phone_wsh; }
 }

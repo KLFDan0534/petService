@@ -9,19 +9,19 @@ import java.math.BigDecimal;
 @Setter
 public class AdminDashboardVO {
     @Schema(description = "总用户数")
-    private int totalUsers;
+    private int total_users_wsh;
     @Schema(description = "总宠物数")
-    private int totalPets;
+    private int total_pets_wsh;
     @Schema(description = "总商户数")
-    private int totalMerchants;
+    private int total_merchants_wsh;
     @Schema(description = "总看护者数")
-    private int totalKeepers;
+    private int total_keepers_wsh;
     @Schema(description = "总订单数")
-    private int totalOrders;
+    private int total_orders_wsh;
     @Schema(description = "总营收")
-    private BigDecimal totalRevenue;
+    private BigDecimal total_revenue_wsh;
     @Schema(description = "待处理订单数")
-    private long pendingOrders;
+    private long pending_orders_wsh;
     @Schema(description = "已完成订单数")
-    private long completedOrders;
+    private long completed_orders_wsh;
 }

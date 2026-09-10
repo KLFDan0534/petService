@@ -7,7 +7,7 @@
       :alt="alt"
       :loading="loading"
       decoding="async"
-      @error="failed = true"
+      @error="handleError"
     >
     <div
       v-else
@@ -15,7 +15,7 @@
       :role="alt ? 'img' : undefined"
       :aria-label="alt || undefined"
     >
-      <el-icon aria-hidden="true"><Picture /></el-icon>
+      <AppIcon aria-hidden="true"><Picture /></AppIcon>
       <span v-if="placeholder">{{ placeholder }}</span>
     </div>
   </div>
@@ -30,16 +30,30 @@ const props = defineProps({
   alt: { type: String, default: '' },
   placeholder: { type: String, default: '' },
   loading: { type: String, default: 'lazy' },
+  /** 主图加载失败时改用的备用图（如本地素材图）；备用图也失败才落到占位块。 */
+  fallbackSrc: { type: String, default: '' },
 })
 
-const failed = ref(false)
+// stage: 0 = 显示 src，1 = 显示 fallbackSrc，2 = 都失败，显示占位块
+const stage = ref(0)
 
-const displaySrc = computed(() => normalizeMediaUrl(props.src))
-const showFallback = computed(() => !displaySrc.value || failed.value)
+const primarySrc = computed(() => normalizeMediaUrl(props.src))
+const backupSrc = computed(() => (props.fallbackSrc ? normalizeMediaUrl(props.fallbackSrc) : ''))
+
+const displaySrc = computed(() => (stage.value === 1 ? backupSrc.value : primarySrc.value))
+const showFallback = computed(() => !primarySrc.value || stage.value === 2)
 
 watch(() => props.src, () => {
-  failed.value = false
+  stage.value = 0
 })
+
+function handleError() {
+  if (stage.value === 0 && backupSrc.value) {
+    stage.value = 1
+    return
+  }
+  stage.value = 2
+}
 
 function normalizeMediaUrl(value) {
   const rawUrl = String(value || '').trim()

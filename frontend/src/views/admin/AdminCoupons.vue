@@ -13,7 +13,7 @@
       <table>
         <thead>
           <tr>
-            <th>ID</th>
+            <th>编号</th>
             <th>名称</th>
             <th>类型</th>
             <th>门槛</th>
@@ -60,10 +60,13 @@
       </table>
     </div>
 
-    <div v-if="showCreate" class="modal-overlay" @mousedown.self="showCreate = false">
-      <div class="modal coupon-modal">
-        <h3>新建优惠券</h3>
-        <div class="form-grid">
+    <AppDialog
+      :visible="showCreate"
+      :width="760"
+      title="新建优惠券"
+      @close="showCreate = false"
+    >
+      <div class="form-grid">
           <label>
             名称
             <input v-model.trim="createForm.name_wsh" class="form-control" maxlength="100" placeholder="例如：平台新人券">
@@ -123,19 +126,21 @@
             <textarea v-model.trim="createForm.remark_wsh" class="form-control" maxlength="500" rows="3"></textarea>
           </label>
         </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="showCreate = false">取消</button>
-          <button class="btn btn-primary btn-sm" type="button" :disabled="submitting" @click="submitCreate">
-            {{ submitting ? '保存中...' : '保存' }}
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="showCreate = false">取消</button>
+        <button class="btn btn-primary btn-sm" type="button" :disabled="submitting" @click="submitCreate">
+          {{ submitting ? '保存中...' : '保存' }}
+        </button>
+      </template>
+    </AppDialog>
 
-    <div v-if="grantTarget" class="modal-overlay" @mousedown.self="closeGrant">
-      <div class="modal grant-modal">
-        <h3>发放优惠券</h3>
-        <p class="muted-text">{{ grantTarget.name_wsh }}</p>
+    <AppDialog
+      :visible="grantTarget"
+      :width="680"
+      title="发放优惠券"
+      @close="closeGrant"
+    >
+      <p class="muted-text">{{ grantTarget.name_wsh }}</p>
 
         <div class="grant-mode-tabs">
           <button
@@ -249,57 +254,58 @@
           </template>
 
           <div v-else class="grant-all-panel">
-            将发给所有正常状态用户，仍受库存和每人限领限制。
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="closeGrant">取消</button>
-          <button
-            v-if="grantMode === 'selected'"
-            class="btn btn-primary btn-sm"
-            type="button"
-            :disabled="submitting || selectedUsers.length === 0"
-            @click="submitGrantSelected"
-          >
-            {{ submitting ? '发放中...' : `发给已选用户(${selectedUsers.length})` }}
-          </button>
-          <button
-            v-else-if="grantMode === 'condition'"
-            class="btn btn-primary btn-sm"
-            type="button"
-            :disabled="submitting"
-            @click="submitGrantCondition"
-          >
-            {{ submitting ? '发放中...' : '按条件发放' }}
-          </button>
-          <button
-            v-else
-            class="btn btn-primary btn-sm"
-            type="button"
-            :disabled="submitting"
-            @click="confirmGrantAll"
-          >
-            发给全部正常用户
-          </button>
+          将发给所有正常状态用户，仍受库存和每人限领限制。
         </div>
       </div>
-    </div>
 
-    <div v-if="grantAllConfirming" class="modal-overlay" @mousedown.self="grantAllConfirming = false">
-      <div class="modal" style="max-width:420px">
-        <h3>确认发给全部正常用户</h3>
-        <p class="confirm-text">
-          将把「{{ grantTarget?.name_wsh }}」按每人 {{ Number(grantForm.quantity_wsh || 1) }} 张发放给所有正常状态用户。
-        </p>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="grantAllConfirming = false">取消</button>
-          <button class="btn btn-primary btn-sm" type="button" :disabled="submitting" @click="submitGrantAll">
-            {{ submitting ? '发放中...' : '确认发放' }}
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="closeGrant">取消</button>
+        <button
+          v-if="grantMode === 'selected'"
+          class="btn btn-primary btn-sm"
+          type="button"
+          :disabled="submitting || selectedUsers.length === 0"
+          @click="submitGrantSelected"
+        >
+          {{ submitting ? '发放中...' : `发给已选用户(${selectedUsers.length})` }}
+        </button>
+        <button
+          v-else-if="grantMode === 'condition'"
+          class="btn btn-primary btn-sm"
+          type="button"
+          :disabled="submitting"
+          @click="submitGrantCondition"
+        >
+          {{ submitting ? '发放中...' : '按条件发放' }}
+        </button>
+        <button
+          v-else
+          class="btn btn-primary btn-sm"
+          type="button"
+          :disabled="submitting"
+          @click="confirmGrantAll"
+        >
+          发给全部正常用户
+        </button>
+      </template>
+    </AppDialog>
+
+    <AppDialog
+      :visible="grantAllConfirming"
+      :width="420"
+      title="确认发给全部正常用户"
+      @close="grantAllConfirming = false"
+    >
+      <p class="confirm-text">
+        将把「{{ grantTarget?.name_wsh }}」按每人 {{ Number(grantForm.quantity_wsh || 1) }} 张发放给所有正常状态用户。
+      </p>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="grantAllConfirming = false">取消</button>
+        <button class="btn btn-primary btn-sm" type="button" :disabled="submitting" @click="submitGrantAll">
+          {{ submitting ? '发放中...' : '确认发放' }}
+        </button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -315,6 +321,7 @@ import {
   updateCouponTemplateStatus,
 } from '@/api/coupon'
 import { getUsers } from '@/api/admin'
+import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
 const loading = ref(false)
@@ -686,7 +693,7 @@ function toInputDateTime(date) {
 }
 .grant-mode-tab {
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   color: var(--color-muted-foreground);
   font-size: 13px;
   font-weight: 700;
@@ -728,7 +735,7 @@ function toInputDateTime(date) {
 .selected-user {
   align-items: center;
   background: rgba(249, 115, 22, 0.12);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--color-primary);
   display: inline-flex;
   font-size: 12px;
@@ -783,7 +790,7 @@ function toInputDateTime(date) {
   display: inline-flex;
   min-width: 48px;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 3px 8px;
   font-size: 12px;
 }

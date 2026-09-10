@@ -1,21 +1,17 @@
 package com.pet.order.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 
 @Data
 public class PaymentCreateRequestDTO {
     @Schema(description = "订单ID")
-    @JsonAlias("orderId")
     private Long order_id_wsh;
 
     @Schema(description = "订单号")
-    @JsonAlias("orderNo")
     private String order_no_wsh;
 
     @Schema(description = "支付方式：balance/wechat/alipay；用户主动支付仅支持balance")
-    @JsonAlias("method")
     private String method_wsh = "balance";
 
     public String getOrder_no_wsh() {

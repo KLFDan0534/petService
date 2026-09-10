@@ -15,7 +15,7 @@
         <div class="kw-head-copy">
           <div class="kw-eyebrow" aria-hidden="true">
             <span class="kw-eyebrow-line"></span>
-            <span>Keeper Workbench</span>
+            <span>寄养工作台</span>
           </div>
           <h1 class="kw-title">照护师工作台</h1>
           <p class="kw-sub">
@@ -41,7 +41,7 @@
       </header>
 
       <!-- ═══════════════════════════════════════════
-           01 · Today
+           01 · 今日
            ═══════════════════════════════════════════ -->
       <section class="kw-section" aria-label="今日状态">
         <header class="kw-sec-head">
@@ -49,7 +49,7 @@
             <p class="kw-eyebrow">
               <span class="kw-idx">01</span>
               <span class="kw-line" aria-hidden="true"></span>
-              <span>Today</span>
+              <span>今日</span>
             </p>
             <h2 class="kw-sec-title">今日状态</h2>
             <p class="kw-sec-desc">接单状态与考勤打卡都会实时同步给门店。</p>
@@ -98,7 +98,7 @@
             {{ tab.label }}
           </button>
           <button type="button" class="kw-chip kw-chip-ghost" @click="goKeeperProfile">
-            <el-icon><User /></el-icon>
+            <AppIcon><User /></AppIcon>
             <span>我的资料</span>
           </button>
         </div>
@@ -202,6 +202,7 @@ import KeeperDailyTab from '@/components/keeper/KeeperDailyTab.vue'
 import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, hasExpiredPaymentTimeout } from '@/utils/orderPaymentTimeout'
+import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -494,8 +495,7 @@ async function sendMessage() {
 }
 
 function formatDateTime(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return utilFormatDateTime(value, { fallback: '-' })
 }
 
 function goKeeperProfile() {
@@ -571,7 +571,7 @@ function goKeeperProfile() {
 }
 .kw-sec-desc { margin: 8px 0 0; max-width: 560px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 
-/* ═══ Today ═══ */
+/* ═══ 今日 ═══ */
 .kw-today-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; margin-top: 20px; align-items: stretch; }
 .kw-card {
   border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface);
@@ -763,7 +763,7 @@ function goKeeperProfile() {
   width: 100%; max-width: 420px; max-height: min(90vh, 720px); overflow-y: auto;
   padding: 24px; border-radius: var(--r-panel); background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: kw-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 :deep(.modal h2) { margin: 0 0 8px; font-family: var(--ref-font-display); font-size: 20px; font-weight: 500; color: var(--ref-ink); }

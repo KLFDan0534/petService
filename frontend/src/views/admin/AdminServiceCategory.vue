@@ -41,10 +41,8 @@
       </template>
     </div>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
-      <div class="modal">
-        <h2>{{ editingCategory ? '编辑分类' : (form.parent_id_wsh ? '新增子分类' : '新增一级分类') }}</h2>
-        <form @submit.prevent="saveCategory">
+    <AppDialog :visible="showForm" :title="editingCategory ? '编辑分类' : (form.parent_id_wsh ? '新增子分类' : '新增一级分类')" @close="showForm = false">
+        <form id="serviceCategoryForm" @submit.prevent="saveCategory">
           <div class="form-group">
             <label>分类名称</label>
             <input v-model="form.name_wsh" required placeholder="例如：寄养服务">
@@ -74,13 +72,12 @@
             <label>排序</label>
             <input v-model.number="form.sort_order_wsh" type="number" min="0">
           </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm">{{ editingCategory ? '保存' : '创建' }}</button>
-          </div>
         </form>
-      </div>
-    </div>
+        <template #footer>
+          <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
+          <button type="submit" form="serviceCategoryForm" class="btn btn-primary btn-sm">{{ editingCategory ? '保存' : '创建' }}</button>
+        </template>
+      </AppDialog>
   </div>
 </template>
 
@@ -89,6 +86,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { useCategoryStore } from '@/stores/category'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import {
   getAdminServiceCategoryList,
   createServiceCategory,

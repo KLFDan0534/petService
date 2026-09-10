@@ -28,7 +28,7 @@
         <header class="kd-head">
           <div class="kd-head-copy">
             <p class="kd-eyebrow">
-              <span class="kd-idx">Keeper</span>
+              <span class="kd-idx">寄养师</span>
               <span class="kd-line" aria-hidden="true"></span>
               <span>照护师详情</span>
             </p>
@@ -42,7 +42,7 @@
               :disabled="favoriteLoading || favoriteToggling"
               @click="handleToggleFavorite"
             >
-              <el-icon :class="isFavorited ? 'kd-star-on' : 'kd-star-off'"><Star /></el-icon>
+              <AppIcon :class="isFavorited ? 'kd-star-on' : 'kd-star-off'"><Star /></AppIcon>
               <span>{{ isFavorited ? '已收藏' : '收藏' }}</span>
             </button>
             <button type="button" class="cta cta-primary" @click="goToMerchant(keeper.merchant_id_wsh)">选择服务</button>
@@ -75,7 +75,7 @@
             <p class="kd-eyebrow">
               <span class="kd-idx">01</span>
               <span class="kd-line" aria-hidden="true"></span>
-              <span>Profile</span>
+              <span>简介</span>
             </p>
             <h2 id="kd-sec-profile" class="kd-section-title">照护师档案</h2>
           </header>
@@ -141,7 +141,7 @@
             <p class="kd-eyebrow">
               <span class="kd-idx">02</span>
               <span class="kd-line" aria-hidden="true"></span>
-              <span>Credentials</span>
+              <span>资质</span>
             </p>
             <h2 id="kd-sec-qual" class="kd-section-title">资质核验</h2>
             <p class="kd-section-desc">证书由门店提交、平台复核，状态实时同步。</p>
@@ -179,7 +179,7 @@
             <p class="kd-eyebrow">
               <span class="kd-idx">03</span>
               <span class="kd-line" aria-hidden="true"></span>
-              <span>Reviews</span>
+              <span>评价</span>
             </p>
             <h2 id="kd-sec-ratings" class="kd-section-title">用户评价 ({{ ratings.length }})</h2>
           </header>
@@ -233,6 +233,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import { Star } from '@element-plus/icons-vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
 import { parseCommaSeparatedUrls } from '@/utils/fileUrls'
+import { formatDate, formatMoney as money } from '@/utils/format'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 
 const route = useRoute()
@@ -291,8 +292,6 @@ function renderStars(score) {
   return '\u2605'.repeat(Math.round(n)) + '\u2606'.repeat(5 - Math.round(n))
 }
 
-function money(v) { return Number(v || 0).toFixed(2) }
-function formatDate(v) { return v ? String(v).slice(0, 10) : '-' }
 function qualificationUrls(value) {
   return parseCommaSeparatedUrls(value)
 }
@@ -474,9 +473,9 @@ onMounted(load)
 .kd-load-label { margin: 0; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ref-muted); }
 .kd-load-track {
   margin-top: 10px; height: 8px; min-width: 0; overflow: hidden;
-  border-radius: 999px; background: var(--ref-sand);
+  border-radius: var(--radius-pill); background: var(--ref-sand);
 }
-.kd-load-bar { height: 100%; border-radius: 999px; background: var(--ref-brand); transition: width 0.3s ease; }
+.kd-load-bar { height: 100%; border-radius: var(--radius-pill); background: var(--ref-brand); transition: width 0.3s ease; }
 .kd-load-bar.kd-load-full { background: var(--ref-brand-deep); }
 .kd-load-caption { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--ref-muted); }
 .kd-joined { margin: 18px 0 0; font-size: 12px; color: var(--ref-muted); font-variant-numeric: tabular-nums; }
@@ -501,7 +500,7 @@ onMounted(load)
 .kd-qual-title { font-size: 13.5px; font-weight: 500; color: var(--ref-ink); }
 .kd-qual-thumbs { display: flex; flex-wrap: wrap; gap: 6px; }
 .kd-qual-thumbs img {
-  width: 44px; height: 44px; border-radius: 6px; object-fit: cover;
+  width: 44px; height: var(--control-height); border-radius: var(--radius-inline); object-fit: cover;
   border: 1px solid var(--ref-line);
 }
 

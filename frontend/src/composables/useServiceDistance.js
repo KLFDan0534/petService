@@ -17,13 +17,22 @@ import { haversineMeters } from '@/utils/geo'
 let userLocationPromise = null
 const merchantPointCache = new Map()
 
-/** 距离文案：只显示数字 + 单位，<1km 用 m，否则用 km（如 850m、1.2km） */
+/** 距离文案（输入单位：米）：只显示数字 + 单位，<1km 用 m，否则用 km（如 850m、1.2km） */
 export function formatServiceDistance(meters) {
   if (meters == null || meters === '') return ''
   const value = Number(meters)
   if (!Number.isFinite(value) || value < 0) return ''
   if (value < 1000) return `${Math.max(1, Math.round(value))}m`
   return `${(value / 1000).toFixed(1)}km`
+}
+
+/** 距离文案（输入单位：公里）：只显示数字 + 单位，<1km 用 m，否则用 km（如 500m、1.2km） */
+export function formatDistanceKm(km) {
+  if (km == null || km === '') return ''
+  const value = Number(km)
+  if (!Number.isFinite(value) || value < 0) return ''
+  if (value < 1) return `${Math.max(1, Math.round(value * 1000))}m`
+  return `${value.toFixed(1)}km`
 }
 
 function resolveUserLocation() {

@@ -158,7 +158,7 @@ function profileComplete(pet) {
   flex-direction: column;
   height: 100%;
   padding: 20px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
   background: var(--color-card);
   box-shadow: var(--shadow-sm);
@@ -246,7 +246,7 @@ function profileComplete(pet) {
   gap: 4px;
   flex-shrink: 0;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(249, 115, 22, 0.08);
   font-size: 12px;
   font-weight: 500;

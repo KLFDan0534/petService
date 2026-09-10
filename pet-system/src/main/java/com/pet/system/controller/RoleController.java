@@ -77,7 +77,7 @@ public class RoleController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<RoleVO>> listRoles() {
-        log.info("listRoles() called");
+        log.info("listRoles() 被调用");
         List<Role> roles = roleMapper.selectList(
                 new LambdaQueryWrapper<Role>()
                         .orderByAsc(Role::getId_wsh)
@@ -128,7 +128,7 @@ public class RoleController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<Void> createRole(@RequestBody RoleCreateRequestDTO request) {
-        log.info("createRole() called");
+        log.info("createRole() 被调用");
         if (request != null && isCustomerServiceCode(request.getCode_wsh())) {
             throw new BusinessException(400, CUSTOMER_SERVICE_MANAGED_MESSAGE);
         }
@@ -171,7 +171,7 @@ public class RoleController {
     })
     public Result<Void> updateRole(@Parameter(description = "角色ID") @PathVariable Long id,
                                    @RequestBody RoleUpdateRequestDTO request) {
-        log.info("updateRole() called");
+        log.info("updateRole() 被调用");
         Role existing = roleMapper.selectById(id);
         if (isCustomerServiceRole(existing)
                 || (request != null && isCustomerServiceCode(request.getCode_wsh()))) {
@@ -211,7 +211,7 @@ public class RoleController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<Void> deleteRole(@Parameter(description = "角色ID") @PathVariable Long id) {
-        log.info("deleteRole() called");
+        log.info("deleteRole() 被调用");
         Role existing = roleMapper.selectById(id);
         if (isCustomerServiceRole(existing)) {
             throw new BusinessException(400, CUSTOMER_SERVICE_MANAGED_MESSAGE);
@@ -244,7 +244,7 @@ public class RoleController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<Long>> getUserRoles(@Parameter(description = "用户ID") @PathVariable Long userId) {
-        log.info("getUserRoles() called");
+        log.info("getUserRoles() 被调用");
         List<UserRole> urs = userRoleMapper.selectList(
                 new LambdaQueryWrapper<UserRole>().eq(UserRole::getUser_id_wsh, userId));
         return Result.success(urs.stream().map(UserRole::getRole_id_wsh).collect(Collectors.toList()));
@@ -281,7 +281,7 @@ public class RoleController {
     })
     public Result<Void> setUserRoles(@Parameter(description = "用户ID") @PathVariable Long userId,
                                      @Valid @RequestBody SetUserRolesRequestDTO request) {
-        log.info("setUserRoles() called");
+        log.info("setUserRoles() 被调用");
         Role customerServiceRole = findCustomerServiceRole();
         Long customerServiceRoleId = customerServiceRole != null ? customerServiceRole.getId_wsh() : null;
         boolean alreadyCustomerService = isExistingUserCustomerService(userId, customerServiceRoleId);

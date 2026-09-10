@@ -6,10 +6,10 @@
     </div>
 
     <div class="stat-grid merchant-stats">
-      <div class="stat-card"><div class="stat-value">{{ stats.pets || 0 }}</div><div class="stat-label">我的宠物</div></div>
-      <div class="stat-card accent"><div class="stat-value">{{ stats.activeOrders || 0 }}</div><div class="stat-label">进行中订单</div></div>
-      <div class="stat-card"><div class="stat-value">{{ stats.completedOrders || 0 }}</div><div class="stat-label">已完成订单</div></div>
-      <div class="stat-card revenue"><div class="stat-value">¥{{ stats.totalRevenue || 0 }}</div><div class="stat-label">总收入</div></div>
+      <div class="stat-card"><div class="stat-value">{{ stats.pets_wsh || 0 }}</div><div class="stat-label">我的宠物</div></div>
+      <div class="stat-card accent"><div class="stat-value">{{ stats.active_orders_wsh || 0 }}</div><div class="stat-label">进行中订单</div></div>
+      <div class="stat-card"><div class="stat-value">{{ stats.completed_orders_wsh || 0 }}</div><div class="stat-label">已完成订单</div></div>
+      <div class="stat-card revenue"><div class="stat-value">¥{{ stats.total_revenue_wsh || 0 }}</div><div class="stat-label">总收入</div></div>
     </div>
   </div>
 </template>

@@ -20,6 +20,7 @@
       >
         <MediaWithFallback
           :src="service.firstImage"
+          :fallback-src="localFallbackForService(service)"
           :alt="`${service.name_wsh}服务图片`"
           :placeholder="service.name_wsh"
         />
@@ -46,7 +47,7 @@
         <div class="service-actions">
           <button class="detail-link" type="button" @click="goDetail(service.id_wsh)">
             查看详情
-            <el-icon aria-hidden="true"><ArrowRight /></el-icon>
+            <AppIcon aria-hidden="true"><ArrowRight /></AppIcon>
           </button>
           <div class="service-actions-end">
             <FavoriteToggleButton
@@ -58,7 +59,7 @@
               :aria-label="`收藏${service.name_wsh}`"
             />
             <button class="btn btn-primary btn-sm" type="button" @click="createOrder(service)">
-              <el-icon aria-hidden="true"><Calendar /></el-icon>
+              <AppIcon aria-hidden="true"><Calendar /></AppIcon>
               立即预约
             </button>
           </div>
@@ -68,7 +69,7 @@
   </div>
 
   <div v-else class="empty-services">
-    <el-icon aria-hidden="true"><Service /></el-icon>
+    <AppIcon aria-hidden="true"><Service /></AppIcon>
     <h3>没有找到匹配的服务</h3>
     <p>调整关键词或服务分类后再试试。</p>
   </div>
@@ -84,7 +85,7 @@ import FavoriteToggleButton from '@/components/common/FavoriteToggleButton.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
 import { unitLabel } from '@/domain/BookingUnit'
-import { coverForService } from '@/data/localPhotos'
+import { coverForService, localFallbackForService } from '@/data/localPhotos'
 import { formatServiceDistance } from '@/composables/useServiceDistance'
 const props = defineProps({
   services: { type: Array, default: () => [] },

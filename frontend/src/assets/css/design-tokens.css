@@ -45,12 +45,29 @@
   --radius-xl: 24px;
   --radius-full: 9999px;
 
+  /* === 控件与卡片统一档位（对齐 Services.vue 编辑暖色参考）=== */
+  --radius-control: 11px;   /* 控件：按钮/输入框/芯片/小徽章 */
+  --radius-inline: 6px;     /* 内嵌小元素：图标区/缩略图占位 */
+  --radius-card: 18px;      /* 卡片/面板 */
+  --radius-hero: 26px;      /* 英雄区/大图媒体 */
+  --radius-pill: var(--radius-full); /* 胶囊/圆点 */
+
+  /* === 控件高度档位 === */
+  --control-height: 44px;   /* 标准控件高度 */
+  --control-height-lg: 48px;
+  --control-height-sm: 34px;
+  --control-height-xs: 28px;
+
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(15,23,42,0.05);
   --shadow-md: 0 8px 20px rgba(15,23,42,0.08);
   --shadow-lg: 0 14px 32px rgba(15,23,42,0.1);
   --shadow-xl: 0 24px 48px rgba(15,23,42,0.16);
   --shadow-inner: inset -2px -2px 8px rgba(0,0,0,0.04), 4px 4px 8px rgba(0,0,0,0.08);
+
+  /* === 卡片悬浮/浮层阴影（编辑暖色风格，随主题 ink 色自适应）=== */
+  --shadow-lift: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  --shadow-pop: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
 
   /* Typography */
   --font-heading: 'Inter', 'Segoe UI', system-ui, sans-serif;
@@ -78,7 +95,11 @@
   --ref-muted: #8A7A6A;
   --ref-brand: #BF5B2B;
   --ref-brand-deep: #9A411A;
-  --ref-font-display: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, 'Times New Roman', serif;
+  /* 展示字体：拉丁用 Fraunces，中文用 Noto Serif SC；正文用 Inter；等宽用 JetBrains Mono。
+     字体均在 index.html 通过 Google Fonts 加载，避免 fallback。 */
+  --ref-font-display: 'Fraunces', 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, 'Times New Roman', serif;
+  --ref-font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ref-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 html[data-theme="dark"] {

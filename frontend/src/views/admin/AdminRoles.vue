@@ -13,7 +13,7 @@
         <h2>{{ editingRole ? '编辑角色' : '创建角色' }}</h2>
         <form @submit.prevent="saveRole">
           <div class="form-group"><label>角色名</label><input v-model="form.name_wsh" required></div>
-          <div class="form-group"><label>Code</label><input v-model="form.code_wsh" required :disabled="!!editingRole"></div>
+          <div class="form-group"><label>编码</label><input v-model="form.code_wsh" required :disabled="!!editingRole"></div>
           <div class="form-group"><label>描述</label><input v-model="form.description_wsh"></div>
           <div class="modal-actions">
             <button type="button" class="btn btn-secondary btn-sm" @click="closeForm">取消</button>

@@ -13,7 +13,7 @@
         <div class="rt-head-copy">
           <p class="rt-eyebrow" aria-hidden="true">
             <span class="rt-eyebrow-line"></span>
-            <span>My reviews</span>
+            <span>我的评价</span>
           </p>
           <h1 class="rt-title">我的评价</h1>
           <p class="rt-sub">你写下的每条评价都会展示在对应门店与照护师页面，也会收到他们的回复。</p>
@@ -44,7 +44,7 @@
             <p class="rt-eyebrow rt-sec-eyebrow">
               <span class="rt-idx">01</span>
               <span class="rt-line" aria-hidden="true"></span>
-              <span>Reviews</span>
+              <span>评价</span>
             </p>
             <h2 class="rt-sec-title">评价列表</h2>
             <p class="rt-sec-desc">服务完成后写一条评价，会帮助其他家长做选择。</p>
@@ -327,9 +327,9 @@ async function submitReply(r) {
 .rt-chip {
   display: inline-flex;
   align-items: center;
-  height: 34px;
+  height: var(--control-height-sm);
   padding: 0 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -398,7 +398,7 @@ async function submitReply(r) {
 .rt-skel-stack { display: grid; gap: 14px; }
 .rt-skeleton {
   height: 168px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--ref-line);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
@@ -407,7 +407,7 @@ async function submitReply(r) {
 .rt-empty {
   padding: 64px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -427,14 +427,14 @@ async function submitReply(r) {
 .rt-card {
   padding: 22px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
 }
 .rt-card:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 16%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .rt-card-top {
   display: flex;
@@ -480,7 +480,7 @@ async function submitReply(r) {
 .rt-tag {
   display: inline-flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid var(--ref-line);
   background: color-mix(in srgb, var(--ref-cream) 70%, var(--ref-surface));
   padding: 4px 10px;
@@ -565,7 +565,7 @@ async function submitReply(r) {
   border-radius: 20px;
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: rt-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-head {

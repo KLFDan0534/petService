@@ -11,7 +11,7 @@
           <option value="refunded">已退款</option>
         </select>
         <button class="btn btn-outline btn-sm icon-btn" type="button" :disabled="loading" @click="loadOrders">
-          <el-icon><Refresh /></el-icon>
+          <AppIcon><Refresh /></AppIcon>
           <span>刷新</span>
         </button>
       </div>
@@ -60,7 +60,7 @@
                 :disabled="confirmingOrderNo === order.order_no_wsh"
                 @click="confirmPaid(order)"
               >
-                <el-icon><CreditCard /></el-icon>
+                <AppIcon><CreditCard /></AppIcon>
                 <span>{{ confirmingOrderNo === order.order_no_wsh ? '确认中...' : '确认支付' }}</span>
               </button>
               <span v-else class="muted">-</span>
@@ -225,7 +225,7 @@ function money(value) {
 
 .order-status {
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   font-size: 12px;
   justify-content: center;
@@ -255,7 +255,7 @@ function money(value) {
 
 code {
   background: var(--color-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   color: var(--color-foreground);
   display: inline-block;
   font-size: 12px;

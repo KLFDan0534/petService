@@ -153,6 +153,7 @@
                 <div class="feature-img-wrap">
                   <MediaWithFallback
                     :src="featuredServices[0]?.firstImage"
+                    :fallback-src="localFallbackForService(featuredServices[0])"
                     :alt="featuredServices[0]?.name_wsh"
                     class="feature-img"
                   />
@@ -199,6 +200,7 @@
               <span class="sr-thumb">
                 <MediaWithFallback
                   :src="svc.firstImage"
+                  :fallback-src="localFallbackForService(svc)"
                   :alt="svc.name_wsh"
                 />
               </span>
@@ -574,7 +576,7 @@
               <span class="footer-logo-mark">🐾</span>
               <span class="footer-logo-text">
                 <span class="footer-name">宠物寄养平台</span>
-                <span class="footer-en">Pet Boarding</span>
+                <span class="footer-en">寄养服务</span>
               </span>
             </div>
             <p class="footer-tagline">为您的毛孩子提供一个安全、贴心的寄养之家。</p>
@@ -639,6 +641,7 @@ import {
   HERO_IMAGE,
   KEEPER_AVATARS,
   coverForService,
+  localFallbackForService,
 } from '@/data/localPhotos'
 import SectionHeading from '@/components/dashboard/SectionHeading.vue'
 import TextLink from '@/components/dashboard/TextLink.vue'

@@ -15,7 +15,7 @@
         <div class="csa-head-copy">
           <div class="csa-eyebrow" aria-hidden="true">
             <span class="csa-eyebrow-line"></span>
-            <span>Support Application</span>
+            <span>客服申请</span>
           </div>
           <h1 class="csa-title">申请成为平台客服</h1>
           <p class="csa-sub">客服负责处理某个商家的用户工单与投诉。通过审核后，你会获得该商家的客服工作台权限。</p>
@@ -34,7 +34,7 @@
           <p class="csa-eyebrow csa-sec-eyebrow">
             <span class="csa-idx">01</span>
             <span class="csa-line" aria-hidden="true"></span>
-            <span>How It Works</span>
+            <span>流程说明</span>
           </p>
           <h2 class="csa-sec-title">申请流程</h2>
           <p class="csa-sec-desc">三步完成，审核结果会在这个页面更新。</p>
@@ -55,7 +55,7 @@
           <p class="csa-eyebrow csa-sec-eyebrow">
             <span class="csa-idx">02</span>
             <span class="csa-line" aria-hidden="true"></span>
-            <span>Application</span>
+            <span>申请</span>
           </p>
           <h2 class="csa-sec-title">填写申请</h2>
         </header>
@@ -132,7 +132,7 @@
           <p class="csa-eyebrow csa-sec-eyebrow">
             <span class="csa-idx">03</span>
             <span class="csa-line" aria-hidden="true"></span>
-            <span>History</span>
+            <span>历史</span>
           </p>
           <h2 class="csa-sec-title">我的申请记录</h2>
           <p class="csa-sec-desc">每一次提交的审核状态与商家意见。</p>
@@ -342,7 +342,7 @@ onMounted(loadMerchantsAndApplications)
   list-style: none;
   overflow: hidden;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-line);
 }
 .csa-step {
@@ -359,14 +359,14 @@ onMounted(loadMerchantsAndApplications)
   max-width: 640px;
   padding: 28px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
 }
 .csa-pending {
   margin: 0 0 20px;
   padding: 12px 16px;
   border: 1px solid color-mix(in srgb, var(--ref-brand) 30%, transparent);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--ref-brand) 6%, transparent);
   font-size: 12.5px;
   line-height: 1.7;
@@ -381,14 +381,14 @@ onMounted(loadMerchantsAndApplications)
 .csa-textarea {
   width: 100%;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-canvas);
   color: var(--ref-ink);
   font-size: 13.5px;
   line-height: 1.6;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.csa-select { height: 44px; padding: 0 12px; }
+.csa-select { height: var(--control-height); padding: 0 12px; }
 .csa-textarea { padding: 12px; resize: vertical; min-height: 120px; }
 .csa-select:focus,
 .csa-textarea:focus {
@@ -411,8 +411,8 @@ onMounted(loadMerchantsAndApplications)
 .csa-foot-note { margin: 0; font-size: 11.5px; color: var(--ref-muted); }
 
 /* Skeleton / Error */
-.csa-skeleton { height: 260px; border: 1px solid var(--ref-line); border-radius: 18px; background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: csa-shimmer 1.3s linear infinite; }
-.csa-error { padding: 40px 24px; border: 1px dashed var(--ref-line); border-radius: 18px; background: var(--ref-surface); text-align: center; }
+.csa-skeleton { height: 260px; border: 1px solid var(--ref-line); border-radius: var(--radius-card); background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: csa-shimmer 1.3s linear infinite; }
+.csa-error { padding: 40px 24px; border: 1px dashed var(--ref-line); border-radius: var(--radius-card); background: var(--ref-surface); text-align: center; }
 .csa-error-title { margin: 0; font-family: var(--ref-font-display); font-size: 19px; font-weight: 500; color: var(--ref-ink); }
 .csa-error-desc { margin: 10px auto 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 .csa-error .cta { margin-top: 18px; }
@@ -424,7 +424,7 @@ onMounted(loadMerchantsAndApplications)
   list-style: none;
   overflow: hidden;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
 }
 .csa-row {
@@ -459,7 +459,7 @@ onMounted(loadMerchantsAndApplications)
   align-items: center;
   height: 24px;
   padding: 0 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -470,13 +470,13 @@ onMounted(loadMerchantsAndApplications)
 .badge-info { background: color-mix(in srgb, var(--ref-brand) 12%, transparent); color: var(--ref-brand-deep); }
 
 /* Empty */
-.csa-empty { margin: 24px 0 0; padding: 56px 24px; border: 1px dashed var(--ref-line); border-radius: 16px; background: var(--ref-surface); text-align: center; }
+.csa-empty { margin: 24px 0 0; padding: 56px 24px; border: 1px dashed var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); text-align: center; }
 .csa-empty svg { color: var(--ref-brand); }
 .csa-empty-title { margin: 16px 0 0; font-family: var(--ref-font-display); font-size: 20px; font-weight: 500; color: var(--ref-ink); }
 .csa-empty-desc { margin: 10px auto 0; max-width: 440px; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 
 /* CTA */
-.cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 11px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
+.cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: var(--radius-control); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
 .cta:hover { transform: translateY(-1px); }
 .cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .cta-primary { background: var(--ref-brand); color: #fff; }

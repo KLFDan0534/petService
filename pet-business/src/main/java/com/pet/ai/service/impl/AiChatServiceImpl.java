@@ -5,12 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.ai.dto.AiChatRequestDTO;
 import com.pet.ai.dto.AiChatResponseDTO;
 import com.pet.ai.dto.RagDocumentDTO;
+import com.pet.ai.entity.AiConfigWsh;
+import com.pet.ai.service.AiChatHistoryService;
 import com.pet.ai.service.AiChatService;
+import com.pet.ai.service.AiConfigService;
+import com.pet.ai.service.AiConfigStore;
 import com.pet.ai.service.RagService;
 import com.pet.common.BusinessException;
 import lombok.extern.slf4j.Slf4j;
-import com.pet.ai.service.AiChatHistoryService;
-import com.pet.ai.service.AiConfigService;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -49,15 +51,18 @@ public class AiChatServiceImpl implements AiChatService {
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
     private final AiConfigService aiConfigService;
+    private final AiConfigStore aiConfigStore;
     private final AiChatHistoryService historyService;
 
     /** 每用户滑动窗口限流：userId → 最近时间戳列表 */
     private final Map<Long, List<Long>> rateBuckets = new ConcurrentHashMap<>();
 
-    public AiChatServiceImpl(RagService ragService, ObjectMapper objectMapper, AiConfigService aiConfigService, AiChatHistoryService historyService) {
+    public AiChatServiceImpl(RagService ragService, ObjectMapper objectMapper, AiConfigService aiConfigService,
+                             AiConfigStore aiConfigStore, AiChatHistoryService historyService) {
         this.ragService = ragService;
         this.objectMapper = objectMapper;
         this.aiConfigService = aiConfigService;
+        this.aiConfigStore = aiConfigStore;
         this.historyService = historyService;
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
@@ -225,10 +230,16 @@ public class AiChatServiceImpl implements AiChatService {
      * 注意事项：endpoint 为 https://kenari.id/v1，走标准 OpenAI 协议。
      */
     private String callKenari(String systemPrompt, List<Map<String, String>> messages) throws Exception {
-        String apiKey = aiConfigService.getApiKey();
-        String model = aiConfigService.getModel();
-        int maxTokens = aiConfigService.getMaxTokens();
-        double temperature = aiConfigService.getTemperature();
+        // 优先使用后台持久化的智能客服(cs)生效配置，无则回退 yml 默认
+        AiConfigWsh cfg = aiConfigStore.getActiveConfig(AiConfigWsh.USAGE_CS);
+        String apiKey = cfg != null ? cfg.getApi_key_wsh() : aiConfigService.getApiKey();
+        String model = cfg != null ? cfg.getModel_wsh() : aiConfigService.getModel();
+        int maxTokens = cfg != null && cfg.getMax_tokens_wsh() != null
+                ? cfg.getMax_tokens_wsh()
+                : aiConfigService.getMaxTokens();
+        double temperature = cfg != null && cfg.getTemperature_wsh() != null
+                ? cfg.getTemperature_wsh().doubleValue()
+                : aiConfigService.getTemperature();
 
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("AI API Key 未配置，请在管理后台 → AI 配置中设置");
@@ -249,7 +260,9 @@ public class AiChatServiceImpl implements AiChatService {
         body.put("max_tokens", maxTokens);
         body.put("temperature", temperature);
 
-        String url = aiConfigService.getChatCompletionsUrl();
+        String url = cfg != null
+                ? aiConfigStore.chatCompletionsUrl(cfg.getEndpoint_wsh())
+                : aiConfigService.getChatCompletionsUrl();
         String raw;
         try {
             raw = restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
@@ -261,8 +274,48 @@ public class AiChatServiceImpl implements AiChatService {
         }
         JsonNode root = objectMapper.readTree(raw);
         JsonNode choice = root.path("choices").path(0);
-        String content = choice.path("message").path("content").asText("");
+        String content = extractReplyText(choice.path("message"));
         return content.trim();
+    }
+
+    /**
+     * 【业务名称】抽取 OpenAI 兼容回复正文（适配思考型模型响应）
+     * 业务作用：兼容 content 为字符串或部分数组两种 OpenAI 格式；content 为空时回退 reasoning_content（思考型模型，如 glm-5.3-flash）。
+     * 数据处理：message.content → 文本；数组则拼接各 part.text / 文本节点。
+     * 业务规则：content 与 reasoning_content 都为空时返回空串。
+     * 状态影响：无。
+     */
+    private String extractReplyText(JsonNode message) {
+        String content = nodeToText(message.path("content"));
+        if (content == null || content.isBlank()) {
+            content = nodeToText(message.path("reasoning_content"));
+        }
+        return content == null ? "" : content.trim();
+    }
+
+    /** 将 JSON 节点转为文本：字符串原样返回；数组按 part.text / 文本节点拼接；其他返回 null。 */
+    private String nodeToText(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (node.isTextual()) {
+            return node.asText();
+        }
+        if (node.isArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode part : node) {
+                if (part == null || part.isNull()) continue;
+                if (part.isTextual()) {
+                    sb.append(part.asText());
+                } else {
+                    String text = part.path("text").asText(null);
+                    if (text != null) sb.append(text);
+                }
+            }
+            String joined = sb.toString();
+            return joined.isEmpty() ? null : joined;
+        }
+        return node.asText(null);
     }
 
     /**

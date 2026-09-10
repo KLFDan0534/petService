@@ -22,14 +22,14 @@
         </div>
       </header>
 
-      <!-- ═══ 01 · Update ═══ -->
+      <!-- ═══ 01 · 更新 ═══ -->
       <section class="ae-section" aria-label="填写信息">
         <header class="ae-sec-head">
           <div class="ae-head-copy">
             <p class="ae-eyebrow ae-sec-eyebrow">
               <span class="ae-idx">01</span>
               <span class="ae-line" aria-hidden="true"></span>
-              <span>Update</span>
+              <span>更新</span>
             </p>
             <h2 class="ae-sec-title">填写信息</h2>
           </div>
@@ -412,7 +412,7 @@ async function submit() {
   max-width: 620px;
   height: 320px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: ae-shimmer 1.3s linear infinite;
@@ -512,10 +512,10 @@ async function submit() {
 }
 .ae-label i { color: var(--color-danger, #ef4444); font-style: normal; }
 .ae-input {
-  height: 44px;
+  height: var(--control-height);
   padding: 0 14px;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-surface);
   color: var(--ref-ink);
   font-size: 14px;
@@ -551,7 +551,7 @@ async function submit() {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;

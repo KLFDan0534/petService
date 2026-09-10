@@ -1,4 +1,6 @@
 @echo off
+REM Force UTF-8 for console output and redirected logs (prevents mojibake)
+chcp 65001 >nul
 cd /d D:\code\ideaProject\petService
 
 setlocal enabledelayedexpansion
@@ -23,4 +25,4 @@ REM Add all Maven JARs from local repo
 for /r "%USERPROFILE%\.m2\repository" %%f in (*.jar) do set CP=%CP%;%%f
 
 REM Start the application
-D:\Other\idea\gameJDK\bin\java.exe -cp "%CP%" com.pet.admin.PetApplication
+D:\Other\idea\gameJDK\bin\java.exe -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -cp "%CP%" com.pet.admin.PetApplication

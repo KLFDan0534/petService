@@ -15,7 +15,7 @@
         <div class="fv-head-copy">
           <div class="fv-eyebrow" aria-hidden="true">
             <span class="fv-eyebrow-line"></span>
-            <span>Saved</span>
+            <span>收藏</span>
           </div>
           <h1 class="fv-title">我的收藏</h1>
           <p class="fv-sub">收藏的服务、门店与照护师会保留在这里，下次预约时可以直接从收藏进入。</p>
@@ -35,7 +35,7 @@
             <p class="fv-eyebrow fv-sec-eyebrow">
               <span class="fv-idx">01</span>
               <span class="fv-line" aria-hidden="true"></span>
-              <span>Collection</span>
+              <span>收藏</span>
             </p>
             <h2 class="fv-sec-title">收藏内容</h2>
             <p class="fv-sec-desc">按类型筛选，取消收藏后可随时重新添加。</p>
@@ -159,6 +159,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { getPage, getTypes, toggle } from '@/services/favoriteService'
+import { formatLocalDate, formatMoney } from '@/utils/format'
 import {
   DEFAULT_FAVORITE_PAGE_SIZE,
   FAVORITE_TARGET_TYPES,
@@ -242,18 +243,12 @@ function openDetail(item) {
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  try {
-    return new Date(value).toLocaleDateString('zh-CN')
-  } catch {
-    return String(value)
-  }
+  return formatLocalDate(value, '')
 }
 
 function formatAmount(value) {
   const num = Number(value)
-  if (Number.isNaN(num)) return String(value ?? '')
-  return num.toFixed(2)
+  return Number.isNaN(num) ? String(value ?? '') : formatMoney(num)
 }
 
 function getTypeInitial(type) {
@@ -358,14 +353,14 @@ onMounted(async () => {
   min-width: 150px;
   padding: 18px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 .fv-fact:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 16%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .fv-fact dd {
   margin: 0;
@@ -426,7 +421,7 @@ onMounted(async () => {
   gap: 6px;
   height: 40px;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -457,7 +452,7 @@ onMounted(async () => {
 .fv-skeleton {
   height: 320px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: fv-shimmer 1.3s linear infinite;
@@ -468,7 +463,7 @@ onMounted(async () => {
   margin-top: 22px;
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -496,7 +491,7 @@ onMounted(async () => {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -518,14 +513,14 @@ onMounted(async () => {
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 .fv-card:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 18%, transparent);
   transform: translateY(-3px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .fv-card.is-removing { opacity: 0.6; }
 .fv-media {
@@ -579,7 +574,7 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid var(--ref-line);
   background: color-mix(in srgb, var(--ref-cream) 70%, var(--ref-surface));
   padding: 4px 10px;

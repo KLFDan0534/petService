@@ -52,6 +52,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 
 const props = defineProps({
   orderId: { type: String, default: '' },
@@ -121,8 +122,7 @@ function submitRecord() {
 }
 
 function formatDateTime(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return utilFormatDateTime(value, { fallback: '-' })
 }
 
 function parseImageUrls(value) {
@@ -133,15 +133,15 @@ function parseImageUrls(value) {
 <style scoped>
 .records-grid { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 16px; align-items: start; }
 .section-card { padding: 22px; display: grid; gap: 14px; }
-.daily-card { border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; background: var(--color-muted); }
+.daily-card { border: 1px solid var(--color-border); border-radius: var(--radius-inline); padding: 12px; background: var(--color-muted); }
 .daily-card p { margin: 6px 0 0; font-size: 13px; }
 .record-tabs, .order-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .upload-field { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--color-muted-foreground); font-size: 13px; }
 .photo-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
-.photo-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-muted); }
+.photo-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-inline); border: 1px solid var(--color-border); background: var(--color-muted); }
 .timeline-photos { margin-top: 8px; max-width: 420px; }
 .timeline { display: grid; gap: 10px; margin-top: 8px; }
-.timeline-item { border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; }
+.timeline-item { border: 1px solid var(--color-border); border-radius: var(--radius-inline); padding: 12px; }
 .timeline-item p { margin: 6px 0; }
 .timeline-item small, .timeline-item__meta { color: var(--color-muted-foreground); font-size: 12px; word-break: break-all; }
 .empty-inline { color: var(--color-muted-foreground); font-size: 13px; }

@@ -125,7 +125,7 @@ async function dismiss(idx) {
   align-items: center;
   height: 24px;
   padding: 0 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-primary, #2563eb);
   color: var(--color-on-primary, #fff);
   font-size: 12px;

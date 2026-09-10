@@ -27,6 +27,7 @@
             <div class="d-frame">
               <MediaWithFallback
                 :src="activeMediaUrl"
+                :fallback-src="listFallbackImage"
                 :alt="`${service.name_wsh} 主图`"
                 placeholder="暂无图片"
               />
@@ -41,7 +42,11 @@
                 :aria-label="`查看第 ${index + 1} 张图片`"
                 @click="setActive(index)"
               >
-                <MediaWithFallback :src="media.url_wsh" :alt="`第 ${index + 1} 张图片`" />
+                <MediaWithFallback
+                  :src="media.url_wsh"
+                  :fallback-src="listFallbackImage"
+                  :alt="`第 ${index + 1} 张图片`"
+                />
               </button>
             </div>
           </div>
@@ -175,6 +180,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getServiceDetail } from '@/api/service'
 import { unitLabel } from '@/domain/BookingUnit'
+import { formatLocalDate, formatMoney } from '@/utils/format'
 import { getRatings } from '@/api/rating'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -185,6 +191,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import FavoriteToggleButton from '@/components/common/FavoriteToggleButton.vue'
 import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
+import { localFallbackForService, serviceGallery } from '@/data/localPhotos'
 import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
 import CreateOrderDialog from '@/components/order/CreateOrderDialog.vue'
 
@@ -210,6 +217,8 @@ const keepers = ref([])
 let requestSeq = 0
 
 const activeMediaUrl = computed(() => mediaList.value[activeIndex.value]?.url_wsh || '')
+/** 后端图片加载失败时的本地兜底图（与列表页封面同源）。 */
+const listFallbackImage = computed(() => localFallbackForService(service.value))
 
 const BOOKABLE_REASON_TEXT = {
   FUTURE_BOOKING_DISABLED: '该商家暂未开放未来预约，暂不支持在线预约',
@@ -226,16 +235,11 @@ const bookableReasonText = computed(() => {
 })
 
 function money(value) {
-  return Number(value || 0).toFixed(2)
+  return formatMoney(value)
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  try {
-    return new Date(value).toLocaleDateString('zh-CN')
-  } catch {
-    return String(value)
-  }
+  return formatLocalDate(value, '')
 }
 
 function setActive(index) {
@@ -257,7 +261,13 @@ async function loadDetail() {
     if (seq !== requestSeq) return
     if (detailRes.code === 200 && detailRes.data) {
       service.value = detailRes.data
-      mediaList.value = detailRes.data.media_wsh || []
+      // 图集与列表页共用同一套解析：媒体表 → 历史图片字段 → 本地封面兜底
+      // 这样「外面看到的封面图」也会被算进详情图集，不会出现详情页无图。
+      mediaList.value = serviceGallery(detailRes.data).map((item, index) => ({
+        url_wsh: item.url,
+        is_cover_wsh: item.isCover ? 1 : 0,
+        sort_order_wsh: index,
+      }))
       const coverIndex = mediaList.value.findIndex(m => Number(m.is_cover_wsh) === 1)
       activeIndex.value = coverIndex >= 0 ? coverIndex : 0
       if (detailRes.data.bookable_wsh === false && bookableReasonText.value) {
@@ -570,7 +580,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
@@ -631,7 +641,7 @@ onMounted(() => {
   gap: 16px;
   padding: 16px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   transition: background 150ms ease;
 }
@@ -695,7 +705,7 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 10px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 150ms ease;
 }
@@ -772,7 +782,7 @@ onMounted(() => {
 .d-reply {
   margin-top: 10px;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--ref-sand);
   font-size: 13px;
   line-height: 1.6;

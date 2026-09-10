@@ -1,6 +1,5 @@
 package com.pet.boarding.dto;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,23 +12,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public class AttendanceCheckRequestDTO {
     @Schema(description = "纬度")
     @NotNull(message = "纬度不能为空")
-    @JsonAlias("latitude")
     private BigDecimal latitude_wsh;
 
     @Schema(description = "经度")
     @NotNull(message = "经度不能为空")
-    @JsonAlias("longitude")
     private BigDecimal longitude_wsh;
 
     @Schema(description = "地址")
-    @JsonAlias("address")
     private String address_wsh;
 
     @Schema(description = "定位精度")
-    @JsonAlias("accuracy")
     private BigDecimal accuracy_wsh;
 
     @Schema(description = "定位来源")
-    @JsonAlias("locationSource")
     private String location_source_wsh;
 }

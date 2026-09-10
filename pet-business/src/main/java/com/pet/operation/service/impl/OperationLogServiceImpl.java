@@ -28,7 +28,7 @@ public class OperationLogServiceImpl implements OperationLogService {
      */
     @Override
     public IPage<OperationLog> page(PageRequestDTO param, String module, String operation, Integer status) {
-        log.info("page() called");
+        log.info("page() 被调用");
         Page<OperationLog> page = new Page<>(param.getPage(), param.getSize());
         LambdaQueryWrapper<OperationLog> wrapper = new LambdaQueryWrapper<OperationLog>()
                 .eq(module != null && !module.isEmpty(), OperationLog::getModule_wsh, module)
@@ -43,7 +43,7 @@ public class OperationLogServiceImpl implements OperationLogService {
      */
     @Override
     public OperationLog getById(Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         return operationLogMapper.selectById(id);
     }
 
@@ -63,7 +63,7 @@ public class OperationLogServiceImpl implements OperationLogService {
     @Override
     @Transactional
     public void cleanOlderThan(int days) {
-        log.info("cleanOlderThan() called");
+        log.info("cleanOlderThan() 被调用");
         operationLogMapper.delete(new LambdaQueryWrapper<OperationLog>()
                 .lt(OperationLog::getCreated_at_wsh, LocalDateTime.now().minusDays(days)));
     }

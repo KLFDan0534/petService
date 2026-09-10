@@ -1,52 +1,74 @@
 <template>
-  <div v-if="visible" class="modal-overlay" @mousedown.self="$emit('close')">
-    <div class="modal mini-modal">
-      <h2>评价本次服务</h2>
+  <AppDialog
+    :visible="visible"
+    title="评价这次服务"
+    :description="description"
+    size="lg"
+    @close="$emit('close')"
+  >
+    <div class="review-body">
+      <p class="review-meta">
+        订单号 <span class="review-num">{{ orderNo }}</span> ·
+        已评 <span class="review-num">{{ ratedCount }}/{{ dimensions.length }}</span> 个维度
+      </p>
 
-      <div class="dimension-tabs" role="tablist" aria-label="评价维度">
-        <button
-          v-for="dim in dimensions"
+      <div class="review-rows">
+        <div
+          v-for="(dim, i) in dimensions"
           :key="dim.type"
-          type="button"
-          role="tab"
-          :class="['dimension-tab', activeDimension === dim.type ? 'active' : '']"
-          @click="activeDimension = dim.type"
+          class="review-row"
+          :class="{ 'review-row--border': i > 0, 'is-disabled': dim.done || !dim.targetId }"
         >
-          {{ dim.label }}
-          <span v-if="dim.done" class="dimension-done">已评价</span>
-        </button>
+          <div class="review-row__text">
+            <p class="review-row__label">
+              {{ dim.label }}
+              <span v-if="dim.done" class="review-row__done">已评价</span>
+              <span v-else-if="!dim.targetId" class="review-row__note">该订单缺少信息</span>
+            </p>
+            <p class="review-row__hint">{{ dim.targetName }}</p>
+          </div>
+          <StarRating
+            v-model="ratings[dim.type]"
+            :label="`评价${dim.label}`"
+            :disabled="submitting || dim.done || !dim.targetId"
+          />
+        </div>
       </div>
 
-      <template v-if="activeOrder">
-        <div class="dimension-target">{{ currentDimension.targetName }}</div>
-        <select v-model="score" class="form-control" aria-label="评分">
-          <option :value="5">5 分</option>
-          <option :value="4">4 分</option>
-          <option :value="3">3 分</option>
-          <option :value="2">2 分</option>
-          <option :value="1">1 分</option>
-        </select>
-        <textarea v-model="content" class="form-control" rows="4" placeholder="说说这次服务体验"></textarea>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="$emit('close')">取消</button>
-          <button
-            class="btn btn-primary btn-sm"
-            type="button"
-            :disabled="submitting || currentDimension.done || !currentDimension.targetId"
-            @click="submitReview"
-          >
-            {{ submitting ? '提交中...' : currentDimension.done ? '该维度已评价' : '提交评价' }}
-          </button>
-        </div>
-        <p v-if="currentDimension.done" class="dimension-note">该维度已评价，感谢你的反馈。</p>
-        <p v-else-if="!currentDimension.targetId" class="dimension-note">该订单缺少{{ currentDimension.label }}信息，无法评价。</p>
-      </template>
+      <p v-if="error" class="review-error" role="alert">{{ error }}</p>
+
+      <FormField
+        label="补充说明"
+        :hint="`${comment.length}/${MAX_COMMENT} · 选填，写下有帮助的细节`"
+      >
+        <textarea
+          v-model="comment"
+          class="form-control review-textarea"
+          :maxlength="MAX_COMMENT"
+          rows="4"
+          placeholder="例如：上门准时，遛狗后发来了照片和饮水记录。"
+          :disabled="submitting"
+        ></textarea>
+      </FormField>
     </div>
-  </div>
+
+    <template #footer>
+      <AppButton variant="quiet" :disabled="submitting" @click="$emit('close')">稍后再说</AppButton>
+      <AppButton variant="primary" :loading="submitting" @click="submitReviews">
+        {{ submitting ? '提交中…' : '提交评价' }}
+      </AppButton>
+    </template>
+  </AppDialog>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import AppDialog from '@/components/common/AppDialog.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import StarRating from '@/components/ui/StarRating.vue'
+import FormField from '@/components/ui/FormField.vue'
+
+const MAX_COMMENT = 200
 
 const props = defineProps({
   visible: Boolean,
@@ -55,10 +77,10 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'reviewed'])
 
-const score = ref(5)
-const content = ref('')
-const activeDimension = ref('merchant')
+const comment = ref('')
+const error = ref('')
 const submitting = ref(false)
+const ratings = reactive({ merchant: 0, keeper: 0, service: 0 })
 
 const dimensions = computed(() => {
   const order = props.order || {}
@@ -67,50 +89,60 @@ const dimensions = computed(() => {
       type: 'merchant',
       label: '商家',
       targetId: order.merchant_id_wsh,
-      targetName: order.merchant_name_wsh || `商家 #${order.merchant_id_wsh}`,
+      targetName: order.merchant_name_wsh || '门店服务',
     },
     {
       type: 'keeper',
       label: '看护人',
       targetId: order.keeper_id_wsh,
-      targetName: order.keeper_name_wsh || `看护人 #${order.keeper_id_wsh}`,
+      targetName: order.keeper_name_wsh || '照护人',
     },
     {
       type: 'service',
       label: '服务',
       targetId: order.service_id_wsh,
-      targetName: order.service_name_wsh || `服务 #${order.service_id_wsh}`,
+      targetName: order.service_name_wsh || '服务项目',
     },
   ].map(dim => ({ ...dim, done: props.doneTypes.includes(dim.type) }))
 })
 
-const currentDimension = computed(() =>
-  dimensions.value.find(dim => dim.type === activeDimension.value) || dimensions.value[0])
-
-const activeOrder = computed(() => props.order)
+const ratedCount = computed(() => dimensions.value.filter(d => ratings[d.type] > 0).length)
+const description = computed(() => {
+  const service = props.order?.service_name_wsh || '本次服务'
+  return `${service} · 评价提交后公开展示，可在 24 小时内修改一次。`
+})
+const orderNo = computed(() => props.order?.order_no_wsh || props.order?.id_wsh)
 
 watch(() => props.visible, (val) => {
   if (val) {
-    score.value = 5
-    content.value = ''
+    ratings.merchant = 0
+    ratings.keeper = 0
+    ratings.service = 0
+    comment.value = ''
+    error.value = ''
     submitting.value = false
-    const firstUndone = dimensions.value.find(dim => !dim.done && dim.targetId)
-    activeDimension.value = firstUndone ? firstUndone.type : 'merchant'
   }
-}, { immediate: true })
+})
 
-async function submitReview() {
-  const dim = currentDimension.value
-  if (!props.order || !dim.targetId || dim.done || submitting.value) return
+async function submitReviews() {
+  const pending = dimensions.value.filter(d => d.targetId && !d.done && ratings[d.type] > 0)
+  if (!pending.length) {
+    error.value = '请为可评价的维度评分后再提交'
+    return
+  }
+  if (submitting.value) return
   submitting.value = true
   try {
-    await emit('reviewed', {
-      orderId: props.order.id_wsh,
-      targetType: dim.type,
-      targetId: dim.targetId,
-      score: score.value,
-      content: content.value,
-    })
+    for (const dim of pending) {
+      emit('reviewed', {
+        orderId: props.order?.id_wsh,
+        targetType: dim.type,
+        targetId: dim.targetId,
+        score: ratings[dim.type],
+        content: comment.value,
+      })
+    }
+    emit('close')
   } finally {
     submitting.value = false
   }
@@ -118,41 +150,68 @@ async function submitReview() {
 </script>
 
 <style scoped>
-.mini-modal { max-width: 440px; display: grid; gap: 12px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-
-.dimension-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.review-body {
+  display: grid;
+  gap: 20px;
 }
-.dimension-tab {
-  padding: 6px 12px;
-  font-size: 13px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-card);
-  color: var(--color-muted-foreground);
-  cursor: pointer;
-}
-.dimension-tab.active {
-  color: #fff;
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-}
-.dimension-done {
-  margin-left: 6px;
-  font-size: 11px;
-  opacity: 0.85;
-}
-.dimension-target {
-  color: var(--color-foreground);
-  font-size: 13px;
-  font-weight: 700;
-}
-.dimension-note {
-  color: var(--color-muted-foreground);
-  font-size: 12px;
+.review-meta {
   margin: 0;
+  font-size: 12px;
+  color: var(--ref-muted);
+}
+.review-num {
+  color: var(--ref-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.review-rows {
+  border: 1px solid var(--ref-line);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.review-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.review-row--border {
+  border-top: 1px solid var(--ref-line);
+}
+.review-row__text {
+  min-width: 0;
+}
+.review-row__label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ref-ink);
+}
+.review-row__done {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--ref-brand);
+}
+.review-row__note {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--ref-muted);
+}
+.review-row__hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--ref-muted);
+}
+.review-row.is-disabled {
+  opacity: 0.6;
+}
+.review-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ref-brand-deep);
+}
+.review-textarea {
+  resize: vertical;
 }
 </style>

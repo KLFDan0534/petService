@@ -38,7 +38,7 @@ public class ProductMediaMigrationReadiness implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         String productName = databaseProductName();
         if (!isMysql(productName)) {
-            log.info("ProductMediaMigrationReadiness skipped: non-MySQL database {}", productName);
+            log.info("商品媒体迁移就绪检查跳过: 非 MySQL 数据库 {}", productName);
             return;
         }
         assertMigrationReady(productName);
@@ -74,10 +74,10 @@ public class ProductMediaMigrationReadiness implements ApplicationRunner {
                     "Product media migration is missing on MySQL (" + productName + "): "
                             + "expected migration version '" + requiredVersion + "' recorded in "
                             + "migration_ledger_wsh and table pet_service_media_wsh. "
-                            + "Run pet-admin/src/main/resources/db/migration_v6_service_product_media.sql "
+                            + "Run the v6 建表语句（见 docs/database/full-schema.sql 中的 pet_service_media_wsh / 迁移台账）并更新台账 "
                             + "as an explicit deployment step before starting the application.");
         }
-        log.info("ProductMediaMigrationReadiness passed: version {} present", requiredVersion);
+        log.info("商品媒体迁移就绪检查通过: 已存在版本 {}", requiredVersion);
     }
 
     private String databaseProductName() {

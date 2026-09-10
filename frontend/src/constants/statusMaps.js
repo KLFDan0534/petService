@@ -133,6 +133,10 @@ export const NotificationTypeMap = {
   system: { label: '系统', badge: 'badge-info' },
   order: { label: '订单', badge: 'badge-primary' },
   notice: { label: '公告', badge: 'badge-warning' },
+  complaint: { label: '投诉', badge: 'badge-danger' },
+  ticket: { label: '工单', badge: 'badge-info' },
+  order_fulfillment: { label: '服务进度', badge: 'badge-primary' },
+  order_feedback: { label: '订单评价', badge: 'badge-success' },
 }
 
 export const FavoriteTargetTypeMap = {

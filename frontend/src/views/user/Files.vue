@@ -15,7 +15,7 @@
         <div class="fl-head-copy">
           <div class="fl-eyebrow" aria-hidden="true">
             <span class="fl-eyebrow-line"></span>
-            <span>Asset Library</span>
+            <span>素材库</span>
           </div>
           <h1 class="fl-title">我的文件</h1>
           <p class="fl-sub">上传过的照片与证明材料都在这里，可以随时下载或删除。</p>
@@ -41,14 +41,14 @@
         </div>
       </header>
 
-      <!-- ═══ 01 · Library ═══ -->
+      <!-- ═══ 01 · 素材库 ═══ -->
       <section class="fl-section" aria-label="全部文件">
         <header class="fl-sec-head">
           <div class="fl-head-copy">
             <p class="fl-eyebrow fl-sec-eyebrow">
               <span class="fl-idx">01</span>
               <span class="fl-line" aria-hidden="true"></span>
-              <span>Library</span>
+              <span>素材库</span>
             </p>
             <h2 class="fl-sec-title">全部文件</h2>
           </div>
@@ -411,7 +411,7 @@ onMounted(async () => {
   gap: 6px;
   height: 36px;
   padding: 0 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -431,7 +431,7 @@ onMounted(async () => {
   width: 38px;
   height: 38px;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-surface);
   color: var(--ref-muted);
   cursor: pointer;
@@ -442,8 +442,8 @@ onMounted(async () => {
 
 /* Grid */
 .fl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 20px; list-style: none; margin-block: 20px 0; padding: 0; }
-.fl-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--ref-line); border-radius: 16px; background: var(--ref-surface); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
-.fl-card:hover { border-color: color-mix(in srgb, var(--ref-ink) 18%, transparent); transform: translateY(-3px); box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent); }
+.fl-card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+.fl-card:hover { border-color: color-mix(in srgb, var(--ref-ink) 18%, transparent); transform: translateY(-3px); box-shadow: var(--shadow-lift); }
 .fl-thumb { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; padding: 0; background: color-mix(in srgb, var(--ref-cream) 70%, var(--ref-surface)); border: none; cursor: zoom-in; }
 .fl-thumb-icon { background: color-mix(in srgb, var(--ref-cream) 70%, var(--ref-surface)); color: var(--ref-muted); }
 .fl-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -465,7 +465,7 @@ onMounted(async () => {
 .fl-card-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 14px; }
 
 /* List */
-.fl-list { margin-top: 20px; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--ref-line); border-radius: 16px; background: var(--ref-surface); }
+.fl-list { margin-top: 20px; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); }
 .fl-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--ref-line); }
 .fl-row:last-child { border-bottom: 0; }
 .fl-row-icon { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%; background: var(--ref-sand); color: var(--ref-brand); }
@@ -473,17 +473,17 @@ onMounted(async () => {
 .fl-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 /* Skeleton */
-.fl-skeleton { height: 220px; border: 1px solid var(--ref-line); border-radius: 16px; background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: fl-shimmer 1.3s linear infinite; }
+.fl-skeleton { height: 220px; border: 1px solid var(--ref-line); border-radius: var(--radius-lg); background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: fl-shimmer 1.3s linear infinite; }
 
 /* Empty */
-.fl-empty { margin-top: 20px; padding: 56px 24px; border: 1px dashed var(--ref-line); border-radius: 16px; background: var(--ref-surface); text-align: center; }
+.fl-empty { margin-top: 20px; padding: 56px 24px; border: 1px dashed var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); text-align: center; }
 .fl-empty svg { color: var(--ref-brand); }
 .fl-empty h3 { margin: 16px 0 0; font-family: var(--ref-font-display); font-size: 20px; font-weight: 500; color: var(--ref-ink); }
 .fl-empty p { margin: 10px auto 0; max-width: 440px; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 .fl-empty .cta { margin-top: 22px; }
 
 /* CTA */
-.cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 11px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
+.cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: var(--radius-control); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
 .cta:hover { transform: translateY(-1px); }
 .cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .cta-sm { height: 36px; padding: 0 13px; font-size: 12.5px; }
@@ -499,11 +499,11 @@ onMounted(async () => {
 /* Overlay / Image preview / Confirm */
 .fl-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(10, 8, 6, 0.55); backdrop-filter: blur(2px); animation: fl-fade 0.15s ease; }
 .fl-preview { position: relative; max-width: min(90vw, 880px); max-height: 90vh; }
-.fl-preview img { max-width: 100%; max-height: 90vh; border-radius: 16px; display: block; }
+.fl-preview img { max-width: 100%; max-height: 90vh; border-radius: var(--radius-lg); display: block; }
 .fl-preview-close {
-  position: absolute; top: -14px; right: -14px; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; border: none; background: var(--ref-surface); color: var(--ref-ink); box-shadow: 0 8px 24px color-mix(in srgb, var(--ref-ink) 30%, transparent); cursor: pointer; font-size: 14px;
+  position: absolute; top: -14px; right: -14px; display: flex; align-items: center; justify-content: center; width: 34px; height: var(--control-height-sm); border-radius: 50%; border: none; background: var(--ref-surface); color: var(--ref-ink); box-shadow: 0 8px 24px color-mix(in srgb, var(--ref-ink) 30%, transparent); cursor: pointer; font-size: 14px;
 }
-.fl-confirm { width: 100%; max-width: 420px; padding: 24px; border-radius: 18px; background: var(--ref-surface); border: 1px solid var(--ref-line); box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent); }
+.fl-confirm { width: 100%; max-width: 420px; padding: 24px; border-radius: var(--radius-card); background: var(--ref-surface); border: 1px solid var(--ref-line); box-shadow: var(--shadow-pop); }
 .fl-confirm-title { margin: 0; font-family: var(--ref-font-display); font-size: 20px; font-weight: 500; color: var(--ref-ink); }
 .fl-confirm-desc { margin: 12px 0 0; font-size: 13.5px; line-height: 1.75; color: var(--ref-muted); }
 .fl-confirm-detail { margin: 14px 0 0; padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb, var(--ref-sand) 45%, transparent); font-size: 13px; font-weight: 500; color: var(--ref-ink-soft); overflow-wrap: anywhere; }

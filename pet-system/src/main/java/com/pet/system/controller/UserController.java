@@ -125,7 +125,7 @@ public class UserController {
     })
     public Result<UserVO> updateCurrentUserPhone(@AuthenticationPrincipal JwtAuthenticationToken token,
                                                  @Valid @RequestBody UserUpdatePhoneRequestDTO request) {
-        log.info("call updateCurrentUserPhone()");
+        log.info("调用 updateCurrentUserPhone()");
         UserVO vo = new UserVO();
         vo.setPhone_wsh(request.getPhone_wsh());
         return Result.success(userService.updateUser(token.getUserId(), vo));
@@ -158,7 +158,7 @@ public class UserController {
     })
     public Result<UserVO> updateCurrentUserEmail(@AuthenticationPrincipal JwtAuthenticationToken token,
                                                  @Valid @RequestBody UserUpdateEmailRequestDTO request) {
-        log.info("call updateCurrentUserEmail()");
+        log.info("调用 updateCurrentUserEmail()");
         UserVO vo = new UserVO();
         vo.setEmail_wsh(request.getEmail_wsh());
         return Result.success(userService.updateUser(token.getUserId(), vo));
@@ -191,7 +191,7 @@ public class UserController {
     })
     public Result<UserVO> updateCurrentUserRealName(@AuthenticationPrincipal JwtAuthenticationToken token,
                                                     @Valid @RequestBody UserUpdateRealNameRequestDTO request) {
-        log.info("call updateCurrentUserRealName()");
+        log.info("调用 updateCurrentUserRealName()");
         UserVO vo = new UserVO();
         vo.setReal_name_wsh(request.getReal_name_wsh());
         vo.setId_card_no_wsh(request.getId_card_no_wsh());
@@ -226,7 +226,7 @@ public class UserController {
     })
     public Result<Void> setPaymentPassword(@AuthenticationPrincipal JwtAuthenticationToken token,
                                            @Valid @RequestBody UserPaymentPasswordRequestDTO request) {
-        log.info("call setPaymentPassword()");
+        log.info("调用 setPaymentPassword()");
         userService.setPaymentPassword(token.getUserId(), request.getPayment_password_wsh());
         return Result.success();
     }

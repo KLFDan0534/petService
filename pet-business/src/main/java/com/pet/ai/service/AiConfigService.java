@@ -30,10 +30,10 @@ public class AiConfigService {
     private double temperature;
 
     public AiConfigService(
-            @Value("${ai.kenari.api-key:${KENARI_API_KEY:ff49794d56204c31a281c695b97d4875.t5t1ymE6wUwY4gHa}}") String apiKey,
-            @Value("${ai.kenari.model:${KENARI_MODEL:glm-4.7-flash}}") String model,
-            @Value("${ai.kenari.endpoint:${KENARI_ENDPOINT:https://open.bigmodel.cn/api/paas/v4}}") String endpoint,
-            @Value("${ai.kenari.max-tokens:${KENARI_MAX_TOKENS:65536}}") int maxTokens,
+            @Value("${ai.kenari.api-key:${KENARI_API_KEY:}}") String apiKey,
+            @Value("${ai.kenari.model:${KENARI_MODEL:glm-5.3-flash}}") String model,
+            @Value("${ai.kenari.endpoint:${KENARI_ENDPOINT:https://api.b.ai/v1}}") String endpoint,
+            @Value("${ai.kenari.max-tokens:${KENARI_MAX_TOKENS:8192}}") int maxTokens,
             @Value("${ai.kenari.temperature:${KENARI_TEMPERATURE:1.0}}") double temperature) {
         this.apiKey = apiKey;
         this.model = model;

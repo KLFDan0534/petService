@@ -55,5 +55,5 @@ function handleAvatarUpload(event) {
 .upload-field { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--color-muted-foreground); font-size: 13px; }
 .photo-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
 .photo-preview-grid.single { max-width: 180px; }
-.photo-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-muted); }
+.photo-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-inline); border: 1px solid var(--color-border); background: var(--color-muted); }
 </style>

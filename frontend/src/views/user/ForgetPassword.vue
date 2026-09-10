@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="auth-page">
     <div class="auth-shell">
       <!-- ═══ 左侧：表单 / 成功态 ═══ -->
@@ -9,13 +9,13 @@
             <span class="auth-brand-mark" aria-hidden="true">栖</span>
             <span class="auth-brand-copy">
               <span class="auth-brand-name">栖屿宠护</span>
-              <span class="auth-brand-sub">Pet Boarding</span>
+              <span class="auth-brand-sub">宠物寄养</span>
             </span>
           </router-link>
 
           <!-- header -->
           <header class="auth-head">
-            <p class="auth-eyebrow">Reset password</p>
+            <p class="auth-eyebrow">重置密码</p>
             <h1 class="auth-title">{{ sent ? '重置链接已发送' : '找回密码' }}</h1>
             <p class="auth-lede">
               {{ sent ? '请查收邮件或短信中的重置链接，链接 30 分钟内有效。' : '填写注册时使用的邮箱或手机号，我们会发送一条重置链接。' }}
@@ -50,6 +50,11 @@
                 placeholder="注册时使用的邮箱或手机号"
               >
               <p v-if="error" class="auth-error">{{ error }}</p>
+            </div>
+
+            <div class="auth-field">
+              <div ref="turnstileRef" class="turnstile-wrap" aria-label="人机验证"></div>
+              <p v-if="turnstileError" class="auth-error">{{ turnstileError }}</p>
             </div>
 
             <button type="submit" class="cta cta-dark cta-lg" :disabled="loading">
@@ -106,12 +111,17 @@
 <script setup>
 import { ref } from 'vue'
 import { forgotPassword } from '@/api/auth'
+import { useTurnstile } from '@/composables/useTurnstile'
 
 const account = ref('')
 const error = ref('')
 const formError = ref('')
 const sent = ref(false)
 const loading = ref(false)
+
+// Cloudflare Turnstile 人机验证
+const turnstileRef = ref(null)
+const { token: turnstileToken, error: turnstileError, reset: resetTurnstile } = useTurnstile(turnstileRef)
 
 function resetForm() {
   sent.value = false
@@ -128,16 +138,23 @@ async function handleReset() {
     return
   }
 
+  if (!turnstileToken.value) {
+    formError.value = '请先完成人机验证'
+    return
+  }
+
   loading.value = true
   try {
-    const r = await forgotPassword({ email_wsh: account.value.trim() })
+    const r = await forgotPassword({ email_wsh: account.value.trim(), turnstileToken: turnstileToken.value })
     if (r.code === 200) {
       sent.value = true
     } else {
       formError.value = r.message || r.msg || '发送失败，请确认账号是否正确'
+      resetTurnstile()
     }
   } catch (e) {
     formError.value = e.response?.data?.message || '重置服务暂时无法连接，请稍后重试'
+    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -228,7 +245,7 @@ async function handleReset() {
 .auth-label { font-size: 12.5px; font-weight: 500; color: var(--ref-ink-soft); }
 .auth-req { margin-left: 3px; color: var(--ref-brand); }
 .auth-input {
-  width: 100%; height: 44px; padding: 0 14px;
+  width: 100%; height: var(--control-height); padding: 0 14px;
   border: 1px solid var(--ref-line); border-radius: var(--r-btn);
   background: var(--ref-surface); color: var(--ref-ink); font-size: 14px;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -242,6 +259,13 @@ async function handleReset() {
 .auth-error {
   margin: 0; font-size: 11px; line-height: 1.6; color: var(--ref-brand-deep);
 }
+
+/* ═══ Turnstile 人机验证 ═══ */
+.turnstile-wrap {
+  min-height: 65px; width: 100%;
+  display: flex; align-items: center; justify-content: flex-start;
+}
+.turnstile-wrap:empty + p { display: none; }
 
 /* ═══ CTA ═══ */
 .cta {
@@ -258,7 +282,7 @@ async function handleReset() {
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 .cta-ghost { background: transparent; color: var(--ref-ink-soft); }
 .cta-ghost:hover { color: var(--ref-brand); background: transparent; }
-.cta-lg { height: 48px; width: 100%; font-size: 14px; padding: 0 20px; }
+.cta-lg { height: var(--control-height-lg); width: 100%; font-size: 14px; padding: 0 20px; }
 .cta .cta-arrow { font-size: 15px; transition: transform 0.15s; }
 .cta:hover .cta-arrow { transform: translateX(3px); }
 
@@ -270,7 +294,7 @@ async function handleReset() {
 }
 .auth-sent-icon {
   display: flex; align-items: center; justify-content: center;
-  width: 48px; height: 48px; margin: 0 auto; border-radius: 50%;
+  width: 48px; height: var(--control-height-lg); margin: 0 auto; border-radius: 50%;
   background: var(--ref-sand); color: var(--ref-brand); font-size: 18px;
 }
 .auth-sent-main { margin: 20px 0 0; font-size: 13.5px; line-height: 1.7; color: var(--ref-ink-soft); }

@@ -15,7 +15,7 @@
         <div class="rf-head-copy">
           <div class="rf-eyebrow" aria-hidden="true">
             <span class="rf-eyebrow-line"></span>
-            <span>Refunds</span>
+            <span>退款</span>
           </div>
           <h1 class="rf-title">退款申请</h1>
           <p class="rf-sub">日期变更、服务未完成或订单重复支付，都可以在这里发起退款。审核通过后金额退回账户余额。</p>
@@ -49,7 +49,7 @@
             <p class="rf-eyebrow rf-sec-eyebrow">
               <span class="rf-idx">01</span>
               <span class="rf-line" aria-hidden="true"></span>
-              <span>Progress</span>
+              <span>进度</span>
             </p>
             <h2 class="rf-sec-title">申请进度</h2>
             <p class="rf-sec-desc">审核结果会同步到订单与站内通知。</p>
@@ -283,7 +283,7 @@ async function submitRefund() {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -303,7 +303,7 @@ async function submitRefund() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -327,14 +327,14 @@ async function submitRefund() {
 .rf-fact {
   padding: 20px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 .rf-fact:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 16%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .rf-fact dd {
   margin: 0;
@@ -383,7 +383,7 @@ async function submitRefund() {
   margin-top: 20px;
   height: 172px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: rf-shimmer 1.3s linear infinite;
@@ -394,7 +394,7 @@ async function submitRefund() {
   margin-top: 20px;
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -419,7 +419,7 @@ async function submitRefund() {
 .rf-card {
   padding: 20px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
@@ -483,7 +483,7 @@ async function submitRefund() {
   overflow-wrap: anywhere;
 }
 
-/* ═══ Progress track ═══ */
+/* ═══ 进度 track ═══ */
 .rf-track {
   display: flex;
   align-items: flex-start;
@@ -575,7 +575,7 @@ async function submitRefund() {
   border-radius: 20px;
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: rf-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-head {

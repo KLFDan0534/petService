@@ -17,7 +17,7 @@
         <div class="rv-head-copy">
           <div class="rv-eyebrow" aria-hidden="true">
             <span class="rv-eyebrow-line"></span>
-            <span>Earnings</span>
+            <span>收益</span>
           </div>
           <h1 class="rv-title">收益中心</h1>
           <p class="rv-sub">收益按已完成的订单结算，在途订单单独列出。提现与明细在钱包中处理。</p>
@@ -40,7 +40,7 @@
             <p class="rv-eyebrow">
               <span class="rv-idx">01</span>
               <span class="rv-line" aria-hidden="true"></span>
-              <span>Overview</span>
+              <span>概览</span>
             </p>
             <h2 class="rv-sec-title">收益概览</h2>
             <p class="rv-sec-desc">累计收益为平台已结算金额，与钱包余额可能存在结算周期差。</p>
@@ -88,7 +88,7 @@
             <p class="rv-eyebrow">
               <span class="rv-idx">02</span>
               <span class="rv-line" aria-hidden="true"></span>
-              <span>In Progress</span>
+              <span>进行中</span>
             </p>
             <h2 class="rv-sec-title">在途订单</h2>
             <p class="rv-sec-desc">这些金额尚未结算，服务完成后才会入账。</p>
@@ -119,7 +119,7 @@
             <p class="rv-eyebrow">
               <span class="rv-idx">03</span>
               <span class="rv-line" aria-hidden="true"></span>
-              <span>Settled</span>
+              <span>已结算</span>
             </p>
             <h2 class="rv-sec-title">已结算订单</h2>
             <p class="rv-sec-desc">按服务结束时间排序，可与钱包流水逐笔核对。</p>
@@ -246,7 +246,7 @@ onMounted(load)
 
 /* Metrics */
 .rv-metrics { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 16px; margin-top: 24px; }
-.rv-metric { padding: 22px; border: 1px solid var(--ref-line); border-radius: 16px; background: var(--ref-surface); }
+.rv-metric { padding: 22px; border: 1px solid var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); }
 .rv-metric-strong { background: var(--ref-ink); border-color: var(--ref-ink); color: var(--ref-cream); }
 .rv-metric-strong .rv-m-label { color: color-mix(in srgb, var(--ref-cream) 45%, transparent); }
 .rv-metric-strong .rv-m-note { color: color-mix(in srgb, var(--ref-cream) 55%, transparent); }
@@ -261,7 +261,7 @@ onMounted(load)
 .rv-m-note { margin: 14px 0 0; font-size: 12px; line-height: 1.7; color: var(--ref-muted); }
 
 /* List */
-.rv-list { margin: 24px 0 0; overflow: hidden; border: 1px solid var(--ref-line); border-radius: 16px; background: var(--ref-surface); }
+.rv-list { margin: 24px 0 0; overflow: hidden; border: 1px solid var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); }
 .rv-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--ref-line); }
 .rv-row:last-child { border-bottom: 0; }
 .rv-main { min-width: 0; }
@@ -271,16 +271,16 @@ onMounted(load)
 .rv-settled-amount { margin: 0; flex-shrink: 0; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ref-moss, #3f5347); }
 
 /* Empty */
-.rv-empty { margin-top: 24px; padding: 48px 24px; border: 1px dashed var(--ref-line); border-radius: 16px; background: var(--ref-surface); text-align: center; }
+.rv-empty { margin-top: 24px; padding: 48px 24px; border: 1px dashed var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); text-align: center; }
 .rv-empty-title { margin: 0; font-family: var(--ref-font-display); font-size: 19px; font-weight: 500; color: var(--ref-ink); }
 .rv-empty-desc { margin: 10px auto 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 .rv-empty .cta { margin-top: 18px; }
 
 /* Skeleton */
-.rv-skeleton { margin-top: 24px; border-radius: 16px; border: 1px solid var(--ref-line); background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: rv-shimmer 1.3s linear infinite; }
+.rv-skeleton { margin-top: 24px; border-radius: var(--radius-lg); border: 1px solid var(--ref-line); background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: rv-shimmer 1.3s linear infinite; }
 
 /* CTA */
-.cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: 11px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
+.cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: var(--radius-control); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
 .cta:hover { transform: translateY(-1px); }
 .cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .cta-primary { background: var(--ref-brand); color: #fff; }

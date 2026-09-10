@@ -56,19 +56,21 @@
       </template>
     </DataTable>
 
-    <div v-if="pendingResolve" class="modal-overlay" @mousedown.self="cancelResolve">
-      <div class="modal" style="max-width:460px">
-        <h3>解决工单</h3>
-        <div class="form-group" style="margin-top:16px">
-          <label>处理结果</label>
-          <textarea v-model="resolveResult" rows="4" placeholder="请输入处理结果"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="cancelResolve">取消</button>
-          <button class="btn btn-primary btn-sm" type="button" :disabled="!resolveResult.trim()" @click="confirmResolve">确认解决</button>
-        </div>
+    <AppDialog
+      :visible="pendingResolve"
+      :width="460"
+      title="解决工单"
+      @close="cancelResolve"
+    >
+      <div class="form-group" style="margin-top:16px">
+        <label>处理结果</label>
+        <textarea v-model="resolveResult" rows="4" placeholder="请输入处理结果"></textarea>
       </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="cancelResolve">取消</button>
+        <button class="btn btn-primary btn-sm" type="button" :disabled="!resolveResult.trim()" @click="confirmResolve">确认解决</button>
+      </template>
+    </AppDialog>
 
     <div v-if="total > size" style="display:flex;justify-content:center;margin-top:16px;gap:8px;align-items:center">
       <button :disabled="currentPage <= 1" @click="changePage(currentPage - 1)" class="btn btn-sm">上一页</button>
@@ -84,6 +86,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { getTickets, assignTicket as apiAssignTicket, resolveTicket, closeTicket } from '@/api/ticket'
 import { TicketStatus, TicketCategory, TicketPriority, enrichWithStatus } from '@/constants/statusMaps'
 

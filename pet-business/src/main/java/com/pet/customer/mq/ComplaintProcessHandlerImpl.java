@@ -42,21 +42,21 @@ public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
     @Override
     public void handle(Long complaintId) {
         if (complaintId == null) {
-            log.warn("ComplaintProcessHandler received null complaintId");
+            log.warn("ComplaintProcessHandler 收到空的 complaintId");
             return;
         }
 
         Complaint complaint = complaintMapper.selectById(complaintId);
         if (complaint == null) {
-            log.warn("Complaint not found: {}, message skipped", complaintId);
+            log.warn("未找到投诉: {}, 消息已跳过", complaintId);
             return;
         }
 
-        log.info("Processing complaint {} (status={}, result={})",
+        log.info("处理投诉 {} (状态={}, 结果={})",
                 complaintId, complaint.getStatus_wsh(), complaint.getResult_wsh());
 
         if (complaint.getOwner_id_wsh() == null) {
-            log.warn("Complaint {} has no owner, skipping notification", complaintId);
+            log.warn("投诉 {} 没有所有者, 跳过通知", complaintId);
             return;
         }
 
@@ -71,9 +71,9 @@ public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
             notification.setRelated_id_wsh(complaintId);
             notification.setIs_read_wsh(0);
             notificationService.create(notification);
-            log.info("Notification sent for complaint {}", complaintId);
+            log.info("投诉 {} 的通知已发送", complaintId);
         } catch (Exception e) {
-            log.warn("Failed to send notification for complaint {}", complaintId, e);
+            log.warn("为投诉 {} 发送通知失败", complaintId, e);
         }
     }
 }

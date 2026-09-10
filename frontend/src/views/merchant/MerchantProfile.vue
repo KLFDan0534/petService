@@ -58,6 +58,7 @@ import { useRouter } from 'vue-router'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { getMy } from '@/services/merchantService'
+import { formatDate } from '@/utils/format'
 
 const router = useRouter()
 const loading = ref(true)
@@ -96,10 +97,6 @@ async function loadProfile() {
   } finally {
     loading.value = false
   }
-}
-
-function formatDate(value) {
-  return value ? String(value).slice(0, 10) : '-'
 }
 
 function goBack() {

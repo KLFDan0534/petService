@@ -30,15 +30,18 @@
       <DataTable :columns="staffColumns" :data="staffList" />
     </section>
 
-    <div v-if="pendingReview" class="modal-overlay" @mousedown.self="cancelReview">
-      <div class="modal">
-        <h3>{{ pendingReview.action === 'approve' ? '通过客服申请' : '拒绝客服申请' }}</h3>
+    <AppDialog
+      :visible="pendingReview"
+      :width="500"
+      :title="pendingReview.action === 'approve' ? '通过客服申请' : '拒绝客服申请'"
+      @close="cancelReview"
+    >
         <p class="review-target">{{ pendingReview.name }}</p>
         <div class="form-group">
           <label>审核意见</label>
           <textarea v-model="reviewNote" rows="4" placeholder="填写给申请人的审核意见" />
         </div>
-        <div class="modal-actions">
+        <template #footer>
           <button class="btn btn-secondary btn-sm" type="button" @click="cancelReview">取消</button>
           <button
             :class="['btn', 'btn-sm', pendingReview.action === 'approve' ? 'btn-success' : 'btn-danger']"
@@ -47,15 +50,15 @@
           >
             确认{{ pendingReview.action === 'approve' ? '通过' : '拒绝' }}
           </button>
-        </div>
-      </div>
-    </div>
+        </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
+import AppDialog from '@/components/common/AppDialog.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import {
   approveCustomerServiceApplication,

@@ -36,24 +36,22 @@
       <div v-if="r.images_wsh" style="margin-top:8px;font-size:12px;color:var(--color-muted-foreground)">附件: {{ r.images_wsh }}</div>
     </div>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
-      <div class="modal">
-        <h2>{{ typeLabel(form.type_wsh) }}上报</h2>
-        <form @submit.prevent="submitRecord">
-          <div class="form-group"><label>内容描述</label><textarea v-model="form.content_wsh" rows="4" required></textarea></div>
-          <div class="form-group"><label>图片URL（可选）</label><input v-model="form.images_wsh"></div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm">提交</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <AppDialog :visible="showForm" :title="typeLabel(form.type_wsh) + '上报'" @close="showForm = false">
+      <form id="anomaly-form" @submit.prevent="submitRecord">
+        <div class="form-group"><label>内容描述</label><textarea v-model="form.content_wsh" rows="4" required></textarea></div>
+        <div class="form-group"><label>图片URL（可选）</label><input v-model="form.images_wsh"></div>
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
+        <button type="submit" form="anomaly-form" class="btn btn-primary btn-sm">提交</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getCareRecordsByOrder, createCareRecord } from '@/api/careRecord'
 import { useAppStore } from '@/stores/app'

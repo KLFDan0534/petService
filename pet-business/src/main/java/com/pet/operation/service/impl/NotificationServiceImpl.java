@@ -12,6 +12,7 @@ import com.pet.operation.mapper.NotificationMapper;
 import com.pet.operation.service.NotificationBroadcaster;
 import com.pet.operation.service.NotificationService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -41,7 +42,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     public List<Notification> listByUser(Long userId) {
-        log.info("listByUser() called");
+        log.info("listByUser() 被调用");
         List<Notification> list = notificationMapper.selectList(
                 new LambdaQueryWrapper<Notification>()
                         .eq(Notification::getUser_id_wsh, userId)
@@ -71,7 +72,7 @@ public class NotificationServiceImpl implements NotificationService {
                     .collect(Collectors.toList());
 
             if (!staleIds.isEmpty()) {
-                log.info("cleaning up {} stale notification(s) for deleted/inactive notices", staleIds.size());
+                log.info("清理 {} 条因通知被删除或停用而产生的过期通知", staleIds.size());
                 notificationMapper.delete(
                         new LambdaQueryWrapper<Notification>()
                                 .in(Notification::getId_wsh, staleIds));
@@ -86,8 +87,9 @@ public class NotificationServiceImpl implements NotificationService {
      * 统计用户未读通知数量
      */
     @Override
+    @Cacheable(value = "notice", key = "'unreadCount:' + #userId", unless = "#userId == null")
     public long countUnread(Long userId) {
-        log.info("countUnread() called");
+        log.info("countUnread() 被调用");
         return notificationMapper.selectCount(
                 new LambdaQueryWrapper<Notification>()
                         .eq(Notification::getUser_id_wsh, userId)
@@ -100,7 +102,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public Notification create(Notification notification) {
-        log.info("create() called");
+        log.info("create() 被调用");
         notification.setIs_read_wsh(0);
         notificationMapper.insert(notification);
         notificationBroadcaster.broadcast(notification.getUser_id_wsh(), notification);
@@ -113,7 +115,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void markAsRead(Long id, Long userId) {
-        log.info("markAsRead() called");
+        log.info("markAsRead() 被调用");
         Notification notif = notificationMapper.selectById(id);
         if (notif != null && notif.getUser_id_wsh().equals(userId)) {
             notif.setIs_read_wsh(1);
@@ -127,7 +129,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void markAllAsRead(Long userId) {
-        log.info("markAllAsRead() called");
+        log.info("markAllAsRead() 被调用");
         notificationMapper.update(
                 new Notification() {{ setIs_read_wsh(1); }},
                 new LambdaQueryWrapper<Notification>()
@@ -141,7 +143,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     @Override
     public void deleteByRelatedId(Long relatedId) {
-        log.info("deleteByRelatedId() called");
+        log.info("deleteByRelatedId() 被调用");
         notificationMapper.delete(
                 new LambdaQueryWrapper<Notification>()
                         .eq(Notification::getRelated_id_wsh, relatedId));
@@ -152,7 +154,7 @@ public class NotificationServiceImpl implements NotificationService {
      */
     @Override
     public IPage<Notification> pageAll(PageRequestDTO pageParam, String type, Integer isRead) {
-        log.info("pageAll() called");
+        log.info("pageAll() 被调用");
         LambdaQueryWrapper<Notification> wrapper = new LambdaQueryWrapper<Notification>()
                 .eq(StringUtils.hasText(type), Notification::getType_wsh, type)
                 .eq(isRead != null, Notification::getIs_read_wsh, isRead)

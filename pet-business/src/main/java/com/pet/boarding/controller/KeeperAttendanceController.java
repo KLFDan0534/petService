@@ -197,7 +197,7 @@ public class KeeperAttendanceController {
     })
     public Result<PageResult<KeeperAttendanceDTO>> adminList(PageRequestDTO pageParam,
                                                              @RequestParam(required = false) Long merchant_id_wsh) {
-        log.info("Calling adminList(merchant_id_wsh={})", merchant_id_wsh);
+        log.info("调用 adminList(merchant_id_wsh={})", merchant_id_wsh);
         var page = attendanceService.pageAll(pageParam, merchant_id_wsh);
         var dtoList = page.getRecords()
                 .stream()

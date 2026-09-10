@@ -69,7 +69,7 @@ public interface AiReportService {
      * 【业务名称】AI生成护理建议报告
      * <p>业务作用：根据宠物档案、看护人信息、订单信息和护理动态，调用AI模型生成结构化的宠物护理建议报告。AI不可用时降级为模板填充。</p>
      * <p>调用场景：用户在订单详情页或宠物详情页点击"生成护理建议"按钮。</p>
-     * <p>调用链：AiReportController.generateCareSuggestion() → AiReportService.generateCareSuggestion() → 鉴权 → 查询数据(pet/keeper/order/careRecords) → 构建AI Prompt → AiChatService.chat() → AI返回/模板降级 → saveReport() → MySQL + Chroma</p>
+     * <p>调用链：AiReportController.generateCareSuggestion() → AiReportService.generateCareSuggestion() → 鉴权 → 查询数据(pet/keeper/order/careRecords) → 构建AI Prompt → LlmChatService.chat() → AI返回/模板降级 → saveReport() → MySQL + Chroma</p>
      * <p>数据处理：查询PetOrder/Pet/Keeper/CareRecord关联数据；构建带宠物档案上下文的AI提示词；AI返回后trim()；AI为null时使用buildCareSuggestion()模板；保存到MySQL和Chroma。</p>
      * <p>业务规则：petId和orderId至少提供一个；从order可推导petId和keeperId；AI生成内容优先级高于模板；报告类型为"care"。</p>
      * <p>状态影响：新增一条type="care"的AI报告。</p>

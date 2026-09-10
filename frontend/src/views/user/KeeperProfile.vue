@@ -32,7 +32,7 @@
         <header class="kpr-head">
           <div class="kpr-head-copy">
             <p class="kpr-eyebrow">
-              <span class="kpr-idx">Keeper Profile</span>
+              <span class="kpr-idx">寄养师档案</span>
               <span class="kpr-line" aria-hidden="true"></span>
               <span>我的寄养师主页</span>
             </p>
@@ -55,7 +55,7 @@
             <p class="kpr-eyebrow">
               <span class="kpr-idx">01</span>
               <span class="kpr-line" aria-hidden="true"></span>
-              <span>Identity</span>
+              <span>身份</span>
             </p>
             <h2 id="kpr-sec-id" class="kpr-section-title">身份与状态</h2>
           </header>
@@ -116,7 +116,7 @@
             <p class="kpr-eyebrow">
               <span class="kpr-idx">02</span>
               <span class="kpr-line" aria-hidden="true"></span>
-              <span>Capacity</span>
+              <span>容量</span>
             </p>
             <h2 id="kpr-sec-cap" class="kpr-section-title">服务能力</h2>
             <p class="kpr-section-desc">当前接待情况与报价。</p>
@@ -154,7 +154,7 @@
             <p class="kpr-eyebrow">
               <span class="kpr-idx">03</span>
               <span class="kpr-line" aria-hidden="true"></span>
-              <span>About</span>
+              <span>关于</span>
             </p>
             <h2 id="kpr-sec-about" class="kpr-section-title">个人简介</h2>
           </header>
@@ -170,7 +170,7 @@
             <p class="kpr-eyebrow">
               <span class="kpr-idx">04</span>
               <span class="kpr-line" aria-hidden="true"></span>
-              <span>Credentials</span>
+              <span>资质</span>
             </p>
             <h2 id="kpr-sec-qual" class="kpr-section-title">资质核验</h2>
             <p class="kpr-section-desc">每一份证明都标注了平台的核验状态。</p>
@@ -199,7 +199,7 @@
             <p class="kpr-eyebrow">
               <span class="kpr-idx">05</span>
               <span class="kpr-line" aria-hidden="true"></span>
-              <span>In Their Words</span>
+              <span>客户评价</span>
             </p>
             <h2 id="kpr-sec-ratings" class="kpr-section-title">用户评价</h2>
             <p v-if="ratingCount > 0" class="kpr-section-desc">{{ ratingCount }} 条评价，平均 {{ avgScore }} 分。</p>

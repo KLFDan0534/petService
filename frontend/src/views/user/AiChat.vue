@@ -15,7 +15,7 @@
         <div class="ac-head-copy">
           <div class="ac-eyebrow" aria-hidden="true">
             <span class="ac-eyebrow-line"></span>
-            <span>Ask</span>
+            <span>提问</span>
           </div>
           <h1 class="ac-title">照护助手</h1>
           <p class="ac-sub">问寄养准备、饮食与应激处理。回答会附上依据来源；模型没把握时会建议转人工客服。</p>
@@ -33,7 +33,7 @@
             <p class="ac-eyebrow ac-sec-eyebrow">
               <span class="ac-idx">01</span>
               <span class="ac-line" aria-hidden="true"></span>
-              <span>Conversation</span>
+              <span>对话</span>
             </p>
             <h2 class="ac-sec-title">对话</h2>
             <p class="ac-sec-desc">Enter 发送，Shift + Enter 换行。</p>
@@ -396,7 +396,7 @@ function scrollToBottom() {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -410,7 +410,7 @@ function scrollToBottom() {
 .cta-primary:hover:not(:disabled) { background: var(--ref-brand-deep); }
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
-.cta-sm { height: 34px; padding: 0 14px; font-size: 12px; border-radius: 9px; }
+.cta-sm { height: var(--control-height-sm); padding: 0 14px; font-size: 12px; border-radius: 9px; }
 
 /* ═══ Section ═══ */
 .ac-section { margin-top: 44px; }
@@ -453,7 +453,7 @@ function scrollToBottom() {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   overflow: hidden;
 }
@@ -615,7 +615,7 @@ function scrollToBottom() {
 /* ═══ 历史会话 ═══ */
 .ac-side {
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   overflow: hidden;
   display: flex;

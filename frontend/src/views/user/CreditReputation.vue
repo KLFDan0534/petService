@@ -15,21 +15,21 @@
         <div class="cr-head-copy">
           <div class="cr-eyebrow" aria-hidden="true">
             <span class="cr-eyebrow-line"></span>
-            <span>Trust Center</span>
+            <span>信用中心</span>
           </div>
           <h1 class="cr-title">信誉中心</h1>
           <p class="cr-sub">查看寄养师或门店的履约记录，以及你自己提交过的投诉与处理结果。</p>
         </div>
       </header>
 
-      <!-- ═══ 01 · Lookup ═══ -->
+      <!-- ═══ 01 · 查询 ═══ -->
       <section class="cr-section" aria-label="查询对象">
         <header class="cr-sec-head">
           <div class="cr-head-copy">
             <p class="cr-eyebrow cr-sec-eyebrow">
               <span class="cr-idx">01</span>
               <span class="cr-line" aria-hidden="true"></span>
-              <span>Lookup</span>
+              <span>查询</span>
             </p>
             <h2 class="cr-sec-title">查询对象</h2>
             <p class="cr-sec-desc">选择类型并输入对象编号，即可查看其公开的履约与评价记录。</p>
@@ -88,14 +88,14 @@
         </form>
       </section>
 
-      <!-- ═══ 02 · Record ═══ -->
+      <!-- ═══ 02 · 记录 ═══ -->
       <section v-if="queried" class="cr-section" aria-label="履约记录">
         <header class="cr-sec-head">
           <div class="cr-head-copy">
             <p class="cr-eyebrow cr-sec-eyebrow">
               <span class="cr-idx">02</span>
               <span class="cr-line" aria-hidden="true"></span>
-              <span>Record</span>
+              <span>记录</span>
             </p>
             <h2 class="cr-sec-title">履约记录</h2>
           </div>
@@ -105,46 +105,46 @@
           <div class="cr-score-block">
             <p class="cr-muted-label">综合评分</p>
             <div class="cr-score-row">
-              <p class="cr-score">{{ stats?.avgRating ? Number(stats.avgRating).toFixed(1) : '—' }}</p>
-              <span v-if="stats?.avgRating" class="cr-stars" aria-hidden="true">
-                <span v-for="n in 5" :key="n" :class="{ on: n <= Math.round(Number(stats.avgRating)) }" class="cr-star">★</span>
+              <p class="cr-score">{{ stats?.avg_rating_wsh ? Number(stats.avg_rating_wsh).toFixed(1) : '—' }}</p>
+              <span v-if="stats?.avg_rating_wsh" class="cr-stars" aria-hidden="true">
+                <span v-for="n in 5" :key="n" :class="{ on: n <= Math.round(Number(stats.avg_rating_wsh)) }" class="cr-star">★</span>
               </span>
             </div>
-            <p class="cr-score-note">基于 {{ stats?.totalRatings ?? 0 }} 条真实订单评价计算。</p>
+            <p class="cr-score-note">基于 {{ stats?.total_ratings_wsh ?? 0 }} 条真实订单评价计算。</p>
           </div>
           <dl class="cr-figures">
             <div class="cr-figure">
               <dt>完成订单</dt>
-              <dd class="tabular">{{ stats?.totalCompleted ?? '—' }}</dd>
+              <dd class="tabular">{{ stats?.total_completed_wsh ?? '—' }}</dd>
               <p>已结束的服务</p>
             </div>
             <div class="cr-figure">
               <dt>完成率</dt>
-              <dd class="tabular">{{ percentText(stats?.completionRate) }}</dd>
+              <dd class="tabular">{{ percentText(stats?.completion_rate_wsh) }}</dd>
               <p>越高越可靠</p>
             </div>
             <div class="cr-figure">
               <dt>投诉率</dt>
-              <dd class="tabular">{{ percentText(stats?.complaintRate) }}</dd>
+              <dd class="tabular">{{ percentText(stats?.complaint_rate_wsh) }}</dd>
               <p>越低越好</p>
             </div>
             <div class="cr-figure">
               <dt>累计打赏</dt>
-              <dd class="tabular">{{ stats?.totalTips !== undefined ? `¥${money(stats.totalTips)}` : '—' }}</dd>
+              <dd class="tabular">{{ stats?.total_tips_wsh !== undefined ? `¥${money(stats.total_tips_wsh)}` : '—' }}</dd>
               <p>用户自愿给出</p>
             </div>
           </dl>
         </div>
       </section>
 
-      <!-- ═══ 03 · Reviews ═══ -->
+      <!-- ═══ 03 · 评价 ═══ -->
       <section v-if="queried" class="cr-section" aria-label="评价记录">
         <header class="cr-sec-head">
           <div class="cr-head-copy">
             <p class="cr-eyebrow cr-sec-eyebrow">
               <span class="cr-idx">03</span>
               <span class="cr-line" aria-hidden="true"></span>
-              <span>Reviews</span>
+              <span>评价</span>
             </p>
             <h2 class="cr-sec-title">评价记录</h2>
             <p class="cr-sec-desc">{{ ratings.length }} 条公开评价。</p>
@@ -172,14 +172,14 @@
         </ul>
       </section>
 
-      <!-- ═══ My Complaints ═══ -->
+      <!-- ═══ 我的投诉 ═══ -->
       <section class="cr-section" aria-label="我的投诉记录">
         <header class="cr-sec-head">
           <div class="cr-head-copy">
             <p class="cr-eyebrow cr-sec-eyebrow">
               <span class="cr-idx">{{ queried ? '04' : '02' }}</span>
               <span class="cr-line" aria-hidden="true"></span>
-              <span>My Complaints</span>
+              <span>我的投诉</span>
             </p>
             <h2 class="cr-sec-title">我的投诉记录</h2>
             <p class="cr-sec-desc">你提交过的投诉及平台处理结果。</p>
@@ -392,7 +392,7 @@ onMounted(async () => {
   gap: 6px;
   height: 40px;
   padding: 0 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -407,10 +407,10 @@ onMounted(async () => {
 .cr-query { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 20px; }
 .cr-field { flex: 1; min-width: 200px; display: grid; gap: 8px; }
 .cr-input {
-  height: 44px;
+  height: var(--control-height);
   padding: 0 14px;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-surface);
   color: var(--ref-ink);
   font-size: 14px;
@@ -430,7 +430,7 @@ onMounted(async () => {
   margin: 20px 0 0;
   padding: 12px 16px;
   border: 1px dashed var(--ref-line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--ref-cream) 50%, transparent);
   font-size: 12px;
   line-height: 1.7;
@@ -492,7 +492,7 @@ onMounted(async () => {
   list-style: none;
   overflow: hidden;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
 }
 .cr-review { padding: 18px 20px; border-bottom: 1px solid var(--ref-line); }
@@ -540,7 +540,7 @@ onMounted(async () => {
 .cr-empty {
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -558,7 +558,7 @@ onMounted(async () => {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;

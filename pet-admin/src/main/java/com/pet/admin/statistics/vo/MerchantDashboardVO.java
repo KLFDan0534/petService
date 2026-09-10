@@ -9,15 +9,15 @@ import java.math.BigDecimal;
 @Setter
 public class MerchantDashboardVO {
     @Schema(description = "总订单数")
-    private int totalOrders;
+    private int total_orders_wsh;
     @Schema(description = "总营收")
-    private BigDecimal totalRevenue;
+    private BigDecimal total_revenue_wsh;
     @Schema(description = "待处理订单数")
-    private long pendingOrders;
+    private long pending_orders_wsh;
     @Schema(description = "进行中订单数")
-    private long activeOrders;
+    private long active_orders_wsh;
     @Schema(description = "已完成订单数")
-    private long completedOrders;
+    private long completed_orders_wsh;
     @Schema(description = "宠物数量")
-    private int pets;
+    private int pets_wsh;
 }

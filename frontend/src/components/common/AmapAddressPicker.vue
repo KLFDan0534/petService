@@ -18,7 +18,7 @@
           :disabled="mapLoading"
           @click="openMapDialog"
         >
-          <el-icon><MapLocation /></el-icon>
+          <AppIcon><MapLocation /></AppIcon>
           {{ mapLoading ? '加载地图' : mapButtonText }}
         </button>
         <button
@@ -28,7 +28,7 @@
           :disabled="locating"
           @click="useCurrentLocation"
         >
-          <el-icon><Location /></el-icon>
+          <AppIcon><Location /></AppIcon>
           {{ locating ? '定位中' : locateButtonText }}
         </button>
       </div>
@@ -59,7 +59,7 @@
               <p>{{ pendingAddress || '搜索地点或在地图上定点' }}</p>
             </div>
             <button class="icon-button" type="button" aria-label="关闭地图选址" @click="closeMapDialog">
-              <el-icon><Close /></el-icon>
+              <AppIcon><Close /></AppIcon>
             </button>
           </header>
 
@@ -72,7 +72,7 @@
               @keydown.enter.prevent="searchInMap"
             >
             <button class="btn btn-primary btn-sm" type="button" :disabled="mapSearching" @click="searchInMap">
-              <el-icon><Search /></el-icon>
+              <AppIcon><Search /></AppIcon>
               {{ mapSearching ? '搜索中' : '搜索' }}
             </button>
           </div>
@@ -554,7 +554,7 @@ onBeforeUnmount(() => {
 }
 .result-meta {
   width: fit-content;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-muted);
   color: var(--color-primary);
   font-size: 11px;
@@ -644,7 +644,7 @@ onBeforeUnmount(() => {
 .map-result {
   width: 100%;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: transparent;
   color: var(--color-foreground);
   text-align: left;

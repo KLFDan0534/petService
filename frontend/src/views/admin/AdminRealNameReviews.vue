@@ -35,17 +35,19 @@
       </div>
     </div>
     <Teleport to="body">
-      <div v-if="showRejectDialog" class="modal-overlay" @click.self="showRejectDialog = false">
-        <div class="modal" style="width:400px">
-          <h3>驳回实名认证</h3>
-          <p style="font-size:13px;color:var(--color-muted-foreground);margin-bottom:12px">用户：{{ rejectTarget?.real_name_wsh || rejectTarget?.username_wsh }}</p>
-          <textarea v-model="rejectReason" class="form-control" rows="3" placeholder="驳回原因（选填）"></textarea>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-            <button class="btn btn-outline btn-sm" @click="showRejectDialog = false">取消</button>
-            <button class="btn btn-danger btn-sm" @click="doReject">确认驳回</button>
-          </div>
-        </div>
-      </div>
+      <AppDialog
+        :visible="showRejectDialog"
+        :width="400"
+        title="驳回实名认证"
+        @close="showRejectDialog = false"
+      >
+        <p style="font-size:13px;color:var(--color-muted-foreground);margin-bottom:12px">用户：{{ rejectTarget?.real_name_wsh || rejectTarget?.username_wsh }}</p>
+        <textarea v-model="rejectReason" class="form-control" rows="3" placeholder="驳回原因（选填）"></textarea>
+        <template #footer>
+          <button class="btn btn-outline btn-sm" @click="showRejectDialog = false">取消</button>
+          <button class="btn btn-danger btn-sm" @click="doReject">确认驳回</button>
+        </template>
+      </AppDialog>
     </Teleport>
   </div>
 </template>
@@ -56,6 +58,7 @@ import { useAppStore } from '@/stores/app'
 import { getRealNameReviews, approveRealNameReview, rejectRealNameReview } from '@/api/realNameReview'
 import { RealNameStatus, enrichWithStatus } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
 const reviews = ref([])

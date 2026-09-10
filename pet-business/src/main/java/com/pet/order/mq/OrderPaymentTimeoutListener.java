@@ -38,17 +38,17 @@ public class OrderPaymentTimeoutListener {
         try {
             boolean cancelled = orderService.cancelPendingOrderIfPaymentTimeout(orderNo);
             if (cancelled) {
-                log.info("Payment timeout message cancelled order: {}", orderNo);
+                log.info("支付超时消息已取消订单: {}", orderNo);
             } else {
-                log.debug("Payment timeout message ignored, order is not timeout pending: {}", orderNo);
+                log.debug("忽略支付超时消息, 订单不处于待超时状态: {}", orderNo);
             }
             channel.basicAck(deliveryTag, false);
         } catch (Exception e) {
-            log.error("Failed to process payment timeout message: {}", orderNo, e);
+            log.error("处理支付超时消息失败: {}", orderNo, e);
             try {
                 channel.basicNack(deliveryTag, false, false);
             } catch (Exception nackError) {
-                log.warn("Failed to nack payment timeout message: {}", orderNo, nackError);
+                log.warn("支付超时消息 nack 失败: {}", orderNo, nackError);
             }
         }
     }

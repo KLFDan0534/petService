@@ -15,6 +15,8 @@ import com.pet.operation.service.NotificationService;
 import com.pet.system.entity.User;
 import com.pet.system.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,8 +52,9 @@ public class NoticeServiceImpl implements NoticeService {
      * 获取所有公告列表，委托给 {@link #listAll(String)}
      */
     @Override
+    @Cacheable(value = "notice", key = "'list:ALL'", unless = "#result == null || #result.isEmpty()")
     public List<Notice> listAll() {
-        log.info("listAll() called");
+        log.info("listAll() 被调用");
         return listAll(null);
     }
 
@@ -59,8 +62,9 @@ public class NoticeServiceImpl implements NoticeService {
      * 根据类型筛选公告列表，类型不区分大小写
      */
     @Override
+    @Cacheable(value = "notice", key = "'list:' + (#type == null ? 'ALL' : #type)", unless = "#result == null || #result.isEmpty()")
     public List<Notice> listAll(String type) {
-        log.info("listAll(type) called");
+        log.info("listAll(type) 被调用");
         String normalizedType = normalizeType(type);
         return noticeMapper.selectList(
                 new LambdaQueryWrapper<Notice>()
@@ -73,8 +77,9 @@ public class NoticeServiceImpl implements NoticeService {
      * 获取指定类型下所有已启用的有效公告
      */
     @Override
+    @Cacheable(value = "notice", key = "'active:' + (#type == null ? 'ALL' : #type)", unless = "#result == null || #result.isEmpty()")
     public List<Notice> listActive(String type) {
-        log.info("listActive() called");
+        log.info("listActive() 被调用");
         String normalizedType = normalizeType(type);
         return noticeMapper.selectList(
                 new LambdaQueryWrapper<Notice>()
@@ -89,7 +94,7 @@ public class NoticeServiceImpl implements NoticeService {
      */
     @Override
     public List<Notice> listUnread(Long userId) {
-        log.info("listUnread() called");
+        log.info("listUnread() 被调用");
         return noticeMapper.selectUnreadByUser(userId, TYPE_NOTICE, StatusCode.NOTICE_ACTIVE.getValue());
     }
 
@@ -98,7 +103,7 @@ public class NoticeServiceImpl implements NoticeService {
      */
     @Override
     public List<Notice> listPopup(Long userId) {
-        log.info("listPopup() called");
+        log.info("listPopup() 被调用");
         return noticeMapper.selectPopupByUser(userId, StatusCode.NOTICE_ACTIVE.getValue());
     }
 
@@ -107,7 +112,7 @@ public class NoticeServiceImpl implements NoticeService {
      */
     @Override
     public void dismissPopup(Long id, Long userId) {
-        log.info("dismissPopup() called");
+        log.info("dismissPopup() 被调用");
         NoticeRead existing = noticeReadMapper.selectOne(
                 new LambdaQueryWrapper<NoticeRead>()
                         .eq(NoticeRead::getNotice_id_wsh, id)
@@ -129,8 +134,9 @@ public class NoticeServiceImpl implements NoticeService {
      * 根据主键获取公告，不存在时抛出异常
      */
     @Override
+    @Cacheable(value = "notice", key = "'id:' + #id", unless = "#result == null")
     public Notice getById(Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         Notice n = noticeMapper.selectById(id);
         if (n == null) throw new BusinessException("公告不存在");
         return n;
@@ -140,9 +146,10 @@ public class NoticeServiceImpl implements NoticeService {
      * 创建公告，校验类型与投递方式，并按投递方式为用户生成通知
      */
     @Transactional
+    @CacheEvict(value = "notice", allEntries = true)
     @Override
     public Notice create(NoticeCreateRequestDTO request) {
-        log.info("create() called");
+        log.info("create() 被调用");
         Notice notice = new Notice();
         String type = normalizeTypeOrDefault(request.getType_wsh());
         String content = request.getContent_wsh();
@@ -174,9 +181,10 @@ public class NoticeServiceImpl implements NoticeService {
      * 更新公告，清空旧已读记录并重新同步通知
      */
     @Transactional
+    @CacheEvict(value = "notice", allEntries = true)
     @Override
     public Notice update(Long id, NoticeUpdateRequestDTO request) {
-        log.info("update() called");
+        log.info("update() 被调用");
         Notice existing = getById(id);
         if (request.getTitle_wsh() != null) existing.setTitle_wsh(request.getTitle_wsh());
         if (request.getContent_wsh() != null) existing.setContent_wsh(request.getContent_wsh());
@@ -210,7 +218,7 @@ public class NoticeServiceImpl implements NoticeService {
     @Transactional
     @Override
     public void markAsRead(Long id, Long userId) {
-        log.info("markAsRead() called");
+        log.info("markAsRead() 被调用");
         Notice notice = getById(id);
         if (!isNoticeType(notice.getType_wsh())) {
             throw new BusinessException("仅公告类型可标记为已读");
@@ -237,9 +245,10 @@ public class NoticeServiceImpl implements NoticeService {
      * 物理删除公告及其关联的已读记录和通知
      */
     @Transactional
+    @CacheEvict(value = "notice", allEntries = true)
     @Override
     public void delete(Long id) {
-        log.info("delete() called");
+        log.info("delete() 被调用");
         noticeReadMapper.delete(new LambdaQueryWrapper<NoticeRead>().eq(NoticeRead::getNotice_id_wsh, id));
         notificationService.deleteByRelatedId(id);
         noticeMapper.deleteById(id);
@@ -257,7 +266,7 @@ public class NoticeServiceImpl implements NoticeService {
         Long noticeId = notice.getId_wsh();
         if (noticeId == null || !shouldCreateNotifications(notice)) return;
 
-        log.info("broadcasting notice {} to all users", noticeId);
+        log.info("向所有用户广播通知 {}", noticeId);
         List<User> users = userMapper.selectList(null);
         if (users == null || users.isEmpty()) return;
 

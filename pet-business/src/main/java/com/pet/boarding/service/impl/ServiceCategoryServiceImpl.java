@@ -10,6 +10,8 @@ import com.pet.boarding.vo.ServiceCategoryTreeVO;
 import com.pet.boarding.mapper.ServiceCategoryMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.ServiceCategoryService;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +46,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
      * 状态影响：只读操作。
      */
     @Override
+    @Cacheable(value = "service-category", key = "'tree:ALL'")
     public List<ServiceCategoryTreeVO> getTree() {
         List<ServiceCategory> all = categoryMapper.selectList(
                 new LambdaQueryWrapper<ServiceCategory>()
@@ -132,6 +135,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-category", "service-item-page"}, allEntries = true)
     public ServiceCategory create(ServiceCategoryCreateRequestDTO request) {
         ServiceCategory category = new ServiceCategory();
         category.setParent_id_wsh(request.getParent_id_wsh() != null ? request.getParent_id_wsh() : 0L);
@@ -155,6 +159,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-category", "service-item-page"}, allEntries = true)
     public ServiceCategory update(Long id, ServiceCategoryUpdateRequestDTO request) {
         ServiceCategory existing = getById(id);
         if (request.getParent_id_wsh() != null) existing.setParent_id_wsh(request.getParent_id_wsh());
@@ -180,6 +185,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
      */
     @Override
     @Transactional
+    @CacheEvict(cacheNames = {"service-category", "service-item-page"}, allEntries = true)
     public void delete(Long id) {
         ServiceCategory category = getById(id);
         Long childCount = categoryMapper.selectCount(
@@ -245,6 +251,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
      * 状态影响：只读操作。
      */
     @Override
+    @Cacheable(value = "service-category", key = "'list:ALL'")
     public List<ServiceCategory> listAllEnabled() {
         return categoryMapper.selectList(
                 new LambdaQueryWrapper<ServiceCategory>()

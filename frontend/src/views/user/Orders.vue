@@ -12,7 +12,7 @@
           <p class="od-eyebrow" aria-hidden="true">
             <span class="od-eyebrow-word">订单中心</span>
             <span class="od-eyebrow-line" />
-            <span>Order Center</span>
+            <span>订单中心</span>
           </p>
           <h1 class="od-title">我的订单</h1>
           <p class="od-sub">
@@ -20,7 +20,7 @@
           </p>
         </div>
         <button class="od-refresh" type="button" :disabled="loading" @click="loadOrders">
-          <el-icon class="od-refresh-icon" aria-hidden="true"><Refresh /></el-icon>
+          <AppIcon class="od-refresh-icon" aria-hidden="true"><Refresh /></AppIcon>
           刷新订单
         </button>
       </header>
@@ -36,7 +36,7 @@
             <p class="od-active-meta">
               <span class="od-meta-truncate">{{ activeStay.service_name_wsh || '宠物寄养服务' }}</span>
               <span v-if="activeStay.keeper_name_wsh" class="od-meta-item">{{ activeStay.keeper_name_wsh }}</span>
-              <span v-if="activeStay.delivered_at_wsh" class="od-meta-item od-tabular">{{ formatDateTime(activeStay.delivered_at_wsh) }} 入住</span>
+              <span v-if="activeStay.delivered_at_wsh" class="od-meta-item od-tabular">{{ formatDateTime(activeStay.delivered_at_wsh, { format: 'compact' }) }} 入住</span>
             </p>
           </div>
           <div class="od-active-btm">
@@ -87,7 +87,7 @@
 
         <div class="od-toolbar">
           <div class="od-search">
-            <el-icon class="od-search-icon" aria-hidden="true"><Search /></el-icon>
+            <AppIcon class="od-search-icon" aria-hidden="true"><Search /></AppIcon>
             <input
               v-model.trim="searchQuery"
               type="search"
@@ -99,15 +99,15 @@
             <button v-if="searchQuery" type="button" class="od-clear" aria-label="清除搜索" @click="searchQuery = ''">✕</button>
           </div>
           <label class="od-sort">
-            <el-icon class="od-sort-icon" aria-hidden="true"><Sort /></el-icon>
+            <AppIcon class="od-sort-icon" aria-hidden="true"><Sort /></AppIcon>
             <span class="od-sort-sr">排序方式</span>
             <select v-model="sortKey" :disabled="loading" class="od-sort-select">
               <option v-for="opt in SORT_OPTIONS" :key="opt.key" :value="opt.key">{{ opt.label }}</option>
             </select>
-            <el-icon class="od-sort-chev" aria-hidden="true"><ArrowDown /></el-icon>
+            <AppIcon class="od-sort-chev" aria-hidden="true"><ArrowDown /></AppIcon>
           </label>
           <button v-if="hasFilters" type="button" class="od-reset" @click="clearFilters">
-            <el-icon aria-hidden="true"><Close /></el-icon>
+            <AppIcon aria-hidden="true"><Close /></AppIcon>
             重置
           </button>
         </div>
@@ -154,7 +154,7 @@
               :order="o"
               :now-ms="nowMs"
               :processing="processingOrderId === o.id_wsh"
-              @cancel="handleCancel(o)"
+              @cancel="showCancel = o"
               @pay="method => handlePay(o, method)"
               @deliver="handleDeliver(o)"
               @review="openReview(o)"
@@ -169,6 +169,13 @@
 
     <TipDialog :visible="!!showTip" :order="showTip" @close="showTip = null" @tipped="onTipped" />
     <ReviewDialog :visible="!!showReview" :order="showReview" :done-types="reviewedDims" @close="showReview = null" @reviewed="onReviewed" />
+    <CancelOrderDialog
+      :visible="!!showCancel"
+      :order="showCancel"
+      :loading="showCancel && processingOrderId === showCancel.id_wsh"
+      @close="showCancel = null"
+      @cancel="handleCancel"
+    />
   </div>
 </template>
 
@@ -180,6 +187,7 @@ import { useAppStore } from '@/stores/app'
 import OrderCard from '@/components/order/OrderCard.vue'
 import TipDialog from '@/components/order/TipDialog.vue'
 import ReviewDialog from '@/components/order/ReviewDialog.vue'
+import CancelOrderDialog from '@/components/order/CancelOrderDialog.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { getOrders, cancelOrder as apiCancelOrder, confirmDelivered } from '@/api/order'
 import { getServices } from '@/api/service'
@@ -188,6 +196,7 @@ import { createTip } from '@/api/wallet'
 import { createRating, getMyRatingsByOrder } from '@/api/rating'
 import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, hasExpiredPaymentTimeout } from '@/utils/orderPaymentTimeout'
+import { formatDateTime } from '@/utils/format'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -201,6 +210,7 @@ const searchQuery = ref('')
 const sortKey = ref('recent')
 const showTip = ref(null)
 const showReview = ref(null)
+const showCancel = ref(null)
 const reviewedDims = ref([])
 const nowMs = ref(Date.now())
 const processingOrderId = ref(null)
@@ -420,6 +430,7 @@ async function handleCancel(order) {
     await loadOrders()
   } finally {
     processingOrderId.value = null
+    showCancel.value = null
   }
 }
 
@@ -511,12 +522,6 @@ function time(value) {
 }
 function orderAmount(order) {
   return Number(order.final_amount_wsh || order.total_amount_wsh || order.settlement_amount_wsh || 0) || 0
-}
-function formatDateTime(value) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 </script>
 
@@ -623,8 +628,8 @@ function formatDateTime(value) {
 .od-active-link:hover { color: #E0823F; border-color: #E0823F; }
 .od-active-arrow { display: inline-block; }
 .od-active-link:hover .od-active-arrow { transform: translateX(4px); }
-.od-active-track { margin-top: 12px; height: 4px; width: 100%; border-radius: 999px; background: rgba(246, 239, 227, 0.15); overflow: hidden; }
-.od-active-fill { display: block; height: 100%; border-radius: 999px; background: #E0823F; transform-origin: left; }
+.od-active-track { margin-top: 12px; height: 4px; width: 100%; border-radius: var(--radius-pill); background: rgba(246, 239, 227, 0.15); overflow: hidden; }
+.od-active-fill { display: block; height: 100%; border-radius: var(--radius-pill); background: #E0823F; transform-origin: left; }
 
 /* Controls */
 .od-controls { display: flex; flex-direction: column; gap: 18px; margin-top: 36px; }
@@ -661,7 +666,7 @@ function formatDateTime(value) {
 .od-tab-label.strong { font-weight: 600; }
 .od-tab-count { font-size: 12px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--ref-muted) 70%, transparent); }
 .od-tab-count.on { color: var(--ref-brand); }
-.od-tab-indicator { position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 999px; background: var(--ref-brand); }
+.od-tab-indicator { position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: var(--radius-pill); background: var(--ref-brand); }
 .od-subchips { display: flex; align-items: center; gap: 8px; padding-top: 16px; overflow-x: auto; scrollbar-width: none; }
 .od-subchips::-webkit-scrollbar { display: none; }
 .od-subchips-label { flex-shrink: 0; font-size: 12px; color: var(--ref-muted); }
@@ -671,7 +676,7 @@ function formatDateTime(value) {
   align-items: center;
   height: 30px;
   padding: 0 13px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -720,10 +725,10 @@ function formatDateTime(value) {
 .od-footer-note .od-tabular { color: var(--ref-ink-soft); }
 
 /* Skeleton */
-.od-skeleton { height: 260px; border-radius: 18px; border: 1px solid var(--ref-line); background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: od-shimmer 1.3s linear infinite; }
+.od-skeleton { height: 260px; border-radius: var(--radius-card); border: 1px solid var(--ref-line); background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%); background-size: 200% 100%; animation: od-shimmer 1.3s linear infinite; }
 
 /* States */
-.od-state { padding: 64px 24px; border-radius: 18px; border: 1px solid var(--ref-line); background: var(--ref-surface); text-align: center; }
+.od-state { padding: 64px 24px; border-radius: var(--radius-card); border: 1px solid var(--ref-line); background: var(--ref-surface); text-align: center; }
 .od-state-error { border-color: color-mix(in srgb, #a03422 20%, transparent); background: color-mix(in srgb, #a03422 4%, var(--ref-surface)); }
 .od-state-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin: 0 auto; border-radius: 50%; background: var(--ref-sand); color: var(--ref-brand); font-size: 26px; }
 .od-state-icon-error { background: var(--ref-surface); color: #a03422; }

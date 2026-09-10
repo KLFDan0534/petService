@@ -71,7 +71,7 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
         List<ServiceMediaItemDTO> input = items == null ? Collections.emptyList() : items;
         if (input.isEmpty()) {
             mediaMapper.deleteByServiceId(serviceId);
-            log.info("replaceMedia() cleared serviceId={}", serviceId);
+            log.info("replaceMedia() 已清空 serviceId={} 的媒体记录", serviceId);
             return;
         }
         validateInput(input);
@@ -111,7 +111,7 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
             media.setIs_cover_wsh(item.getIs_cover_wsh());
             mediaMapper.insert(media);
         }
-        log.info("replaceMedia() replaced serviceId={} with {} media rows", serviceId, input.size());
+        log.info("replaceMedia() 已将 serviceId={} 替换为 {} 条媒体记录", serviceId, input.size());
     }
 
     private void validateInput(List<ServiceMediaItemDTO> items) {
@@ -250,7 +250,7 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
             }
         }
         if (!unresolved.isEmpty()) {
-            log.warn("resolveTrustedLegacyImages() audit-only unresolved values: {}", unresolved);
+            log.warn("resolveTrustedLegacyImages() 仅审计的未解析值: {}", unresolved);
         }
         return trusted;
     }
@@ -271,11 +271,11 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
         try {
             fileRecordService.create(record);
         } catch (Exception e) {
-            log.error("uploadProductImage() file record failed, compensating delete object: {}", objectName, e);
+            log.error("上传商品图片文件记录保存失败, 补偿删除对象: {}", objectName, e);
             try {
                 minIoService.deleteFile(objectName);
             } catch (Exception cleanup) {
-                log.error("uploadProductImage() compensating delete failed for object: {}", objectName, cleanup);
+                log.error("上传商品图片补偿删除对象失败: {}", objectName, cleanup);
             }
             throw new BusinessException(500, BookingErrorCode.PRODUCT_IMAGE_RECORD_FAILED,
                     "文件记录保存失败，已回滚本次上传");

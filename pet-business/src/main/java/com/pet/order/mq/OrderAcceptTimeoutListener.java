@@ -71,17 +71,17 @@ public class OrderAcceptTimeoutListener {
         try {
             boolean accepted = orderService.autoAcceptPaidOrderIfTimeout(orderNo);
             if (accepted) {
-                log.info("Accept timeout message auto accepted order: {}", orderNo);
+                log.info("接单超时消息已自动接单: {}", orderNo);
             } else {
-                log.debug("Accept timeout message ignored, order is not paid: {}", orderNo);
+                log.debug("忽略接单超时消息, 订单未支付: {}", orderNo);
             }
             channel.basicAck(deliveryTag, false);
         } catch (Exception e) {
-            log.error("Failed to process accept timeout message: {}", orderNo, e);
+            log.error("处理接单超时消息失败: {}", orderNo, e);
             try {
                 channel.basicNack(deliveryTag, false, false);
             } catch (Exception nackError) {
-                log.warn("Failed to nack accept timeout message: {}", orderNo, nackError);
+                log.warn("接单超时消息 nack 失败: {}", orderNo, nackError);
             }
         }
     }

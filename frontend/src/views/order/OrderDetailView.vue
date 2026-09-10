@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="od-detail">
     <div class="od-shell">
       <!-- Loading -->
@@ -32,7 +32,7 @@
             <p class="od-eyebrow" aria-hidden="true">
               <span class="od-eyebrow-word">订单详情</span>
               <span class="od-eyebrow-line" />
-              <span>Order Detail</span>
+              <span>订单详情</span>
             </p>
             <h1 class="od-title">{{ order.service_name_wsh || '寄养订单' }}</h1>
             <p v-if="order.merchant_name_wsh" class="od-lede">由 {{ order.merchant_name_wsh }} 承接</p>
@@ -65,7 +65,7 @@
 
         <!-- 01 订单进度 -->
         <section class="od-section">
-          <div class="od-sec-head"><h2 class="od-sec-title">订单进度 <span class="od-sec-en">Progress</span></h2></div>
+          <div class="od-sec-head"><h2 class="od-sec-title">订单进度 <span class="od-sec-en">进度</span></h2></div>
           <div class="od-panel">
             <ol v-if="phaseIndex >= 0" class="od-progress" aria-label="服务进度">
               <li v-for="(phase, index) in PHASES" :key="phase.key" class="od-phase">
@@ -174,7 +174,7 @@
 
         <!-- 03 费用明细 -->
         <section class="od-section">
-          <div class="od-sec-head"><h2 class="od-sec-title">费用明细 <span class="od-sec-en">Payment</span></h2></div>
+          <div class="od-sec-head"><h2 class="od-sec-title">费用明细 <span class="od-sec-en">费用</span></h2></div>
           <div class="od-card od-card-pad">
             <dl class="od-money">
               <div class="od-money-row">
@@ -195,7 +195,7 @@
 
         <!-- 04 可执行操作 -->
         <section class="od-section">
-          <div class="od-sec-head"><h2 class="od-sec-title">可执行操作 <span class="od-sec-en">Next Steps</span></h2></div>
+          <div class="od-sec-head"><h2 class="od-sec-title">可执行操作 <span class="od-sec-en">下一步</span></h2></div>
           <div class="od-card od-card-cream">
             <div class="od-actions">
               <template v-if="order.status_wsh === 'pending'">
@@ -291,6 +291,7 @@ import { getCurrentAddress } from '@/composables/useAmapLocation'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { unitLabel } from '@/domain/BookingUnit'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, isPaymentTimeoutExpired } from '@/utils/orderPaymentTimeout'
+import { formatMoney } from '@/utils/format'
 
 const PAY_METHODS = [
   { value: 'balance', label: '余额支付', hint: '从钱包余额直接扣款' },
@@ -476,7 +477,6 @@ function parseImages(raw) {
   } catch { /* fall through */ }
   return trimmed.split(',').map(s => s.trim()).filter(Boolean)
 }
-function formatMoney(value) { return Number(value || 0).toFixed(2) }
 function dateTime(value) {
   if (!value) return ''
   const date = new Date(value)
@@ -498,12 +498,12 @@ function dateTime(value) {
 .od-crumb-here { color: var(--ref-ink-soft); }
 
 /* Skeleton */
-.od-skel-bar { width: 120px; height: 16px; border-radius: 6px; background: var(--ref-sand); }
-.od-skel-block { margin-top: 24px; height: 160px; border-radius: 18px; border: 1px solid var(--ref-line); }
+.od-skel-bar { width: 120px; height: 16px; border-radius: var(--radius-inline); background: var(--ref-sand); }
+.od-skel-block { margin-top: 24px; height: 160px; border-radius: var(--radius-card); border: 1px solid var(--ref-line); }
 .od-skel-block.tall { height: 260px; }
 
 /* State */
-.od-state { padding: 64px 24px; border-radius: 18px; border: 1px solid var(--ref-line); background: var(--ref-surface); text-align: center; }
+.od-state { padding: 64px 24px; border-radius: var(--radius-card); border: 1px solid var(--ref-line); background: var(--ref-surface); text-align: center; }
 .od-state-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; margin: 0 auto; border-radius: 50%; background: var(--ref-sand); color: var(--ref-brand); font-size: 26px; }
 .od-state h3 { margin: 20px 0 0; font-family: var(--ref-font-display); font-size: 22px; font-weight: 500; color: var(--ref-ink); }
 .od-state p { max-width: 400px; margin: 10px auto 0; font-size: 13.5px; line-height: 1.7; color: var(--ref-muted); }
@@ -522,7 +522,7 @@ function dateTime(value) {
 .od-head-actions { display: flex; align-items: center; gap: 10px; }
 
 /* Status badge */
-.od-badge { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid transparent; padding: 6px 12px; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; }
+.od-badge { display: inline-flex; align-items: center; border-radius: var(--radius-pill); border: 1px solid transparent; padding: 6px 12px; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; }
 .od-tone-action { background: var(--ref-brand); color: #fff; border-color: transparent; }
 .od-tone-queued { background: var(--ref-surface); color: var(--ref-ink); border-color: color-mix(in srgb, var(--ref-ink) 20%, transparent); }
 .od-tone-active { background: color-mix(in srgb, #3f5347 12%, transparent); color: #3f5347; border-color: color-mix(in srgb, #3f5347 25%, transparent); }
@@ -543,7 +543,7 @@ function dateTime(value) {
 /* Order no */
 .od-orderno { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .od-orderno-value { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ref-muted); }
-.od-copy { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--ref-line); background: var(--ref-surface); color: var(--ref-ink-soft); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; transition: border-color 150ms ease, background 150ms ease, color 150ms ease; }
+.od-copy { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--ref-line); background: var(--ref-surface); color: var(--ref-ink-soft); border-radius: var(--radius-pill); padding: 3px 10px; font-size: 12px; cursor: pointer; transition: border-color 150ms ease, background 150ms ease, color 150ms ease; }
 .od-copy:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 25%, transparent); color: var(--ref-ink); }
 .od-copy-glyph { font-size: 11px; }
 
@@ -553,7 +553,7 @@ function dateTime(value) {
 .od-sec-title { display: flex; align-items: baseline; gap: 10px; margin: 0; font-family: var(--ref-font-display); font-size: clamp(18px, 2.4vw, 21px); font-weight: 500; line-height: 1.2; letter-spacing: -0.01em; color: var(--ref-ink); }
 .od-sec-en { font-family: var(--ref-font-sans); font-size: 9.5px; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ref-muted); }
 
-.od-panel { border: 1px solid var(--ref-line); border-radius: 16px; background: var(--ref-surface); padding: 20px 22px; }
+.od-panel { border: 1px solid var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); padding: 20px 22px; }
 
 /* Progress rail */
 .od-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
@@ -575,7 +575,7 @@ function dateTime(value) {
 
 /* Two-col cards */
 .od-two-col { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 16px; align-items: start; }
-.od-card { overflow: hidden; border: 1px solid var(--ref-line); border-radius: 16px; background: var(--ref-surface); }
+.od-card { overflow: hidden; border: 1px solid var(--ref-line); border-radius: var(--radius-lg); background: var(--ref-surface); }
 .od-card-pad { padding: 20px 22px; }
 .od-card-cream { background: color-mix(in srgb, var(--ref-cream) 50%, var(--ref-surface)); padding: 20px 22px; }
 .od-cover { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
@@ -592,7 +592,7 @@ function dateTime(value) {
 /* Pet card */
 .od-pet-facts { grid-template-columns: 1fr; gap: 14px; margin: 16px 0 0; padding: 16px 18px 2px; border-top: 1px solid var(--ref-line); }
 .od-pet-head { display: flex; align-items: center; gap: 14px; border-bottom: none; padding: 16px 18px; }
-.od-pet-avatar { width: 58px; height: 58px; flex-shrink: 0; border-radius: 999px; object-fit: cover; overflow: hidden; }
+.od-pet-avatar { width: 58px; height: 58px; flex-shrink: 0; border-radius: var(--radius-pill); object-fit: cover; overflow: hidden; }
 .od-pet-avatar-fallback { display: flex; align-items: center; justify-content: center; background: var(--ref-sand); color: var(--ref-brand); font-family: var(--ref-font-display); font-size: 20px; }
 .od-pet-meta { min-width: 0; }
 .od-pet-name { font-family: var(--ref-font-display); font-size: 18px; font-weight: 500; line-height: 1.2; letter-spacing: -0.01em; color: var(--ref-ink); }
@@ -635,7 +635,7 @@ function dateTime(value) {
 /* Modal */
 .od-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .od-modal-mask { position: absolute; inset: 0; background: color-mix(in srgb, #120d08 38%, transparent); backdrop-filter: blur(2px); }
-.od-modal-box { position: relative; width: 100%; max-width: 440px; border: 1px solid var(--ref-line); border-radius: 18px; background: var(--ref-surface); padding: 26px; box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 55%, transparent); }
+.od-modal-box { position: relative; width: 100%; max-width: 440px; border: 1px solid var(--ref-line); border-radius: var(--radius-card); background: var(--ref-surface); padding: 26px; box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 55%, transparent); }
 .od-modal-box-sm { max-width: 400px; }
 .od-modal-title { margin: 0; font-family: var(--ref-font-display); font-size: 22px; font-weight: 500; letter-spacing: -0.01em; color: var(--ref-ink); }
 .od-modal-desc { margin: 8px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--ref-muted); }

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 栖屿宠护品牌图标：与登录页 auth-brand-mark 同款（深色圆角方块 + 米白「栖」） -->
+  <rect width="64" height="64" rx="14" fill="#17130f"/>
+  <text x="32" y="45" font-family="'Noto Serif SC', 'Songti SC', 'SimSun', serif" font-size="36" fill="#f5efe7" text-anchor="middle">栖</text>
+</svg>

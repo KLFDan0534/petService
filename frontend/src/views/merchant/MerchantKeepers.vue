@@ -150,7 +150,7 @@ async function reject(id) {
 .review-card {
   background: #ffffff;
   border: 1px solid #dee0e3;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   padding: 24px 32px;
 }
 .loading-state {
@@ -184,7 +184,7 @@ async function reject(id) {
 }
 .keeper-item {
   border: 1px solid #dee0e3;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   padding: 16px;
 }
 .keeper-header {

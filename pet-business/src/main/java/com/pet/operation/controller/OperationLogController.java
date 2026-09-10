@@ -66,7 +66,7 @@ public class OperationLogController {
                                                 @Parameter(description = "模块名称（可选）") @RequestParam(required = false) String module,
                                                 @Parameter(description = "操作类型（可选）") @RequestParam(required = false) String operation,
                                                 @Parameter(description = "状态（可选）") @RequestParam(required = false) Integer status) {
-        log.info("page() called");
+        log.info("page() 被调用");
         return Result.success(toDTOPage(operationLogService.page(param, module, operation, status)));
     }
 
@@ -95,7 +95,7 @@ public class OperationLogController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<OperationLogDTO> getById(@Parameter(description = "日志ID") @PathVariable Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         return Result.success(toDTO(operationLogService.getById(id)));
     }
 

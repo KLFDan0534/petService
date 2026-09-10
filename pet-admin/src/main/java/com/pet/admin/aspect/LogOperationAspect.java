@@ -77,7 +77,7 @@ public class LogOperationAspect {
                 OperationLog opLog = buildLog(joinPoint, duration, status, errorMsg, requestBody, responseBody);
                 operationLogService.save(opLog);
             } catch (Exception e) {
-                log.error("Failed to save operation log", e);
+                log.error("保存操作日志失败", e);
             }
         }
     }

@@ -32,5 +32,5 @@ public class CsThreadDTO {
     @Schema(description = "最近消息时间")
     private LocalDateTime last_time_wsh;
     @Schema(description = "未读消息数（发给当前用户且未读）")
-    private long unread_count;
+    private long unread_count_wsh;
 }

@@ -60,8 +60,13 @@ export async function aiChat(data) {
   return res.data
 }
 
-export async function executeAgent(data) {
-  const res = await request.post('/api/agent/execute', data)
+export async function executeAgentPlan(data) {
+  const res = await request.post('/api/agent/plan', data)
+  return res.data
+}
+
+export async function executeAgentConfirm(data) {
+  const res = await request.post('/api/agent/confirm', data)
   return res.data
 }
 
@@ -70,18 +75,38 @@ export async function getPetReports(petId) {
   return res.data
 }
 
-export async function getAiConfig() {
-  const res = await request.get('/ai/config')
+export async function listAiConfigs() {
+  const res = await request.get('/api/ai/configs')
   return res.data
 }
 
-export async function updateAiConfig(data) {
-  const res = await request.put('/ai/config', data)
+export async function createAiConfig(data) {
+  const res = await request.post('/api/ai/configs', data)
   return res.data
 }
 
-export async function testAiConnection() {
-  const res = await request.post('/ai/config/test')
+export async function updateAiConfigById(id, data) {
+  const res = await request.put(`/api/ai/configs/${id}`, data)
+  return res.data
+}
+
+export async function deleteAiConfig(id) {
+  const res = await request.delete(`/api/ai/configs/${id}`)
+  return res.data
+}
+
+export async function enableAiConfig(id, enabled) {
+  const res = await request.post(`/api/ai/configs/${id}/enable`, { enabled })
+  return res.data
+}
+
+export async function testAiConfigById(id) {
+  const res = await request.post(`/api/ai/configs/${id}/test`)
+  return res.data
+}
+
+export async function getEffectiveAiConfig(usage) {
+  const res = await request.get('/api/ai/configs/effective', { params: { usage } })
   return res.data
 }
 

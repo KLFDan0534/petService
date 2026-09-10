@@ -44,39 +44,39 @@
       </article>
     </div>
 
-    <div v-if="receivingOrder" class="modal-overlay" @mousedown.self="closeReceiveModal">
-      <div class="modal mini-modal">
-        <h2>确认接收宠物</h2>
+    <AppDialog :visible="receivingOrder" :width="420" :title="'确认接收宠物'" @close="closeReceiveModal">
+      <div class="dialog-body">
         <p class="modal-hint">{{ receivingOrder.order_no_wsh }} · {{ receivingOrder.pet_name_wsh || '宠物' }}</p>
         <input v-model="receiveForm.handover_code_wsh" class="form-control code-input" inputmode="numeric" maxlength="4" placeholder="输入4位交接码">
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" @click="closeReceiveModal">取消</button>
-          <button class="btn btn-primary btn-sm" :disabled="receiving" @click="submitReceive">{{ receiving ? '定位中...' : '确认接收' }}</button>
-        </div>
       </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" @click="closeReceiveModal">取消</button>
+        <button class="btn btn-primary btn-sm" :disabled="receiving" @click="submitReceive">{{ receiving ? '定位中...' : '确认接收' }}</button>
+      </template>
+    </AppDialog>
 
-    <div v-if="startingOrder" class="modal-overlay" @mousedown.self="closeStartModal">
-      <div class="modal mini-modal">
-        <h2>开始培养</h2>
+    <AppDialog :visible="startingOrder" :width="420" :title="'开始培养'" @close="closeStartModal">
+      <div class="dialog-body">
         <p class="modal-hint">{{ startingOrder.order_no_wsh }} · {{ startingOrder.pet_name_wsh || '宠物' }}</p>
         <input ref="startPhotoInput" type="file" accept="image/*" style="display:none" @change="onStartPhotoChange">
         <button class="btn btn-outline btn-sm" @click="startPhotoInput?.click()">选择开始照片</button>
         <div v-if="startPhotoPreview" class="photo-preview-grid single">
           <img :src="startPhotoPreview" alt="开始照片预览">
         </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" @click="closeStartModal">取消</button>
-          <button class="btn btn-primary btn-sm" :disabled="startUploading" @click="submitStart">{{ startUploading ? '上传中...' : '开始培养' }}</button>
-        </div>
       </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" @click="closeStartModal">取消</button>
+        <button class="btn btn-primary btn-sm" :disabled="startUploading" @click="submitStart">{{ startUploading ? '上传中...' : '开始培养' }}</button>
+      </template>
+    </AppDialog>
   </section>
 </template>
 
 <script setup>
 import { computed, onUnmounted, reactive, ref, watch } from 'vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { formatPaymentTimeoutRemaining, getPaymentTimeoutRemaining } from '@/utils/orderPaymentTimeout'
+import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 
 const props = defineProps({
   pendingOrders: { type: Array, default: () => [] },
@@ -180,8 +180,7 @@ function statusBadge(status) {
 }
 
 function formatDateTime(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return utilFormatDateTime(value, { fallback: '-' })
 }
 
 function showPaymentCountdown(order) {
@@ -223,10 +222,11 @@ function paymentCountdownText(order) {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 .mini-modal { max-width: 420px; display: grid; gap: 12px; }
+.dialog-body { display: grid; gap: 12px; }
 .modal-hint { margin: 0; color: var(--color-muted-foreground); font-size: 13px; }
 .code-input { max-width: 180px; font-size: 22px; letter-spacing: 4px; text-align: center; }
 .photo-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
 .photo-preview-grid.single { max-width: 180px; }
-.photo-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; border: 1px solid var(--color-border); background: var(--color-muted); }
+.photo-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-inline); border: 1px solid var(--color-border); background: var(--color-muted); }
 .loading, .empty-state { text-align: center; padding: 40px 20px; }
 </style>

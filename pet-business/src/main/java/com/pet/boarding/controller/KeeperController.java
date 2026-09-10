@@ -344,7 +344,7 @@ public class KeeperController {
     })
     public Result<Void> resign(@Parameter(description = "看护者ID") @PathVariable Long id,
                                @AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("call resign()");
+        log.info("调用 resign()");
         keeperService.resign(id, token.getUserId());
         return Result.success();
     }
@@ -373,7 +373,7 @@ public class KeeperController {
     })
     public Result<Void> merchantTerminate(@Parameter(description = "看护者ID") @PathVariable Long id,
                                           @AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("call merchantTerminate()");
+        log.info("调用 merchantTerminate()");
         keeperService.terminateByMerchant(id, token.getUserId());
         return Result.success();
     }

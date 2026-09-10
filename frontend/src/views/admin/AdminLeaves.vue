@@ -34,19 +34,21 @@
       <button :disabled="currentPage >= pageCount" @click="changePage(currentPage + 1)" class="btn btn-sm">下一页</button>
     </div>
 
-    <div v-if="rejectTarget" class="modal-overlay" @mousedown.self="rejectTarget = null">
-      <div class="modal" style="max-width:440px">
-        <h3>驳回请假申请</h3>
-        <div class="form-group" style="margin-top:16px">
-          <label>驳回原因</label>
-          <textarea v-model="rejectReason" rows="3" placeholder="请输入驳回原因"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="rejectTarget = null">取消</button>
-          <button class="btn btn-danger btn-sm" type="button" @click="doReject">确认驳回</button>
-        </div>
+    <AppDialog
+      :visible="rejectTarget"
+      :width="440"
+      title="驳回请假申请"
+      @close="rejectTarget = null"
+    >
+      <div class="form-group" style="margin-top:16px">
+        <label>驳回原因</label>
+        <textarea v-model="rejectReason" rows="3" placeholder="请输入驳回原因"></textarea>
       </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="rejectTarget = null">取消</button>
+        <button class="btn btn-danger btn-sm" type="button" @click="doReject">确认驳回</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -54,6 +56,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { getAdminLeaves, approveLeave, rejectLeave } from '@/api/attendance'
 import { LeaveApprovalStatus, enrichWithStatus } from '@/constants/statusMaps'
 

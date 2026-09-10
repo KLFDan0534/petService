@@ -13,7 +13,7 @@
         <div class="ch-head-copy">
           <div class="ch-eyebrow" aria-hidden="true">
             <span class="ch-eyebrow-line"></span>
-            <span>Messages</span>
+            <span>消息</span>
           </div>
           <h1 class="ch-title">消息</h1>
           <p class="ch-sub">与照护师、门店和客服的沟通都在这里。照护期间的临时安排建议直接在会话里说明。</p>
@@ -41,7 +41,7 @@
             <p class="ch-eyebrow ch-sec-eyebrow">
               <span class="ch-idx">01</span>
               <span class="ch-line" aria-hidden="true"></span>
-              <span>Inbox</span>
+              <span>收件箱</span>
             </p>
             <h2 class="ch-sec-title">会话</h2>
             <p class="ch-sec-desc">下单后照护师会主动联系你，也可以先向客服咨询。</p>
@@ -90,7 +90,7 @@
               <span class="ch-conv-copy">
                 <span class="ch-conv-head">
                   <span class="ch-conv-name">{{ c.other_user_name_wsh || `用户 ${c.other_user_id_wsh}` }}</span>
-                  <span v-if="c.unread_count > 0" class="ch-badge tabular">{{ c.unread_count }}</span>
+                  <span v-if="c.unread_count_wsh > 0" class="ch-badge tabular">{{ c.unread_count_wsh }}</span>
                 </span>
                 <span class="ch-conv-preview">{{ c.last_message_wsh || '暂无消息' }}</span>
               </span>
@@ -220,7 +220,7 @@ let eventSource = null
 
 const currentUserId = computed(() => authStore.user?.id_wsh)
 const token = computed(() => authStore.token || localStorage.getItem('token'))
-const unreadTotal = computed(() => conversations.value.reduce((sum, c) => sum + (c.unread_count || 0), 0))
+const unreadTotal = computed(() => conversations.value.reduce((sum, c) => sum + (c.unread_count_wsh || 0), 0))
 const activeLastTime = computed(() => conversations.value.find(c => c.other_user_id_wsh === activeUserId.value)?.last_time_wsh || '')
 
 async function loadConversations() {
@@ -247,7 +247,7 @@ async function openConversation(userId, fallbackName) {
       const unread = messages.value.filter(m => m.to_user_id_wsh === currentUserId.value && !m.read_wsh)
       if (unread.length) {
         await markConversationRead({ other_user_id_wsh: userId })
-        if (conv) conv.unread_count = 0
+        if (conv) conv.unread_count_wsh = 0
       }
     }
   } catch (e) { /* ignore */ }
@@ -390,7 +390,7 @@ function connectSse() {
         const conv = conversations.value.find(c => c.other_user_id_wsh === msg.from_user_id_wsh)
         if (conv) {
           if (activeUserId.value !== msg.from_user_id_wsh) {
-            conv.unread_count = (conv.unread_count || 0) + 1
+            conv.unread_count_wsh = (conv.unread_count_wsh || 0) + 1
           }
           conv.last_message_wsh = msg.content_wsh
           conv.last_time_wsh = msg.created_at_wsh
@@ -401,7 +401,7 @@ function connectSse() {
             other_user_name_wsh: `用户#${msg.from_user_id_wsh}`,
             last_message_wsh: msg.content_wsh,
             last_time_wsh: msg.created_at_wsh,
-            unread_count: msg.to_user_id_wsh === currentUserId.value ? 1 : 0,
+            unread_count_wsh: msg.to_user_id_wsh === currentUserId.value ? 1 : 0,
           })
         }
         if (activeUserId.value === msg.from_user_id_wsh && msg.to_user_id_wsh === currentUserId.value) {
@@ -533,7 +533,7 @@ onBeforeUnmount(() => {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -587,7 +587,7 @@ onBeforeUnmount(() => {
 
 .ch-side {
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   overflow-y: auto;
   max-height: min(64vh, 540px);
@@ -602,7 +602,7 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 12px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -648,7 +648,7 @@ onBeforeUnmount(() => {
   min-width: 18px;
   height: 18px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--ref-brand);
   color: #fff;
   font-size: 10.5px;
@@ -667,7 +667,7 @@ onBeforeUnmount(() => {
 /* ═══ 对话面板 ═══ */
 .ch-pane {
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   overflow: hidden;
   height: min(64vh, 540px);
@@ -832,7 +832,7 @@ onBeforeUnmount(() => {
   height: 40px;
   flex: 0 0 auto;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-surface);
   color: var(--ref-muted);
   cursor: pointer;
@@ -845,7 +845,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   padding: 10px 13px;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-surface);
   color: var(--ref-ink);
   font-size: 13.5px;
@@ -881,7 +881,7 @@ onBeforeUnmount(() => {
   margin-top: 20px;
   padding: 48px 22px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }

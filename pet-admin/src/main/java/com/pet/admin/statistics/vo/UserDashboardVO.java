@@ -9,11 +9,11 @@ import java.math.BigDecimal;
 @Setter
 public class UserDashboardVO {
     @Schema(description = "宠物数量")
-    private int pets;
+    private int pets_wsh;
     @Schema(description = "进行中订单数")
-    private long activeOrders;
+    private long active_orders_wsh;
     @Schema(description = "已完成订单数")
-    private long completedOrders;
+    private long completed_orders_wsh;
     @Schema(description = "总消费金额")
-    private BigDecimal totalSpent;
+    private BigDecimal total_spent_wsh;
 }

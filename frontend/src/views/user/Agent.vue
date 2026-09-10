@@ -15,10 +15,10 @@
         <div class="ag-head-copy">
           <div class="ag-eyebrow" aria-hidden="true">
             <span class="ag-eyebrow-line"></span>
-            <span>Act</span>
+            <span>行动</span>
           </div>
           <h1 class="ag-title">智能下单</h1>
-          <p class="ag-sub">用一句话描述需求，助手会匹配门店与服务、校验档期并生成订单。默认只生成订单，不会自动付款。</p>
+          <p class="ag-sub">用一句话描述需求，助手会匹配门店与服务、生成方案供你确认，确认后才创建订单。默认只生成订单，不会自动付款。</p>
         </div>
         <div class="ag-actions">
           <router-link to="/orders" class="cta cta-outline">查看我的订单</router-link>
@@ -26,13 +26,13 @@
       </header>
 
       <!-- ═══ 01 · 描述需求 ═══ -->
-      <section class="ag-section" aria-label="描述你的需求">
+      <section v-if="!plan" class="ag-section" aria-label="描述你的需求">
         <header class="ag-sec-head">
           <div class="ag-head-copy">
             <p class="ag-eyebrow ag-sec-eyebrow">
               <span class="ag-idx">01</span>
               <span class="ag-line" aria-hidden="true"></span>
-              <span>Task</span>
+              <span>任务</span>
             </p>
             <h2 class="ag-sec-title">描述你的需求</h2>
             <p class="ag-sec-desc">写清宠物、时间与偏好门店，匹配会更准。</p>
@@ -48,8 +48,8 @@
                 v-model.trim="input"
                 rows="5"
                 maxlength="300"
-                :disabled="loading"
-                placeholder="例如：帮布丁订 9 月 15 日到 18 日的品质寄养套房，优先衡山路照护中心"
+                :disabled="busy"
+                placeholder="例如：帮布丁订 9 月 15 日到 18 日的标准寄养，优先衡山路门店"
                 class="ag-textarea"
               />
             </label>
@@ -62,7 +62,7 @@
 
             <div class="ag-options">
               <label class="ag-check">
-                <input v-model="autoPay" type="checkbox" :disabled="loading">
+                <input v-model="autoPay" type="checkbox" :disabled="busy">
                 <span class="ag-check-box" aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20 6 9 17l-5-5" />
@@ -84,7 +84,7 @@
                     maxlength="6"
                     autocomplete="one-time-code"
                     placeholder="6 位数字"
-                    :disabled="loading"
+                    :disabled="busy"
                     class="ag-input"
                   >
                   <span class="ag-hint">仅本次执行使用，不会保存在本地或服务端。</span>
@@ -93,21 +93,18 @@
             </div>
 
             <div class="ag-submit">
-              <button type="button" class="cta cta-primary" :disabled="loading || !input" @click="executeTask">
+              <button type="button" class="cta cta-primary" :disabled="busy || !input" @click="submitPlan">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
                   <path d="M6 4l14 8-14 8V4z" />
                 </svg>
-                {{ loading ? '执行中...' : autoPay ? '授权下单并支付' : '创建待支付订单' }}
-              </button>
-              <button v-if="hasResult || failed" type="button" class="cta cta-outline" @click="reset">
-                清空结果
+                {{ busy ? '生成中...' : '生成方案' }}
               </button>
             </div>
           </div>
 
           <!-- How it works -->
           <aside class="ag-steps">
-            <p class="ag-steps-eyebrow">How it works</p>
+            <p class="ag-steps-eyebrow">操作流程</p>
             <ol class="ag-step-list">
               <li v-for="(step, index) in steps" :key="step.title" class="ag-step">
                 <span class="ag-step-index tabular">0{{ index + 1 }}</span>
@@ -121,14 +118,106 @@
         </div>
       </section>
 
-      <!-- ═══ 02 · 执行失败 ═══ -->
-      <section v-if="failed" class="ag-section" aria-label="执行失败">
+      <!-- ═══ 02 · 方案确认 ═══ -->
+      <section v-else-if="plan" class="ag-section" aria-label="方案确认">
         <header class="ag-sec-head">
           <div class="ag-head-copy">
             <p class="ag-eyebrow ag-sec-eyebrow">
               <span class="ag-idx">02</span>
               <span class="ag-line" aria-hidden="true"></span>
-              <span>Result</span>
+              <span>方案</span>
+            </p>
+            <h2 class="ag-sec-title">确认寄养方案</h2>
+            <p class="ag-sec-desc">核对下方方案无误后确认下单；价格以订单中心最终实付为准。</p>
+          </div>
+        </header>
+
+        <div class="ag-plan">
+          <dl class="ag-plan-grid">
+            <div class="ag-plan-cell">
+              <dt>宠物</dt>
+              <dd>{{ plan.pet_name_wsh || '—' }}</dd>
+            </div>
+            <div class="ag-plan-cell">
+              <dt>商家</dt>
+              <dd>{{ plan.merchant_name_wsh || '—' }}</dd>
+            </div>
+            <div class="ag-plan-cell">
+              <dt>看护人</dt>
+              <dd>{{ plan.keeper_name_wsh || '—' }}</dd>
+            </div>
+            <div class="ag-plan-cell">
+              <dt>服务</dt>
+              <dd>{{ plan.service_name_wsh || '—' }}</dd>
+            </div>
+            <div class="ag-plan-cell">
+              <dt>日期</dt>
+              <dd class="tabular">{{ plan.start_date_wsh }} ~ {{ plan.end_date_wsh }}（{{ plan.days_wsh }} 天）</dd>
+            </div>
+            <div class="ag-plan-cell">
+              <dt>距离</dt>
+              <dd>{{ plan.distance_wsh != null ? `${plan.distance_wsh} 公里` : '—' }}</dd>
+            </div>
+            <div class="ag-plan-cell">
+              <dt>单价</dt>
+              <dd class="tabular">¥{{ money(plan.unit_price_wsh) }}/天</dd>
+            </div>
+            <div class="ag-plan-cell">
+              <dt>总价（预估）</dt>
+              <dd class="tabular ag-plan-total">¥{{ money(plan.total_price_wsh) }}</dd>
+            </div>
+          </dl>
+
+          <div class="ag-options">
+            <label class="ag-check">
+              <input v-model="autoPay" type="checkbox" :disabled="confirming">
+              <span class="ag-check-box" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </span>
+              <span class="ag-check-copy">
+                <span class="ag-check-label">确认后自动支付</span>
+                <span class="ag-check-desc">开启后会用余额直接完成支付；关闭时只创建待支付订单。</span>
+              </span>
+            </label>
+
+            <template v-if="autoPay">
+              <label class="ag-field ag-field-password">
+                <span class="ag-label">支付密码</span>
+                <input
+                  v-model.trim="paymentPassword"
+                  type="password"
+                  inputmode="numeric"
+                  maxlength="6"
+                  autocomplete="one-time-code"
+                  placeholder="6 位数字"
+                  :disabled="confirming"
+                  class="ag-input"
+                >
+                <span class="ag-hint">仅本次执行使用，不会保存在本地或服务端。</span>
+              </label>
+            </template>
+          </div>
+
+          <div class="ag-planactions">
+            <button type="button" class="cta cta-primary" :disabled="confirming" @click="confirmPlan">
+              {{ confirming ? '提交中...' : autoPay ? '授权下单并支付' : '确认下单' }}
+            </button>
+            <button type="button" class="cta cta-outline" :disabled="confirming" @click="resetPlan">重新描述</button>
+          </div>
+          <p v-if="locating" class="ag-hint ag-locating">正在获取位置…</p>
+        </div>
+      </section>
+
+      <!-- ═══ 03 · 执行失败 ═══ -->
+      <section v-if="failed && !plan" class="ag-section" aria-label="执行失败">
+        <header class="ag-sec-head">
+          <div class="ag-head-copy">
+            <p class="ag-eyebrow ag-sec-eyebrow">
+              <span class="ag-idx">03</span>
+              <span class="ag-line" aria-hidden="true"></span>
+              <span>结果</span>
             </p>
             <h2 class="ag-sec-title">执行失败</h2>
           </div>
@@ -144,14 +233,14 @@
         </div>
       </section>
 
-      <!-- ═══ 02 · 执行结果 ═══ -->
+      <!-- ═══ 03 · 执行结果 ═══ -->
       <section v-else-if="result" class="ag-section" aria-label="执行结果">
         <header class="ag-sec-head">
           <div class="ag-head-copy">
             <p class="ag-eyebrow ag-sec-eyebrow">
-              <span class="ag-idx">02</span>
+              <span class="ag-idx">03</span>
               <span class="ag-line" aria-hidden="true"></span>
-              <span>Result</span>
+              <span>结果</span>
             </p>
             <h2 class="ag-sec-title">执行结果</h2>
             <p class="ag-sec-desc">每一步都记录在案，可与订单中心逐项核对。</p>
@@ -218,71 +307,136 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { executeAgent } from '@/api/ai'
+import { executeAgentPlan, executeAgentConfirm } from '@/api/ai'
 import { executePayment } from '@/api/payment'
+import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { useAppStore } from '@/stores/app'
 
 const examples = [
-  '帮布丁订 9 月 15 日到 18 日的寄养，优先衡山路门店',
-  '下周三上午给芋圆约一次上门喂养',
-  '给毛豆约一次长毛犬深层洗护，本周末',
+  '帮布丁订 9 月 15 日到 18 日的标准寄养，优先衡山路门店',
+  '下周二开始给芋圆订 3 天寄养，价格不超过 150 一天',
+  '帮我订一只金毛的寄养，5 天，本周五开始',
 ]
 
 const steps = [
-  { title: '解析需求', desc: '识别宠物、服务类型、日期与门店偏好。' },
-  { title: '匹配与校验', desc: '筛选可用门店与服务，校验档期与容量。' },
-  { title: '生成订单', desc: '写入订单并返回订单号，可在订单中心查看。' },
-  { title: '支付', desc: '仅在你开启自动支付时执行，否则等待手动确认。' },
+  { title: '解析需求', desc: 'AI 理解宠物、服务类型、日期与门店偏好。' },
+  { title: '匹配与校验', desc: '匹配你的宠物档案与附近门店，校验档期与服务。' },
+  { title: '生成方案', desc: '给出推荐商家、看护人与预估价格，由你确认。' },
+  { title: '确认下单', desc: '确认后才创建订单；可开启自动支付。' },
 ]
 
 const appStore = useAppStore()
 const input = ref('')
-const loading = ref(false)
+const planning = ref(false)
+const locating = ref(false)
+const confirming = ref(false)
 const autoPay = ref(false)
 const paymentPassword = ref('')
 const payingPayNo = ref('')
+const plan = ref(null)
 const result = ref(null)
 const failed = ref('')
 
+const busy = computed(() => planning.value || locating.value || confirming.value)
 const hasResult = computed(() => Boolean(result.value) || Boolean(failed.value))
 
-function reset() {
-  result.value = null
-  failed.value = ''
+function money(value) {
+  return Number(value ?? 0).toFixed(2)
 }
 
-async function executeTask() {
-  if (!input.value || loading.value) return
+function reset() {
+  plan.value = null
+  result.value = null
+  failed.value = ''
+  paymentPassword.value = ''
+}
+
+function resetPlan() {
+  plan.value = null
+  failed.value = ''
+  paymentPassword.value = ''
+}
+
+async function submitPlan() {
+  if (!input.value || busy.value) return
+  failed.value = ''
+  plan.value = null
+
+  let coords = null
+  locating.value = true
+  try {
+    const loc = await getCurrentAddress()
+    coords = loc && loc.latitude_wsh != null ? loc : null
+  } catch (e) {
+    appStore.addToast('未获取到位置，将使用档案坐标', 'info')
+    coords = null
+  } finally {
+    locating.value = false
+  }
+
+  planning.value = true
+  try {
+    const r = await executeAgentPlan({
+      input_wsh: input.value,
+      latitude_wsh: coords?.latitude_wsh,
+      longitude_wsh: coords?.longitude_wsh,
+      address_wsh: coords?.address_wsh,
+    })
+    if (r.code === 200) {
+      const data = r.data || {}
+      if (data.status_wsh === 'plan_generated') {
+        plan.value = data
+      } else {
+        failed.value = data.message_wsh || '方案生成失败，请稍后重试。'
+        const hint = nextActionText(data.next_action_wsh)
+        if (hint && hint !== '无需操作') failed.value += `（${hint}）`
+      }
+    } else {
+      failed.value = r.message || '方案生成失败，请稍后重试。'
+    }
+  } catch (e) {
+    failed.value = '方案生成失败，请检查网络后重试。'
+  } finally {
+    planning.value = false
+  }
+}
+
+async function confirmPlan() {
+  if (!plan.value || confirming.value) return
   if (autoPay.value && !/^\d{6}$/.test(paymentPassword.value)) {
     appStore.addToast('请输入 6 位支付密码，或关闭自动支付授权', 'error')
     return
   }
 
-  const task = input.value
-  const password = paymentPassword.value
+  const token = plan.value.plan_token_wsh
   failed.value = ''
-  loading.value = true
+  confirming.value = true
 
   try {
-    const r = await executeAgent({
-      input_wsh: task,
+    const r = await executeAgentConfirm({
+      plan_token_wsh: token,
       auto_pay_wsh: autoPay.value,
-      payment_password_wsh: autoPay.value ? password : undefined,
+      payment_password_wsh: autoPay.value ? paymentPassword.value : undefined,
     })
     if (r.code === 200) {
-      result.value = toAgentResult(r.data)
-      if (r.data?.status === 'success') {
+      const data = r.data || {}
+      result.value = toAgentResult(data)
+      plan.value = null
+      paymentPassword.value = ''
+      if (data.status === 'success') {
         appStore.addToast('订单已支付', 'success')
-      } else if (r.data?.status === 'pending_payment') {
+      } else if (data.status === 'pending_payment') {
         appStore.addToast('订单已创建，等待手动支付', 'success')
       }
     } else {
       failed.value = r.message || '任务执行失败，请稍后重试。'
+      plan.value = null
     }
   } catch (e) {
     failed.value = '任务执行失败，请检查网络后重试。'
+    plan.value = null
   } finally {
-    loading.value = false
+    confirming.value = false
   }
 }
 
@@ -306,8 +460,8 @@ async function manualPay(msg) {
 function toAgentResult(data = {}) {
   return {
     message_wsh: data.message_wsh || data.error || '任务已处理。',
-    orderNo: data.orderNo,
-    payNo: data.payNo,
+    orderNo: data.orderNo || data.order_no_wsh,
+    payNo: data.payNo || data.pay_no_wsh,
     logs: Array.isArray(data.logs) ? data.logs : [],
     nextAction: data.requires_user_input_wsh ? data.next_action_wsh : '',
     paymentStatus: data.payment_status_wsh,
@@ -323,9 +477,13 @@ function nextActionText(action) {
   const map = {
     ask_requirement: '请补充下单需求。',
     ask_pet_type: '请补充宠物类型或品种。',
+    ask_pet_identity: '请补充宠物昵称，便于精确匹配档案。',
     ask_days: '请补充寄养天数。',
     ask_location: '请提供或授权位置信息。',
     ask_payment_password: '请补充支付密码，或关闭自动支付授权后只创建待支付订单。',
+    unsupported_service_type: '智能下单目前仅支持寄养类日间服务，请到服务列表手动下单。',
+    plan_expired: '该方案已过期或无效，请重新生成方案后再试。',
+    plan_busy: '该方案正在处理或已提交，请勿重复点击。',
     complete_profile: '请先完善个人资料。',
     create_pet_profile: '请先添加宠物档案。',
     retry_later: '请稍后再试。',
@@ -613,7 +771,14 @@ function nextActionText(action) {
   font-size: 11.5px;
   color: var(--ref-muted);
 }
+.ag-locating { margin-top: 12px; }
 .ag-submit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.ag-planactions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -669,7 +834,39 @@ function nextActionText(action) {
   color: var(--ref-muted);
 }
 
-/* ═══ 02 · 失败 ═══ */
+/* ═══ 02 · 方案确认 ═══ */
+.ag-plan {
+  margin-top: 20px;
+  border: 1px solid var(--ref-line);
+  border-radius: 18px;
+  background: var(--ref-surface);
+  padding: 24px;
+}
+.ag-plan-grid {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px 24px;
+}
+.ag-plan-cell dt {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ref-muted);
+}
+.ag-plan-cell dd {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--ref-ink);
+  overflow-wrap: anywhere;
+}
+.ag-plan-cell dd.ag-plan-total {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ref-brand);
+}
+.ag-plan .ag-options { margin-top: 24px; }
+
+/* ═══ 03 · 失败 ═══ */
 .ag-failed {
   margin-top: 20px;
   display: flex;
@@ -694,7 +891,7 @@ function nextActionText(action) {
   color: var(--ref-muted);
 }
 
-/* ═══ 02 · 结果 ═══ */
+/* ═══ 03 · 结果 ═══ */
 .ag-result-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -813,13 +1010,15 @@ function nextActionText(action) {
 /* ═══ Responsive ═══ */
 @media (max-width: 980px) {
   .ag-grid, .ag-result-grid { grid-template-columns: 1fr; }
+  .ag-plan-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 640px) {
   .ag-shell { padding: 0 16px; }
   .ag-head { padding: 30px 0 22px; }
   .ag-sub { font-size: 13.5px; }
   .ag-section { margin-top: 44px; }
-  .ag-form, .ag-steps { padding: 18px; }
+  .ag-form, .ag-steps, .ag-plan { padding: 18px; }
+  .ag-plan-grid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cta { transition: none; }

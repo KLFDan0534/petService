@@ -92,7 +92,7 @@ public class PaymentServiceImpl implements PaymentService {
      */
     @Override
     public Payment getByOrderNo(Long ownerId, String orderNo) {
-        log.info("Query payment by orderNo: {}", orderNo);
+        log.info("按订单号查询支付记录: {}", orderNo);
         PetOrder order = orderMapper.selectOne(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOrder_no_wsh, orderNo)
@@ -126,7 +126,7 @@ public class PaymentServiceImpl implements PaymentService {
      */
     @Override
     public List<Payment> listByUser(Long userId) {
-        log.info("Query payments for user: {}", userId);
+        log.info("查询用户支付记录: {}", userId);
         List<PetOrder> orders = orderMapper.selectList(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOwner_id_wsh, userId)
@@ -158,7 +158,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     @Override
     public Payment createPaymentByOrderId(Long ownerId, Long orderId, String method) {
-        log.info("Create payment for order: {}, method: {}", orderId, method);
+        log.info("为订单创建支付: {}, 支付方式: {}", orderId, method);
         PetOrder order = orderMapper.selectById(orderId);
         if (order == null) throw new BusinessException(404, "订单不存在");
         if (!ownerId.equals(order.getOwner_id_wsh())) throw new BusinessException(403, "无权操作此订单");
@@ -190,7 +190,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     @Override
     public Payment createPayment(Long ownerId, String orderNo, String method) {
-        log.info("Create payment for order: {}, method: {}", orderNo, method);
+        log.info("为订单创建支付: {}, 支付方式: {}", orderNo, method);
         PetOrder order = orderMapper.selectOne(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOrder_no_wsh, orderNo)
@@ -252,7 +252,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     @Override
     public void pay(Long userId, String payNo) {
-        log.info("Execute payment: {}", payNo);
+        log.info("执行支付: {}", payNo);
         Payment payment = paymentMapper.selectOne(
                 new LambdaQueryWrapper<Payment>().eq(Payment::getPay_no_wsh, payNo).last("LIMIT 1"));
         if (payment == null) throw new BusinessException(404, "支付记录不存在");
@@ -363,7 +363,7 @@ public class PaymentServiceImpl implements PaymentService {
      */
     @Override
     public PaymentDTO toDTO(Payment entity) {
-        log.info("Convert Payment entity to DTO");
+        log.info("将 Payment 实体转换为 DTO");
         if (entity == null) return null;
         PaymentDTO dto = new PaymentDTO();
         dto.setId_wsh(entity.getId_wsh());
@@ -455,7 +455,7 @@ public class PaymentServiceImpl implements PaymentService {
             try {
                 messageSender.sendOrderAcceptTimeout(orderNo);
             } catch (Exception e) {
-                log.warn("Failed to send order accept timeout message, orderNo: {}", orderNo, e);
+                log.warn("发送订单接单超时消息失败, 订单编号: {}", orderNo, e);
             }
         };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {

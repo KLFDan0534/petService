@@ -8,17 +8,17 @@ import lombok.Data;
 @Data
 public class RagDocumentCreateRequestDTO {
 
-    @NotBlank(message = "鏂囨。鏍囬涓嶈兘涓虹┖")
-    @Schema(description = "鏂囨。鏍囬")
+    @NotBlank(message = "文档标题不能为空")
+    @Schema(description = "文档标题")
         private String title_wsh;
 
-    @NotBlank(message = "鏂囨。鍐呭涓嶈兘涓虹┖")
-    @Schema(description = "鏂囨。鍐呭")
+    @NotBlank(message = "文档内容不能为空")
+    @Schema(description = "文档内容")
         private String content_wsh;
 
-    @Schema(description = "鍒嗙被")
+    @Schema(description = "分类")
         private String category_wsh;
 
-    @Schema(description = "鏉ユ簮绫诲瀷")
+    @Schema(description = "来源类型")
         private String source_type_wsh;
 }

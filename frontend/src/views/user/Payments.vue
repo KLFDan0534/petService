@@ -15,7 +15,7 @@
         <div class="pm-head-copy">
           <div class="pm-eyebrow" aria-hidden="true">
             <span class="pm-eyebrow-line"></span>
-            <span>Payments</span>
+            <span>支付</span>
           </div>
           <h1 class="pm-title">支付中心</h1>
           <p class="pm-sub">为已下单但未支付的订单创建支付、查询某个订单的支付状态，或用余额直接完成付款。</p>
@@ -32,7 +32,7 @@
             <p class="pm-eyebrow">
               <span class="pm-idx">01</span>
               <span class="pm-line" aria-hidden="true"></span>
-              <span>New Payment</span>
+              <span>新建支付</span>
             </p>
             <h2 class="pm-sec-title">创建与查询</h2>
             <p class="pm-sec-desc">订单号可在订单详情中复制。</p>
@@ -107,7 +107,7 @@
             <p class="pm-eyebrow">
               <span class="pm-idx">02</span>
               <span class="pm-line" aria-hidden="true"></span>
-              <span>History</span>
+              <span>历史</span>
             </p>
             <h2 class="pm-sec-title">支付记录</h2>
             <p class="pm-sec-desc">待支付的余额订单可以直接在这里完成付款。</p>
@@ -346,7 +346,7 @@ function pendingPaymentHint(payment) {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -366,7 +366,7 @@ function pendingPaymentHint(payment) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -417,7 +417,7 @@ function pendingPaymentHint(payment) {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   padding: 24px 26px;
 }
@@ -433,10 +433,10 @@ function pendingPaymentHint(payment) {
 .pm-label { font-size: 12.5px; font-weight: 500; color: var(--ref-ink-soft); }
 .pm-input {
   width: 100%;
-  height: 44px;
+  height: var(--control-height);
   padding: 0 14px;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-surface);
   color: var(--ref-ink);
   font-size: 14px;
@@ -456,7 +456,7 @@ function pendingPaymentHint(payment) {
   align-items: center;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--ref-ink);
   background: var(--ref-ink);
   color: var(--ref-cream);
@@ -496,7 +496,7 @@ function pendingPaymentHint(payment) {
   margin-top: 20px;
   overflow: hidden;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
 }
 .pm-row {
@@ -552,7 +552,7 @@ function pendingPaymentHint(payment) {
 .pm-skeleton {
   height: 120px;
   margin-top: 20px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--ref-line);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
@@ -562,7 +562,7 @@ function pendingPaymentHint(payment) {
   margin-top: 20px;
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }

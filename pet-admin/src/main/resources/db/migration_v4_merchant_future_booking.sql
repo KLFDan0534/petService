@@ -1,1 +1,0 @@
-ALTER TABLE merchant_wsh ADD COLUMN IF NOT EXISTS `future_booking_enabled_wsh` TINYINT NOT NULL DEFAULT 1 COMMENT 'future booking switch: 0-disabled 1-enabled' AFTER `store_status_wsh`;

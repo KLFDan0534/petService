@@ -76,7 +76,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/assets/**", "/admin/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
+                .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/merchants/**", "/api/keepers/**", "/api/services/**", "/api/ratings/**", "/api/categories/**", "/api/service-categories/**", "/api/notices/active", "/api/geo/config", "/api/order-events/stream", "/api/chat-events/stream", "/api/notification-events/stream").permitAll()
                 .requestMatchers("/api/files/**").permitAll()
                 .requestMatchers(new NonApiRequestMatcher()).permitAll()
@@ -91,7 +91,7 @@ public class SecurityConfig {
         public boolean matches(HttpServletRequest request) {
             String uri = request.getRequestURI();
             return !uri.startsWith("/api/") && !uri.startsWith("/swagger-ui/") && !uri.startsWith("/api-docs/")
-                && !uri.startsWith("/v3/") && !uri.startsWith("/h2-console/");
+                && !uri.startsWith("/v3/");
         }
     }
 

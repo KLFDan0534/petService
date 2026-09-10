@@ -13,7 +13,7 @@
         <div class="tk-head-copy">
           <p class="tk-eyebrow" aria-hidden="true">
             <span class="tk-eyebrow-line"></span>
-            <span>Support tickets</span>
+            <span>服务工单</span>
           </p>
           <h1 class="tk-title">我的工单</h1>
           <p class="tk-sub">订单申诉、使用问题与产品建议都在这里跟进。客服的每一次回复都留在工单里，可随时回看。</p>
@@ -40,7 +40,7 @@
             <p class="tk-eyebrow tk-sec-eyebrow">
               <span class="tk-idx">01</span>
               <span class="tk-line" aria-hidden="true"></span>
-              <span>Tickets</span>
+              <span>工单</span>
             </p>
             <h2 class="tk-sec-title">工单列表</h2>
             <p class="tk-sec-desc">点开任意一条查看完整沟通记录。</p>
@@ -439,7 +439,7 @@ function cancelEvidence() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -499,7 +499,7 @@ function cancelEvidence() {
 .tk-skel-stack { display: grid; gap: 14px; }
 .tk-skeleton {
   height: 168px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--ref-line);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
@@ -508,7 +508,7 @@ function cancelEvidence() {
 .tk-empty {
   padding: 64px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -528,7 +528,7 @@ function cancelEvidence() {
 .tk-card {
   padding: 22px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   cursor: pointer;
   transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
@@ -536,7 +536,7 @@ function cancelEvidence() {
 .tk-card:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 16%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .tk-card-top {
   display: flex;
@@ -579,7 +579,7 @@ function cancelEvidence() {
 .tk-tag {
   display: inline-flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid var(--ref-line);
   background: color-mix(in srgb, var(--ref-cream) 70%, var(--ref-surface));
   padding: 4px 10px;
@@ -647,7 +647,7 @@ function cancelEvidence() {
   border-radius: 20px;
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: tk-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-panel-lg { max-width: 600px; }

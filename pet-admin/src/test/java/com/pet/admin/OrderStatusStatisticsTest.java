@@ -75,16 +75,16 @@ class OrderStatusStatisticsTest {
         UserDashboardVO user = service.getUserDashboard(7L);
         MerchantDashboardVO merchant = service.getMerchantDashboard(8L);
 
-        assertEquals(new BigDecimal("210.00"), admin.getTotalRevenue());
-        assertEquals(new BigDecimal("210.00"), user.getTotalSpent());
-        assertEquals(new BigDecimal("210.00"), merchant.getTotalRevenue());
-        assertEquals(5, user.getActiveOrders());
-        assertEquals(5, merchant.getActiveOrders());
-        assertEquals(1, admin.getPendingOrders());
-        assertEquals(1, merchant.getPendingOrders());
-        assertEquals(1, admin.getCompletedOrders());
-        assertEquals(1, user.getCompletedOrders());
-        assertEquals(1, merchant.getCompletedOrders());
+        assertEquals(new BigDecimal("210.00"), admin.getTotal_revenue_wsh());
+        assertEquals(new BigDecimal("210.00"), user.getTotal_spent_wsh());
+        assertEquals(new BigDecimal("210.00"), merchant.getTotal_revenue_wsh());
+        assertEquals(5, user.getActive_orders_wsh());
+        assertEquals(5, merchant.getActive_orders_wsh());
+        assertEquals(1, admin.getPending_orders_wsh());
+        assertEquals(1, merchant.getPending_orders_wsh());
+        assertEquals(1, admin.getCompleted_orders_wsh());
+        assertEquals(1, user.getCompleted_orders_wsh());
+        assertEquals(1, merchant.getCompleted_orders_wsh());
     }
 
     private OrderDTO order(String status, String amount) {

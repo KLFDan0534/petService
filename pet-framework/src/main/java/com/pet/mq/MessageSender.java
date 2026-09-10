@@ -57,7 +57,7 @@ public class MessageSender {
      * @param orderNo 订单号
      */
     public void sendOrderCreate(String orderNo) {
-        log.info("Sending order create event: {}", orderNo);
+        log.info("发送订单创建事件: {}", orderNo);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_ORDER_CREATE, orderNo);
     }
@@ -77,7 +77,7 @@ public class MessageSender {
      * @param orderNo 订单号
      */
     public void sendOrderCancel(String orderNo) {
-        log.info("Sending order cancel event: {}", orderNo);
+        log.info("发送订单取消事件: {}", orderNo);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_ORDER_CANCEL, orderNo);
     }
@@ -101,7 +101,7 @@ public class MessageSender {
      * @param orderNo 订单号
      */
     public void sendOrderPaymentTimeout(String orderNo) {
-        log.info("Sending order payment timeout event: {}", orderNo);
+        log.info("发送订单支付超时事件: {}", orderNo);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY, orderNo);
     }
@@ -125,7 +125,7 @@ public class MessageSender {
      * @param orderNo 订单号
      */
     public void sendOrderAcceptTimeout(String orderNo) {
-        log.info("Sending order accept timeout event: {}", orderNo);
+        log.info("发送订单接单超时事件: {}", orderNo);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY, orderNo);
     }
@@ -145,7 +145,7 @@ public class MessageSender {
      * @param orderNo 订单号
      */
     public void sendOrderRefund(String orderNo) {
-        log.info("Sending order refund event: {}", orderNo);
+        log.info("发送订单退款事件: {}", orderNo);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_ORDER_REFUND, orderNo);
     }
@@ -165,7 +165,7 @@ public class MessageSender {
      * @param payload 消息内容负载
      */
     public void sendMessage(String payload) {
-        log.info("Sending message event: {}", payload);
+        log.info("发送消息事件: {}", payload);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_MESSAGE_SEND, payload);
     }
@@ -187,7 +187,7 @@ public class MessageSender {
      * @param payload JSON 格式的负载
      */
     public void sendAiReport(String payload) {
-        log.info("Sending AI report event: {}", payload);
+        log.info("发送 AI 报告事件: {}", payload);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_AI_REPORT, payload);
     }
@@ -207,7 +207,7 @@ public class MessageSender {
      * @param complaintId 投诉记录 ID
      */
     public void sendComplaintProcess(Long complaintId) {
-        log.info("Sending complaint process event: {}", complaintId);
+        log.info("发送投诉处理事件: {}", complaintId);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_COMPLAINT_PROCESS, complaintId.toString());
     }

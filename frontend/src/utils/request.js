@@ -19,7 +19,7 @@ function addPendingRequest(cb) {
 }
 
 request.interceptors.request.use(config => {
-  // Normalize URL: strip duplicate /api/ prefix (baseURL already adds /api)
+  // 标准化 URL：去除重复的 /api/ 前缀（基础地址 baseURL 已自动追加 /api）
   if (config.url && config.url.startsWith('/api/')) {
     config.url = config.url.replace(/^\/api/, '')
   }

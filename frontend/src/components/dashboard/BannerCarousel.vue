@@ -30,7 +30,7 @@
           <strong>{{ currentBanner.title_wsh || '平台精选活动' }}</strong>
           <span v-if="safeCurrentLink" class="campaign-action">
             查看活动
-            <el-icon aria-hidden="true"><ArrowRight /></el-icon>
+            <AppIcon aria-hidden="true"><ArrowRight /></AppIcon>
           </span>
         </span>
       </a>
@@ -38,10 +38,10 @@
 
     <template v-if="slides.length > 1">
       <button class="campaign-arrow campaign-prev" type="button" aria-label="上一条广告" @click="showPrevious">
-        <el-icon aria-hidden="true"><ArrowLeft /></el-icon>
+        <AppIcon aria-hidden="true"><ArrowLeft /></AppIcon>
       </button>
       <button class="campaign-arrow campaign-next" type="button" aria-label="下一条广告" @click="showNext">
-        <el-icon aria-hidden="true"><ArrowRight /></el-icon>
+        <AppIcon aria-hidden="true"><ArrowRight /></AppIcon>
       </button>
       <div class="campaign-dots" aria-label="广告切换">
         <button
@@ -183,13 +183,13 @@ onUnmounted(pause)
   padding: 5px 9px;
   color: #17202a;
   background: #fff;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   font-size: 12px;
   font-weight: 800;
 }
 
 .campaign-copy strong {
-  font-family: Fredoka, 'Nunito', 'Microsoft YaHei', sans-serif;
+  font-family: var(--ref-font-display);
   font-size: clamp(24px, 3vw, 42px);
   line-height: 1.15;
   text-wrap: balance;
@@ -197,7 +197,7 @@ onUnmounted(pause)
 
 .campaign-action {
   display: inline-flex;
-  min-height: 44px;
+  min-height: var(--control-height);
   align-items: center;
   gap: 7px;
   color: #fff;
@@ -211,7 +211,7 @@ onUnmounted(pause)
   top: 50%;
   display: grid;
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
   place-items: center;
   color: #17202a;
   background: rgba(255, 255, 255, 0.94);

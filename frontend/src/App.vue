@@ -22,19 +22,16 @@
         :class="['toast', `toast-${toast.type}`]"
       >
         {{ toast.message }}
-      </div>
+      </div>v
     </div>
 
-    <div v-if="showModal" class="modal-overlay" @mousedown.self="closeModal">
-      <div class="modal">
-        <h2>{{ modalTitle }}</h2>
-        <div class="modal-content">{{ modalContent }}</div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="closeModal">取消</button>
-          <button v-if="modalConfirm" class="btn btn-primary btn-sm" type="button" @click="onModalConfirm">确认</button>
-        </div>
-      </div>
-    </div>
+    <AppDialog :visible="showModal" :width="500" :title="modalTitle" @close="closeModal">
+      <div class="modal-content">{{ modalContent }}</div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="closeModal">取消</button>
+        <button v-if="modalConfirm" class="btn btn-primary btn-sm" type="button" @click="onModalConfirm">确认</button>
+      </template>
+    </AppDialog>
 
     <PopupNotice />
     <LoginPromptDialog :visible="appStore.showLoginPrompt" @close="appStore.closeLoginPrompt()" />
@@ -68,6 +65,7 @@ import AdminLayout from '@/components/layout/AdminLayout.vue'
 import MerchantLayout from '@/components/layout/MerchantLayout.vue'
 import PopupNotice from '@/components/common/PopupNotice.vue'
 import LoginPromptDialog from '@/components/common/LoginPromptDialog.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 
 const route = useRoute()
 const router = useRouter()

@@ -38,6 +38,7 @@
 import { onMounted, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { getCurrentAddress } from '@/composables/useAmapLocation'
+import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 import { checkIn, checkOut, getCurrentAttendance, getTodayAttendance } from '@/api/attendance'
 
 const appStore = useAppStore()
@@ -97,8 +98,7 @@ async function submitAttendance(action, successText) {
 }
 
 function formatDateTime(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return utilFormatDateTime(value, { fallback: '-' })
 }
 
 function formatMeters(value) {
@@ -116,7 +116,7 @@ function formatMeters(value) {
   margin-bottom: 16px;
   background: #fff;
   border: 1px solid #dee0e3;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
 }
 .attendance-main {
   display: flex;

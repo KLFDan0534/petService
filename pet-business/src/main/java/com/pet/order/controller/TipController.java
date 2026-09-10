@@ -71,7 +71,7 @@ public class TipController {
     })
     public Result<Void> create(@AuthenticationPrincipal JwtAuthenticationToken token,
                                @Valid @RequestBody TipCreateRequestDTO request) {
-        log.info("create() called");
+        log.info("create() 被调用");
         tipService.create(token.getUserId(), request);
         return Result.success();
     }
@@ -101,7 +101,7 @@ public class TipController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<PageResult<TipDTO>> adminList(PageRequestDTO pageParam) {
-        log.info("adminList() called, page: {}, size: {}", pageParam.getPage(), pageParam.getSize());
+        log.info("adminList() 被调用, page: {}, size: {}", pageParam.getPage(), pageParam.getSize());
         var page = tipService.pageAll(pageParam);
         var dtoList = page.getRecords()
                 .stream()
@@ -170,7 +170,7 @@ public class TipController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<TipDTO>> listByOrder(@Parameter(description = "订单ID") @PathVariable Long orderId) {
-        log.info("listByOrder() called");
+        log.info("listByOrder() 被调用");
         return Result.success(tipService.listByOrder(orderId).stream().map(tipService::toDTO).collect(Collectors.toList()));
     }
 
@@ -198,7 +198,7 @@ public class TipController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<TipDTO>> listMyTips(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("listMyTips() called");
+        log.info("listMyTips() 被调用");
         return Result.success(tipService.listMyTips(token.getUserId()).stream().map(tipService::toDTO).collect(Collectors.toList()));
     }
 }

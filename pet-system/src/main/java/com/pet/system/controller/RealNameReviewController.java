@@ -65,7 +65,7 @@ public class RealNameReviewController {
     public Result<PageResult<RealNameReviewVO>> listAll(PageRequestDTO pageParam,
                                                         @RequestParam(required = false) Integer status,
                                                         @RequestParam(required = false) String q) {
-        log.info("call listAll(), status={}, q={}", status, q);
+        log.info("调用 listAll(), status={}, q={}", status, q);
         IPage<RealNameReviewVO> page = realNameReviewService.listPage(pageParam, status, q);
         PageResult<RealNameReviewVO> result = new PageResult<>();
         result.copyPageInfo(page);
@@ -107,7 +107,7 @@ public class RealNameReviewController {
     public Result<Void> approve(@AuthenticationPrincipal JwtAuthenticationToken token,
                                 @Parameter(description = "用户ID") @PathVariable Long userId,
                                 @RequestBody(required = false) RealNameReviewRequestDTO body) {
-        log.info("call approve(), userId={}", userId);
+        log.info("调用 approve(), userId={}", userId);
         realNameReviewService.approve(userId, token.getUserId(), body != null ? body.getRemark_wsh() : null);
         return Result.success();
     }
@@ -146,7 +146,7 @@ public class RealNameReviewController {
     public Result<Void> reject(@AuthenticationPrincipal JwtAuthenticationToken token,
                                @Parameter(description = "用户ID") @PathVariable Long userId,
                                @RequestBody(required = false) RealNameReviewRequestDTO body) {
-        log.info("call reject(), userId={}", userId);
+        log.info("调用 reject(), userId={}", userId);
         realNameReviewService.reject(userId, token.getUserId(), body != null ? body.getRemark_wsh() : null);
         return Result.success();
     }

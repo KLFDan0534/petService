@@ -29,10 +29,10 @@ public class OrderPaymentTimeoutScheduler {
         try {
             int cancelled = orderService.cancelPaymentTimeoutOrders();
             if (cancelled > 0) {
-                log.info("Payment timeout scheduler cancelled {} pending orders", cancelled);
+                log.info("支付超时调度器已取消 {} 笔待支付订单", cancelled);
             }
         } catch (Exception e) {
-            log.warn("Payment timeout scheduler failed", e);
+            log.warn("支付超时调度器执行失败", e);
         }
     }
 }

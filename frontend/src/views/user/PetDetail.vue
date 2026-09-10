@@ -61,7 +61,7 @@
 
           <div class="pd-copy">
             <p class="pd-eyebrow" aria-hidden="true">
-              <span class="pd-eyebrow-idx">Pet Archive</span>
+              <span class="pd-eyebrow-idx">宠物档案</span>
               <span v-if="pet.id_wsh" class="pd-eyebrow-no">· No.{{ pet.id_wsh }}</span>
             </p>
             <h1 class="pd-name">{{ pet.name_wsh }}</h1>
@@ -118,7 +118,7 @@
               <p class="pd-eyebrow">
                 <span class="pd-eyebrow-idx">01</span>
                 <span class="pd-eyebrow-line" aria-hidden="true"></span>
-                <span>Care Notes</span>
+                <span>照护记录</span>
               </p>
               <h2 class="pd-title">照护要点</h2>
               <p class="pd-desc">寄养入住时，照护师会逐条核对这些信息。</p>
@@ -148,7 +148,7 @@
               <p class="pd-eyebrow">
                 <span class="pd-eyebrow-idx">02</span>
                 <span class="pd-eyebrow-line" aria-hidden="true"></span>
-                <span>AI Health Reports</span>
+                <span>AI 健康报告</span>
               </p>
               <h2 class="pd-title">AI 健康报告</h2>
               <p class="pd-desc">寄养期间每日生成照护小结，离店时生成一份健康总结。</p>
@@ -187,7 +187,7 @@
               <p class="pd-eyebrow">
                 <span class="pd-eyebrow-idx">03</span>
                 <span class="pd-eyebrow-line" aria-hidden="true"></span>
-                <span>Service History</span>
+                <span>服务记录</span>
               </p>
               <h2 class="pd-title">服务记录</h2>
               <p class="pd-desc">这只宠物参与过的寄养、洗护与陪伴订单。</p>

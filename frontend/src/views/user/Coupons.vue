@@ -15,7 +15,7 @@
         <div class="cp-head-copy">
           <div class="cp-eyebrow" aria-hidden="true">
             <span class="cp-eyebrow-line"></span>
-            <span>Coupons</span>
+            <span>优惠券</span>
           </div>
           <h1 class="cp-title">优惠券</h1>
           <p class="cp-sub">活动券先领后用，下单时系统会自动匹配当前订单可用的最优券。</p>
@@ -48,7 +48,7 @@
             <p class="cp-eyebrow cp-sec-eyebrow">
               <span class="cp-idx">01</span>
               <span class="cp-line" aria-hidden="true"></span>
-              <span>Available</span>
+              <span>可用</span>
             </p>
             <h2 class="cp-sec-title">可领取优惠券</h2>
             <p class="cp-sec-desc">平台与门店的当期活动券，领取后进入券包。</p>
@@ -95,7 +95,7 @@
             <p class="cp-eyebrow cp-sec-eyebrow">
               <span class="cp-idx">02</span>
               <span class="cp-line" aria-hidden="true"></span>
-              <span>My Wallet</span>
+              <span>我的钱包</span>
             </p>
             <h2 class="cp-sec-title">我的券包</h2>
             <p class="cp-sec-desc">已锁定的券正被进行中的订单占用，订单结束后会释放。</p>
@@ -134,6 +134,7 @@
 import { onMounted, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { claimCoupon, getActiveCouponTemplates, getMyCoupons } from '@/api/coupon'
+import { formatMoney } from '@/utils/format'
 
 const appStore = useAppStore()
 const loading = ref(false)
@@ -208,7 +209,7 @@ function dateText(value) {
 }
 
 function money(value) {
-  return Number(value || 0).toFixed(2)
+  return formatMoney(value)
 }
 </script>
 
@@ -291,7 +292,7 @@ function money(value) {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -316,14 +317,14 @@ function money(value) {
 .cp-fact {
   padding: 20px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 .cp-fact:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 16%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .cp-fact dd {
   margin: 0;
@@ -379,7 +380,7 @@ function money(value) {
 .cp-skeleton {
   height: 200px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: cp-shimmer 1.3s linear infinite;
@@ -390,7 +391,7 @@ function money(value) {
   margin-top: 20px;
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -411,14 +412,14 @@ function money(value) {
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 .cp-card:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 18%, transparent);
   transform: translateY(-3px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .cp-card.is-muted { opacity: 0.62; }
 
@@ -491,7 +492,7 @@ function money(value) {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 500;
   line-height: 1;

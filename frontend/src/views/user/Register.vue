@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="auth-page">
     <div class="auth-shell">
       <!-- ═══ 左侧：表单 ═══ -->
@@ -9,13 +9,13 @@
             <span class="auth-brand-mark" aria-hidden="true">栖</span>
             <span class="auth-brand-copy">
               <span class="auth-brand-name">栖屿宠护</span>
-              <span class="auth-brand-sub">Pet Boarding</span>
+              <span class="auth-brand-sub">宠物寄养</span>
             </span>
           </router-link>
 
           <!-- header -->
           <header class="auth-head">
-            <p class="auth-eyebrow">Create account</p>
+            <p class="auth-eyebrow">创建账号</p>
             <h1 class="auth-title">开始为它安排照护</h1>
             <p class="auth-lede">注册后即可建立宠物档案、预约寄养，并实时查看照护日报。</p>
           </header>
@@ -25,6 +25,7 @@
 
           <!-- form -->
           <form class="auth-form" novalidate @submit.prevent="handleRegister">
+          <!--用户名-->
             <div class="auth-grid">
               <div class="auth-field">
                 <label class="auth-label" for="reg-username">用户名<span class="auth-req">*</span></label>
@@ -41,6 +42,7 @@
                 >
                 <p v-if="errors.username" class="auth-error">{{ errors.username }}</p>
               </div>
+
 
               <div class="auth-field">
                 <label class="auth-label" for="reg-nickname">昵称<span class="auth-req">*</span></label>
@@ -103,6 +105,8 @@
               <p v-else-if="captchaHint" class="auth-hint">{{ captchaHint }}</p>
             </div>
 
+
+
             <div class="auth-grid">
               <div class="auth-field">
                 <label class="auth-label" for="reg-password">设置密码<span class="auth-req">*</span></label>
@@ -131,6 +135,12 @@
                 >
                 <p v-if="errors.confirm" class="auth-error">{{ errors.confirm }}</p>
               </div>
+
+              <div class="auth-field">
+                <div ref="turnstileRef" class="turnstile-wrap" aria-label="人机验证"></div>
+                <p v-if="turnstileError" class="auth-error">{{ turnstileError }}</p>
+              </div>
+
             </div>
 
             <button type="submit" class="cta cta-dark cta-lg" :disabled="loading">
@@ -190,6 +200,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { addDynamicRoutes } from '@/router'
 import { register, requestRegisterCaptcha } from '@/api/auth'
+import { useTurnstile } from '@/composables/useTurnstile'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -201,6 +212,10 @@ const captchaHint = ref('')
 const formError = ref('')
 const confirm_wsh = ref('')
 const countdownTimer = ref(null)
+
+// Cloudflare Turnstile 人机验证
+const turnstileRef = ref(null)
+const { token: turnstileToken, error: turnstileError, reset: resetTurnstile } = useTurnstile(turnstileRef)
 
 const form = reactive({
   username_wsh: '',
@@ -214,7 +229,7 @@ const errors = reactive({
   username: '', nickname: '', phone: '', captcha: '', password: '', confirm: '',
 })
 
-// 发送验证码前校验手机号（对齐 React useAuth.sendCaptcha）
+// 发送验证码前校验手机号
 const canSendCaptcha = computed(() => /^1\d{10}$/.test(String(form.phone_wsh || '').trim()))
 
 function startCountdown(seconds = 60) {
@@ -268,6 +283,11 @@ async function handleRegister() {
   formError.value = ''
   if (validate()) return
 
+  if (!turnstileToken.value) {
+    formError.value = '请先完成人机验证'
+    return
+  }
+
   loading.value = true
   try {
     const r = await register({
@@ -276,6 +296,7 @@ async function handleRegister() {
       phone_wsh: form.phone_wsh,
       captcha_wsh: form.captcha_wsh.trim(),
       password_wsh: form.password_wsh,
+      turnstileToken: turnstileToken.value,
     })
     if (r.code === 200) {
       authStore.setAuth(r.data)
@@ -283,9 +304,11 @@ async function handleRegister() {
       router.push('/dashboard')
     } else {
       formError.value = r.message || r.msg || '注册失败，请检查填写内容'
+      resetTurnstile()
     }
   } catch (e) {
     formError.value = e.response?.data?.message || '注册服务暂时无法连接，请稍后重试'
+    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -381,7 +404,7 @@ onUnmounted(() => {
 .auth-label { font-size: 12.5px; font-weight: 500; color: var(--ref-ink-soft); }
 .auth-req { margin-left: 3px; color: var(--ref-brand); }
 .auth-input {
-  width: 100%; height: 44px; padding: 0 14px;
+  width: 100%; height: var(--control-height); padding: 0 14px;
   border: 1px solid var(--ref-line); border-radius: var(--r-btn);
   background: var(--ref-surface); color: var(--ref-ink); font-size: 14px;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -403,13 +426,20 @@ onUnmounted(() => {
 .auth-captcha-row { display: flex; align-items: flex-end; gap: 12px; }
 .auth-captcha-input { flex: 1; min-width: 0; display: grid; gap: 8px; }
 .auth-send {
-  height: 44px; padding: 0 16px; border-radius: var(--r-btn);
+  height: var(--control-height); padding: 0 16px; border-radius: var(--r-btn);
   border: 1px solid var(--ref-line); background: var(--ref-surface);
   color: var(--ref-ink-soft); font-size: 13px; font-weight: 500; cursor: pointer;
   white-space: nowrap; transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .auth-send:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); color: var(--ref-ink); }
 .auth-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ═══ Turnstile 人机验证 ═══ */
+.turnstile-wrap {
+  min-height: 65px; width: 100%;
+  display: flex; align-items: center; justify-content: flex-start;
+}
+.turnstile-wrap:empty + p { display: none; }
 
 /* ═══ CTA ═══ */
 .cta {
@@ -422,7 +452,7 @@ onUnmounted(() => {
 .cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .cta-dark { background: var(--ref-ink); color: var(--ref-cream); }
 .cta-dark:hover:not(:disabled) { filter: brightness(1.18); }
-.cta-lg { height: 48px; width: 100%; font-size: 14px; padding: 0 20px; }
+.cta-lg { height: var(--control-height-lg); width: 100%; font-size: 14px; padding: 0 20px; }
 .cta .cta-arrow { font-size: 15px; transition: transform 0.15s; }
 .cta:hover .cta-arrow { transform: translateX(3px); }
 

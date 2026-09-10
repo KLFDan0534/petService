@@ -15,7 +15,7 @@
         <div class="rg-head-copy">
           <div class="rg-eyebrow" aria-hidden="true">
             <span class="rg-eyebrow-line"></span>
-            <span>Knowledge base</span>
+            <span>知识库</span>
           </div>
           <h1 class="rg-title">照护知识库</h1>
           <p class="rg-sub">服务标准、退改规则与应激处置手册的原文都在这里。答案基于制度文档生成，可点开原文核对。</p>
@@ -39,7 +39,7 @@
             <p class="rg-eyebrow rg-sec-eyebrow">
               <span class="rg-idx">01</span>
               <span class="rg-line" aria-hidden="true"></span>
-              <span>Ask</span>
+              <span>问答</span>
             </p>
             <h2 class="rg-sec-title">提问</h2>
             <p class="rg-sec-desc">回答会附上引用的制度文档，可逐条核对。</p>
@@ -80,7 +80,7 @@
           </div>
 
           <div v-if="answer" class="rg-answer">
-            <p class="rg-answer-label">Answer</p>
+            <p class="rg-answer-label">回答</p>
             <p class="rg-answer-text">{{ answerText }}</p>
 
             <div v-if="answerNeedHuman" class="rg-handoff">
@@ -109,7 +109,7 @@
             <p class="rg-eyebrow rg-sec-eyebrow">
               <span class="rg-idx">＋</span>
               <span class="rg-line" aria-hidden="true"></span>
-              <span>Add</span>
+              <span>添加</span>
             </p>
             <h2 class="rg-sec-title">新增文档</h2>
             <p class="rg-sec-desc">录入一条制度原文，提交后会进入知识库检索范围。</p>
@@ -141,7 +141,7 @@
             <p class="rg-eyebrow rg-sec-eyebrow">
               <span class="rg-idx">02</span>
               <span class="rg-line" aria-hidden="true"></span>
-              <span>Documents</span>
+              <span>文档</span>
             </p>
             <h2 class="rg-sec-title">收录文档</h2>
             <p class="rg-sec-desc">平台制度与作业手册原文，可直接查阅。</p>

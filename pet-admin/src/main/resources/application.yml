@@ -19,7 +19,7 @@ spring:
   security:
     user:
       name: admin
-      password: pet123456
+      password: ${SPRING_SECURITY_PASSWORD:}
   autoconfigure:
     exclude:
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
@@ -32,7 +32,7 @@ spring:
   datasource:
     url: ${MYSQL_URL:jdbc:mysql://localhost:3308/pet_service?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true&sessionVariables=character_set_client=utf8mb4,character_set_connection=utf8mb4,character_set_results=utf8mb4}
     username: ${MYSQL_USERNAME:root}
-    password: ${MYSQL_PASSWORD:1234}
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   data:
@@ -86,8 +86,8 @@ mybatis-plus:
 minio:
   endpoint: http://localhost:9000
   public-url: /minio
-  access-key: minioadmin
-  secret-key: minioadmin
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket: pet-service
 
 product-media:
@@ -102,7 +102,14 @@ app:
 jwt:
   access-token-expiration: 86400000
   refresh-token-expiration: 604800000
-  secret: YTJkM2Y1ZjdhOGI5YzBlMWQ0ZjVnNmE3YjhkOWMwZTFkNGY1ZjZhN2I4ZDljMGUxZDRmNWY2YTdiOGQ5YzBlMQ==
+  # 开发/本地兜底密钥（384bit 随机 Base64，仅供开发测试）
+  # 生产环境务必用环境变量 JWT_SECRET 覆盖，且不要提交真实密钥到仓库
+  secret: ${JWT_SECRET:0flNBn7ERj7uWG4a3B5nrnGrB/URisxq1XCQlFJ2uOWpl2zHnjlLkn/DvQCpOfgK}
+
+# Cloudflare Turnstile 人机校验
+turnstile:
+  secret: ${TURNSTILE_SECRET:}
+  allowed-hostnames: ${TURNSTILE_HOSTNAMES:localhost,127.0.0.1}
 
 logging:
   file:
@@ -124,17 +131,17 @@ springdoc:
 
 ai:
   deepseek:
-    api-key: ${ZHIPU_API_KEY:ff49794d56204c31a281c695b97d4875.t5t1ymE6wUwY4gHa}
-    model: ${ZHIPU_MODEL:glm-4.7-flash}
-    endpoint: ${ZHIPU_ENDPOINT:https://open.bigmodel.cn/api/paas/v4}
-    max-tokens: ${ZHIPU_MAX_TOKENS:65536}
+    api-key: ${ZHIPU_API_KEY:}
+    model: ${ZHIPU_MODEL:glm-5.3-flash}
+    endpoint: ${ZHIPU_ENDPOINT:https://api.b.ai/v1}
+    max-tokens: ${ZHIPU_MAX_TOKENS:8192}
     temperature: ${ZHIPU_TEMPERATURE:1.0}
     thinking-type: ${ZHIPU_THINKING_TYPE:disabled}
   kenari:
-    api-key: ${KENARI_API_KEY:ff49794d56204c31a281c695b97d4875.t5t1ymE6wUwY4gHa}
-    model: ${KENARI_MODEL:glm-4.7-flash}
-    endpoint: ${KENARI_ENDPOINT:https://open.bigmodel.cn/api/paas/v4}
-    max-tokens: ${KENARI_MAX_TOKENS:65536}
+    api-key: ${KENARI_API_KEY:}
+    model: ${KENARI_MODEL:glm-5.3-flash}
+    endpoint: ${KENARI_ENDPOINT:https://api.b.ai/v1}
+    max-tokens: ${KENARI_MAX_TOKENS:8192}
     temperature: ${KENARI_TEMPERATURE:1.0}
 
 chroma:

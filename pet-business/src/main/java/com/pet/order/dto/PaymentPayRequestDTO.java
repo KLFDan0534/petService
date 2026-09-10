@@ -1,13 +1,11 @@
 package com.pet.order.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 
 @Data
 public class PaymentPayRequestDTO {
     @Schema(description = "支付单号")
-    @JsonAlias("payNo")
     private String pay_no_wsh;
 
     public String getPay_no_wsh() {

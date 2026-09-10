@@ -48,7 +48,7 @@ public class FavoriteServiceImpl implements FavoriteService {
      */
     @Override
     public List<Favorite> listByUser(Long userId, String targetType) {
-        log.info("listByUser() called");
+        log.info("listByUser() 被调用");
         LambdaQueryWrapper<Favorite> wrapper = new LambdaQueryWrapper<Favorite>()
                 .eq(Favorite::getUser_id_wsh, userId)
                 .orderByDesc(Favorite::getCreated_at_wsh);
@@ -63,7 +63,7 @@ public class FavoriteServiceImpl implements FavoriteService {
      */
     @Override
     public boolean isFavorited(Long userId, Long targetId, String targetType) {
-        log.info("isFavorited() called");
+        log.info("isFavorited() 被调用");
         String normalizedType = FavoriteTargetType.requireSupported(targetType);
         Long count = favoriteMapper.selectCount(
                 new LambdaQueryWrapper<Favorite>()
@@ -84,7 +84,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     @Transactional
     public void toggle(Long userId, Long targetId, String targetType) {
-        log.info("toggle() called");
+        log.info("toggle() 被调用");
         String normalizedType = FavoriteTargetType.requireSupported(targetType);
         Favorite existing = favoriteMapper.selectOne(
                 new LambdaQueryWrapper<Favorite>()
@@ -115,7 +115,7 @@ public class FavoriteServiceImpl implements FavoriteService {
      */
     @Override
     public PageResult<FavoriteCardDTO> pageByUser(Long userId, String targetType, int page, int size) {
-        log.info("pageByUser() called");
+        log.info("pageByUser() 被调用");
         int safePage = Math.max(page, 1);
         int safeSize = Math.min(Math.max(size, 1), 100);
         String normalizedType = null;
@@ -158,7 +158,7 @@ public class FavoriteServiceImpl implements FavoriteService {
      */
     @Override
     public IPage<Favorite> pageAll(PageRequestDTO pageParam, String targetType) {
-        log.info("pageAll() called");
+        log.info("pageAll() 被调用");
         LambdaQueryWrapper<Favorite> wrapper = new LambdaQueryWrapper<Favorite>()
                 .eq(StringUtils.hasText(targetType), Favorite::getTarget_type_wsh, targetType)
                 .orderByDesc(Favorite::getCreated_at_wsh);

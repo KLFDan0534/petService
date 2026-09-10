@@ -47,15 +47,15 @@
           <div class="order-breakdown">
             <div>
               <span class="legend-dot done"></span>
-              已完成 {{ stats.completedOrders || 0 }}
+              已完成 {{ stats.completed_orders_wsh || 0 }}
             </div>
             <div>
               <span class="legend-dot pending"></span>
-              待处理 {{ stats.pendingOrders || 0 }}
+              待处理 {{ stats.pending_orders_wsh || 0 }}
             </div>
             <div>
               <span class="legend-dot total"></span>
-              总订单 {{ stats.totalOrders || 0 }}
+              总订单 {{ stats.total_orders_wsh || 0 }}
             </div>
           </div>
         </div>
@@ -88,7 +88,7 @@
           <span>按有效订单金额汇总</span>
         </div>
         <div class="revenue-card">
-          <strong>¥{{ formatNumber(stats.totalRevenue || 0) }}</strong>
+          <strong>¥{{ formatNumber(stats.total_revenue_wsh || 0) }}</strong>
           <span>平台总收入</span>
           <div class="revenue-meter">
             <div :style="{ width: revenueMeter + '%' }"></div>
@@ -104,6 +104,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getAdminStatistics } from '@/api/statistics'
 import { useAppStore } from '@/stores/app'
+import { formatNumber } from '@/utils/format'
 
 const appStore = useAppStore()
 const loading = ref(false)
@@ -124,44 +125,44 @@ const missingModules = [
 ]
 
 const summaryCards = computed(() => [
-  { label: '总用户', value: stats.value.totalUsers || 0, accent: true },
-  { label: '商家', value: stats.value.totalMerchants || 0 },
-  { label: '寄养员', value: stats.value.totalKeepers || 0 },
-  { label: '宠物', value: stats.value.totalPets || 0 },
-  { label: '订单', value: stats.value.totalOrders || 0, accent: true },
-  { label: '已完成', value: stats.value.completedOrders || 0 },
-  { label: '待处理', value: stats.value.pendingOrders || 0 },
-  { label: '总收入', value: `¥${formatNumber(stats.value.totalRevenue || 0)}`, accent: true },
+  { label: '总用户', value: stats.value.total_users_wsh || 0, accent: true },
+  { label: '商家', value: stats.value.total_merchants_wsh || 0 },
+  { label: '寄养员', value: stats.value.total_keepers_wsh || 0 },
+  { label: '宠物', value: stats.value.total_pets_wsh || 0 },
+  { label: '订单', value: stats.value.total_orders_wsh || 0, accent: true },
+  { label: '已完成', value: stats.value.completed_orders_wsh || 0 },
+  { label: '待处理', value: stats.value.pending_orders_wsh || 0 },
+  { label: '总收入', value: `¥${formatNumber(stats.value.total_revenue_wsh || 0)}`, accent: true },
 ])
 
 const scaleBars = computed(() => {
   const rows = [
-    { label: '用户', value: Number(stats.value.totalUsers || 0) },
-    { label: '商家', value: Number(stats.value.totalMerchants || 0) },
-    { label: '寄养员', value: Number(stats.value.totalKeepers || 0) },
-    { label: '宠物', value: Number(stats.value.totalPets || 0) },
+    { label: '用户', value: Number(stats.value.total_users_wsh || 0) },
+    { label: '商家', value: Number(stats.value.total_merchants_wsh || 0) },
+    { label: '寄养员', value: Number(stats.value.total_keepers_wsh || 0) },
+    { label: '宠物', value: Number(stats.value.total_pets_wsh || 0) },
   ]
   const max = Math.max(...rows.map(item => item.value), 1)
   return rows.map(item => ({ ...item, percent: Math.max(4, Math.round((item.value / max) * 100)) }))
 })
 
 const completedRate = computed(() => {
-  const total = Number(stats.value.totalOrders || 0)
+  const total = Number(stats.value.total_orders_wsh || 0)
   if (!total) return 0
-  return Math.round((Number(stats.value.completedOrders || 0) / total) * 100)
+  return Math.round((Number(stats.value.completed_orders_wsh || 0) / total) * 100)
 })
 
 const revenueMeter = computed(() => {
-  const revenue = Number(stats.value.totalRevenue || 0)
-  const orders = Math.max(Number(stats.value.totalOrders || 0), 1)
+  const revenue = Number(stats.value.total_revenue_wsh || 0)
+  const orders = Math.max(Number(stats.value.total_orders_wsh || 0), 1)
   const avg = revenue / orders
   return Math.max(8, Math.min(100, Math.round(avg)))
 })
 
 const avgOrderRevenue = computed(() => {
-  const total = Number(stats.value.totalOrders || 0)
+  const total = Number(stats.value.total_orders_wsh || 0)
   if (!total) return '0.00'
-  return formatNumber(Number(stats.value.totalRevenue || 0) / total)
+  return formatNumber(Number(stats.value.total_revenue_wsh || 0) / total)
 })
 
 onMounted(loadStats)
@@ -178,11 +179,6 @@ async function loadStats() {
   } finally {
     loading.value = false
   }
-}
-
-function formatNumber(value) {
-  const number = Number(value || 0)
-  return number.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 </script>
 
@@ -271,7 +267,7 @@ function formatNumber(value) {
 .bar-track,
 .revenue-meter {
   background: var(--color-muted);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   height: 10px;
   overflow: hidden;
 }
@@ -345,7 +341,7 @@ function formatNumber(value) {
 }
 
 .coverage-pill {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   font-weight: 700;
   padding: 5px 9px;

@@ -15,7 +15,7 @@
         <div class="ms-head-copy">
           <div class="ms-eyebrow" aria-hidden="true">
             <span class="ms-eyebrow-line"></span>
-            <span>Membership</span>
+            <span>会员</span>
           </div>
           <h1 class="ms-title">会员中心</h1>
           <p class="ms-sub">会员折扣直接作用在下单金额上，权益的每一次使用都记录在案，可逐笔核对。</p>
@@ -52,7 +52,7 @@
             <p class="ms-eyebrow ms-sec-eyebrow">
               <span class="ms-idx">01</span>
               <span class="ms-line" aria-hidden="true"></span>
-              <span>Your plan</span>
+              <span>当前方案</span>
             </p>
             <h2 class="ms-sec-title">当前权益</h2>
             <p class="ms-sec-desc">会员到期后不会自动续费，需要时再手动开通。</p>
@@ -163,7 +163,7 @@
             <p class="ms-eyebrow ms-sec-eyebrow">
               <span class="ms-idx">02</span>
               <span class="ms-line" aria-hidden="true"></span>
-              <span>Plans</span>
+              <span>方案</span>
             </p>
             <h2 class="ms-sec-title">选择套餐</h2>
             <p class="ms-sec-desc">折扣适用于全部照护服务，节假日不涨价。</p>
@@ -229,7 +229,7 @@
             <p class="ms-eyebrow ms-sec-eyebrow">
               <span class="ms-idx">03</span>
               <span class="ms-line" aria-hidden="true"></span>
-              <span>Orders</span>
+              <span>订单</span>
             </p>
             <h2 class="ms-sec-title">会员订单</h2>
             <p class="ms-sec-desc">开通与续费的每一笔订单都记录在这里，可随时查看或取消待支付订单。</p>
@@ -298,7 +298,7 @@
             <p class="ms-eyebrow ms-sec-eyebrow">
               <span class="ms-idx">04</span>
               <span class="ms-line" aria-hidden="true"></span>
-              <span>Benefits used</span>
+              <span>已用权益</span>
             </p>
             <h2 class="ms-sec-title">权益使用记录</h2>
             <p class="ms-sec-desc">每一次折扣与赠送权益的抵扣金额都在这里，可与订单逐笔核对。</p>
@@ -642,7 +642,7 @@ function money(value) {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -658,14 +658,14 @@ function money(value) {
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 .cta-danger { background: color-mix(in srgb, var(--color-danger) 10%, transparent); color: var(--color-danger); border-color: color-mix(in srgb, var(--color-danger) 28%, transparent); }
 .cta-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 16%, transparent); }
-.cta-sm { height: 34px; padding: 0 12px; font-size: 12px; border-radius: 9px; }
+.cta-sm { height: var(--control-height-sm); padding: 0 12px; font-size: 12px; border-radius: 9px; }
 
 /* ═══ Badges ═══ */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -687,14 +687,14 @@ function money(value) {
 .ms-fact {
   padding: 20px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   transition: border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 .ms-fact:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 16%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .ms-fact dd {
   margin: 0;
@@ -741,7 +741,7 @@ function money(value) {
   flex: 0 0 auto;
   padding: 6px 12px;
   border: 1px solid var(--ref-line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--ref-surface);
   font-size: 12px;
   color: var(--ref-muted);
@@ -751,7 +751,7 @@ function money(value) {
 .ms-skeleton {
   height: 172px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: ms-shimmer 1.3s linear infinite;
@@ -767,7 +767,7 @@ function money(value) {
   align-items: stretch;
 }
 .ms-benefit {
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   padding: 26px 28px;
   display: flex;
   flex-direction: column;
@@ -811,7 +811,7 @@ function money(value) {
   align-items: center;
   justify-content: center;
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
   flex: 0 0 auto;
   border-radius: 50%;
 }
@@ -861,7 +861,7 @@ function money(value) {
 
 .ms-pending {
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   padding: 26px 28px;
   display: flex;
@@ -935,7 +935,7 @@ function money(value) {
   flex-direction: column;
   padding: 24px 22px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
@@ -956,7 +956,7 @@ function money(value) {
   top: 14px;
   right: 14px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: color-mix(in srgb, var(--ref-brand) 14%, transparent);
   color: var(--ref-brand);
   font-size: 10px;
@@ -989,7 +989,7 @@ function money(value) {
 .ms-level-badge {
   flex: 0 0 auto;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--ref-brand) 12%, transparent);
   color: var(--ref-brand);
   font-size: 11px;
@@ -1030,7 +1030,7 @@ function money(value) {
   margin-top: 20px;
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -1054,7 +1054,7 @@ function money(value) {
 .ms-list {
   margin-top: 20px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   overflow: hidden;
 }

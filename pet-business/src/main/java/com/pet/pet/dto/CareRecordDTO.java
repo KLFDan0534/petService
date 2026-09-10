@@ -1,6 +1,5 @@
 package com.pet.pet.dto;
 
-import com.fasterxml.jackson.annotation.JsonGetter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -30,19 +29,4 @@ public class CareRecordDTO {
     private LocalDateTime record_time_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
-
-    @JsonGetter("id")
-    public Long getId() {
-        return id_wsh;
-    }
-
-    @JsonGetter("content")
-    public String getContent() {
-        return content_wsh;
-    }
-
-    @JsonGetter("images")
-    public String getImages() {
-        return images_wsh;
-    }
 }

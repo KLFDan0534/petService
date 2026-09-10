@@ -18,7 +18,7 @@
         >
           <div class="conv-head">
             <strong class="conv-title">{{ t.title_wsh || `#${t.biz_id_wsh}` }}</strong>
-            <span v-if="t.unread_count > 0" class="badge badge-danger thread-unread">{{ t.unread_count }}</span>
+            <span v-if="t.unread_count_wsh > 0" class="badge badge-danger thread-unread">{{ t.unread_count_wsh }}</span>
             <span :class="['badge', t.type_wsh === 'complaint' ? 'badge-warning' : 'badge-info']">
               {{ t.type_wsh === 'complaint' ? '投诉' : '工单' }}
             </span>
@@ -43,7 +43,7 @@
       >
         <div class="conv-head">
           <strong>{{ c.other_user_name_wsh }}</strong>
-          <span v-if="c.unread_count > 0" class="badge badge-danger">{{ c.unread_count }}</span>
+          <span v-if="c.unread_count_wsh > 0" class="badge badge-danger">{{ c.unread_count_wsh }}</span>
         </div>
         <span class="conv-preview">{{ c.last_message_wsh || '(空)' }}</span>
       </button>
@@ -354,7 +354,7 @@ async function openConversation(userId) {
         await markConversationRead({ other_user_id_wsh: userId })
       }
       const conv = conversations.value.find(c => c.other_user_id_wsh === userId)
-      if (conv) conv.unread_count = 0
+      if (conv) conv.unread_count_wsh = 0
     }
   } catch (e) { /* ignore */ }
   await nextTick()
@@ -373,7 +373,7 @@ async function openThread(thread) {
   threadDraft.value = ''
   // 打开线程即标记已读（红点消除）
   const found = threads.value.find(t => t.type_wsh === thread.type_wsh && t.biz_id_wsh === thread.biz_id_wsh)
-  if (found) found.unread_count = 0
+  if (found) found.unread_count_wsh = 0
   markCsThreadRead(thread.type_wsh, thread.biz_id_wsh).catch(() => {})
   try {
     if (thread.type_wsh === 'complaint') {
@@ -624,7 +624,7 @@ function connectSse() {
       const conv = conversations.value.find(c => c.other_user_id_wsh === msg.from_user_id_wsh)
       if (conv && msg.to_user_id_wsh === currentUserId.value) {
         if (activeUserId.value !== msg.from_user_id_wsh) {
-          conv.unread_count = (conv.unread_count || 0) + 1
+          conv.unread_count_wsh = (conv.unread_count_wsh || 0) + 1
         }
         conv.last_message_wsh = msg.content_wsh
         conv.last_time_wsh = msg.created_at_wsh
@@ -663,7 +663,7 @@ function connectSse() {
         const thread = threads.value.find(t => `${t.type_wsh}-${t.biz_id_wsh}` === key)
         if (thread) {
           if (data.from_user_id_wsh !== currentUserId.value) {
-            thread.unread_count = (thread.unread_count || 0) + 1
+            thread.unread_count_wsh = (thread.unread_count_wsh || 0) + 1
           }
           thread.last_message_wsh = data.content_wsh
           thread.last_time_wsh = data.created_at_wsh

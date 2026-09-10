@@ -49,7 +49,7 @@ public interface RagService {
      * 【业务名称】AI问答（无宠物档案）
      * <p>业务作用：基于知识库检索结果，调用AI模型回答用户问题。不携带宠物档案信息。</p>
      * <p>调用场景：用户在前端知识库页面直接提问（不带宠物上下文）。</p>
-     * <p>调用链：RagController.ask() → RagService.answer(question) → answer(question, null) → search()检索 → AiChatService.chat() → AI返回 | 降级模板</p>
+     * <p>调用链：RagController.ask() → RagService.answer(question) → answer(question, null) → search()检索 → LlmChatService.chat() → AI返回 | 降级模板</p>
      * <p>数据处理：委托answer(question, null)执行，petProfile传null即不加入宠物上下文。</p>
      * <p>业务规则：AI可用时返回AI回答；AI不可用且知识库不为空时返回知识库模板；知识库也为空时返回引导提示。</p>
      * <p>状态影响：只读操作。</p>
@@ -65,7 +65,7 @@ public interface RagService {
      * 【业务名称】AI问答（带宠物档案）
      * <p>业务作用：基于知识库检索结果和宠物档案信息，调用AI模型生成个性化回答。三阶段降级：AI在线 → 宠物档案+知识库模板 → 知识库模板。</p>
      * <p>调用场景：用户在前端知识库页面提问时已关联宠物，或用户提供了宠物档案上下文。</p>
-     * <p>调用链：RagController.ask() → RagService.answer(question, petProfile) → search()检索 → 构建systemPrompt+userPrompt → AiChatService.chat() → AI返回 | buildPetProfileFallback() | 知识库模板</p>
+     * <p>调用链：RagController.ask() → RagService.answer(question, petProfile) → search()检索 → 构建systemPrompt+userPrompt → LlmChatService.chat() → AI返回 | buildPetProfileFallback() | 知识库模板</p>
      * <p>数据处理：search()检索相关知识文档；构建systemPrompt（从文件加载或默认英文）；buildUserPrompt拼接宠物档案+知识库上下文+问题；调用AiChatService；AI返回null时降级——有宠物档案→buildPetProfileFallback()、知识库非空→知识库模板、都空→引导提示。</p>
      * <p>业务规则：AI返回优先；有宠物档案但AI不可用时使用宠物档案模板（含5条通用护理建议）；无宠物档案但知识库非空时使用知识库内容模板；都没数据时给出引导提示。</p>
      * <p>状态影响：只读操作。</p>

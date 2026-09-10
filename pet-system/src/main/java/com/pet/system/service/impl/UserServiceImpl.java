@@ -229,7 +229,7 @@ public class UserServiceImpl implements UserService {
         }
         Long userId = jwtUtil.getUserIdFromToken(refreshToken);
         if (isRefreshTokenBeforeLogout(refreshToken, userId)) {
-            throw new BusinessException("鍒锋柊浠ょ墝鏃犳晥");
+            throw new BusinessException("刷新令牌已失效，请重新登录");
         }
         User user = userMapper.selectById(userId);
         if (user == null) {

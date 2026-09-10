@@ -11,11 +11,11 @@
           <option value="cancelled">已取消</option>
         </select>
         <button class="btn btn-outline btn-sm icon-btn" type="button" :disabled="loading" @click="expireNow">
-          <el-icon><Clock /></el-icon>
+          <AppIcon><Clock /></AppIcon>
           <span>刷新过期</span>
         </button>
         <button class="btn btn-outline btn-sm icon-btn" type="button" :disabled="loading" @click="loadAll">
-          <el-icon><Refresh /></el-icon>
+          <AppIcon><Refresh /></AppIcon>
           <span>刷新</span>
         </button>
       </div>
@@ -77,7 +77,7 @@
       <div class="usage-filter">
         <input v-model.trim="usageUserId" class="filter-input" placeholder="按用户ID筛选">
         <button class="btn btn-outline btn-sm icon-btn" type="button" :disabled="usageLoading" @click="loadUsages">
-          <el-icon><Search /></el-icon>
+          <AppIcon><Search /></AppIcon>
           <span>查询</span>
         </button>
       </div>
@@ -314,7 +314,7 @@ function money(value) {
 
 .status-badge {
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   font-size: 12px;
   justify-content: center;

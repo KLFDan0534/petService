@@ -13,7 +13,7 @@
         <div class="ai-head-copy">
           <div class="ai-eyebrow" aria-hidden="true">
             <span class="ai-eyebrow-line"></span>
-            <span>AI</span>
+            <span>智能助手</span>
           </div>
           <h1 class="ai-title">AI 助手</h1>
           <p class="ai-sub">AI 在这里只做三件事：回答照护问题、按指令下单、查平台制度原文。涉及用药与疾病判断，始终以宠物医院意见为准。</p>
@@ -30,7 +30,7 @@
             <p class="ai-eyebrow ai-sec-eyebrow">
               <span class="ai-idx">01</span>
               <span class="ai-line" aria-hidden="true"></span>
-              <span>Capabilities</span>
+              <span>能力</span>
             </p>
             <h2 class="ai-sec-title">三种能力</h2>
             <p class="ai-sec-desc">按你要做的事选择入口。</p>
@@ -80,7 +80,7 @@
             <p class="ai-eyebrow ai-sec-eyebrow">
               <span class="ai-idx">02</span>
               <span class="ai-line" aria-hidden="true"></span>
-              <span>Health reports</span>
+              <span>健康报告</span>
             </p>
             <h2 class="ai-sec-title">宠物健康报告</h2>
             <p class="ai-sec-desc">寄养期间每日生成照护小结，离店时生成一份健康总结。报告按宠物归档。</p>
@@ -164,7 +164,7 @@
             <p class="ai-eyebrow ai-sec-eyebrow">
               <span class="ai-idx">03</span>
               <span class="ai-line" aria-hidden="true"></span>
-              <span>Limits</span>
+              <span>限制</span>
             </p>
             <h2 class="ai-sec-title">能力边界</h2>
             <p class="ai-sec-desc">写清楚 AI 不做什么，比夸大它能做什么更有用。</p>
@@ -187,6 +187,7 @@ import { ref, computed, onMounted } from 'vue'
 import { getPets } from '@/api/pet'
 import { getOrders } from '@/api/order'
 import { getCareSuggestion, getBoardingReport } from '@/api/ai'
+import { formatDate as utilFormatDate } from '@/utils/format'
 
 const tools = [
   {
@@ -250,8 +251,7 @@ onMounted(async () => {
 })
 
 function formatDate(dt) {
-  if (!dt) return ''
-  return String(dt).slice(0, 10)
+  return utilFormatDate(dt, '')
 }
 
 function onPetChange() {
@@ -357,7 +357,7 @@ async function generateReport(type) {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -377,7 +377,7 @@ async function generateReport(type) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -427,7 +427,7 @@ async function generateReport(type) {
   flex-direction: column;
   padding: 26px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
@@ -451,7 +451,7 @@ async function generateReport(type) {
   align-items: center;
   justify-content: center;
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--ref-sand);
@@ -522,7 +522,7 @@ async function generateReport(type) {
 .ai-report {
   margin-top: 20px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   padding: 24px;
 }
@@ -632,7 +632,7 @@ async function generateReport(type) {
   margin: 20px 0 0;
   padding: 0;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   overflow: hidden;
 }

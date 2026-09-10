@@ -10,10 +10,10 @@ import java.util.Map;
 @Data
 public class AgentChatRequestDTO {
 
-    @NotBlank(message = "娑堟伅涓嶈兘涓虹┖")
-    @Schema(description = "鐢ㄦ埛杈撳叆鐨勬秷鎭?")
+    @NotBlank(message = "消息不能为空")
+    @Schema(description = "用户输入的消息")
         private String question_wsh;
 
-    @Schema(description = "鍘嗗彶璁板綍鍒楄〃")
+    @Schema(description = "历史记录列表")
     private List<Map<String, String>> history_wsh;
 }

@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import * as PetDomain from '@/domain/PetDomain'
 import { OrderStatus, getStatusLabel, getStatusBadge } from '@/constants/statusMaps'
+import { formatDate } from '@/utils/format'
 
 export function usePetDetail(id) {
   const loading = ref(false)
@@ -26,10 +27,6 @@ export function usePetDetail(id) {
 
   function orderBadge(status) {
     return getStatusBadge(OrderStatus, status)
-  }
-
-  function formatDate(v) {
-    return v ? String(v).slice(0, 10) : '-'
   }
 
   async function load() {

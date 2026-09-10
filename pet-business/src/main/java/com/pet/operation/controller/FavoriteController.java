@@ -60,7 +60,7 @@ public class FavoriteController {
     public Result<List<FavoriteDTO>> list(@AuthenticationPrincipal JwtAuthenticationToken token,
                                           @RequestParam(value = "target_type_wsh", required = false) String target_type_wsh,
                                           @RequestParam(value = "targetType", required = false) String legacyTargetType) {
-        log.info("list()");
+        log.info("调用 list()");
         String targetType = firstNonBlank(target_type_wsh, legacyTargetType);
         List<Favorite> list = favoriteService.listByUser(token.getUserId(), targetType);
         return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
@@ -80,7 +80,7 @@ public class FavoriteController {
                                                     @RequestParam(value = "targetType", required = false) String legacyTargetType,
                                                     @RequestParam(defaultValue = "1") int page,
                                                     @RequestParam(defaultValue = "10") int size) {
-        log.info("page()");
+        log.info("调用 page()");
         String targetType = firstNonBlank(target_type_wsh, legacyTargetType);
         return Result.success(favoriteService.pageByUser(token.getUserId(), targetType, page, size));
     }
@@ -95,7 +95,7 @@ public class FavoriteController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<FavoriteTargetTypeDTO>> types() {
-        log.info("types()");
+        log.info("调用 types()");
         return Result.success(favoriteService.listTargetTypes());
     }
 
@@ -110,7 +110,7 @@ public class FavoriteController {
     })
     public Result<Void> toggle(@AuthenticationPrincipal JwtAuthenticationToken token,
                                @Valid @RequestBody FavoriteToggleRequestDTO body) {
-        log.info("toggle()");
+        log.info("调用 toggle()");
         favoriteService.toggle(token.getUserId(), body.getTarget_id_wsh(), body.getTarget_type_wsh());
         return Result.success();
     }
@@ -129,7 +129,7 @@ public class FavoriteController {
                                  @RequestParam(value = "targetId", required = false) Long legacyTargetId,
                                  @RequestParam(value = "target_type_wsh", required = false) String target_type_wsh,
                                  @RequestParam(value = "targetType", required = false) String legacyTargetType) {
-        log.info("check()");
+        log.info("调用 check()");
         Long targetId = target_id_wsh != null ? target_id_wsh : legacyTargetId;
         String targetType = firstNonBlank(target_type_wsh, legacyTargetType);
         if (targetId == null) {
@@ -157,7 +157,7 @@ public class FavoriteController {
     })
     public Result<PageResult<FavoriteDTO>> adminList(PageRequestDTO pageParam,
             @Parameter(description = "目标类型，精确匹配") @RequestParam(value = "target_type_wsh", required = false) String target_type_wsh) {
-        log.info("adminList()");
+        log.info("调用 adminList()");
         var page = favoriteService.pageAll(pageParam, target_type_wsh);
         List<FavoriteDTO> dtoList = page.getRecords().stream().map(this::toDTO).collect(Collectors.toList());
         fillUserName(dtoList);

@@ -9,6 +9,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public class ServiceItemUpdateImagesRequestDTO {
 
     @Schema(description = "图片")
-    @NotBlank(message = "鍥剧墖URL涓嶈兘涓虹┖")
+    @NotBlank(message = "图片URL不能为空")
         private String images_wsh;
 }

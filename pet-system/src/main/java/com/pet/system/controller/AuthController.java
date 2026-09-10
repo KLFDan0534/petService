@@ -6,6 +6,7 @@ import com.pet.system.dto.LoginRequestDTO;
 import com.pet.system.dto.RegisterCaptchaRequestDTO;
 import com.pet.system.dto.RegisterRequestDTO;
 import com.pet.system.dto.RefreshTokenRequestDTO;
+import com.pet.system.service.TurnstileVerifyService;
 import com.pet.system.service.UserService;
 import com.pet.system.vo.LoginResponseVO;
 import com.pet.system.vo.RegisterCaptchaVO;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,9 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final UserService userService;
+    private final TurnstileVerifyService turnstileVerifyService;
 
-    public AuthController(UserService userService) {
+    public AuthController(UserService userService, TurnstileVerifyService turnstileVerifyService) {
         this.userService = userService;
+        this.turnstileVerifyService = turnstileVerifyService;
     }
 
     /**
@@ -55,8 +59,13 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     @PostMapping("/register")
-    public Result<LoginResponseVO> register(@Valid @RequestBody RegisterRequestDTO request) {
+    public Result<LoginResponseVO> register(@Valid @RequestBody RegisterRequestDTO request,
+                                            HttpServletRequest httpRequest) {
         log.info("调用 register()");
+        Result<Void> gate = turnstileGate(httpRequest, request.getTurnstileToken());
+        if (gate != null) {
+            return Result.error(gate.getCode(), gate.getErrorCode(), gate.getMessage());
+        }
         return Result.success(userService.register(request));
     }
 
@@ -109,8 +118,13 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     @PostMapping("/login")
-    public Result<LoginResponseVO> login(@Valid @RequestBody LoginRequestDTO request) {
+    public Result<LoginResponseVO> login(@Valid @RequestBody LoginRequestDTO request,
+                                         HttpServletRequest httpRequest) {
         log.info("调用 login()");
+        Result<Void> gate = turnstileGate(httpRequest, request.getTurnstileToken());
+        if (gate != null) {
+            return Result.error(gate.getCode(), gate.getErrorCode(), gate.getMessage());
+        }
         return Result.success(userService.login(request));
     }
 
@@ -163,8 +177,13 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     @PostMapping("/forgot-password")
-    public Result<String> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO request) {
+    public Result<String> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO request,
+                                         HttpServletRequest httpRequest) {
         log.info("调用 forgotPassword()");
+        Result<Void> gate = turnstileGate(httpRequest, request.getTurnstileToken());
+        if (gate != null) {
+            return Result.error(gate.getCode(), gate.getErrorCode(), gate.getMessage());
+        }
         String tempPassword = userService.forgotPassword(request.getEmail_wsh());
         return Result.success(tempPassword);
     }
@@ -196,5 +215,30 @@ public class AuthController {
         String token = authHeader.replace("Bearer ", "");
         userService.logout(token);
         return Result.success();
+    }
+
+    /**
+     * Turnstile 人机校验门禁。
+     *
+     * <p>校验失败（或未配置密钥）时返回错误 Result；通过时返回 null，由调用方继续执行业务逻辑。</p>
+     */
+    private Result<Void> turnstileGate(HttpServletRequest httpRequest, String token) {
+        String userAgent = httpRequest.getHeader("User-Agent");
+        if (!turnstileVerifyService.verify(token, clientIp(httpRequest), userAgent)) {
+            log.warn("Turnstile 校验失败: {}", httpRequest.getRequestURI());
+            return Result.error(400, "CAPTCHA_INVALID", "人机校验未通过，请完成验证后重试");
+        }
+        return null;
+    }
+
+    /**
+     * 获取客户端真实 IP：优先取 X-Forwarded-For 首个地址（反代场景），否则回退到连接地址。
+     */
+    private String clientIp(HttpServletRequest httpRequest) {
+        String forwarded = httpRequest.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return httpRequest.getRemoteAddr();
     }
 }

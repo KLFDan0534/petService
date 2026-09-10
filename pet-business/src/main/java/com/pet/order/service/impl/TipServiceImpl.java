@@ -67,7 +67,7 @@ public class TipServiceImpl implements TipService {
     @Transactional
     @Override
     public void create(Long userId, TipCreateRequestDTO request) {
-        log.info("Create tip for order: {}", request.getOrder_id_wsh());
+        log.info("为订单创建打赏: {}", request.getOrder_id_wsh());
         PetOrder order = orderMapper.selectById(request.getOrder_id_wsh());
         if (order == null) throw new BusinessException(404, "订单不存在");
         if (!userId.equals(order.getOwner_id_wsh())) throw new BusinessException(403, "只有宠物主人可以打赏此订单");
@@ -94,7 +94,7 @@ public class TipServiceImpl implements TipService {
      */
     @Override
     public List<Tip> listByOrder(Long orderId) {
-        log.info("Query tips for order: {}", orderId);
+        log.info("查询订单打赏记录: {}", orderId);
         return tipMapper.selectList(
                 new LambdaQueryWrapper<Tip>().eq(Tip::getOrder_id_wsh, orderId));
     }
@@ -108,7 +108,7 @@ public class TipServiceImpl implements TipService {
      */
     @Override
     public List<Tip> listMyTips(Long userId) {
-        log.info("Query tips for user: {}", userId);
+        log.info("查询用户打赏记录: {}", userId);
         return tipMapper.selectList(
                 new LambdaQueryWrapper<Tip>()
                         .eq(Tip::getFrom_user_id_wsh, userId)

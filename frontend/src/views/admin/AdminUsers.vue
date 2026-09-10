@@ -17,30 +17,33 @@
       </template>
     </DataTable>
 
-    <div v-if="pendingToggle" class="modal-overlay" @mousedown.self="pendingToggle = null">
-      <div class="modal" style="max-width:400px">
-        <h3>确认{{ pendingToggle.newStatus === 0 ? '禁用' : '启用' }}</h3>
-        <p style="margin:16px 0">
-          确定{{ pendingToggle.newStatus === 0 ? '禁用' : '启用' }}该用户吗？
-        </p>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="pendingToggle = null">取消</button>
-          <button
-            :class="['btn', pendingToggle.newStatus === 0 ? 'btn-danger' : 'btn-success']"
-            type="button"
-            @click="doToggle"
-          >
-            确认{{ pendingToggle.newStatus === 0 ? '禁用' : '启用' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <AppDialog
+      :visible="pendingToggle"
+      :width="400"
+      :title="'确认' + (pendingToggle.newStatus === 0 ? '禁用' : '启用')"
+      @close="pendingToggle = null"
+    >
+      <p style="margin:16px 0">
+        确定{{ pendingToggle.newStatus === 0 ? '禁用' : '启用' }}该用户吗？
+      </p>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="pendingToggle = null">取消</button>
+        <button
+          :class="['btn', pendingToggle.newStatus === 0 ? 'btn-danger' : 'btn-success']"
+          type="button"
+          @click="doToggle"
+        >
+          确认{{ pendingToggle.newStatus === 0 ? '禁用' : '启用' }}
+        </button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { getUsers as apiGetUsers, updateUserStatus } from '@/api/admin'
 import { UserStatus, enrichWithStatus } from '@/constants/statusMaps'

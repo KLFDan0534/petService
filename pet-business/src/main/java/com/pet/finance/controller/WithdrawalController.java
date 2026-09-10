@@ -48,7 +48,7 @@ public class WithdrawalController {
     })
     @PreAuthorize("isAuthenticated()")
     public Result<List<WithdrawalDTO>> listMyWithdrawals(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("Calling listMyWithdrawals()");
+        log.info("调用 listMyWithdrawals()");
         return Result.success(withdrawalService.listByUser(token.getUserId())
                 .stream()
                 .map(withdrawalService::toDTO)
@@ -65,7 +65,7 @@ public class WithdrawalController {
     })
     @PreAuthorize("hasRole('ADMIN')")
     public Result<PageResult<WithdrawalDTO>> listAll(PageRequestDTO pageParam) {
-        log.info("Calling listAll()");
+        log.info("调用 listAll()");
         var page = withdrawalService.listPage(pageParam);
         var dtoList = page.getRecords()
                 .stream()
@@ -89,7 +89,7 @@ public class WithdrawalController {
     @PreAuthorize("isAuthenticated()")
     public Result<WithdrawalDTO> apply(@AuthenticationPrincipal JwtAuthenticationToken token,
                                        @RequestBody WithdrawalApplyRequestDTO body) {
-        log.info("Calling apply()");
+        log.info("调用 apply()");
         return Result.success(withdrawalService.toDTO(withdrawalService.apply(
                 token.getUserId(),
                 body.getAmount_wsh(),
@@ -111,7 +111,7 @@ public class WithdrawalController {
     })
     public Result<WithdrawalDTO> approve(@PathVariable @Parameter(description = "提现ID") Long id,
                                          @RequestBody(required = false) WithdrawalReviewRequestDTO body) {
-        log.info("Calling approve()");
+        log.info("调用 approve()");
         return Result.success(withdrawalService.toDTO(
                 withdrawalService.approve(id, body != null ? body.getRemark_wsh() : null)));
     }
@@ -129,7 +129,7 @@ public class WithdrawalController {
     })
     public Result<WithdrawalDTO> reject(@PathVariable @Parameter(description = "提现ID") Long id,
                                         @RequestBody(required = false) WithdrawalReviewRequestDTO body) {
-        log.info("Calling reject()");
+        log.info("调用 reject()");
         return Result.success(withdrawalService.toDTO(
                 withdrawalService.reject(id, body != null ? body.getRemark_wsh() : null)));
     }
@@ -145,7 +145,7 @@ public class WithdrawalController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<WithdrawalDTO> complete(@PathVariable @Parameter(description = "提现ID") Long id) {
-        log.info("Calling complete()");
+        log.info("调用 complete()");
         return Result.success(withdrawalService.toDTO(withdrawalService.complete(id)));
     }
 }

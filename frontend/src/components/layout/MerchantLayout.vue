@@ -10,7 +10,7 @@
       <nav class="sidebar-nav">
         <router-link v-for="item in navItems" :key="item.route" :to="item.route" active-class="active">
           <span class="nav-icon" aria-hidden="true">
-            <el-icon><component :is="item.icon" /></el-icon>
+            <AppIcon><component :is="item.icon" /></AppIcon>
           </span>
           <span>{{ item.label }}</span>
         </router-link>

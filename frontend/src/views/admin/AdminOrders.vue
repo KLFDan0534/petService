@@ -36,11 +36,13 @@
       </template>
     </DataTable>
 
-    <div v-if="showDetailModal && detailOrder" class="modal-overlay" @mousedown.self="showDetailModal = false">
-      <div class="modal order-detail-modal">
-        <h2>订单详情 #{{ detailOrder.id_wsh }}</h2>
-
-        <section class="detail-section">
+    <AppDialog
+      :visible="showDetailModal && detailOrder"
+      :width="760"
+      :title="`订单详情 #${detailOrder.id_wsh}`"
+      @close="showDetailModal = false"
+    >
+      <section class="detail-section">
           <div class="detail-grid">
             <div class="form-group"><label>订单编号</label><div>{{ detailOrder.order_no_wsh || '-' }}</div></div>
             <div class="form-group">
@@ -100,11 +102,10 @@
           </div>
         </section>
 
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="showDetailModal = false">关闭</button>
-        </div>
-      </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="showDetailModal = false">关闭</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -114,6 +115,7 @@ import { useAppStore } from '@/stores/app'
 import { getOrders, getOrder, updateOrderStatus, deleteOrder as apiDeleteOrder } from '@/api/order'
 import { OrderStatus, enrichWithStatus, getStatusBadge, getStatusLabel, makeStatusBadge } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { billingText } from '@/domain/BookingUnit'
 
 const appStore = useAppStore()

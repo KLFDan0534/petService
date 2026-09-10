@@ -57,7 +57,7 @@ public class NotificationController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<NotificationDTO>> list(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("list() called");
+        log.info("list() 被调用");
         List<Notification> list = notificationService.listByUser(token.getUserId());
         return Result.success(list.stream().map(this::toDTO).collect(Collectors.toList()));
     }
@@ -79,7 +79,7 @@ public class NotificationController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<UnreadCountResponseDTO> unreadCount(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("unreadCount() called");
+        log.info("unreadCount() 被调用");
         long count = notificationService.countUnread(token.getUserId());
         return Result.success(new UnreadCountResponseDTO(count));
     }
@@ -103,7 +103,7 @@ public class NotificationController {
     })
     public Result<Void> markAsRead(@AuthenticationPrincipal JwtAuthenticationToken token,
                                    @Parameter(description = "通知ID") @PathVariable Long id) {
-        log.info("markAsRead() called");
+        log.info("markAsRead() 被调用");
         notificationService.markAsRead(id,token.getUserId());
         return Result.success();
     }
@@ -125,7 +125,7 @@ public class NotificationController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<Void> markAllAsRead(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("markAllAsRead() called");
+        log.info("markAllAsRead() 被调用");
         notificationService.markAllAsRead(token.getUserId());
         return Result.success();
     }

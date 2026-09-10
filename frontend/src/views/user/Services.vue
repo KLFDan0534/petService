@@ -9,48 +9,60 @@
 
       <section class="s-hero">
         <div class="s-hero-copy">
-          <div class="s-eyebrow" aria-hidden="true">
-            <span class="s-eyebrow-line" />
-            <span>Services</span>
-          </div>
-          <h1 class="s-title">为你的爱宠，<br class="s-br">找到合适的照护服务</h1>
-          <p class="s-sub">从日常洗护、遛宠陪伴到寄养与行为训练，按分类浏览门店在售方案，价格与档期实时同步，选定后可直接进入预约。</p>
-          <dl class="s-stats" aria-label="服务概览">
-            <div>
-              <dd>{{ loading ? '--' : services.length }}</dd>
-              <dt>可预约方案</dt>
+          <Reveal :delay="0.05">
+            <div class="s-eyebrow" aria-hidden="true">
+              <span class="s-eyebrow-line" />
+              <span>服务</span>
             </div>
-            <div class="s-stat-bordered">
-              <dd>{{ loading ? '--' : categories.length }}</dd>
-              <dt>服务分类</dt>
-            </div>
-            <div class="s-stat-bordered">
-              <dd>{{ loading ? '--' : merchantCount }}</dd>
-              <dt>覆盖门店</dt>
-            </div>
-          </dl>
+          </Reveal>
+          <Reveal :y="30" :delay="0.12">
+            <h1 class="s-title">为你的爱宠，<br class="s-br">找到合适的照护服务</h1>
+          </Reveal>
+          <Reveal :delay="0.22">
+            <p class="s-sub">从日常洗护、遛宠陪伴到寄养与行为训练，按分类浏览门店在售方案，价格与档期实时同步，选定后可直接进入预约。</p>
+          </Reveal>
+          <Reveal :delay="0.32">
+            <dl class="s-stats" aria-label="服务概览">
+              <div>
+                <dd>{{ loading ? '--' : services.length }}</dd>
+                <dt>可预约方案</dt>
+              </div>
+              <div class="s-stat-bordered">
+                <dd>{{ loading ? '--' : categories.length }}</dd>
+                <dt>服务分类</dt>
+              </div>
+              <div class="s-stat-bordered">
+                <dd>{{ loading ? '--' : merchantCount }}</dd>
+                <dt>覆盖门店</dt>
+              </div>
+            </dl>
+          </Reveal>
         </div>
 
         <div class="s-hero-media">
-          <div class="s-hero-frame">
-            <MediaWithFallback v-if="!loading" :src="heroImage" :alt="'照护服务'">
-            </MediaWithFallback>
-            <div v-else class="s-hero-skel" />
-          </div>
+          <Reveal :delay="0.18" :y="24">
+            <div class="s-hero-frame">
+              <MediaWithFallback v-if="!loading" :src="heroImage" :alt="'照护服务'">
+              </MediaWithFallback>
+              <div v-else class="s-hero-skel" />
+            </div>
+          </Reveal>
         </div>
       </section>
 
       <BannerCarousel v-if="banners.length" class="s-banner" :banners="banners" />
 
       <section class="s-catalogue" aria-labelledby="catalogue-title">
-        <header class="s-cat-head">
-          <div class="s-eyebrow" aria-hidden="true">
-            <span class="s-eyebrow-line" />
-            <span>Catalogue</span>
-          </div>
-          <h2 id="catalogue-title" class="s-cat-title">按分类浏览</h2>
-          <p class="s-cat-note">选择分类，下方方案将同步更新</p>
-        </header>
+        <Reveal>
+          <header class="s-cat-head">
+            <div class="s-eyebrow" aria-hidden="true">
+              <span class="s-eyebrow-line" />
+              <span>服务目录</span>
+            </div>
+            <h2 id="catalogue-title" class="s-cat-title">按分类浏览</h2>
+            <p class="s-cat-note">选择分类，下方方案将同步更新</p>
+          </header>
+        </Reveal>
 
         <div class="s-rail" role="group" aria-label="服务分类">
           <button
@@ -75,7 +87,7 @@
 
         <div class="s-toolbar" role="search" aria-label="筛选预约服务">
           <div class="s-search">
-            <el-icon class="s-search-icon" aria-hidden="true"><Search /></el-icon>
+            <AppIcon class="s-search-icon" aria-hidden="true"><Search /></AppIcon>
             <input
               v-model.trim="searchQuery"
               type="search"
@@ -85,9 +97,6 @@
             >
             <button v-if="searchQuery" type="button" class="s-clear" aria-label="清除搜索" @click="searchQuery = ''">✕</button>
           </div>
-          <button v-if="hasFilters" type="button" class="s-reset" @click="resetFilters">
-            ✕ 清除筛选
-          </button>
         </div>
 
         <div class="s-results-head">
@@ -118,6 +127,7 @@ import { useCategoryStore } from '@/stores/category'
 import BannerCarousel from '@/components/dashboard/BannerCarousel.vue'
 import ServiceGrid from '@/components/dashboard/ServiceGrid.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
+import Reveal from '@/components/common/Reveal.vue'
 import { coverForService } from '@/data/localPhotos'
 import { useServiceDistance } from '@/composables/useServiceDistance'
 
@@ -332,7 +342,7 @@ onMounted(() => {
   position: relative;
   aspect-ratio: 4 / 3;
   overflow: hidden;
-  border-radius: 26px;
+  border-radius: var(--radius-hero);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
 }
@@ -354,7 +364,7 @@ onMounted(() => {
   margin-top: 36px;
 }
 
-/* Catalogue */
+/* 服务目录 */
 .s-catalogue {
   margin-top: 56px;
 }
@@ -393,9 +403,9 @@ onMounted(() => {
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
-  height: 44px;
+  height: var(--control-height);
   padding: 0 16px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -443,10 +453,10 @@ onMounted(() => {
 }
 .s-search input {
   width: 100%;
-  height: 44px;
+  height: var(--control-height);
   padding: 0 40px;
   border: 1px solid var(--ref-line);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: var(--ref-surface);
   color: var(--ref-ink);
   font-size: 13.5px;
@@ -484,9 +494,9 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 44px;
+  height: var(--control-height);
   padding: 0 12px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ref-ink-soft);
   font-size: 13px;
@@ -515,7 +525,7 @@ onMounted(() => {
 :deep(.service-card) {
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   box-shadow: none;
   transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
 }
@@ -579,7 +589,7 @@ onMounted(() => {
 }
 :deep(.service-card .service-actions .btn-primary) {
   background: var(--ref-brand);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   color: #fff;
 }
 :deep(.service-card .service-actions .btn-primary:hover) {
@@ -596,7 +606,7 @@ onMounted(() => {
 :deep(.empty-services) {
   background: var(--ref-surface);
   border: 1px dashed var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   color: var(--ref-muted);
 }
 :deep(.empty-services h3) {

@@ -1,18 +1,16 @@
-<template>
-  <div v-if="visible" class="modal-overlay" @mousedown.self="closeForm">
-    <div class="modal pet-modal">
+﻿<template>
+  <AppDialog :visible="visible" :width="640" @close="closeForm">
+    <template #header>
       <div class="modal-header">
         <div>
           <h2>{{ pet ? '编辑宠物' : '添加宠物' }}</h2>
           <p v-if="pet" class="modal-desc">更新「{{ pet.name_wsh }}」的档案信息</p>
           <p v-else class="modal-desc">填写基础信息，之后可随时补充</p>
         </div>
-        <button class="modal-close" @click="closeForm" aria-label="关闭">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
       </div>
+    </template>
 
-      <form @submit.prevent="savePet" class="pet-form">
+    <form @submit.prevent="savePet" class="pet-form">
         <div v-if="formError" class="form-error" role="alert">
           {{ formError }}
         </div>
@@ -126,18 +124,18 @@
         </div>
       </form>
 
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline btn-sm" @click="closeForm" :disabled="saving">取消</button>
-        <button type="submit" form="pf-form" class="btn btn-primary btn-sm" :disabled="saving" @click="savePet">
-          {{ saving ? '保存中...' : pet ? '保存' : '添加' }}
-        </button>
-      </div>
-    </div>
-  </div>
+    <template #footer>
+      <button type="button" class="btn btn-outline btn-sm" @click="closeForm" :disabled="saving">取消</button>
+      <button type="submit" form="pf-form" class="btn btn-primary btn-sm" :disabled="saving" @click="savePet">
+        {{ saving ? '保存中...' : pet ? '保存' : '添加' }}
+      </button>
+    </template>
+  </AppDialog>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 
@@ -368,7 +366,7 @@ watch([() => props.visible, () => props.pet], () => {
   align-items: center;
   gap: 16px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: var(--color-muted);
   flex-wrap: wrap;

@@ -1,6 +1,5 @@
 package com.pet.boarding.dto;
 
-import com.fasterxml.jackson.annotation.JsonGetter;
 import lombok.Data;
 import com.pet.qualification.dto.QualificationDTO;
 import java.math.BigDecimal;
@@ -35,7 +34,7 @@ public class MerchantDTO {
     private String business_license_wsh;
     @Schema(description = "评分")
     private BigDecimal rating_wsh;
-    @Schema(description = "距离(米)")
+    @Schema(description = "距离(公里)")
     private Double distance_wsh;
     @Schema(description = "状态")
     private Integer status_wsh;
@@ -55,34 +54,4 @@ public class MerchantDTO {
     private List<QualificationDTO> qualifications_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
-
-    @JsonGetter("id")
-    public Long getId() {
-        return id_wsh;
-    }
-
-    @JsonGetter("userId")
-    public Long getUserId() {
-        return user_id_wsh;
-    }
-
-    @JsonGetter("name")
-    public String getName() {
-        return name_wsh;
-    }
-
-    @JsonGetter("phone")
-    public String getPhone() {
-        return phone_wsh;
-    }
-
-    @JsonGetter("address")
-    public String getAddress() {
-        return address_wsh;
-    }
-
-    @JsonGetter("status")
-    public Integer getStatus() {
-        return status_wsh;
-    }
 }

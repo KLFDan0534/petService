@@ -29,10 +29,10 @@ public class OrderAcceptTimeoutScheduler {
         try {
             int accepted = orderService.autoAcceptPaidOrdersIfTimeout();
             if (accepted > 0) {
-                log.info("Accept timeout scheduler auto accepted {} paid orders", accepted);
+                log.info("接单超时调度器已自动接单 {} 笔已支付订单", accepted);
             }
         } catch (Exception e) {
-            log.warn("Accept timeout scheduler failed", e);
+            log.warn("接单超时调度器执行失败", e);
         }
     }
 }

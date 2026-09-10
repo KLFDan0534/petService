@@ -15,7 +15,7 @@
         <div class="rc-head-copy">
           <div class="rc-eyebrow" aria-hidden="true">
             <span class="rc-eyebrow-line"></span>
-            <span>Recharge</span>
+            <span>充值</span>
           </div>
           <h1 class="rc-title">余额充值</h1>
           <p class="rc-sub">充值即时到账，可用于寄养下单、上门服务与打赏照护师。余额不会过期。</p>
@@ -111,7 +111,7 @@
 
         <!-- ═══ 当前余额 ═══ -->
         <aside class="rc-balance" aria-label="当前余额">
-          <p class="rc-balance-label">Current Balance</p>
+          <p class="rc-balance-label">当前余额</p>
           <p class="rc-balance-amount">
             <span class="rc-balance-yen" aria-hidden="true">¥</span>
             <span>{{ money(wallet.balance_wsh) }}</span>

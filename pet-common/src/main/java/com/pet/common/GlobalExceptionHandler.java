@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Result<Void> handleNotFoundException(Exception e) {
-        log.warn("Request path not found: {}", e.getMessage());
+        log.warn("请求路径未找到: {}", e.getMessage());
         return Result.error(404, "资源未找到");
     }
 
@@ -154,7 +154,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e) {
-        log.error("Unexpected error", e);
+        log.error("意外错误", e);
         return Result.error(500, "服务器内部错误");
     }
 }

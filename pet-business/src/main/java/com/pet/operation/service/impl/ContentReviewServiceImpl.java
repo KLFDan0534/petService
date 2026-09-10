@@ -30,7 +30,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
      */
     @Override
     public List<ContentReview> listPending() {
-        log.info("listPending() called");
+        log.info("listPending() 被调用");
         return contentReviewMapper.selectList(
                 new LambdaQueryWrapper<ContentReview>()
                         .eq(ContentReview::getStatus_wsh, ReviewStatus.PENDING)
@@ -42,7 +42,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
      */
     @Override
     public List<ContentReview> listAll() {
-        log.info("listAll() called");
+        log.info("listAll() 被调用");
         return contentReviewMapper.selectList(
                 new LambdaQueryWrapper<ContentReview>().orderByDesc(ContentReview::getCreated_at_wsh));
     }
@@ -52,7 +52,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
      */
     @Override
     public IPage<ContentReview> listPendingPage(PageRequestDTO pageParam) {
-        log.info("listPendingPage() called");
+        log.info("listPendingPage() 被调用");
         Page<ContentReview> page = new Page<>(pageParam.getPage(), pageParam.getSize());
         return contentReviewMapper.selectPage(page,
                 new LambdaQueryWrapper<ContentReview>()
@@ -65,7 +65,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
      */
     @Override
     public IPage<ContentReview> listPage(PageRequestDTO pageParam) {
-        log.info("listPage() called");
+        log.info("listPage() 被调用");
         Page<ContentReview> page = new Page<>(pageParam.getPage(), pageParam.getSize());
         return contentReviewMapper.selectPage(page,
                 new LambdaQueryWrapper<ContentReview>().orderByDesc(ContentReview::getCreated_at_wsh));
@@ -77,7 +77,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
     @Override
     @Transactional
     public ContentReview report(String targetType, Long targetId, Long reporterId, String reason) {
-        log.info("report() called");
+        log.info("report() 被调用");
         ContentReview cr = new ContentReview();
         cr.setTarget_type_wsh(targetType);
         cr.setTarget_id_wsh(targetId);
@@ -94,7 +94,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
     @Override
     @Transactional
     public ContentReview approve(Long id, Long reviewerId, String remark) {
-        log.info("approve() called");
+        log.info("approve() 被调用");
         ContentReview cr = getById(id);
         cr.setStatus_wsh(ReviewStatus.APPROVED);
         cr.setReviewer_id_wsh(reviewerId);
@@ -109,7 +109,7 @@ public class ContentReviewServiceImpl implements ContentReviewService {
     @Override
     @Transactional
     public ContentReview reject(Long id, Long reviewerId, String remark) {
-        log.info("reject() called");
+        log.info("reject() 被调用");
         ContentReview cr = getById(id);
         cr.setStatus_wsh(ReviewStatus.REJECTED);
         cr.setReviewer_id_wsh(reviewerId);

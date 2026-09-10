@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div>
     <button class="btn btn-primary" style="margin-bottom:16px" @click="showForm = true">+ 发布公告</button>
     <div v-for="n in notices" :key="n.id_wsh" class="card" style="margin-bottom:12px">
@@ -13,10 +13,8 @@
       <p style="margin-top:8px;font-size:14px;color:var(--color-muted-foreground)">{{ n.content_wsh }}</p>
     </div>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
-      <div class="modal">
-        <h2>{{ editingId ? '编辑公告' : '发布公告' }}</h2>
-        <form @submit.prevent="editingId ? updateNotice() : createNotice()">
+    <AppDialog :visible="showForm" :title="editingId ? '编辑公告' : '发布公告'" @close="showForm = false">
+        <form id="noticeForm" @submit.prevent="editingId ? updateNotice() : createNotice()">
           <div class="form-group"><label>标题</label><input v-model="form.title_wsh" required></div>
           <div class="form-group"><label>内容</label><textarea v-model="form.content_wsh" rows="4" required></textarea></div>
           <div class="form-group">
@@ -33,13 +31,12 @@
             </div>
             <div style="margin-top:6px;color:var(--color-muted-foreground);font-size:12px">至少选择一项，可同时勾选。</div>
           </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" @click="cancelForm">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="!form.delivery_types_wsh.length">{{ editingId ? '保存' : '发布' }}</button>
-          </div>
         </form>
-      </div>
-    </div>
+        <template #footer>
+          <button type="button" class="btn btn-secondary btn-sm" @click="cancelForm">取消</button>
+          <button type="submit" form="noticeForm" class="btn btn-primary btn-sm" :disabled="!form.delivery_types_wsh.length">{{ editingId ? '保存' : '发布' }}</button>
+        </template>
+      </AppDialog>
   </div>
 </template>
 
@@ -47,6 +44,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { getNotices, createNotice as apiCreateNotice, updateNotice as apiUpdateNotice, deleteNotice as apiDeleteNotice } from '@/api/notice'
+import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
 const deliveryOptions = [

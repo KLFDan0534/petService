@@ -23,10 +23,10 @@ public class MembershipExpirationScheduler {
         try {
             int expired = membershipService.expireMemberships();
             if (expired > 0) {
-                log.info("Membership expiration scheduler expired {} memberships", expired);
+                log.info("会员到期调度器已过期 {} 个会员", expired);
             }
         } catch (Exception e) {
-            log.warn("Membership expiration scheduler failed", e);
+            log.warn("会员到期调度器执行失败", e);
         }
     }
 }

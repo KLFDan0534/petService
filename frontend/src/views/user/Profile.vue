@@ -42,7 +42,7 @@
                 <img v-if="avatarUrl" :src="avatarUrl" :alt="`${displayName} 的头像`" class="ph-avatar-img">
                 <span v-else class="ph-avatar-initial">{{ avatarInitial }}</span>
                 <span class="ph-avatar-overlay">
-                  <el-icon aria-hidden="true"><Camera /></el-icon>
+                  <AppIcon aria-hidden="true"><Camera /></AppIcon>
                   <span>更换头像</span>
                 </span>
                 <span v-if="avatarUploading" class="ph-avatar-busy">
@@ -62,7 +62,7 @@
                 <p class="ph-eyebrow">
                   <span class="ph-eyebrow-idx">个人中心</span>
                   <span class="ph-eyebrow-line" aria-hidden="true"></span>
-                  <span>Personal Space</span>
+                  <span>个人空间</span>
                 </p>
                 <h1 class="ph-name">{{ displayName }}</h1>
                 <p class="ph-meta">
@@ -99,19 +99,19 @@
           <dl class="ph-metrics">
             <div class="ph-metric">
               <dt class="ph-m-label">宠物档案</dt>
-              <dd class="ph-m-value">{{ summary.pets }}<span class="ph-m-unit">只</span></dd>
+              <dd class="ph-m-value">{{ summary.pets_wsh }}<span class="ph-m-unit">只</span></dd>
             </div>
             <div class="ph-metric">
               <dt class="ph-m-label">进行中订单</dt>
-              <dd class="ph-m-value">{{ summary.activeOrders }}<span class="ph-m-unit">张</span></dd>
+              <dd class="ph-m-value">{{ summary.active_orders_wsh }}<span class="ph-m-unit">张</span></dd>
             </div>
             <div class="ph-metric">
               <dt class="ph-m-label">已完成照护</dt>
-              <dd class="ph-m-value">{{ summary.completedOrders }}<span class="ph-m-unit">次</span></dd>
+              <dd class="ph-m-value">{{ summary.completed_orders_wsh }}<span class="ph-m-unit">次</span></dd>
             </div>
             <div class="ph-metric ph-metric-brand">
               <dt class="ph-m-label">累计照护投入</dt>
-              <dd class="ph-m-value ph-m-value-brand"><span class="ph-m-yen">¥</span>{{ formatMoney(summary.totalSpent) }}</dd>
+              <dd class="ph-m-value ph-m-value-brand"><span class="ph-m-yen">¥</span>{{ formatMoney(summary.total_spent_wsh) }}</dd>
             </div>
           </dl>
         </section>
@@ -125,7 +125,7 @@
               <p class="ps-eyebrow">
                 <span class="ps-idx">01</span>
                 <span class="ps-line" aria-hidden="true"></span>
-                <span>Pet Profiles</span>
+                <span>宠物档案</span>
               </p>
               <h2 class="ps-title">我的宠物</h2>
               <p class="ps-desc">档案来自你的宠物信息与照护订单，下单时可直接选用。</p>
@@ -177,7 +177,7 @@
                 <p class="ps-eyebrow">
                   <span class="ps-idx">02</span>
                   <span class="ps-line" aria-hidden="true"></span>
-                  <span>Recent Stays</span>
+                  <span>最近寄养</span>
                 </p>
                 <h2 class="ps-title">最近订单</h2>
               </div>
@@ -222,7 +222,7 @@
                 <p class="ps-eyebrow">
                   <span class="ps-idx">03</span>
                   <span class="ps-line" aria-hidden="true"></span>
-                  <span>Benefits</span>
+                  <span>会员权益</span>
                 </p>
                 <h2 class="ps-title">权益与入口</h2>
               </div>
@@ -233,7 +233,7 @@
                 <li v-for="action in quickActions" :key="action.key">
                   <router-link :to="action.to" class="quick-row">
                     <span class="quick-icon">
-                      <el-icon aria-hidden="true"><component :is="action.icon" /></el-icon>
+                      <AppIcon aria-hidden="true"><component :is="action.icon" /></AppIcon>
                     </span>
                     <span class="quick-copy">
                       <span class="quick-title">{{ action.label }}</span>
@@ -256,7 +256,7 @@
               <p class="ps-eyebrow">
                 <span class="ps-idx">04</span>
                 <span class="ps-line" aria-hidden="true"></span>
-                <span>Wallet</span>
+                <span>钱包</span>
               </p>
               <h2 class="ps-title">我的钱包</h2>
               <p class="ps-desc">余额可直接用于支付订单，提现需经审核与打款。</p>
@@ -381,7 +381,7 @@
               <p class="ps-eyebrow">
                 <span class="ps-idx">05</span>
                 <span class="ps-line" aria-hidden="true"></span>
-                <span>Roles</span>
+                <span>角色</span>
               </p>
               <h2 class="ps-title">身份与服务</h2>
               <p class="ps-desc">以商家、照护师或客服身份加入平台，申请进度会显示在这里。</p>
@@ -391,7 +391,7 @@
           <div class="rr-grid">
             <a v-for="entry in roleEntries" :key="entry.key" :href="entry.to || undefined" class="rr-card" :class="{ 'is-static': !entry.to }" @click.prevent="goRoleEntry(entry)">
               <span class="rr-icon">
-                <el-icon aria-hidden="true"><component :is="entry.icon" /></el-icon>
+                <AppIcon aria-hidden="true"><component :is="entry.icon" /></AppIcon>
               </span>
               <span class="rr-copy">
                 <span class="rr-title">{{ entry.title }}</span>
@@ -412,7 +412,7 @@
               <p class="ps-eyebrow">
                 <span class="ps-idx">06</span>
                 <span class="ps-line" aria-hidden="true"></span>
-                <span>Account</span>
+                <span>账号</span>
               </p>
               <h2 class="ps-title">账户与安全</h2>
               <p class="ps-desc">手机号、邮箱、实名与支付密码分别单独确认后保存。</p>
@@ -471,7 +471,7 @@
             <button type="button" class="dlg-avatar" :disabled="avatarUploading" @click="triggerAvatarInput">
               <img v-if="avatarUrl" :src="avatarUrl" alt="头像">
               <span v-else>{{ avatarInitial }}</span>
-              <span class="dlg-avatar-overlay"><el-icon aria-hidden="true"><Camera /></el-icon></span>
+              <span class="dlg-avatar-overlay"><AppIcon aria-hidden="true"><Camera /></AppIcon></span>
             </button>
             <p class="dlg-avatar-hint">点击头像上传，支持 JPG / PNG，不超过 5MB</p>
           </div>
@@ -580,8 +580,8 @@
           <p class="dlg-warn">此操作不可恢复，资料、宠物档案与订单记录都会一并删除。</p>
           <p class="dlg-detail">
             {{ profile.nickname_wsh || profile.username_wsh || '当前账号' }} ·
-            {{ summary.pets }} 份宠物档案 ·
-            {{ summary.completedOrders }} 次已完成照护
+            {{ summary.pets_wsh }} 份宠物档案 ·
+            {{ summary.completed_orders_wsh }} 次已完成照护
           </p>
         </div>
         <div class="dlg-foot">
@@ -660,6 +660,8 @@ function orderBadgeTone(status) {
 const TYPE_MAP = {
   recharge: '充值', admin_adjust: '管理员调整', order_pay: '订单支付',
   order_refund: '退款', withdrawal: '提现', membership: '会员', tip: '打赏',
+  membership_payment: '会员支付', payment: '订单支付',
+  coupon_subsidy: '优惠券补贴', reject_subsidy: '补贴退回',
 }
 function typeLabel(t) { return TYPE_MAP[t.type_wsh] || t.business_type_wsh || t.type_wsh }
 
@@ -698,7 +700,7 @@ function parseImages(value) {
 }
 function orderServiceImage(order) {
   const images = parseImages(order.service_images_wsh)
-  return images[0] || order.pet_avatar_wsh || ''
+  return images[0] || order.pet_avatar_wsh || order.start_photo_wsh || ''
 }
 function orderDayRange(order) {
   const compact = (value) => {
@@ -729,7 +731,7 @@ const profile = reactive({
   email_wsh: '', real_name_wsh: '', id_card_no_wsh: '', real_name_status_wsh: 0,
   payment_password_set_wsh: false, created_at_wsh: '',
 })
-const stats = ref({ pets: 0, activeOrders: 0, completedOrders: 0, totalSpent: 0 })
+const stats = ref({ pets_wsh: 0, active_orders_wsh: 0, completed_orders_wsh: 0, total_spent_wsh: 0 })
 const wallet = ref({})
 const transactions = ref([])
 const withdrawals = ref([])
@@ -791,10 +793,10 @@ const summary = computed(() => {
   const list = orders.value
   const billed = list.filter(o => !NON_BILLED.includes(String(o.status_wsh)))
   return {
-    pets: stats.value.pets ?? pets.value.length,
-    activeOrders: stats.value.activeOrders ?? list.filter(o => ACTIVE_STATUSES.includes(String(o.status_wsh))).length,
-    completedOrders: stats.value.completedOrders ?? list.filter(o => o.status_wsh === 'completed').length,
-    totalSpent: stats.value.totalSpent ?? billed.reduce((total, o) => total + orderAmount(o), 0),
+    pets_wsh: stats.value.pets_wsh ?? pets.value.length,
+    active_orders_wsh: stats.value.active_orders_wsh ?? list.filter(o => ACTIVE_STATUSES.includes(String(o.status_wsh))).length,
+    completed_orders_wsh: stats.value.completed_orders_wsh ?? list.filter(o => o.status_wsh === 'completed').length,
+    total_spent_wsh: stats.value.total_spent_wsh ?? billed.reduce((total, o) => total + orderAmount(o), 0),
   }
 })
 
@@ -1426,7 +1428,7 @@ onMounted(() => {
 .pet-arrow {
   position: absolute; right: 14px; bottom: 58px;
   display: flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 50%;
+  width: 34px; height: var(--control-height-sm); border-radius: 50%;
   background: var(--ref-surface); color: var(--ref-ink); font-size: 15px;
   opacity: 0; transform: translateY(6px);
   box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--ref-ink) 60%, transparent);
@@ -1687,7 +1689,7 @@ a.rr-card:hover .rr-arrow { transform: translateX(3px); color: var(--ref-brand);
   width: 100%; max-width: 420px; max-height: min(90vh, 720px); overflow-y: auto;
   border-radius: var(--r-panel); background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: pr-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-head {

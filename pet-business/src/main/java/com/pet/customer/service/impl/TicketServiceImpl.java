@@ -742,7 +742,7 @@ public class TicketServiceImpl implements TicketService {
             notification.setIs_read_wsh(0);
             notificationService.create(notification);
         } catch (Exception e) {
-            log.warn("Failed to send ticket notification", e);
+            log.warn("发送工单通知失败", e);
         }
     }
 }

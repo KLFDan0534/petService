@@ -8,26 +8,23 @@
       </template>
     </DataTable>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
-      <div class="modal">
-        <h2>{{ editingCategory ? '编辑分类' : '新增分类' }}</h2>
-        <form @submit.prevent="saveCategory">
-          <div class="form-group"><label>分类名称</label><input v-model="form.name_wsh" required></div>
-          <div class="form-group">
-            <label>父分类</label>
-            <select v-model.number="form.parent_id_wsh">
-              <option :value="0">一级分类</option>
-              <option v-for="c in topCategories" :key="c.id_wsh" :value="c.id_wsh">{{ c.name_wsh }}</option>
-            </select>
-          </div>
-          <div class="form-group"><label>排序</label><input v-model.number="form.sort_order_wsh" type="number" min="0"></div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm">{{ editingCategory ? '保存' : '创建' }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <AppDialog :visible="showForm" :title="editingCategory ? '编辑分类' : '新增分类'" @close="showForm = false">
+      <form id="categoryForm" @submit.prevent="saveCategory">
+        <div class="form-group"><label>分类名称</label><input v-model="form.name_wsh" required></div>
+        <div class="form-group">
+          <label>父分类</label>
+          <select v-model.number="form.parent_id_wsh">
+            <option :value="0">一级分类</option>
+            <option v-for="c in topCategories" :key="c.id_wsh" :value="c.id_wsh">{{ c.name_wsh }}</option>
+          </select>
+        </div>
+        <div class="form-group"><label>排序</label><input v-model.number="form.sort_order_wsh" type="number" min="0"></div>
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
+        <button type="submit" form="categoryForm" class="btn btn-primary btn-sm">{{ editingCategory ? '保存' : '创建' }}</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -36,6 +33,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { getCategories, createCategory, updateCategory, deleteCategory as apiDeleteCategory } from '@/api/category'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 const appStore = useAppStore()
 const categories = ref([])
 const showForm = ref(false)

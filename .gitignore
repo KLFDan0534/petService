@@ -92,3 +92,36 @@ database/
 
 # 临时脚本
 _tmp_merge_schema.ps1
+
+# ===== 2026-09-11 提交前补充 =====
+
+# 大型归档（勿入库）
+*.zip
+
+# 生成内容 / 无关素材
+output/
+
+# 前端验证构建产物
+frontend/dist-verify/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# AI / IDE 工具缓存与记忆
+.refact/
+.trae/
+.workbuddy/
+
+# 日志备份
+*.log.bak
+
+# 根目录散落临时文件
+temp-entity-fields.txt
+server -schema-current.sql*
+
+# Android 工程（暂不入库）
+android-app/
+
+# 备份文件
+*.bak

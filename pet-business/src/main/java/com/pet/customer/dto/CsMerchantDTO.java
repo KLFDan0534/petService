@@ -15,7 +15,7 @@ public class CsMerchantDTO {
     @Schema(description = "商家状态")
     private Integer merchant_status_wsh;
     @Schema(description = "该商家待处理工单数")
-    private long pending_ticket_count;
+    private long pending_ticket_count_wsh;
     @Schema(description = "该商家待处理投诉数")
-    private long pending_complaint_count;
+    private long pending_complaint_count_wsh;
 }

@@ -43,7 +43,7 @@ public class AddressServiceImpl implements AddressService {
      */
     @Override
     public List<Address> listByUser(Long userId) {
-        log.info("listByUser() called");
+        log.info("listByUser() 被调用");
         return addressMapper.selectList(
                 new LambdaQueryWrapper<Address>()
                         .eq(Address::getUser_id_wsh, userId)
@@ -64,7 +64,7 @@ public class AddressServiceImpl implements AddressService {
      */
     @Override
     public Address getById(Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         Address addr = addressMapper.selectById(id);
         if (addr == null) throw new BusinessException("地址不存在");
         return addr;
@@ -84,7 +84,7 @@ public class AddressServiceImpl implements AddressService {
     @Override
     @Transactional
     public Address create(Long userId, AddressCreateRequestDTO dto) {
-        log.info("create() called");
+        log.info("create() 被调用");
         Address addr = new Address();
         addr.setUser_id_wsh(userId);
         addr.setLabel_wsh(dto.getLabel_wsh());
@@ -128,7 +128,7 @@ public class AddressServiceImpl implements AddressService {
     @Override
     @Transactional
     public Address update(Long userId, Long id, AddressUpdateRequestDTO dto) {
-        log.info("update() called");
+        log.info("update() 被调用");
         Address existing = getById(id);
         if (!existing.getUser_id_wsh().equals(userId)) throw new BusinessException("无权操作此地址");
         if (dto.getLabel_wsh() != null) existing.setLabel_wsh(dto.getLabel_wsh());
@@ -166,7 +166,7 @@ public class AddressServiceImpl implements AddressService {
     @Override
     @Transactional
     public void delete(Long userId, Long id) {
-        log.info("delete() called");
+        log.info("delete() 被调用");
         Address existing = getById(id);
         if (!existing.getUser_id_wsh().equals(userId)) throw new BusinessException("无权操作此地址");
         addressMapper.deleteById(id);
@@ -212,7 +212,7 @@ public class AddressServiceImpl implements AddressService {
     @Override
     @Transactional
     public void setDefault(Long userId, Long id) {
-        log.info("setDefault() called");
+        log.info("setDefault() 被调用");
         addressMapper.update(null, new LambdaUpdateWrapper<Address>()
                 .eq(Address::getUser_id_wsh, userId)
                 .set(Address::getIs_default_wsh, 0));

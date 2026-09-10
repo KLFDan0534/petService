@@ -944,7 +944,7 @@ CouponService couponService,
         }
         boolean accepted = confirmPaidOrder(order);
         if (accepted) {
-            log.info("Order auto accepted after paid timeout, orderNo: {}", order.getOrder_no_wsh());
+            log.info("订单已支付超时后自动接单, 订单编号: {}", order.getOrder_no_wsh());
         }
         return accepted;
     }
@@ -991,10 +991,10 @@ CouponService couponService,
             try {
                 if (confirmPaidOrder(order)) {
                     accepted++;
-                    log.info("Order auto accepted by fallback scanner, orderNo: {}", order.getOrder_no_wsh());
+                    log.info("兜底扫描器自动接单, 订单编号: {}", order.getOrder_no_wsh());
                 }
             } catch (Exception e) {
-                log.warn("Auto accept fallback scanner skipped order: {}", order.getOrder_no_wsh(), e);
+                log.warn("自动接单兜底扫描器跳过订单: {}", order.getOrder_no_wsh(), e);
             }
         }
         return accepted;

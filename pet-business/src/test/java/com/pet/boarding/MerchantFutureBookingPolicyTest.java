@@ -144,14 +144,10 @@ class MerchantFutureBookingPolicyTest {
     }
 
     @Test
-    void createRequestDeserializesCamelOrSnakeAlias() throws Exception {
+    void createRequestDeserializesSnakeCaseField() throws Exception {
         MerchantCreateRequestDTO snake = objectMapper.readValue(
                 "{\"future_booking_enabled_wsh\":0}", MerchantCreateRequestDTO.class);
         assertEquals(0, snake.getFuture_booking_enabled_wsh());
-
-        MerchantCreateRequestDTO camel = objectMapper.readValue(
-                "{\"futureBookingEnabled\":0}", MerchantCreateRequestDTO.class);
-        assertEquals(0, camel.getFuture_booking_enabled_wsh());
 
         MerchantCreateRequestDTO empty = objectMapper.readValue(
                 "{}", MerchantCreateRequestDTO.class);
@@ -159,14 +155,10 @@ class MerchantFutureBookingPolicyTest {
     }
 
     @Test
-    void updateRequestDeserializesCamelOrSnakeAlias() throws Exception {
+    void updateRequestDeserializesSnakeCaseField() throws Exception {
         MerchantUpdateRequestDTO snake = objectMapper.readValue(
                 "{\"future_booking_enabled_wsh\":1}", MerchantUpdateRequestDTO.class);
         assertEquals(1, snake.getFuture_booking_enabled_wsh());
-
-        MerchantUpdateRequestDTO camel = objectMapper.readValue(
-                "{\"futureBookingEnabled\":0}", MerchantUpdateRequestDTO.class);
-        assertEquals(0, camel.getFuture_booking_enabled_wsh());
     }
 
     @Test

@@ -60,10 +60,10 @@ public class MessageListener {
     @RabbitListener(queues = "order.create")
     public void handleOrderCreate(String orderNo, Message message, Channel channel) {
         try {
-            log.info("Order created: {}", orderNo);
+            log.info("订单已创建: {}", orderNo);
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
-            log.error("Failed to process order create: {}", orderNo, e);
+            log.error("处理订单创建失败: {}", orderNo, e);
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }
@@ -85,10 +85,10 @@ public class MessageListener {
     @RabbitListener(queues = "order.cancel")
     public void handleOrderCancel(String orderNo, Message message, Channel channel) {
         try {
-            log.info("Order cancelled: {}", orderNo);
+            log.info("订单已取消: {}", orderNo);
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
-            log.error("Failed to process order cancel: {}", orderNo, e);
+            log.error("处理订单取消失败: {}", orderNo, e);
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }
@@ -110,10 +110,10 @@ public class MessageListener {
     @RabbitListener(queues = "order.refund")
     public void handleOrderRefund(String orderNo, Message message, Channel channel) {
         try {
-            log.info("Order refund: {}", orderNo);
+            log.info("订单退款: {}", orderNo);
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
-            log.error("Failed to process order refund: {}", orderNo, e);
+            log.error("处理订单退款失败: {}", orderNo, e);
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }
@@ -135,10 +135,10 @@ public class MessageListener {
     @RabbitListener(queues = "message.send")
     public void handleMessageSend(String payload, Message message, Channel channel) {
         try {
-            log.info("Message send: {}", payload);
+            log.info("消息发送: {}", payload);
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
-            log.error("Failed to process message send: {}", payload, e);
+            log.error("处理消息发送失败: {}", payload, e);
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }
@@ -161,10 +161,10 @@ public class MessageListener {
     @RabbitListener(queues = "ai.report")
     public void handleAiReport(String payload, Message message, Channel channel) {
         try {
-            log.info("AI report generated: {}", payload);
+            log.info("AI 报告已生成: {}", payload);
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
-            log.error("Failed to process AI report: {}", payload, e);
+            log.error("处理 AI 报告失败: {}", payload, e);
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }
@@ -190,15 +190,15 @@ public class MessageListener {
     @RabbitListener(queues = "complaint.process")
     public void handleComplaintProcess(String complaintId, Message message, Channel channel) {
         try {
-            log.info("Complaint process: {}", complaintId);
+            log.info("投诉处理: {}", complaintId);
             if (complaintProcessHandler != null) {
                 complaintProcessHandler.handle(Long.valueOf(complaintId));
             } else {
-                log.warn("ComplaintProcessHandler not available in context");
+                log.warn("上下文中没有可用的 ComplaintProcessHandler");
             }
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
-            log.error("Failed to process complaint: {}", complaintId, e);
+            log.error("处理投诉失败: {}", complaintId, e);
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }

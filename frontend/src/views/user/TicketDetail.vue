@@ -73,7 +73,7 @@
               <p class="td-eyebrow td-sec-eyebrow">
                 <span class="td-idx">01</span>
                 <span class="td-line" aria-hidden="true"></span>
-                <span>Conversation</span>
+                <span>对话</span>
               </p>
               <h2 class="td-sec-title">沟通记录</h2>
               <p class="td-sec-desc">
@@ -374,7 +374,7 @@ async function handleClose() {
   margin-top: 20px;
   padding: 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   display: grid;
   gap: 10px;
@@ -392,7 +392,7 @@ async function handleClose() {
   max-width: 78%;
   padding: 10px 14px;
   border: 1px solid var(--ref-line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--ref-sand) 55%, var(--ref-surface));
   color: var(--ref-ink);
   font-size: 13.5px;
@@ -419,7 +419,7 @@ async function handleClose() {
   margin-top: 20px;
   padding: 20px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
 }
 .td-reply-input {
@@ -454,7 +454,7 @@ async function handleClose() {
   margin: 20px 0 0;
   padding: 16px 22px;
   border: 1px solid var(--ref-line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--ref-sand) 50%, var(--ref-surface));
   font-size: 13px;
   color: var(--ref-ink-soft);
@@ -465,7 +465,7 @@ async function handleClose() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -509,7 +509,7 @@ async function handleClose() {
 .td-loading { padding: 40px 0 8px; }
 .td-skel {
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: td-shimmer 1.3s linear infinite;

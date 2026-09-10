@@ -18,6 +18,7 @@ import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -106,6 +107,7 @@ public class RatingServiceImpl implements RatingService {
      */
     @Transactional
     @Override
+    @CacheEvict(cacheNames = {"service-item-page"}, allEntries = true)
     public RatingDTO createRating(Long userId, RatingCreateRequestDTO request) {
         log.info("调用 createRating()");
         Rating rating = new Rating();
@@ -186,9 +188,9 @@ public class RatingServiceImpl implements RatingService {
     private void assertTargetBelongsOrder(Long targetId, String targetType, PetOrder order) {
         boolean matched;
         switch (targetType) {
-            case "merchant" -> matched = Long.valueOf(order.getMerchant_id_wsh()).equals(targetId);
-            case "keeper" -> matched = Long.valueOf(order.getKeeper_id_wsh()).equals(targetId);
-            case "service" -> matched = Long.valueOf(order.getService_id_wsh()).equals(targetId);
+            case "merchant" -> matched = order.getMerchant_id_wsh().equals(targetId);
+            case "keeper" -> matched = order.getKeeper_id_wsh().equals(targetId);
+            case "service" -> matched = order.getService_id_wsh().equals(targetId);
             default -> throw new BusinessException("不支持的评价目标类型");
         }
         if (!matched) {

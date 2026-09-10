@@ -43,7 +43,7 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
      */
     @Override
     public List<BusinessHours> getByMerchantId(Long merchantId) {
-        log.info("getByMerchantId() called");
+        log.info("getByMerchantId() 被调用");
         return businessHoursMapper.selectList(
                 new LambdaQueryWrapper<BusinessHours>()
                         .eq(BusinessHours::getMerchant_id_wsh, merchantId)
@@ -64,7 +64,7 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
     @Override
     @Transactional
     public BusinessHours upsert(Long merchantId, BusinessHoursUpsertRequestDTO dto) {
-        log.info("upsert() called");
+        log.info("upsert() 被调用");
         BusinessHours hours = new BusinessHours();
         hours.setMerchant_id_wsh(merchantId);
         hours.setDay_of_week_wsh(dto.getDay_of_week_wsh());
@@ -122,7 +122,7 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
     @Override
     @Transactional
     public void delete(Long id) {
-        log.info("delete() called");
+        log.info("delete() 被调用");
         BusinessHours existing = businessHoursMapper.selectById(id);
         businessHoursMapper.deleteById(id);
         if (existing != null && existing.getMerchant_id_wsh() != null) {
@@ -145,7 +145,7 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
     @Override
     @Transactional
     public void delete(Long merchantId, Long id) {
-        log.info("delete(merchantId, id) called");
+        log.info("delete(merchantId, id) 被调用");
         BusinessHours existing = businessHoursMapper.selectById(id);
         if (existing == null) {
             throw new BusinessException(404, "Business hours not found");

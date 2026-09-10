@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import com.pet.ai.dto.AiReportCreateRequestDTO;
 import com.pet.ai.entity.AiReport;
 import com.pet.ai.mapper.AiReportMapper;
-import com.pet.ai.service.AiChatService;
+import com.pet.ai.service.LlmChatService;
 import com.pet.ai.service.AiReportService;
 import com.pet.ai.service.ChromaService;
 import com.pet.ai.service.ChromaService.ChromaGetResult;
@@ -33,7 +33,7 @@ import java.util.*;
  * 核心流程：
  * 1. 查询宠物、看护人、订单和护理动态数据
  * 2. 构建 AI 提示词（含宠物档案和护理记录上下文）
- * 3. 调用 AiChatService 获取 AI 生成内容
+ * 3. 调用 LlmChatService 获取 AI 生成内容
  * 4. AI 不可用时降级为模板填充
  * 5. 保存报告到 MySQL 和 Chroma 向量数据库
  * <p>
@@ -56,7 +56,7 @@ public class AiReportServiceImpl implements AiReportService {
     private final MerchantMapper merchantMapper;
     private final OrderMapper orderMapper;
     private final CareRecordMapper careRecordMapper;
-    private final AiChatService aiChatService;
+    private final LlmChatService aiChatService;
     private final AiReportMapper aiReportMapper;
     private final RoleMapper roleMapper;
 
@@ -65,7 +65,7 @@ public class AiReportServiceImpl implements AiReportService {
     public AiReportServiceImpl(ChromaService chromaService, PetMapper petMapper,
                                 KeeperMapper keeperMapper, MerchantMapper merchantMapper, OrderMapper orderMapper,
                                 CareRecordMapper careRecordMapper,
-                                AiChatService aiChatService,
+                                LlmChatService aiChatService,
                                 AiReportMapper aiReportMapper,
                                 RoleMapper roleMapper) {
         this.chromaService = chromaService;
@@ -171,7 +171,7 @@ public class AiReportServiceImpl implements AiReportService {
      * 【业务名称】AI生成护理建议报告实现
      * <p>业务作用：查询宠物/看护人/订单/护理动态数据，构建AI提示词，调用AiChatService生成护理建议，AI不可用时降级为模板填充。</p>
      * <p>调用场景：用户点击"生成护理建议"按钮。</p>
-     * <p>调用链：Controller → generateCareSuggestion() → 参数校验 → requireAccess()鉴权 → 查询Pet/Keeper/Order/CareRecord → 构建Prompt → AiChatService.chat() → useAiOrFallback() → saveReport()</p>
+     * <p>调用链：Controller → generateCareSuggestion() → 参数校验 → requireAccess()鉴权 → 查询Pet/Keeper/Order/CareRecord → 构建Prompt → LlmChatService.chat() → useAiOrFallback() → saveReport()</p>
      * <p>数据处理：order推导petId/keeperId；findPet/findKeeper/findOrder/findCareRecords查询关联数据；buildCarePrompt构建AI提示词；buildCareSuggestion构建降级模板；AI内容优先于模板。</p>
      * <p>业务规则：petId或orderId至少提供一个；type固定为"care"；AI返回null/blank时使用模板。</p>
      * <p>状态影响：新增一条type=care的AI报告。</p>

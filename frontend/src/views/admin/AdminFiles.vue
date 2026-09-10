@@ -29,16 +29,13 @@
       <button :disabled="currentPage >= pageCount" @click="changePage(currentPage + 1)" class="btn btn-sm">下一页</button>
     </div>
 
-    <div v-if="pendingDelete" class="modal-overlay" @mousedown.self="pendingDelete = null">
-      <div class="modal" style="max-width:420px">
-        <h3>删除文件</h3>
-        <p style="margin-top:12px;font-size:14px">确定要删除文件「{{ pendingDelete.original_name_wsh || pendingDelete.id_wsh }}」吗？此操作不可恢复。</p>
-        <div class="modal-actions">
-          <button class="btn btn-secondary btn-sm" type="button" @click="pendingDelete = null">取消</button>
-          <button class="btn btn-danger btn-sm" type="button" @click="doDelete">确认删除</button>
-        </div>
-      </div>
-    </div>
+    <AppDialog :visible="pendingDelete" :width="420" title="删除文件" @close="pendingDelete = null">
+      <p style="margin-top:12px;font-size:14px">确定要删除文件「{{ pendingDelete.original_name_wsh || pendingDelete.id_wsh }}」吗？此操作不可恢复。</p>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="pendingDelete = null">取消</button>
+        <button class="btn btn-danger btn-sm" type="button" @click="doDelete">确认删除</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -46,6 +43,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { getAdminFiles, deleteFile } from '@/api/file'
 
 const appStore = useAppStore()

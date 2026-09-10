@@ -68,7 +68,7 @@ public class AddressController {
         @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<AddressDTO>> list(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        log.info("list() called");
+        log.info("list() 被调用");
         return Result.success(addressService.listByUser(token.getUserId()).stream().map(addressService::toDTO).collect(Collectors.toList()));
     }
 
@@ -93,7 +93,7 @@ public class AddressController {
     })
     public Result<AddressDTO> get(@AuthenticationPrincipal JwtAuthenticationToken token,
                                @Parameter(description = "地址ID") @PathVariable Long id) {
-        log.info("get() called");
+        log.info("get() 被调用");
         return Result.success(addressService.toDTO(addressService.getById(id)));
     }
 
@@ -121,7 +121,7 @@ public class AddressController {
     })
     public Result<AddressDTO> create(@AuthenticationPrincipal JwtAuthenticationToken token,
                                   @Valid @RequestBody AddressCreateRequestDTO dto) {
-        log.info("create() called");
+        log.info("create() 被调用");
         return Result.success(addressService.toDTO(addressService.create(token.getUserId(), dto)));
     }
 
@@ -150,7 +150,7 @@ public class AddressController {
     public Result<AddressDTO> update(@AuthenticationPrincipal JwtAuthenticationToken token,
                                   @Parameter(description = "地址ID") @PathVariable Long id,
                                   @Valid @RequestBody AddressUpdateRequestDTO dto) {
-        log.info("update() called");
+        log.info("update() 被调用");
         return Result.success(addressService.toDTO(addressService.update(token.getUserId(), id, dto)));
     }
 

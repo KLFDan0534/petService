@@ -215,7 +215,7 @@ class ServiceItemControllerTest {
         q.setPage_wsh(1);
         q.setSize_wsh(100);
 
-        controller.pagePublic(null, 99L, null, null, null, null, 1, 20);
+        controller.pagePublic(new ServiceItemQueryDTO(null, 99L, null, null, null, null, 1, 20));
 
         verify(merchantService, never()).isOwner(any(), any());
         verify(merchantService, never()).findByUserId(any());

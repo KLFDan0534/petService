@@ -9,11 +9,11 @@
           <option value="0">停用</option>
         </select>
         <button class="btn btn-outline btn-sm icon-btn" type="button" :disabled="loading" @click="loadPlans">
-          <el-icon><Refresh /></el-icon>
+          <AppIcon><Refresh /></AppIcon>
           <span>刷新</span>
         </button>
         <button class="btn btn-primary btn-sm icon-btn" type="button" :disabled="submitting" @click="openCreate">
-          <el-icon><Plus /></el-icon>
+          <AppIcon><Plus /></AppIcon>
           <span>新建套餐</span>
         </button>
       </div>
@@ -67,7 +67,7 @@
             <td>
               <div class="row-actions">
                 <button class="btn btn-outline btn-sm square-btn" type="button" title="编辑" :disabled="submitting" @click="openEdit(plan)">
-                  <el-icon><Edit /></el-icon>
+                  <AppIcon><Edit /></AppIcon>
                 </button>
                 <button
                   class="btn btn-sm square-btn"
@@ -77,10 +77,10 @@
                   :disabled="submitting"
                   @click="toggleStatus(plan)"
                 >
-                  <el-icon><SwitchButton /></el-icon>
+                  <AppIcon><SwitchButton /></AppIcon>
                 </button>
                 <button class="btn btn-danger btn-sm square-btn" type="button" title="删除" :disabled="submitting" @click="removePlan(plan)">
-                  <el-icon><Delete /></el-icon>
+                  <AppIcon><Delete /></AppIcon>
                 </button>
               </div>
             </td>
@@ -92,10 +92,13 @@
       </table>
     </div>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="closeForm">
-      <div class="modal member-plan-modal">
-        <h2>{{ editingPlan ? '编辑会员套餐' : '新建会员套餐' }}</h2>
-        <form @submit.prevent="submitForm">
+    <AppDialog
+      :visible="showForm"
+      :width="860"
+      :title="editingPlan ? '编辑会员套餐' : '新建会员套餐'"
+      @close="closeForm"
+    >
+        <form id="member-plan-form" @submit.prevent="submitForm">
           <div class="form-grid">
             <label class="form-field">
               套餐编码
@@ -228,21 +231,21 @@
               <textarea v-model.trim="form.remark_wsh" maxlength="500" rows="3"></textarea>
             </label>
           </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary btn-sm" type="button" @click="closeForm">取消</button>
-            <button class="btn btn-primary btn-sm" type="submit" :disabled="submitting">
-              {{ submitting ? '保存中...' : '保存' }}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="closeForm">取消</button>
+        <button class="btn btn-primary btn-sm" type="submit" form="member-plan-form" :disabled="submitting">
+          {{ submitting ? '保存中...' : '保存' }}
+        </button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Delete, Edit, Plus, Refresh, SwitchButton } from '@element-plus/icons-vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { createCouponTemplate, getCouponTemplates } from '@/api/coupon'
 import {
@@ -684,7 +687,7 @@ function toApiDateTime(date) {
 }
 
 .square-btn {
-  height: 34px;
+  height: var(--control-height-sm);
   min-height: 34px;
   padding: 0;
   width: 34px;
@@ -762,7 +765,7 @@ function toApiDateTime(date) {
 
 .selected-coupon {
   background: rgba(249, 115, 22, 0.12);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--color-primary);
   font-size: 12px;
   font-weight: 700;
@@ -828,7 +831,7 @@ function toApiDateTime(date) {
 
 .config-tag {
   background: rgba(37, 99, 235, 0.12);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--color-accent);
   font-size: 12px;
   font-weight: 700;
@@ -847,7 +850,7 @@ function toApiDateTime(date) {
 
 code {
   background: var(--color-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   color: var(--color-foreground);
   font-size: 12px;
   padding: 3px 6px;

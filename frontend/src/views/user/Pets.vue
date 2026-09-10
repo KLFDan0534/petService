@@ -13,7 +13,7 @@
         <div class="pt-head-copy">
           <div class="pt-eyebrow" aria-hidden="true">
             <span class="pt-eyebrow-line" />
-            <span>Pet Profiles</span>
+            <span>宠物档案</span>
           </div>
           <h1 class="pt-title">我的宠物</h1>
           <p class="pt-sub" aria-live="polite">
@@ -418,7 +418,7 @@ onMounted(() => loadPets())
   gap: 7px;
   height: 42px;
   padding: 0 16px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -466,7 +466,7 @@ onMounted(() => loadPets())
 .pt-skel-body { padding: 18px 20px 20px; }
 .pt-skel-line {
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: var(--ref-sand);
   margin-bottom: 10px;
   animation: pt-pulse 1.4s ease-in-out infinite;
@@ -568,7 +568,7 @@ onMounted(() => loadPets())
   border-radius: var(--r-panel);
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: pt-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-panel-sm { max-width: 400px; }

@@ -3,8 +3,8 @@
     <header class="user-header" :class="{ 'user-header-scrolled': navScrolled, 'is-dashboard-header': route.name === 'Dashboard' }">
       <div class="user-header-shell">
         <router-link to="/dashboard" class="user-logo" @click="closeMobileMenu">
-          <img src="/logo.png" alt="Logo" class="logo-img">
-          <span>宠物寄养平台</span>
+          <span class="logo-mark" aria-hidden="true">栖</span>
+          <span>栖屿宠护</span>
         </router-link>
 
         <nav
@@ -50,7 +50,7 @@
               :aria-label="mobileMenuOpen ? '关闭导航菜单' : '打开导航菜单'"
               @click="mobileMenuOpen = !mobileMenuOpen"
             >
-              <el-icon aria-hidden="true"><Close v-if="mobileMenuOpen" /><Menu v-else /></el-icon>
+              <AppIcon aria-hidden="true"><Close v-if="mobileMenuOpen" /><Menu v-else /></AppIcon>
             </button>
           </div>
 
@@ -89,7 +89,7 @@
                   <router-link to="/ai/chat" class="ai-dropdown-footer" @click="aiDropdownOpen = false">查看全部 →</router-link>
                 </div>
               </div>
-              <MessageIndicator />
+              <MessageIndicator ref="messageIndicatorRef" @open="aiDropdownOpen = false" />
               <button class="user-avatar" type="button" aria-label="打开个人中心" @click="goProfile">
                 <img v-if="avatarUrl" :src="avatarUrl" alt="个人头像">
                 <span v-else aria-hidden="true">{{ userInitial }}</span>
@@ -101,7 +101,7 @@
                 title="退出登录"
                 @click="logout"
               >
-                <el-icon aria-hidden="true"><SwitchButton /></el-icon>
+                <AppIcon aria-hidden="true"><SwitchButton /></AppIcon>
               </button>
             </template>
             <template v-else>
@@ -121,8 +121,8 @@
       <div class="user-footer-shell">
         <div class="footer-col footer-brand">
           <div class="footer-logo">
-            <img src="/logo.png" alt="Logo" class="logo-img">
-            <span>宠物寄养平台</span>
+            <span class="logo-mark" aria-hidden="true">栖</span>
+            <span>栖屿宠护</span>
           </div>
           <p class="footer-tagline">为您的毛孩子提供一个安全、贴心的寄养之家。</p>
         </div>
@@ -130,10 +130,10 @@
         <div class="footer-col">
           <h4 class="footer-heading">联系我们</h4>
           <ul class="footer-list">
-            <li><el-icon aria-hidden="true"><Message /></el-icon> support@petboarding.com</li>
-            <li><el-icon aria-hidden="true"><Phone /></el-icon> 400-000-0000</li>
-            <li><el-icon aria-hidden="true"><Clock /></el-icon> 每日 9:00 – 21:00</li>
-            <li><el-icon aria-hidden="true"><Location /></el-icon> 上海市浦东新区宠物大道 88 号</li>
+            <li><AppIcon aria-hidden="true"><Message /></AppIcon> support@petboarding.com</li>
+            <li><AppIcon aria-hidden="true"><Phone /></AppIcon> 400-000-0000</li>
+            <li><AppIcon aria-hidden="true"><Clock /></AppIcon> 每日 9:00 – 21:00</li>
+            <li><AppIcon aria-hidden="true"><Location /></AppIcon> 上海市浦东新区宠物大道 88 号</li>
           </ul>
         </div>
 
@@ -159,7 +159,7 @@
         </div>
       </div>
       <div class="user-footer-bottom">
-        <span>© {{ currentYear }} 宠物寄养平台 版权所有</span>
+        <span>© {{ currentYear }} 栖屿宠护 版权所有</span>
       </div>
     </footer>
   </div>
@@ -190,6 +190,7 @@ const aiDropdownOpen = ref(false)
 const aiSessions = ref([])
 const aiSessionsLoading = ref(false)
 let aiCloseTimer = null
+const messageIndicatorRef = ref(null)
 
 async function loadAiSessions() {
   if (aiSessions.value.length > 0) return
@@ -204,11 +205,12 @@ async function loadAiSessions() {
 function openAiDropdown() {
   if (aiCloseTimer) { clearTimeout(aiCloseTimer); aiCloseTimer = null }
   aiDropdownOpen.value = true
+  messageIndicatorRef.value?.closeDropdown()
   loadAiSessions()
 }
 
 function scheduleCloseAiDropdown() {
-  aiCloseTimer = setTimeout(() => { aiDropdownOpen.value = false }, 200)
+  aiCloseTimer = setTimeout(() => { aiDropdownOpen.value = false }, 100)
 }
 
 function cancelCloseAiDropdown() {
@@ -305,9 +307,9 @@ watch(() => route.value.fullPath, () => {
   width: 100%;
   min-width: 0;
   padding: 0;
-  background: var(--color-card);
-  border-bottom: 1px solid var(--color-border);
-  box-shadow: 0 3px 0 rgba(36, 52, 58, 0.04);
+  background: transparent;
+  border-bottom: 1px solid transparent;
+  box-shadow: none;
   transition:
     top 620ms ease,
     background-color 620ms ease,
@@ -352,7 +354,7 @@ watch(() => route.value.fullPath, () => {
   margin: 0 auto;
   padding: 0 24px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   box-shadow: none;
   transition:
@@ -370,6 +372,7 @@ watch(() => route.value.fullPath, () => {
   width: min(1180px, calc(100% - 64px));
   min-height: 68px;
   padding: 0 20px;
+  border-radius: 999px;
   border-color: color-mix(in srgb, var(--color-border) 68%, transparent);
   background: color-mix(in srgb, var(--color-card) 72%, transparent);
   box-shadow:
@@ -386,7 +389,7 @@ watch(() => route.value.fullPath, () => {
   align-items: center;
   gap: 9px;
   color: var(--color-foreground);
-  font-family: Fredoka, 'Nunito', 'Microsoft YaHei', sans-serif;
+  font-family: var(--ref-font-sans);
   font-size: 19px;
   font-weight: 700;
   white-space: nowrap;
@@ -396,11 +399,24 @@ watch(() => route.value.fullPath, () => {
   color: var(--color-primary);
 }
 
-.logo-img {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  object-fit: cover;
+.logo-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--ref-ink) 15%, transparent);
+  background: var(--ref-surface);
+  font-family: var(--ref-font-display);
+  font-size: 15px;
+  color: var(--ref-ink);
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.user-logo:hover .logo-mark {
+  border-color: color-mix(in srgb, var(--ref-brand) 60%, transparent);
+  color: var(--ref-brand);
 }
 
 .user-nav {
@@ -440,7 +456,7 @@ watch(() => route.value.fullPath, () => {
   align-items: center;
   padding: 8px 14px;
   color: var(--color-foreground);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -486,18 +502,18 @@ watch(() => route.value.fullPath, () => {
 
 .header-controls :deep(.theme-toggle) {
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
 }
 
 .header-menu-toggle {
   display: none;
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
   place-items: center;
   color: var(--color-foreground);
   background: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: 11px;
+  border-radius: var(--radius-control);
 }
 
 .header-menu-toggle:hover {
@@ -516,13 +532,13 @@ watch(() => route.value.fullPath, () => {
 
 .user-header-end :deep(.message-indicator) {
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
 }
 
 .user-avatar {
   display: grid;
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
   flex: 0 0 44px;
   place-items: center;
   overflow: hidden;
@@ -547,12 +563,12 @@ watch(() => route.value.fullPath, () => {
 .header-logout {
   display: grid;
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
   place-items: center;
   color: var(--color-foreground);
   background: transparent;
   border: none;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   cursor: pointer;
   transition: color 180ms ease, background 180ms ease;
 }
@@ -569,7 +585,7 @@ watch(() => route.value.fullPath, () => {
 .cs-ai-entry {
   display: grid;
   width: 44px;
-  height: 44px;
+  height: var(--control-height);
   flex: 0 0 44px;
   place-items: center;
   color: var(--color-foreground);
@@ -682,12 +698,8 @@ watch(() => route.value.fullPath, () => {
   display: none;
 }
 
-:global(header.user-header.is-dashboard-header) {
-  background: transparent;
-  border-bottom: 1px solid transparent;
-  box-shadow: none;
-}
-
+/* 顶部时所有页面导航栏均透明(与页面 canvas 背景一致);
+   首页(Dashboard)滚动后 shell 使用暖色调玻璃胶囊,其余页面使用 --color-card 基调 */
 :global(header.user-header.is-dashboard-header.user-header-scrolled .user-header-shell) {
   background: rgba(251, 248, 244, 0.88);
   border-color: rgba(231, 222, 210, 0.6);
@@ -702,7 +714,7 @@ watch(() => route.value.fullPath, () => {
 }
 
 .user-layout.is-dark {
-  background: var(--color-background);
+  background: var(--ref-canvas);
 }
 
 .user-layout.is-dark .user-content {
@@ -719,7 +731,7 @@ watch(() => route.value.fullPath, () => {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0 12px;
     padding: 12px 16px;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
   }
 
   .user-logo {
@@ -736,7 +748,7 @@ watch(() => route.value.fullPath, () => {
   }
 
   :global(header.user-header.user-header-scrolled .user-header-shell) {
-    border-radius: 12px;
+    border-radius: var(--radius-md);
   }
 
   .user-nav {
@@ -803,9 +815,10 @@ watch(() => route.value.fullPath, () => {
     font-size: 17px;
   }
 
-  .logo-img {
-    width: 42px;
-    height: 42px;
+  .logo-mark {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
   }
 
   .user-header-end > .btn {
@@ -817,7 +830,7 @@ watch(() => route.value.fullPath, () => {
 .user-footer {
   width: 100%;
   margin-top: 48px;
-  background: var(--color-card);
+  background: var(--ref-canvas);
   border-top: 1px solid var(--color-border);
 }
 
@@ -835,7 +848,7 @@ watch(() => route.value.fullPath, () => {
   align-items: center;
   gap: 9px;
   color: var(--color-foreground);
-  font-family: Fredoka, 'Nunito', 'Microsoft YaHei', sans-serif;
+  font-family: var(--ref-font-sans);
   font-size: 18px;
   font-weight: 700;
 }

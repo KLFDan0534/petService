@@ -188,7 +188,7 @@ public class KeeperLeaveController {
     })
     public Result<PageResult<KeeperLeaveDTO>> adminList(PageRequestDTO pageParam,
                                                         @RequestParam(required = false) String status_wsh) {
-        log.info("Calling adminList(status_wsh={})", status_wsh);
+        log.info("调用 adminList(status_wsh={})", status_wsh);
         var page = leaveService.pageAll(pageParam, status_wsh);
         var dtoList = page.getRecords()
                 .stream()
@@ -227,7 +227,7 @@ public class KeeperLeaveController {
     public Result<KeeperLeaveDTO> approve(@AuthenticationPrincipal JwtAuthenticationToken token,
                                           @Parameter(description = "请假记录ID") @PathVariable Long id,
                                           @RequestBody(required = false) Map<String, String> body) {
-        log.info("Calling approve(id={})", id);
+        log.info("调用 approve(id={})", id);
         String reason = body == null ? null : body.get("reason");
         return Result.success(leaveService.toDTO(leaveService.approve(id, token.getUserId(), reason)));
     }
@@ -259,7 +259,7 @@ public class KeeperLeaveController {
     public Result<KeeperLeaveDTO> reject(@AuthenticationPrincipal JwtAuthenticationToken token,
                                          @Parameter(description = "请假记录ID") @PathVariable Long id,
                                          @RequestBody(required = false) Map<String, String> body) {
-        log.info("Calling reject(id={})", id);
+        log.info("调用 reject(id={})", id);
         String reason = body == null ? null : body.get("reason");
         return Result.success(leaveService.toDTO(leaveService.reject(id, token.getUserId(), reason)));
     }

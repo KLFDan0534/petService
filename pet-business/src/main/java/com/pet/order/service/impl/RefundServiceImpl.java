@@ -61,7 +61,7 @@ public class RefundServiceImpl implements RefundService {
      */
     @Override
     public List<Refund> listAll() {
-        log.info("Query all refunds");
+        log.info("查询所有退款");
         return refundMapper.selectList(
                 new LambdaQueryWrapper<Refund>().orderByDesc(Refund::getCreated_at_wsh));
     }
@@ -77,7 +77,7 @@ public class RefundServiceImpl implements RefundService {
      */
     @Override
     public List<Refund> listByOwner(Long ownerId) {
-        log.info("Query refunds for owner: {}", ownerId);
+        log.info("查询所属用户的退款记录: {}", ownerId);
         List<PetOrder> orders = orderMapper.selectList(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOwner_id_wsh, ownerId)
@@ -104,7 +104,7 @@ public class RefundServiceImpl implements RefundService {
     @Transactional
     @Override
     public Refund createRefundByOrderId(Long ownerId, Long orderId, String reason) {
-        log.info("Create refund for order: {}", orderId);
+        log.info("为订单创建退款: {}", orderId);
         PetOrder order = orderMapper.selectById(orderId);
         if (order == null) throw new BusinessException(404, "订单不存在");
         if (!ownerId.equals(order.getOwner_id_wsh())) throw new BusinessException(403, "无权操作此订单");
@@ -125,7 +125,7 @@ public class RefundServiceImpl implements RefundService {
     @Transactional
     @Override
     public Refund createRefund(Long ownerId, String orderNo, String reason) {
-        log.info("Create refund for order: {}", orderNo);
+        log.info("为订单创建退款: {}", orderNo);
         PetOrder order = orderMapper.selectOne(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOrder_no_wsh, orderNo)
@@ -183,7 +183,7 @@ public class RefundServiceImpl implements RefundService {
     @Transactional
     @Override
     public void approveRefund(Long refundId) {
-        log.info("Approve refund: {}", refundId);
+        log.info("批准退款: {}", refundId);
         Refund refund = getById(refundId);
         if (!RefundStatus.PENDING.equals(refund.getStatus_wsh())) {
             throw new BusinessException(400, "当前状态不可审核");
@@ -216,7 +216,7 @@ public class RefundServiceImpl implements RefundService {
     @Transactional
     @Override
     public void completeRefund(Long refundId) {
-        log.info("Complete refund: {}", refundId);
+        log.info("完成退款: {}", refundId);
         Refund refund = getById(refundId);
         if (RefundStatus.COMPLETED.equals(refund.getStatus_wsh())) return;
         if (!RefundStatus.APPROVED.equals(refund.getStatus_wsh())) {
@@ -285,7 +285,7 @@ public class RefundServiceImpl implements RefundService {
     @Transactional
     @Override
     public void rejectRefund(Long refundId) {
-        log.info("Reject refund: {}", refundId);
+        log.info("拒绝退款: {}", refundId);
         Refund refund = getById(refundId);
         if (!RefundStatus.PENDING.equals(refund.getStatus_wsh())) {
             throw new BusinessException(400, "当前状态不可驳回");

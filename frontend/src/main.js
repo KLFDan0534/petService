@@ -1,11 +1,9 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
-import 'element-plus/theme-chalk/dark/css-vars.css'
+// 完全移除 Element Plus 框架；图标由自封装 <AppIcon> 包裹，字形来自 @element-plus/icons-vue。
+import AppIcon from '@/components/common/AppIcon.vue'
 import App from './App.vue'
 import router, { addDynamicRoutes } from './router'
-import { useDesignStore } from './stores/design'
 import { useAppStore } from './stores/app'
 import permission from './directives/permission'
 import './assets/css/app.css'
@@ -43,13 +41,10 @@ if (token) {
 }
 
 app.use(router)
-app.use(ElementPlus)
-
+app.component('AppIcon', AppIcon)
 app.directive('permission', permission)
 
-const designStore = useDesignStore()
-designStore.applyDesignSystem('pet boarding platform', '宠物寄养平台')
-
+// 设计令牌单一来源为 design-tokens.css；运行时不再注入/覆盖 --color-* 与 --ref-*。
 const appStore = useAppStore()
 appStore.applyTheme()
 

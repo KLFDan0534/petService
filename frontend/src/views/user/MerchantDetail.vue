@@ -28,7 +28,7 @@
         <header class="md-head">
           <div class="md-head-copy">
             <p class="md-eyebrow">
-              <span class="md-idx">Store</span>
+              <span class="md-idx">商家</span>
               <span class="md-line" aria-hidden="true"></span>
               <span>门店详情</span>
             </p>
@@ -79,7 +79,7 @@
             <p class="md-eyebrow">
               <span class="md-idx">01</span>
               <span class="md-line" aria-hidden="true"></span>
-              <span>At a glance</span>
+              <span>概览</span>
             </p>
             <h2 id="md-sec-overview" class="md-section-title">门店概况</h2>
           </header>
@@ -138,7 +138,7 @@
             <p class="md-eyebrow">
               <span class="md-idx">02</span>
               <span class="md-line" aria-hidden="true"></span>
-              <span>Credentials</span>
+              <span>资质</span>
             </p>
             <h2 id="md-sec-qual" class="md-section-title">资质核验</h2>
             <p class="md-section-desc">平台逐项核验门店提交的证件，状态实时同步。</p>
@@ -176,7 +176,7 @@
             <p class="md-eyebrow">
               <span class="md-idx">03</span>
               <span class="md-line" aria-hidden="true"></span>
-              <span>Hours</span>
+              <span>营业时间</span>
             </p>
             <h2 id="md-sec-hours" class="md-section-title">营业时间</h2>
           </header>
@@ -199,7 +199,7 @@
             <p class="md-eyebrow">
               <span class="md-idx">04</span>
               <span class="md-line" aria-hidden="true"></span>
-              <span>Services</span>
+              <span>服务</span>
             </p>
             <h2 id="md-sec-services" class="md-section-title">服务项目 ({{ services.length }})</h2>
             <p class="md-section-desc">门店可预约的服务清单，价格以商家实际确认为准。</p>
@@ -235,7 +235,7 @@
             <p class="md-eyebrow">
               <span class="md-idx">05</span>
               <span class="md-line" aria-hidden="true"></span>
-              <span>Reviews</span>
+              <span>评价</span>
             </p>
             <h2 id="md-sec-ratings" class="md-section-title">用户评价 ({{ ratings.length }})</h2>
           </header>

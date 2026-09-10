@@ -13,7 +13,7 @@
         <div class="cp-head-copy">
           <p class="cp-eyebrow" aria-hidden="true">
             <span class="cp-eyebrow-line"></span>
-            <span>Complaints</span>
+            <span>投诉</span>
           </p>
           <h1 class="cp-title">我的投诉</h1>
           <p class="cp-sub">投诉会由平台直接介入核查，48 小时内给出结论。门店无法自行关闭你的投诉。</p>
@@ -53,7 +53,7 @@
         <div class="cp-report-head">
           <p class="cp-eyebrow">
             <span class="cp-line" aria-hidden="true"></span>
-            <span>Report</span>
+            <span>投诉</span>
           </p>
           <h2 class="cp-report-title">举报对象</h2>
           <p class="cp-report-desc">选择要举报的订单、商家或寄养师，平台管理员将进行审核。</p>
@@ -103,7 +103,7 @@
             <p class="cp-eyebrow cp-sec-eyebrow">
               <span class="cp-idx">01</span>
               <span class="cp-line" aria-hidden="true"></span>
-              <span>Cases</span>
+              <span>案件</span>
             </p>
             <h2 class="cp-sec-title">投诉记录</h2>
             <p class="cp-sec-desc">点开任意一条查看凭证与平台沟通记录。</p>
@@ -706,9 +706,9 @@ function orderStatusLabel(status) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
+  height: var(--control-height-sm);
   padding: 0 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--ref-line);
   background: var(--ref-surface);
   color: var(--ref-ink-soft);
@@ -769,7 +769,7 @@ function orderStatusLabel(status) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -806,7 +806,7 @@ function orderStatusLabel(status) {
   margin-top: 8px;
   padding: 16px 20px;
   border: 1px solid color-mix(in srgb, var(--ref-brand) 26%, var(--ref-line));
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--ref-brand) 7%, var(--ref-surface));
 }
 .cp-order-ctx-copy { display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -836,12 +836,12 @@ function orderStatusLabel(status) {
   text-overflow: ellipsis;
 }
 
-/* ═══ Report card ═══ */
+/* ═══ 投诉 card ═══ */
 .cp-report {
   margin-top: 20px;
   padding: 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
 }
 .cp-report-head { margin-bottom: 20px; }
@@ -925,7 +925,7 @@ function orderStatusLabel(status) {
 .cp-skel-stack { display: grid; gap: 14px; }
 .cp-skeleton {
   height: 190px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--ref-line);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
@@ -934,7 +934,7 @@ function orderStatusLabel(status) {
 .cp-empty {
   padding: 64px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -954,7 +954,7 @@ function orderStatusLabel(status) {
 .cp-card {
   padding: 22px 24px;
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--ref-surface);
   cursor: pointer;
   transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
@@ -962,7 +962,7 @@ function orderStatusLabel(status) {
 .cp-card:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 16%, transparent);
   transform: translateY(-2px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .cp-card-top {
   display: flex;
@@ -1005,7 +1005,7 @@ function orderStatusLabel(status) {
 .cp-tag {
   display: inline-flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid var(--ref-line);
   background: color-mix(in srgb, var(--ref-cream) 70%, var(--ref-surface));
   padding: 4px 10px;
@@ -1071,7 +1071,7 @@ function orderStatusLabel(status) {
   border-radius: 20px;
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: cp-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-panel-lg { max-width: 640px; }

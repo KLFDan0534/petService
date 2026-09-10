@@ -10,26 +10,23 @@
       </template>
     </DataTable>
 
-    <div v-if="showForm" class="modal-overlay" @mousedown.self="showForm = false">
-      <div class="modal">
-        <h2>{{ editingBanner ? '编辑广告' : '投放广告' }}</h2>
-        <form @submit.prevent="saveBanner">
-          <div class="form-group"><label>标题</label><input v-model="form.title_wsh" required></div>
-          <div class="form-group">
-            <label>图片</label>
-            <input type="file" ref="fileInput" accept="image/*" @change="onImageSelect" style="display:none">
-            <button type="button" class="btn btn-outline btn-sm" @click="fileInput?.click()" :disabled="uploading">{{ uploading ? '上传中...' : '选择图片' }}</button>
-            <img v-if="imagePreview" :src="imagePreview" style="max-height:100px;margin-top:8px;display:block">
-          </div>
-          <div class="form-group"><label>链接URL</label><input v-model="form.link_url_wsh" placeholder="请输入链接地址"></div>
-          <div class="form-group"><label>排序</label><input v-model.number="form.sort_order_wsh" type="number" min="0"></div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
-            <button type="submit" class="btn btn-primary btn-sm" :disabled="uploading">{{ editingBanner ? '保存' : '投放' }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <AppDialog :visible="showForm" :title="editingBanner ? '编辑广告' : '投放广告'" @close="showForm = false">
+      <form id="bannerForm" @submit.prevent="saveBanner">
+        <div class="form-group"><label>标题</label><input v-model="form.title_wsh" required></div>
+        <div class="form-group">
+          <label>图片</label>
+          <input type="file" ref="fileInput" accept="image/*" @change="onImageSelect" style="display:none">
+          <button type="button" class="btn btn-outline btn-sm" @click="fileInput?.click()" :disabled="uploading">{{ uploading ? '上传中...' : '选择图片' }}</button>
+          <img v-if="imagePreview" :src="imagePreview" style="max-height:100px;margin-top:8px;display:block">
+        </div>
+        <div class="form-group"><label>链接URL</label><input v-model="form.link_url_wsh" placeholder="请输入链接地址"></div>
+        <div class="form-group"><label>排序</label><input v-model.number="form.sort_order_wsh" type="number" min="0"></div>
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn-secondary btn-sm" @click="showForm = false">取消</button>
+        <button type="submit" form="bannerForm" class="btn btn-primary btn-sm" :disabled="uploading">{{ editingBanner ? '保存' : '投放' }}</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -40,6 +37,7 @@ import { getNotices, createNotice, updateNotice, deleteNotice } from '@/api/noti
 import { uploadFileToDirectory } from '@/api/file'
 import { BannerStatus, enrichWithStatus } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
+import AppDialog from '@/components/common/AppDialog.vue'
 const appStore = useAppStore()
 const banners = ref([])
 

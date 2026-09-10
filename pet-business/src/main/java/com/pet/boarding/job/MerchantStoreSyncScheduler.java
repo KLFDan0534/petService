@@ -45,7 +45,7 @@ public class MerchantStoreSyncScheduler {
         try {
             merchantService.refreshAllStoreStates();
         } catch (Exception e) {
-            log.warn("syncStoreStates failed", e);
+            log.warn("同步店铺状态失败", e);
         }
     }
 }

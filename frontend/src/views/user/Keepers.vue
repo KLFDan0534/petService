@@ -13,7 +13,7 @@
       <header class="kp-head">
         <div class="kp-head-copy">
           <p class="kp-eyebrow">
-            <span class="kp-idx">Keepers</span>
+            <span class="kp-idx">寄养师</span>
             <span class="kp-line" aria-hidden="true"></span>
             <span>照护师</span>
           </p>
@@ -68,13 +68,13 @@
         </div>
       </div>
 
-      <!-- ═══ Directory ═══ -->
+      <!-- ═══ 名录 ═══ -->
       <section class="kp-section" aria-labelledby="kp-sec-directory">
         <header class="kp-section-head">
           <p class="kp-eyebrow">
             <span class="kp-idx">01</span>
             <span class="kp-line" aria-hidden="true"></span>
-            <span>Directory</span>
+            <span>名录</span>
           </p>
           <h2 id="kp-sec-directory" class="kp-section-title">全部照护师</h2>
           <p class="kp-section-desc">支持按姓名、所属门店或擅长方向搜索。</p>
@@ -291,7 +291,7 @@ onMounted(loadKeepers)
 }
 .cta:hover { transform: translateY(-1px); }
 .cta:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-.cta-sm { height: 34px; padding: 0 13px; font-size: 12.5px; }
+.cta-sm { height: var(--control-height-sm); padding: 0 13px; font-size: 12.5px; }
 .cta-primary { background: var(--ref-brand); color: #fff; }
 .cta-primary:hover:not(:disabled) { background: var(--ref-brand-deep); }
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
@@ -368,7 +368,7 @@ onMounted(loadKeepers)
 .kp-input:focus { outline: none; border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 12%, transparent); }
 .kp-sorts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .kp-pill {
-  height: 34px; padding: 0 14px; border-radius: 999px;
+  height: var(--control-height-sm); padding: 0 14px; border-radius: var(--radius-pill);
   border: 1px solid var(--ref-line); background: var(--ref-surface);
   color: var(--ref-ink-soft); font-size: 12px; font-weight: 500; cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;

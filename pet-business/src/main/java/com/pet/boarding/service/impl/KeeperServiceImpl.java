@@ -12,6 +12,7 @@ import com.pet.boarding.vo.KeeperVO;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.common.StatusCode;
+import com.pet.common.geo.GeoDistanceUtils;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.mapper.OrderMapper;
 import com.pet.qualification.service.QualificationService;
@@ -84,7 +85,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public List<Keeper> listAll() {
-        log.info("listAll() called");
+        log.info("listAll() 被调用");
         return keeperMapper.selectList(
                 new LambdaQueryWrapper<Keeper>().orderByDesc(Keeper::getCreated_at_wsh));
     }
@@ -101,7 +102,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public List<Keeper> listPending() {
-        log.info("listPending() called");
+        log.info("listPending() 被调用");
         return keeperMapper.selectList(
                 new LambdaQueryWrapper<Keeper>().eq(Keeper::getStatus_wsh, StatusCode.KEEPER_PENDING.getValue()));
     }
@@ -119,7 +120,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public Keeper getById(Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         Keeper keeper = keeperMapper.selectById(id);
         if (keeper == null) {
             throw new BusinessException("看护者不存在");
@@ -139,7 +140,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public List<Keeper> listByIds(Collection<Long> ids) {
-        log.info("listByIds() called");
+        log.info("listByIds() 被调用");
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
@@ -158,7 +159,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public List<Keeper> findByMerchantId(Long merchantId) {
-        log.info("findByMerchantId() called");
+        log.info("findByMerchantId() 被调用");
         return keeperMapper.selectList(
                 new LambdaQueryWrapper<Keeper>()
                         .eq(Keeper::getMerchant_id_wsh, merchantId)
@@ -177,7 +178,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public List<KeeperVO> searchNearby(double lat, double lng, double radius) {
-        log.info("searchNearby() called");
+        log.info("searchNearby() 被调用");
         List<Merchant> nearbyMerchants = merchantMapper.searchNearby(lat, lng, radius);
         if (nearbyMerchants.isEmpty()) {
             return new ArrayList<>();
@@ -198,7 +199,7 @@ public class KeeperServiceImpl implements KeeperService {
                 vo.setMerchant_name_wsh(m.getName_wsh());
                 vo.setMerchant_latitude_wsh(m.getLatitude_wsh());
                 vo.setMerchant_longitude_wsh(m.getLongitude_wsh());
-                vo.setDistance_wsh(calculateDistance(lat, lng,
+                vo.setDistance_wsh(GeoDistanceUtils.distanceKm(lat, lng,
                         m.getLatitude_wsh().doubleValue(), m.getLongitude_wsh().doubleValue()));
             }
             return vo;
@@ -219,7 +220,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public Keeper create(KeeperCreateRequestDTO dto, Long userId) {
-        log.info("create() called");
+        log.info("create() 被调用");
         if (dto.getMerchant_id_wsh() == null) {
             throw new BusinessException("必须选择所属商家才能成为看护人");
         }
@@ -297,7 +298,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public Keeper update(Long id, KeeperUpdateRequestDTO dto) {
-        log.info("update() called");
+        log.info("update() 被调用");
         Keeper existing = getById(id);
         if (dto.getName_wsh() != null) existing.setName_wsh(dto.getName_wsh());
         if (dto.getPhone_wsh() != null) existing.setPhone_wsh(dto.getPhone_wsh());
@@ -324,7 +325,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void delete(Long id) {
-        log.info("delete() called");
+        log.info("delete() 被调用");
         Keeper keeper = getById(id);
         keeperMapper.deleteById(id);
         revokeKeeperRole(keeper.getUser_id_wsh());
@@ -344,7 +345,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void resign(Long id, Long userId) {
-        log.info("resign() called");
+        log.info("resign() 被调用");
         Keeper keeper = getById(id);
         if (keeper.getUser_id_wsh() == null || !keeper.getUser_id_wsh().equals(userId)) {
             throw new BusinessException(403, "Only the keeper can resign this profile");
@@ -369,7 +370,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void terminateByMerchant(Long id, Long merchantUserId) {
-        log.info("terminateByMerchant() called");
+        log.info("terminateByMerchant() 被调用");
         Keeper keeper = getById(id);
         Merchant merchant = requireMerchantByUserId(merchantUserId);
         if (!merchant.getId_wsh().equals(keeper.getMerchant_id_wsh())) {
@@ -395,7 +396,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void approve(Long id) {
-        log.info("approve() called");
+        log.info("approve() 被调用");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
             throw new BusinessException("该看护者不在待审核状态");
@@ -418,7 +419,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void reject(Long id) {
-        log.info("reject() called");
+        log.info("reject() 被调用");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
             throw new BusinessException("该看护者不在待审核状态");
@@ -441,7 +442,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void setOnlineStatus(Long id, int status) {
-        log.info("setOnlineStatus() called");
+        log.info("setOnlineStatus() 被调用");
         if (status != StatusCode.KEEPER_ACTIVE.getValue() && status != StatusCode.KEEPER_OFFLINE.getValue()
                 && status != StatusCode.KEEPER_BUSY.getValue()) {
             throw new BusinessException("无效的在线状态");
@@ -480,7 +481,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void syncMerchantStoreStatus(Long merchantId, boolean storeOpen) {
-        log.info("syncMerchantStoreStatus() called, merchantId={}, storeOpen={}", merchantId, storeOpen);
+        log.info("syncMerchantStoreStatus() 被调用, merchantId={}, storeOpen={}", merchantId, storeOpen);
         List<Keeper> keepers = keeperMapper.selectList(
                 new LambdaQueryWrapper<Keeper>()
                         .eq(Keeper::getMerchant_id_wsh, merchantId)
@@ -541,7 +542,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public Keeper findByUserId(Long userId) {
-        log.info("findByUserId() called");
+        log.info("findByUserId() 被调用");
         return keeperMapper.selectOne(
                 new LambdaQueryWrapper<Keeper>()
                         .eq(Keeper::getUser_id_wsh, userId)
@@ -561,7 +562,7 @@ public class KeeperServiceImpl implements KeeperService {
      */
     @Override
     public List<Keeper> listPendingByMerchant(Long merchantUserId) {
-        log.info("listPendingByMerchant() called");
+        log.info("listPendingByMerchant() 被调用");
         Merchant merchant = requireMerchantByUserId(merchantUserId);
         if (merchant == null) {
             throw new BusinessException("您没有商家信息");
@@ -586,7 +587,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void approveByMerchant(Long id, Long merchantUserId) {
-        log.info("approveByMerchant() called");
+        log.info("approveByMerchant() 被调用");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
             throw new BusinessException("该看护者不在待审核状态");
@@ -614,7 +615,7 @@ public class KeeperServiceImpl implements KeeperService {
     @Override
     @Transactional
     public void rejectByMerchant(Long id, Long merchantUserId) {
-        log.info("rejectByMerchant() called");
+        log.info("rejectByMerchant() 被调用");
         Keeper keeper = getById(id);
         if (keeper.getStatus_wsh() != StatusCode.KEEPER_PENDING.getValue()) {
             throw new BusinessException("该看护者不在待审核状态");
@@ -723,26 +724,6 @@ public class KeeperServiceImpl implements KeeperService {
      */
     private Role findKeeperRole() {
         return roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getCode_wsh, "KEEPER"));
-    }
-
-    /**
-     * 使用 Haversine 公式计算两点之间的球面距离。
-     *
-     * @param lat1 起点纬度
-     * @param lng1 起点经度
-     * @param lat2 终点纬度
-     * @param lng2 终点经度
-     * @return 距离（公里）
-     */
-    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
-        double radLat1 = Math.toRadians(lat1);
-        double radLat2 = Math.toRadians(lat2);
-        double a = radLat1 - radLat2;
-        double b = Math.toRadians(lng1) - Math.toRadians(lng2);
-        double s = 2 * Math.asin(Math.sqrt(
-                Math.pow(Math.sin(a / 2), 2) +
-                Math.cos(radLat1) * Math.cos(radLat2) * Math.pow(Math.sin(b / 2), 2)));
-        return s * 6371;
     }
 
     /**

@@ -48,14 +48,56 @@ export function photoForServiceType(type) {
 }
 
 /**
- * 服务的展示图：优先本地映射，其次后端首图，最后给一张兜底本地图。
+ * 服务的完整图集：列表页封面与详情页相册共用同一份结果，保证两处看到的是同一批图。
+ *
+ * 优先级（单一数据源，真实内容图优先，本地图仅兜底）：
+ *   1. media_wsh   —— 后端媒体表 pet_service_media_wsh（含 is_cover 标记）
+ *   2. images_wsh  —— 服务主表的历史图片字段（逗号分隔）
+ *   3. 本地类型图   —— 按 type_wsh 映射的本地素材，仅在上面都为空时出现
+ *
+ * @returns {Array<{url: string, isCover: boolean}>} 至少包含 1 条（本地兜底图）
+ */
+export function serviceGallery(svc) {
+  if (!svc) return [{ url: HERO_IMAGE, isCover: true }]
+  const list = []
+  const seen = new Set()
+  const push = (raw, isCover) => {
+    const url = String(raw || '').trim()
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    list.push({ url, isCover: !!isCover })
+  }
+
+  // 1) 后端媒体表
+  const media = Array.isArray(svc.media_wsh) ? svc.media_wsh : []
+  for (const m of media) {
+    push(m?.url_wsh || m?.url, Number(m?.is_cover_wsh) === 1)
+  }
+  // 2) 服务主表历史图片字段
+  const legacy = String(svc.images_wsh || '').split(',')
+  legacy.forEach((u, i) => push(u, list.length === 0 && i === 0))
+  if (!list.length && svc.firstImage) push(svc.firstImage, true)
+  // 3) 本地兜底（真实图缺失时才用）
+  if (!list.length) push(photoForServiceType(svc.type_wsh) || HERO_IMAGE, true)
+
+  // 没有显式封面时，第一张即封面
+  if (!list.some(item => item.isCover)) list[0].isCover = true
+  return list
+}
+
+/**
+ * 服务的展示图（封面）：取图集中标记为封面的那张，通常就是内容图的第一张。
  */
 export function coverForService(svc) {
-  if (!svc) return HERO_IMAGE
-  const local = photoForServiceType(svc.type_wsh)
-  if (local) return local
-  const fromBackend = String(svc.images_wsh || svc.firstImage || '').split(',')[0]?.trim()
-  return fromBackend || HERO_IMAGE
+  const gallery = serviceGallery(svc)
+  return (gallery.find(item => item.isCover) || gallery[0]).url
+}
+
+/**
+ * 服务的本地兜底图：真实内容图加载失败时顶上，避免列表/详情出现空占位。
+ */
+export function localFallbackForService(svc) {
+  return photoForServiceType(svc?.type_wsh) || HERO_IMAGE
 }
 
 /** 照护师/门店卡片占位头像池（宠物特写，供无头像时兜底，也可整卡替换）。 */

@@ -92,7 +92,7 @@
           </div>
           <div>
             <dt>下单时间</dt>
-            <dd>{{ formatDateTime(order.created_at_wsh) }}</dd>
+            <dd>{{ formatDateTime(order.created_at_wsh, { fallback: '-' }) }}</dd>
           </div>
         </dl>
 
@@ -120,6 +120,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { getMerchantOrders } from '@/api/order'
 import { OrderStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
+import { formatDate, formatDateTime, formatMoney as money } from '@/utils/format'
 import { billingText } from '@/domain/BookingUnit'
 import {
   PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS,
@@ -253,20 +254,6 @@ function statusBadge(status) {
   return getStatusBadge(OrderStatus, String(status || '').trim().toLowerCase())
 }
 
-function formatDate(value) {
-  return value ? String(value).slice(0, 10) : '-'
-}
-
-function formatDateTime(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString()
-}
-
-function money(value) {
-  return Number(value || 0).toFixed(2)
-}
-
 function showPaymentCountdown(order) {
   return orderStatus(order) === 'pending' && getPaymentTimeoutRemaining(order, nowMs.value) != null
 }
@@ -323,7 +310,7 @@ function goDetail(order) {
 
 .summary-item {
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: var(--color-card);
   padding: 8px 12px;
   min-width: 0;
@@ -365,7 +352,7 @@ function goDetail(order) {
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.08);
   font-size: 12px;
   line-height: 20px;
@@ -402,7 +389,7 @@ function goDetail(order) {
 
 .order-card {
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: var(--color-card);
   padding: 12px;
   width: 100%;
@@ -480,7 +467,7 @@ function goDetail(order) {
   gap: 6px;
   margin-top: 8px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: var(--color-muted);
   min-width: 0;
   max-width: 100%;

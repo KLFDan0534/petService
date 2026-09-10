@@ -93,5 +93,5 @@ async function load() {
 .tag { display:inline-block; padding:2px 8px; border-radius:4px; background:var(--color-primary); color:#fff; font-size:11px }
 .text-success { color:var(--color-success) }
 .text-danger { color:var(--color-danger) }
-.input { padding:6px 10px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-background); color:var(--color-foreground); font-size:13px }
+.input { padding:6px 10px; border:1px solid var(--color-border); border-radius:var(--radius-inline); background:var(--color-background); color:var(--color-foreground); font-size:13px }
 </style>

@@ -1,7 +1,6 @@
 package com.pet.boarding.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,37 +20,30 @@ import java.time.LocalDateTime;
 @Schema(description = "服务产品图片实体")
 public class ServiceMedia {
 
-    @JsonProperty("id_wsh")
     @TableId(type = IdType.AUTO, value = "id_wsh")
     @Schema(description = "图片ID")
     private Long id_wsh;
 
-    @JsonProperty("service_id_wsh")
     @TableField(value = "service_id_wsh")
     @Schema(description = "服务产品ID")
     private Long service_id_wsh;
 
-    @JsonProperty("file_id_wsh")
     @TableField(value = "file_id_wsh")
     @Schema(description = "文件记录ID")
     private Long file_id_wsh;
 
-    @JsonProperty("sort_order_wsh")
     @TableField(value = "sort_order_wsh")
     @Schema(description = "排序序号(0..N 连续)")
     private Integer sort_order_wsh;
 
-    @JsonProperty("is_cover_wsh")
     @TableField(value = "is_cover_wsh")
     @Schema(description = "是否封面: 0-否 1-是")
     private Integer is_cover_wsh;
 
-    @JsonProperty("created_at_wsh")
     @TableField(value = "created_at_wsh", fill = FieldFill.INSERT)
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;
 
-    @JsonProperty("updated_at_wsh")
     @TableField(value = "updated_at_wsh", fill = FieldFill.INSERT_UPDATE)
     @Schema(description = "更新时间")
     private LocalDateTime updated_at_wsh;

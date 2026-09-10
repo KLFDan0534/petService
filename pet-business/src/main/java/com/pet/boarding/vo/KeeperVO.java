@@ -1,6 +1,5 @@
 package com.pet.boarding.vo;
 
-import com.fasterxml.jackson.annotation.JsonGetter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
@@ -57,39 +56,4 @@ public class KeeperVO {
     private BigDecimal merchant_longitude_wsh;
     @Schema(description = "资质列表")
     private List<QualificationDTO> qualifications_wsh;
-
-    @JsonGetter("id")
-    public Long getId() {
-        return id_wsh;
-    }
-
-    @JsonGetter("merchantId")
-    public Long getMerchantId() {
-        return merchant_id_wsh;
-    }
-
-    @JsonGetter("userId")
-    public Long getUserId() {
-        return user_id_wsh;
-    }
-
-    @JsonGetter("name")
-    public String getName() {
-        return name_wsh;
-    }
-
-    @JsonGetter("phone")
-    public String getPhone() {
-        return phone_wsh;
-    }
-
-    @JsonGetter("experienceYears")
-    public Integer getExperienceYears() {
-        return experience_years_wsh;
-    }
-
-    @JsonGetter("bio")
-    public String getBio() {
-        return bio_wsh;
-    }
 }

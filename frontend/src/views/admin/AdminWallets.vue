@@ -51,10 +51,13 @@
       </div>
     </div>
 
-    <div v-if="adjusting" class="modal-overlay" @mousedown.self="closeAdjust">
-      <div class="modal adjust-modal">
-        <h2>调整用户余额</h2>
-        <form @submit.prevent="submitAdjust">
+    <AppDialog
+      :visible="adjusting"
+      :width="560"
+      title="调整用户余额"
+      @close="closeAdjust"
+    >
+        <form id="wallet-adjust-form" @submit.prevent="submitAdjust">
           <div class="form-grid">
             <label>
               用户ID
@@ -77,13 +80,12 @@
               <textarea v-model="adjustForm.remark_wsh" class="form-control" rows="3" placeholder="例如：线下充值、人工修正、活动补贴"></textarea>
             </label>
           </div>
-          <div class="modal-actions">
-            <button class="btn btn-secondary btn-sm" type="button" @click="closeAdjust">取消</button>
-            <button class="btn btn-primary btn-sm" type="submit" :disabled="submitting">确认</button>
-          </div>
         </form>
-      </div>
-    </div>
+      <template #footer>
+        <button class="btn btn-secondary btn-sm" type="button" @click="closeAdjust">取消</button>
+        <button class="btn btn-primary btn-sm" type="submit" form="wallet-adjust-form" :disabled="submitting">确认</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -91,6 +93,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import { adjustWallet, getWallets } from '@/api/wallet'
+import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
 const wallets = ref([])

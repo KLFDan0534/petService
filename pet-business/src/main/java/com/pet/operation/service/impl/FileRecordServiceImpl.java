@@ -28,7 +28,7 @@ public class FileRecordServiceImpl implements FileRecordService {
      */
     @Override
     public List<FileRecord> listByUser(Long userId) {
-        log.info("listByUser() called");
+        log.info("listByUser() 被调用");
         return fileRecordMapper.selectList(
                 new LambdaQueryWrapper<FileRecord>()
                         .eq(FileRecord::getUser_id_wsh, userId)
@@ -40,7 +40,7 @@ public class FileRecordServiceImpl implements FileRecordService {
      */
     @Override
     public FileRecord getById(Long id) {
-        log.info("getById() called");
+        log.info("getById() 被调用");
         return fileRecordMapper.selectById(id);
     }
 
@@ -49,7 +49,7 @@ public class FileRecordServiceImpl implements FileRecordService {
      */
     @Override
     public void create(FileRecord record) {
-        log.info("create() called");
+        log.info("create() 被调用");
         fileRecordMapper.insert(record);
     }
 
@@ -58,7 +58,7 @@ public class FileRecordServiceImpl implements FileRecordService {
      */
     @Override
     public void deleteById(Long id) {
-        log.info("deleteById() called");
+        log.info("deleteById() 被调用");
         fileRecordMapper.deleteById(id);
     }
 
@@ -67,7 +67,7 @@ public class FileRecordServiceImpl implements FileRecordService {
      */
     @Override
     public IPage<FileRecord> pageAll(PageRequestDTO pageParam, String keyword) {
-        log.info("pageAll() called");
+        log.info("pageAll() 被调用");
         LambdaQueryWrapper<FileRecord> wrapper = new LambdaQueryWrapper<FileRecord>()
                 .like(StringUtils.hasText(keyword), FileRecord::getOriginal_name_wsh, keyword)
                 .orderByDesc(FileRecord::getCreated_at_wsh);

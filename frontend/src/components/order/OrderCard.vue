@@ -127,6 +127,7 @@ import { useRouter } from 'vue-router'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { formatPaymentTimeoutRemaining, getPaymentTimeoutRemaining } from '@/utils/orderPaymentTimeout'
 import { billingText } from '@/domain/BookingUnit'
+import { formatDateTime } from '@/utils/format'
 
 const props = defineProps({
   order: { type: Object, required: true },
@@ -248,16 +249,10 @@ function nightsBetween(start, end) {
   if (Number.isNaN(a) || Number.isNaN(b) || b <= a) return 0
   return Math.round((b - a) / 86400000)
 }
-function formatDateTime(value) {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
 const processingAny = computed(() => props.processing)
 function phaseStamp(phase) {
   const stamp = props.order?.[phase.timeField]
-  return stamp ? formatDateTime(stamp) : '—'
+  return stamp ? formatDateTime(stamp, { format: 'compact' }) : '—'
 }
 </script>
 
@@ -265,7 +260,7 @@ function phaseStamp(phase) {
 .oc-card {
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   overflow: hidden;
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
@@ -331,7 +326,7 @@ function phaseStamp(phase) {
 }
 .oc-top-tags { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .oc-tag-feedback {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid color-mix(in srgb, var(--ref-brand) 25%, transparent);
   background: color-mix(in srgb, var(--ref-brand) 6%, transparent);
   color: var(--ref-brand-deep);
@@ -345,7 +340,7 @@ function phaseStamp(phase) {
 .oc-badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   padding: 5px 10px;
   font-size: 11px;

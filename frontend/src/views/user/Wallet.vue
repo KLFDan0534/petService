@@ -13,7 +13,7 @@
         <div class="wl-head-copy">
           <div class="wl-eyebrow" aria-hidden="true">
             <span class="wl-eyebrow-line"></span>
-            <span>Wallet</span>
+            <span>钱包</span>
           </div>
           <h1 class="wl-title">我的钱包</h1>
           <p class="wl-sub">余额用于寄养下单、上门服务与打赏照护师。每一笔进出都留有记录，可随时核对。</p>
@@ -28,7 +28,7 @@
       <section class="wl-balance" aria-label="账户余额">
         <div class="wl-b-main">
           <div class="wl-b-copy">
-            <p class="wl-b-label">可用余额 <span class="wl-b-en">Available Balance</span></p>
+            <p class="wl-b-label">可用余额 <span class="wl-b-en">当前可用</span></p>
             <p class="wl-b-amount">
               <span class="wl-b-yen">¥</span>
               <span class="wl-b-num">{{ money(available) }}</span>
@@ -59,7 +59,7 @@
             <p class="wl-eyebrow">
               <span class="wl-idx">01</span>
               <span class="wl-line" aria-hidden="true"></span>
-              <span>Transactions</span>
+              <span>交易记录</span>
             </p>
             <h2 class="wl-sec-title">交易记录</h2>
             <p class="wl-sec-desc">充值、订单支付、退款与提现都会记在这里。</p>
@@ -127,7 +127,12 @@ const TYPE_MAP = {
   order_pay: '订单支付',
   order_refund: '退款',
   withdrawal: '提现',
-  membership: '会员'
+  membership: '会员',
+  membership_payment: '会员支付',
+  payment: '订单支付',
+  coupon_subsidy: '优惠券补贴',
+  reject_subsidy: '补贴退回',
+  tip: '打赏'
 }
 
 function typeLabel(t) {

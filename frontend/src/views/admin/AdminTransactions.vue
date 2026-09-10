@@ -108,7 +108,7 @@ async function load() {
 .tag {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   line-height: 18px;
 }

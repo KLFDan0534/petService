@@ -94,27 +94,27 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public AdminDashboardVO getAdminDashboard() {
         AdminDashboardVO stats = new AdminDashboardVO();
-        stats.setTotalUsers(userService.listAll().size());
-        stats.setTotalPets(petService.listAll().size());
-        stats.setTotalMerchants(merchantService.listAll().size());
-        stats.setTotalKeepers(keeperService.listAll().size());
+        stats.setTotal_users_wsh(userService.listAll().size());
+        stats.setTotal_pets_wsh(petService.listAll().size());
+        stats.setTotal_merchants_wsh(merchantService.listAll().size());
+        stats.setTotal_keepers_wsh(keeperService.listAll().size());
 
         List<OrderDTO> allOrders = orderService.listAll();
-        stats.setTotalOrders(allOrders.size());
+        stats.setTotal_orders_wsh(allOrders.size());
 
         BigDecimal totalRevenue = allOrders.stream()
                 .filter(this::isRevenueOrder)
                 .map(this::finalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        stats.setTotalRevenue(totalRevenue);
+        stats.setTotal_revenue_wsh(totalRevenue);
 
         long pendingOrders = allOrders.stream()
                 .filter(o -> OrderStatus.PENDING.equals(o.getStatus_wsh())).count();
-        stats.setPendingOrders(pendingOrders);
+        stats.setPending_orders_wsh(pendingOrders);
 
         long completedOrders = allOrders.stream()
                 .filter(o -> OrderStatus.COMPLETED.equals(o.getStatus_wsh())).count();
-        stats.setCompletedOrders(completedOrders);
+        stats.setCompleted_orders_wsh(completedOrders);
 
         return stats;
     }
@@ -137,7 +137,7 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public UserDashboardVO getUserDashboard(Long userId) {
         UserDashboardVO stats = new UserDashboardVO();
-        stats.setPets(petService.getPetsByOwner(userId).size());
+        stats.setPets_wsh(petService.getPetsByOwner(userId).size());
 
         List<OrderDTO> orders = orderService.listByOwner(userId);
 
@@ -152,9 +152,9 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .map(this::finalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        stats.setActiveOrders(activeOrders);
-        stats.setCompletedOrders(completedOrders);
-        stats.setTotalSpent(totalSpent);
+        stats.setActive_orders_wsh(activeOrders);
+        stats.setCompleted_orders_wsh(completedOrders);
+        stats.setTotal_spent_wsh(totalSpent);
 
         return stats;
     }
@@ -179,21 +179,21 @@ public class StatisticsServiceImpl implements StatisticsService {
         MerchantDashboardVO stats = new MerchantDashboardVO();
         List<OrderDTO> orders = orderService.listByMerchant(merchantId);
 
-        stats.setTotalOrders(orders.size());
+        stats.setTotal_orders_wsh(orders.size());
         BigDecimal totalRevenue = orders.stream()
                 .filter(this::isRevenueOrder)
                 .map(this::finalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        stats.setTotalRevenue(totalRevenue);
+        stats.setTotal_revenue_wsh(totalRevenue);
 
         long pending = orders.stream().filter(o -> OrderStatus.PENDING.equals(o.getStatus_wsh())).count();
         long active = orders.stream().filter(this::isActiveOrder).count();
         long completed = orders.stream().filter(o -> OrderStatus.COMPLETED.equals(o.getStatus_wsh())).count();
-        stats.setPendingOrders(pending);
-        stats.setActiveOrders(active);
-        stats.setCompletedOrders(completed);
+        stats.setPending_orders_wsh(pending);
+        stats.setActive_orders_wsh(active);
+        stats.setCompleted_orders_wsh(completed);
 
-        stats.setPets((int) orders.stream().map(OrderDTO::getPet_id_wsh).distinct().count());
+        stats.setPets_wsh((int) orders.stream().map(OrderDTO::getPet_id_wsh).distinct().count());
 
         return stats;
     }
@@ -223,23 +223,23 @@ public class StatisticsServiceImpl implements StatisticsService {
         List<Rating> ratings = ratingMapper.selectList(new LambdaQueryWrapper<Rating>()
                 .eq(Rating::getTarget_type_wsh, normalizedType)
                 .eq(Rating::getTarget_id_wsh, targetId));
-        stats.setTotalRatings(ratings.size());
-        stats.setAvgRating(averageRating(ratings));
+        stats.setTotal_ratings_wsh(ratings.size());
+        stats.setAvg_rating_wsh(averageRating(ratings));
 
         Long totalOrders = orderMapper.selectCount(orderTargetWrapper(normalizedType, targetId));
         Long completedOrders = orderMapper.selectCount(orderTargetWrapper(normalizedType, targetId)
                 .eq(PetOrder::getStatus_wsh, OrderStatus.COMPLETED));
         long orderCount = totalOrders == null ? 0 : totalOrders;
         long completedCount = completedOrders == null ? 0 : completedOrders;
-        stats.setTotalCompleted(completedCount);
-        stats.setCompletionRate(percent(completedCount, orderCount));
+        stats.setTotal_completed_wsh(completedCount);
+        stats.setCompletion_rate_wsh(percent(completedCount, orderCount));
 
         Long complaints = complaintMapper.selectCount(new LambdaQueryWrapper<Complaint>()
                 .eq(Complaint::getTarget_type_wsh, normalizedType)
                 .eq(Complaint::getTarget_id_wsh, targetId));
-        stats.setComplaintRate(percent(complaints == null ? 0 : complaints, orderCount));
+        stats.setComplaint_rate_wsh(percent(complaints == null ? 0 : complaints, orderCount));
 
-        stats.setTotalTips(totalTips(normalizedType, targetId));
+        stats.setTotal_tips_wsh(totalTips(normalizedType, targetId));
         return stats;
     }
 

@@ -36,7 +36,7 @@
 
       <!-- ═══ Article ═══ -->
       <article v-else class="nd-article">
-        <p class="nd-eyebrow">Notice</p>
+        <p class="nd-eyebrow">公告</p>
         <h1 class="nd-title">{{ notice.title_wsh || '平台公告' }}</h1>
         <p class="nd-meta">发布于 {{ new Date(notice.created_at_wsh).toLocaleString() }}</p>
         <div class="nd-content">{{ notice.content_wsh || '暂无内容' }}</div>
@@ -178,7 +178,7 @@ onMounted(async () => {
 }
 .nd-skel {
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: nd-shimmer 1.3s linear infinite;

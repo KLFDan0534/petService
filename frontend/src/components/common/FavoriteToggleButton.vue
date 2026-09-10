@@ -2,15 +2,15 @@
   <button
     type="button"
     class="favorite-toggle btn"
-    :class="[isFavorited ? activeClass : inactiveClass]"
+    :class="[isFavorited ? activeClass : inactiveClass, showText ? 'has-text' : 'is-icon-only']"
     :disabled="buttonDisabled"
     :aria-label="ariaLabel"
     @click.stop="handleClick"
   >
-    <el-icon class="favorite-toggle-icon">
+    <AppIcon class="favorite-toggle-icon">
       <StarFilled v-if="isFavorited" />
       <Star v-else />
-    </el-icon>
+    </AppIcon>
     <span v-if="showText">{{ isFavorited ? favoritedLabel : unfavoritedLabel }}</span>
   </button>
 </template>
@@ -99,25 +99,53 @@ async function handleClick() {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 40px;
-  height: 40px;
-  padding: 0;
   border: none;
-  border-radius: 50%;
   background: transparent;
   color: var(--color-muted-foreground);
   cursor: pointer;
-  transition: color 0.2s, transform 0.2s;
+  white-space: nowrap;
   flex-shrink: 0;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, transform 0.2s;
 }
 
-.favorite-toggle:hover {
+/* 带文字：胶囊按钮，宽度随文案自适应 */
+.favorite-toggle.has-text {
+  height: var(--control-height);
+  padding: 0 16px;
+  border: 1px solid var(--ref-line);
+  border-radius: 999px;
+  background: var(--ref-surface);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.favorite-toggle.has-text:hover {
+  color: #f59e0b;
+  border-color: color-mix(in srgb, #f59e0b 55%, transparent);
+  background: color-mix(in srgb, #f59e0b 8%, var(--ref-surface));
+}
+
+/* 纯图标：40×40 圆形按钮 */
+.favorite-toggle.is-icon-only {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.favorite-toggle.is-icon-only:hover {
   color: #f59e0b;
   transform: scale(1.1);
 }
 
 .favorite-toggle.is-favorited {
   color: #f59e0b;
+}
+
+.favorite-toggle.has-text.is-favorited {
+  border-color: color-mix(in srgb, #f59e0b 55%, transparent);
+  background: color-mix(in srgb, #f59e0b 10%, var(--ref-surface));
 }
 
 .favorite-toggle.is-favorited .favorite-toggle-icon {
@@ -137,5 +165,6 @@ async function handleClick() {
 
 .favorite-toggle-icon {
   font-size: 20px;
+  flex-shrink: 0;
 }
 </style>

@@ -15,7 +15,7 @@
         <div class="ad-head-copy">
           <div class="ad-eyebrow" aria-hidden="true">
             <span class="ad-eyebrow-line"></span>
-            <span>Addresses</span>
+            <span>地址</span>
           </div>
           <h1 class="ad-title">接送地址</h1>
           <p class="ad-sub">上门接送、送回与美容到家都会用到这里的地址。设为默认后，下单时会自动带入。</p>
@@ -32,7 +32,7 @@
             <p class="ad-eyebrow ad-sec-eyebrow">
               <span class="ad-idx">01</span>
               <span class="ad-line" aria-hidden="true"></span>
-              <span>Saved</span>
+              <span>已保存</span>
             </p>
             <h2 class="ad-sec-title">已保存地址</h2>
             <p class="ad-sec-desc">默认地址排在最前，接送司机按坐标导航。</p>
@@ -288,7 +288,7 @@ async function setDefault(id) {
   gap: 8px;
   height: 42px;
   padding: 0 18px;
-  border-radius: 11px;
+  border-radius: var(--radius-control);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -308,7 +308,7 @@ async function setDefault(id) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-inline);
   border: 1px solid transparent;
   padding: 4px 10px;
   font-size: 11px;
@@ -357,7 +357,7 @@ async function setDefault(id) {
 .ad-skeleton {
   height: 208px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
   background-size: 200% 100%;
   animation: ad-shimmer 1.3s linear infinite;
@@ -368,7 +368,7 @@ async function setDefault(id) {
   margin-top: 20px;
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   text-align: center;
 }
@@ -389,14 +389,14 @@ async function setDefault(id) {
   min-width: 0;
   padding: 20px;
   border: 1px solid var(--ref-line);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--ref-surface);
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 .ad-card:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 18%, transparent);
   transform: translateY(-3px);
-  box-shadow: 0 28px 60px -44px color-mix(in srgb, var(--ref-ink) 55%, transparent);
+  box-shadow: var(--shadow-lift);
 }
 .ad-card.is-default {
   border-color: color-mix(in srgb, var(--ref-brand) 30%, var(--ref-line));
@@ -491,7 +491,7 @@ async function setDefault(id) {
   border-radius: 20px;
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  box-shadow: 0 40px 80px -40px color-mix(in srgb, var(--ref-ink) 60%, transparent);
+  box-shadow: var(--shadow-pop);
   animation: ad-pop 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 .dlg-panel-wide { max-width: 520px; }
@@ -592,7 +592,7 @@ async function setDefault(id) {
 .dlg-panel :deep(.amap-address-picker .tips-panel) {
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   box-shadow: 0 24px 48px -32px color-mix(in srgb, var(--ref-ink) 60%, transparent);
 }
 .dlg-panel :deep(.amap-address-picker .tip-item:hover) { background: color-mix(in srgb, var(--ref-cream) 55%, transparent); }
