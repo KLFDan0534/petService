@@ -1,7 +1,11 @@
 import request from '@/utils/request'
 
-export async function getServices() {
-  const res = await request.get('/api/services')
+/**
+ * 公开服务列表（分页 / 筛选 / 排序 / 距离）。
+ * 平台唯一的分页列表入口，替代已下线的 GET /api/services。
+ */
+export async function getPublicServices(params = {}) {
+  const res = await request.get('/api/services/public', { params })
   return res.data
 }
 

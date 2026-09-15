@@ -33,22 +33,3 @@ export async function rejectCustomerServiceApplication(id, reviewNote = '') {
   })
   return res.data
 }
-
-export async function getAdminCsApplications(params = {}) {
-  const res = await request.get('/api/merchant-customer-service/admin-list', { params })
-  return res.data
-}
-
-export async function approveCsApplication(id, reviewNote = '') {
-  const res = await request.post(`/api/merchant-customer-service/admin/${id}/approve`, {
-    review_note_wsh: reviewNote,
-  })
-  return res.data
-}
-
-export async function rejectCsApplication(id, reviewNote = '') {
-  const res = await request.post(`/api/merchant-customer-service/admin/${id}/reject`, {
-    review_note_wsh: reviewNote,
-  })
-  return res.data
-}

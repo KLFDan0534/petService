@@ -25,7 +25,6 @@ import com.pet.common.ServiceVersions;
 import com.pet.common.StatusCode;
 import com.pet.common.geo.GeoDistanceUtils;
 import com.pet.customer.mapper.RatingMapper;
-import jdk.jshell.Snippet;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -79,25 +78,6 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         this.ratingMapper = ratingMapper;
         this.serviceMediaService = serviceMediaService;
     }
-
-    /**
-     * 【查询商家下已启用服务项目】
-     *
-     * 业务作用：查询某个商家下所有已启用的服务项目（对外展示）。
-     * 调用场景：用户端查看商家详情页的服务列表时调用。
-     * 调用链：ServiceItemController → listByMerchant → ServiceItemMapper.selectList
-     * 数据处理：按 merchant_id + status=ENABLED 查询。
-     * 状态影响：只读操作。
-     */
-/*    // TODO 未来将删除,已被queryPublic替换
-    @Override
-    public List<ServiceItem> listByMerchant(Long merchantId) {
-        log.info("listByMerchant() 被调用");
-        return serviceItemMapper.selectList(
-                new LambdaQueryWrapper<ServiceItem>()
-                        .eq(ServiceItem::getMerchant_id_wsh, merchantId)
-                        .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
-    }*/
 
     /**
      * 【查询商家下所有服务项目（含禁用）】
@@ -290,46 +270,6 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【更新服务项目图片】
-     *
-     * 业务作用：更新服务项目的展示图片列表。
-     * 调用场景：商家在后台编辑服务项目图片时调用。
-     * 调用链：ServiceItemController → updateImages @Transactional → ServiceItemMapper.updateById
-     * 数据处理：直接替换 images 字段。
-     * 状态影响：更新 images 字段。
-     */
-    @Override
-    @Transactional
-    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
-    public ServiceItem updateImages(Long id, String images) {
-        log.info("updateImages() 被调用");
-        assertPositiveId(id);
-        ServiceItem item = getById(id);
-        item.setImages_wsh(images);
-        serviceItemMapper.updateById(item);
-        return item;
-    }
-
-    /**
-     * 【根据分类查询服务项目】
-     *
-     * 业务作用：查询指定分类下所有已启用的服务项目。
-     * 调用场景：用户端按分类筛选服务时调用。
-     * 调用链：ServiceItemController → listByCategory → ServiceItemMapper.selectList
-     * 数据处理：按 category_id + status=ENABLED 查询。
-     * 状态影响：只读操作。
-     */
-    // TODO 后期可删除
-/*    @Override
-    public List<ServiceItem> listByCategory(Long categoryId) {
-        log.info("listByCategory() 被调用");
-        return serviceItemMapper.selectList(
-                new LambdaQueryWrapper<ServiceItem>()
-                        .eq(ServiceItem::getCategory_id_wsh, categoryId)
-                        .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
-    }*/
-
-    /**
      * 【服务项目实体转DTO】
      *
      * 业务作用：转换为前端展示 DTO（含分类名称）。
@@ -385,14 +325,14 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 5. 内存排序（价格/评分/距离）
      * 6. 分页截取
      *
-     * 状态影响：只读操作，结果缓存（key="'list:page'"）。
+     * 状态影响：只读操作，结果缓存（key 由 ServiceItemQueryDTO.cacheKey_wsh 生成，仅含非空字段）。
      *
      * @param query 查询参数（分类、商家、关键字、排序、经纬度、分页）
      * @return 分页结果（服务列表 + 总数 + 分页信息）
      */
     @Override
     @Cacheable(value = "service-item-page",
-            key = "(#query?.category_id_wsh ?: '') + ':' + (#query?.merchant_id_wsh ?: '') + ':' + (#query?.keyword_wsh ?: '') + ':' + (#query?.sort_wsh ?: 'default') + ':' + (#query?.latitude_wsh ?: '') + ':' + (#query?.longitude_wsh ?: '') + ':' + #query?.page_wsh + ':' + #query?.size_wsh",
+            key = "#query == null ? 'all' : #query.cacheKey_wsh()",
             unless = "#result == null || #result.items_wsh == null || #result.items_wsh.isEmpty()")
     public ServiceQueryResultVO queryPublic(ServiceItemQueryDTO query) {
         // 参数空值处理：无参数时返回全部上架服务

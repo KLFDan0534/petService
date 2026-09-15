@@ -1,7 +1,5 @@
 package com.pet.customer.controller;
 
-import com.pet.common.PageRequestDTO;
-import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.customer.dto.MerchantCustomerServiceApplyRequestDTO;
 import com.pet.customer.dto.MerchantCustomerServiceDTO;
@@ -22,13 +20,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
-@Tag(name = "【用户端】客服管理", description = "商家客服服务管理（用户申请/商家审核/管理员审核）")
+@Tag(name = "【用户端】客服管理", description = "商家客服服务管理（用户申请/商家审核）")
 @RestController
 @RequestMapping("/api/merchant-customer-service")
 @Slf4j
@@ -291,128 +287,5 @@ public class MerchantCustomerServiceController {
             @AuthenticationPrincipal JwtAuthenticationToken token,
             @Parameter(description = "客服记录ID") @PathVariable Long id) {
         return Result.success(service.terminateByMerchant(id, token.getUserId()));
-    }
-
-    /**
-     * 管理员分页查看全平台客服申请列表
-     *
-     * <p>API: GET /api/merchant-customer-service/admin-list</p>
-     * <p>请求来源：管理后台客服审核列表页，管理员查看全平台所有商家的客服申请</p>
-     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
-     * <p>输入参数：
-     * <ul>
-     *   <li>@path PageRequestDTO - 分页参数</li>
-     *   <li>@query status_wsh - 可选，按状态精确筛选（pending/approved/rejected等）</li>
-     * </ul>
-     * </p>
-     * <p>返回数据：PageResult&lt;MerchantCustomerServiceDTO&gt; - 分页的客服申请记录</p>
-     * <p>异常情况：
-     * <ul>
-     *   <li>401 - 未登录</li>
-     *   <li>403 - 无管理员权限</li>
-     *   <li>500 - 服务器内部错误</li>
-     * </ul>
-     * </p>
-     */
-    @Operation(summary = "管理员分页查看全平台客服申请列表")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "查询成功"),
-            @ApiResponse(responseCode = "401", description = "未认证"),
-            @ApiResponse(responseCode = "403", description = "无管理员权限")
-    })
-    @GetMapping("/admin-list")
-    @PreAuthorize("hasRole('ADMIN')")
-    public Result<PageResult<MerchantCustomerServiceDTO>> listAllByAdmin(
-            PageRequestDTO pageParam,
-            @Parameter(description = "状态筛选（可空）") @RequestParam(required = false) String status_wsh) {
-        log.info("调用 admin-list(), page={}, size={}, status={}", pageParam.getPage(), pageParam.getSize(), status_wsh);
-        var page = service.pageAll(pageParam, status_wsh);
-        var dtoList = service.toDTOList(page.getRecords());
-        PageResult<MerchantCustomerServiceDTO> result = new PageResult<>();
-        result.setList(dtoList);
-        result.copyPageInfo(page);
-        return Result.success(result);
-    }
-
-    /**
-     * 管理员通过客服申请
-     *
-     * <p>API: POST /api/merchant-customer-service/admin/{id}/approve</p>
-     * <p>请求来源：管理后台客服申请详情页，管理员点击"审核通过"</p>
-     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
-     * <p>输入参数：
-     * <ul>
-     *   <li>@path id - 客服申请记录ID</li>
-     *   <li>@body MerchantCustomerServiceReviewRequestDTO - 可选，包含审核备注</li>
-     * </ul>
-     * </p>
-     * <p>返回数据：MerchantCustomerServiceDTO - 审核通过后的客服记录，状态更新为APPROVED并自动分配CUSTOMER_SERVICE角色</p>
-     * <p>异常情况：
-     * <ul>
-     *   <li>401 - 未登录</li>
-     *   <li>403 - 无管理员权限</li>
-     *   <li>404 - 申请记录不存在</li>
-     *   <li>400 - 状态非pending</li>
-     *   <li>500 - 服务器内部错误</li>
-     * </ul>
-     * </p>
-     */
-    @Operation(summary = "管理员通过客服申请")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "审核通过成功"),
-            @ApiResponse(responseCode = "400", description = "状态非待审核"),
-            @ApiResponse(responseCode = "401", description = "未认证"),
-            @ApiResponse(responseCode = "403", description = "无管理员权限"),
-            @ApiResponse(responseCode = "404", description = "申请记录不存在")
-    })
-    @PostMapping("/admin/{id}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
-    public Result<MerchantCustomerServiceDTO> approveByAdmin(
-            @AuthenticationPrincipal JwtAuthenticationToken token,
-            @Parameter(description = "客服申请记录ID") @PathVariable Long id,
-            @RequestBody(required = false) MerchantCustomerServiceReviewRequestDTO request) {
-        log.info("调用 admin/approve(), id={}", id);
-        return Result.success(service.approveByAdmin(id, token.getUserId(), request == null ? null : request.getReview_note_wsh()));
-    }
-
-    /**
-     * 管理员驳回客服申请
-     *
-     * <p>API: POST /api/merchant-customer-service/admin/{id}/reject</p>
-     * <p>请求来源：管理后台客服申请详情页，管理员点击"驳回"</p>
-     * <p>权限要求：ADMIN角色（@PreAuthorize("hasRole('ADMIN')")）</p>
-     * <p>输入参数：
-     * <ul>
-     *   <li>@path id - 客服申请记录ID</li>
-     *   <li>@body MerchantCustomerServiceReviewRequestDTO - 可选，包含驳回原因</li>
-     * </ul>
-     * </p>
-     * <p>返回数据：MerchantCustomerServiceDTO - 驳回后的客服记录，状态更新为REJECTED</p>
-     * <p>异常情况：
-     * <ul>
-     *   <li>401 - 未登录</li>
-     *   <li>403 - 无管理员权限</li>
-     *   <li>404 - 申请记录不存在</li>
-     *   <li>400 - 状态非pending</li>
-     *   <li>500 - 服务器内部错误</li>
-     * </ul>
-     * </p>
-     */
-    @Operation(summary = "管理员驳回客服申请")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "驳回成功"),
-            @ApiResponse(responseCode = "400", description = "状态非待审核"),
-            @ApiResponse(responseCode = "401", description = "未认证"),
-            @ApiResponse(responseCode = "403", description = "无管理员权限"),
-            @ApiResponse(responseCode = "404", description = "申请记录不存在")
-    })
-    @PostMapping("/admin/{id}/reject")
-    @PreAuthorize("hasRole('ADMIN')")
-    public Result<MerchantCustomerServiceDTO> rejectByAdmin(
-            @AuthenticationPrincipal JwtAuthenticationToken token,
-            @Parameter(description = "客服申请记录ID") @PathVariable Long id,
-            @RequestBody(required = false) MerchantCustomerServiceReviewRequestDTO request) {
-        log.info("调用 admin/reject(), id={}", id);
-        return Result.success(service.rejectByAdmin(id, token.getUserId(), request == null ? null : request.getReview_note_wsh()));
     }
 }

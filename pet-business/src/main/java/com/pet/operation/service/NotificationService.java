@@ -16,12 +16,22 @@ public interface NotificationService {
     /**
      * 查询用户的所有通知，按创建时间倒序排列
      * <p>
-     * 自动过滤并清理关联公告已被删除或停用的通知记录。
+     * 会自动过滤掉关联公告已被删除或停用的失效通知，但不会修改数据。
+     * 失效数据的真实清理由 {@link #purgeStaleNoticeNotifications()} 负责。
      *
      * @param userId 用户ID
      * @return 用户通知列表
      */
     List<Notification> listByUser(Long userId);
+
+    /**
+     * 清理所有已失效的公告类通知（关联公告已被删除或停用）
+     * <p>
+     * 写操作，由定时任务调用，不清理由业务操作触发的单条失效场景。
+     *
+     * @return 实际清理的通知条数
+     */
+    int purgeStaleNoticeNotifications();
 
     /**
      * 统计用户未读通知的数量

@@ -22,33 +22,6 @@ import java.util.List;
 public interface ServiceItemService {
 
     /**
-     * 【查询所有已启用服务项目】
-     *
-     * 业务作用：获取系统中所有已启用的服务项目列表。
-     * 调用场景：用户端浏览全部可预约服务时调用。
-     * 调用链：ServiceItemController → listAll → ServiceItemMapper.selectList（按 status=ENABLED 过滤）
-     * 数据处理：查询 service_item 表，仅返回已启用记录。
-     * 状态影响：只读操作。
-     *
-     * @return 已启用的服务项目列表
-     */
-//    List<ServiceItem> listAll();
-
-    /**
-     * 【查询商家下已启用服务项目】
-     *
-     * 业务作用：查询某个商家下所有已启用的服务项目（对外展示）。
-     * 调用场景：用户端查看商家详情页的服务列表时调用。
-     * 调用链：ServiceItemController → listByMerchant → ServiceItemMapper.selectList（按 merchant_id + ENABLED）
-     * 数据处理：按 merchant_id 和 status=ENABLED 查询。
-     * 状态影响：只读操作。
-     *
-     * @param merchantId 商家ID
-     * @return 已启用的服务项目列表
-     */
-//    List<ServiceItem> listByMerchant(Long merchantId);
-
-    /**
      * 【查询商家下所有服务项目（含禁用）】
      *
      * 业务作用：查询某个商家下所有服务项目（含已禁用的），商家管理后台用。
@@ -152,36 +125,6 @@ public interface ServiceItemService {
      * @throws BusinessException 如果服务项目不存在
      */
     void toggleStatus(Long id);
-
-    /**
-     * 【更新服务项目图片】
-     *
-     * 业务作用：更新服务项目的展示图片列表。
-     * 调用场景：商家在后台编辑服务项目图片时调用。
-     * 调用链：ServiceItemController → updateImages @Transactional → ServiceItemMapper.updateById
-     * 数据处理：直接替换 images 字段值（逗号分隔多个URL）。
-     * 状态影响：更新服务项目的 images 字段。
-     *
-     * @param id     服务项目ID
-     * @param images 图片URL（逗号分隔多个URL）
-     * @return 更新后的服务项目实体
-     * @throws BusinessException 如果服务项目不存在
-     */
-    ServiceItem updateImages(Long id, String images);
-
-    /**
-     * 【根据分类查询服务项目】
-     *
-     * 业务作用：查询指定分类下所有已启用的服务项目。
-     * 调用场景：用户端按分类筛选服务时调用。
-     * 调用链：ServiceItemController → listByCategory → ServiceItemMapper.selectList
-     * 数据处理：按 category_id 和 status=ENABLED 查询。
-     * 状态影响：只读操作。
-     *
-     * @param categoryId 服务分类ID
-     * @return 已启用的服务项目列表
-     */
-//    List<ServiceItem> listByCategory(Long categoryId);
 
     /**
      * 【服务项目实体转DTO】

@@ -64,12 +64,12 @@
     </DataTable>
 
     <AppDialog
-      :visible="pendingReview"
+      :visible="!!pendingReview"
       :width="500"
-      :title="pendingReview.action === 'resolve' ? '处理投诉' : '驳回投诉'"
+      :title="pendingReview?.action === 'resolve' ? '处理投诉' : '驳回投诉'"
       @close="cancelReview"
     >
-      <p style="margin:10px 0 0;color:var(--color-muted-foreground)">{{ pendingReview.title }}</p>
+      <p style="margin:10px 0 0;color:var(--color-muted-foreground)">{{ pendingReview?.title }}</p>
       <div class="form-group" style="margin-top:16px">
         <label>处理意见</label>
         <textarea v-model="reviewResult" rows="4" placeholder="请输入处理意见"></textarea>
@@ -77,12 +77,12 @@
       <template #footer>
         <button class="btn btn-secondary btn-sm" type="button" @click="cancelReview">取消</button>
         <button
-          :class="['btn', 'btn-sm', pendingReview.action === 'resolve' ? 'btn-success' : 'btn-danger']"
+          :class="['btn', 'btn-sm', pendingReview?.action === 'resolve' ? 'btn-success' : 'btn-danger']"
           type="button"
           :disabled="!reviewResult.trim()"
           @click="submitReview"
         >
-          {{ pendingReview.action === 'resolve' ? '确认处理' : '确认驳回' }}
+          {{ pendingReview?.action === 'resolve' ? '确认处理' : '确认驳回' }}
         </button>
       </template>
     </AppDialog>

@@ -651,12 +651,6 @@ export const adminRoutes = [
     component: () => import('@/views/admin/AdminLeaves.vue'),
     meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] },
   },
-  {
-    path: '/admin/cs-applications',
-    name: 'AdminCsApplications',
-    component: () => import('@/views/admin/AdminCsApplications.vue'),
-    meta: { layout: 'admin', requiresAuth: true, roles: [ROLES.ADMIN] },
-  },
 ]
 
 // ═══════════════ 路由实例（初始只注册静态路由，动态路由登录后再注入）═══════════════

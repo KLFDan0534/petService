@@ -1,12 +1,9 @@
 package com.pet.customer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.common.BusinessException;
-import com.pet.common.PageRequestDTO;
 import com.pet.common.StatusCode;
 import com.pet.customer.dto.MerchantCustomerServiceApplyRequestDTO;
 import com.pet.customer.dto.MerchantCustomerServiceDTO;
@@ -34,6 +31,9 @@ import java.util.stream.Collectors;
  */
 @Service
 public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServiceService {
+    /** 超时自动拒绝时写入的审核备注模板（%d 为超时天数） */
+    private static final String AUTO_REJECT_NOTE = "商家超过 %d 天未处理，系统自动拒绝";
+
     private final MerchantCustomerServiceMapper mapper;
     private final MerchantMapper merchantMapper;
     private final UserMapper userMapper;
@@ -213,6 +213,33 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
     }
 
     /**
+     * 【业务名称】超时自动拒绝客服申请（实现）
+     * 业务作用：批量把商家长期未处理的 pending 申请置为 rejected，为平台提供兜底。
+     * 调用场景：MerchantCustomerServiceTimeoutScheduler 每日调用。
+     * 调用链：autoRejectStalePending() → mapper.update() 单条批量 UPDATE。
+     * 数据处理：以 updated_at_wsh 为基准筛选超期 pending，批量写 rejected + 审核备注 + 审核时间。
+     * 业务规则：仅 pending 可被自动拒绝；reviewer_id_wsh 保持 null 表示无人工审核人。
+     * 状态影响：申请状态 pending → rejected。
+     * 异常情况：timeoutDays 非正数抛 400。
+     * 注意事项：@Transactional 保证事务一致性；单条 UPDATE 避免逐行查询。
+     */
+    @Transactional
+    @Override
+    public int autoRejectStalePending(int timeoutDays) {
+        if (timeoutDays <= 0) {
+            throw new BusinessException(400, "timeoutDays must be positive");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        MerchantCustomerService patch = new MerchantCustomerService();
+        patch.setStatus_wsh(STATUS_REJECTED);
+        patch.setReview_note_wsh(String.format(AUTO_REJECT_NOTE, timeoutDays));
+        patch.setReviewed_at_wsh(now);
+        return mapper.update(patch, new LambdaQueryWrapper<MerchantCustomerService>()
+                .eq(MerchantCustomerService::getStatus_wsh, STATUS_PENDING)
+                .lt(MerchantCustomerService::getUpdated_at_wsh, now.minusDays(timeoutDays)));
+    }
+
+    /**
      * 【业务名称】客服辞职（实现）
      * 业务作用：客服辞职，自动回收 CUSTOMER_SERVICE 角色。
      * 调用场景：客服主动辞职。
@@ -327,90 +354,6 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .map(MerchantCustomerService::getUser_id_wsh)
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
-    }
-
-    /**
-     * 【业务名称】管理员分页查询全平台客服申请（实现）
-     * 业务作用：管理员查看全平台所有商家的客服申请列表，可按状态筛选。
-     * 调用场景：管理后台客服审核列表页。
-     * 调用链：pageAll() → mapper.selectPage()。
-     * 数据处理：按状态精确筛选（状态为空则查全部），按创建时间倒序分页。
-     * 业务规则：不校验商家归属。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：仅供 ADMIN 角色调用。
-     */
-    @Override
-    public IPage<MerchantCustomerService> pageAll(PageRequestDTO pageParam, String status_wsh) {
-        LambdaQueryWrapper<MerchantCustomerService> wrapper = new LambdaQueryWrapper<MerchantCustomerService>()
-                .eq(org.springframework.util.StringUtils.hasText(status_wsh),
-                        MerchantCustomerService::getStatus_wsh, status_wsh)
-                .orderByDesc(MerchantCustomerService::getCreated_at_wsh);
-        Page<MerchantCustomerService> page = new Page<>(pageParam.getPage(), pageParam.getSize());
-        return mapper.selectPage(page, wrapper);
-    }
-
-    /**
-     * 【业务名称】管理员通过客服申请（实现）
-     * 业务作用：管理员通过指定客服申请，自动授予 CUSTOMER_SERVICE 角色。
-     * 调用场景：管理后台审核客服申请通过。
-     * 调用链：approveByAdmin() → requirePendingApplication() → update() → roleGrantService.grantRoleToUser()。
-     * 数据处理：仅 pending 改为 approved，记录审核人和审核时间，授予角色。
-     * 业务规则：不校验商家归属。
-     * 状态影响：申请状态 approved；用户新增 CUSTOMER_SERVICE 角色。
-     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
-     * 注意事项：仅供 ADMIN 角色调用。
-     */
-    @Transactional
-    @Override
-    public MerchantCustomerServiceDTO approveByAdmin(Long id, Long adminUserId, String reviewNote) {
-        MerchantCustomerService entity = requirePendingApplication(id);
-        entity.setStatus_wsh(STATUS_APPROVED);
-        entity.setReviewer_id_wsh(adminUserId);
-        entity.setReview_note_wsh(trimToNull(reviewNote));
-        entity.setReviewed_at_wsh(LocalDateTime.now());
-        mapper.updateById(entity);
-        if (entity.getUser_id_wsh() != null) {
-            roleGrantService.grantRoleToUser(entity.getUser_id_wsh(), "CUSTOMER_SERVICE");
-        }
-        return toDTO(entity);
-    }
-
-    /**
-     * 【业务名称】管理员驳回客服申请（实现）
-     * 业务作用：管理员驳回指定客服申请。
-     * 调用场景：管理后台审核客服申请驳回。
-     * 调用链：rejectByAdmin() → requirePendingApplication() → update()。
-     * 数据处理：仅 pending 改为 rejected，记录审核人和审核时间。
-     * 业务规则：不校验商家归属。
-     * 状态影响：申请状态 rejected。
-     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
-     * 注意事项：仅供 ADMIN 角色调用。
-     */
-    @Transactional
-    @Override
-    public MerchantCustomerServiceDTO rejectByAdmin(Long id, Long adminUserId, String reviewNote) {
-        MerchantCustomerService entity = requirePendingApplication(id);
-        entity.setStatus_wsh(STATUS_REJECTED);
-        entity.setReviewer_id_wsh(adminUserId);
-        entity.setReview_note_wsh(trimToNull(reviewNote));
-        entity.setReviewed_at_wsh(LocalDateTime.now());
-        mapper.updateById(entity);
-        return toDTO(entity);
-    }
-
-    private MerchantCustomerService requirePendingApplication(Long id) {
-        if (id == null) {
-            throw new BusinessException(400, "application id is required");
-        }
-        MerchantCustomerService entity = mapper.selectById(id);
-        if (entity == null) {
-            throw new BusinessException(404, "customer service application not found");
-        }
-        if (!STATUS_PENDING.equals(entity.getStatus_wsh())) {
-            throw new BusinessException(400, "only pending applications can be reviewed");
-        }
-        return entity;
     }
 
     private MerchantCustomerService requireApprovedApplication(Long id) {

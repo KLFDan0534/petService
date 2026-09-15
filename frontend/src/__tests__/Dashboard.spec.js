@@ -7,9 +7,12 @@ const state = vi.hoisted(() => ({
   app: { addToast: vi.fn(), showLoginPrompt: false, loginRedirectPath: '' },
   auth: { isLoggedIn: true },
   services: {
+    code: 200,
     data: {
-      code: 200,
-      data: [{ id_wsh: 7, name_wsh: '寄养服务', price_wsh: 88, merchant_id_wsh: 1 }],
+      items_wsh: [{ id_wsh: 7, name_wsh: '寄养服务', price_wsh: 88, merchant_id_wsh: 1 }],
+      total_wsh: 1,
+      page_wsh: 1,
+      size_wsh: 100,
     },
   },
   banners: { data: { code: 200, data: [] } },
@@ -42,10 +45,13 @@ vi.mock('@/api/rating', () => ({
   getRatings: vi.fn(() => Promise.resolve(state.ratings)),
 }))
 
+vi.mock('@/api/service', () => ({
+  getPublicServices: vi.fn(() => Promise.resolve(state.services)),
+}))
+
 vi.mock('@/utils/request', () => ({
   default: {
     get: vi.fn(url => {
-      if (url === '/services') return Promise.resolve(state.services)
       if (url === '/api/notices/active') return Promise.resolve(state.banners)
       return Promise.resolve({ data: { code: 200, data: [] } })
     }),

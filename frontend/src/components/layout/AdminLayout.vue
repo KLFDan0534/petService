@@ -114,7 +114,6 @@ const routeName = computed(() => {
     'AdminFavorites': '收藏数据',
     'AdminAttendance': '看护出勤',
     'AdminLeaves': '请假审批',
-    'AdminCsApplications': '客服人员审核',
   }
   return names[route.name] || '控制台'
 })
@@ -181,7 +180,6 @@ const navGroups = [
       { route: '/admin/tickets', label: '工单管理' },
       { route: '/admin/complaints', label: '投诉处理' },
       { route: '/admin/reviews', label: '内容审核' },
-      { route: '/admin/cs-applications', label: '客服人员审核' },
     ]
   },
   {

@@ -151,14 +151,6 @@ export const LeaveApprovalStatus = {
   rejected: { label: '已拒绝', badge: 'badge-danger' },
 }
 
-export const CsApplicationStatus = {
-  pending: { label: '待审核', badge: 'badge-warning' },
-  approved: { label: '已通过', badge: 'badge-success' },
-  rejected: { label: '已拒绝', badge: 'badge-danger' },
-  resigned: { label: '已辞职', badge: 'badge-secondary' },
-  terminated: { label: '已终止', badge: 'badge-secondary' },
-}
-
 export const ReadStatus = {
   0: { label: '未读', badge: 'badge-warning' },
   1: { label: '已读', badge: 'badge-success' },

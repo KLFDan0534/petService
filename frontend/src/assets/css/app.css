@@ -54,7 +54,7 @@ button:focus-visible {
 /* 全局键盘焦点指示器：链接与可聚焦容器（替代 Element Plus 移除后的行为） */
 a:focus-visible,
 [tabindex]:focus-visible {
-  outline: 3px solid var(--color-ring);
+  outline: 0px solid var(--color-ring);
   outline-offset: 2px;
   border-radius: 2px;
 }

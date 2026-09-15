@@ -112,6 +112,7 @@ __pycache__/
 .refact/
 .trae/
 .workbuddy/
+.workbuddy-ai/
 
 # 日志备份
 *.log.bak

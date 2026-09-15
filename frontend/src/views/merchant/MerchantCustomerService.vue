@@ -31,12 +31,12 @@
     </section>
 
     <AppDialog
-      :visible="pendingReview"
+      :visible="!!pendingReview"
       :width="500"
-      :title="pendingReview.action === 'approve' ? '通过客服申请' : '拒绝客服申请'"
+      :title="pendingReview?.action === 'approve' ? '通过客服申请' : '拒绝客服申请'"
       @close="cancelReview"
     >
-        <p class="review-target">{{ pendingReview.name }}</p>
+        <p class="review-target">{{ pendingReview?.name }}</p>
         <div class="form-group">
           <label>审核意见</label>
           <textarea v-model="reviewNote" rows="4" placeholder="填写给申请人的审核意见" />
@@ -44,11 +44,11 @@
         <template #footer>
           <button class="btn btn-secondary btn-sm" type="button" @click="cancelReview">取消</button>
           <button
-            :class="['btn', 'btn-sm', pendingReview.action === 'approve' ? 'btn-success' : 'btn-danger']"
+            :class="['btn', 'btn-sm', pendingReview?.action === 'approve' ? 'btn-success' : 'btn-danger']"
             type="button"
             @click="submitReview"
           >
-            确认{{ pendingReview.action === 'approve' ? '通过' : '拒绝' }}
+            确认{{ pendingReview?.action === 'approve' ? '通过' : '拒绝' }}
           </button>
         </template>
     </AppDialog>

@@ -29,8 +29,8 @@
       <button :disabled="currentPage >= pageCount" @click="changePage(currentPage + 1)" class="btn btn-sm">下一页</button>
     </div>
 
-    <AppDialog :visible="pendingDelete" :width="420" title="删除文件" @close="pendingDelete = null">
-      <p style="margin-top:12px;font-size:14px">确定要删除文件「{{ pendingDelete.original_name_wsh || pendingDelete.id_wsh }}」吗？此操作不可恢复。</p>
+    <AppDialog :visible="!!pendingDelete" :width="420" title="删除文件" @close="pendingDelete = null">
+      <p style="margin-top:12px;font-size:14px">确定要删除文件「{{ pendingDelete?.original_name_wsh || pendingDelete?.id_wsh }}」吗？此操作不可恢复。</p>
       <template #footer>
         <button class="btn btn-secondary btn-sm" type="button" @click="pendingDelete = null">取消</button>
         <button class="btn btn-danger btn-sm" type="button" @click="doDelete">确认删除</button>

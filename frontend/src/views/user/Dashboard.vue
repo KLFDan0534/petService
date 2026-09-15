@@ -631,7 +631,7 @@ import { getKeepers } from '@/api/keeper'
 import { getMerchants } from '@/api/merchant'
 import { getRatings } from '@/api/rating'
 import { useAppStore } from '@/stores/app'
-import request from '@/utils/request'
+import { getPublicServices } from '@/api/service'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import Reveal from '@/components/common/Reveal.vue'
 import {
@@ -903,8 +903,9 @@ function scrollTo(sel) {
 async function loadDashboard() {
   loading.value = true
   try {
-    const res = await request.get('/services')
-    if (res.data.code === 200) hydrateServices(res.data.data)
+    // 统一走公开分页接口；首页需要一次性展示全部服务，故取最大页容量
+    const res = await getPublicServices({ page: 1, size: 100 })
+    if (res?.code === 200) hydrateServices(res.data?.items_wsh)
   } catch {
     services.value = []
     appStore.addToast('加载服务方案失败，请稍后重试', 'error')

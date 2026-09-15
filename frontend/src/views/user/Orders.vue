@@ -190,7 +190,7 @@ import ReviewDialog from '@/components/order/ReviewDialog.vue'
 import CancelOrderDialog from '@/components/order/CancelOrderDialog.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { getOrders, cancelOrder as apiCancelOrder, confirmDelivered } from '@/api/order'
-import { getServices } from '@/api/service'
+import { getServiceDetail } from '@/api/service'
 import { createPayment, executePayment } from '@/api/payment'
 import { createTip } from '@/api/wallet'
 import { createRating, getMyRatingsByOrder } from '@/api/rating'
@@ -373,10 +373,15 @@ async function enrichServiceImages(orderList) {
   const missingIds = [...new Set(orderList.filter(o => !o.service_images_wsh && o.service_id_wsh).map(o => o.service_id_wsh))]
   if (missingIds.length === 0) return
   try {
-    const svcRes = await getServices()
-    if (svcRes.code !== 200 || !Array.isArray(svcRes.data)) return
+    // 按需并发拉取缺失服务的详情，补全封面图
+    const details = await Promise.all(
+      missingIds.map(id => getServiceDetail(id).catch(() => null)),
+    )
     const svcMap = new Map()
-    svcRes.data.forEach(s => { if (s.id_wsh) svcMap.set(s.id_wsh, s.images_wsh) })
+    details.forEach((res, i) => {
+      const img = res?.code === 200 ? res.data?.images_wsh : null
+      if (img) svcMap.set(missingIds[i], img)
+    })
     orderList.forEach(o => {
       if (!o.service_images_wsh && o.service_id_wsh) {
         const images = svcMap.get(o.service_id_wsh)

@@ -18,22 +18,22 @@
     </DataTable>
 
     <AppDialog
-      :visible="pendingToggle"
+      :visible="!!pendingToggle"
       :width="400"
-      :title="'确认' + (pendingToggle.newStatus === 0 ? '禁用' : '启用')"
+      :title="'确认' + (pendingToggle?.newStatus === 0 ? '禁用' : '启用')"
       @close="pendingToggle = null"
     >
       <p style="margin:16px 0">
-        确定{{ pendingToggle.newStatus === 0 ? '禁用' : '启用' }}该用户吗？
+        确定{{ pendingToggle?.newStatus === 0 ? '禁用' : '启用' }}该用户吗？
       </p>
       <template #footer>
         <button class="btn btn-secondary btn-sm" type="button" @click="pendingToggle = null">取消</button>
         <button
-          :class="['btn', pendingToggle.newStatus === 0 ? 'btn-danger' : 'btn-success']"
+          :class="['btn', pendingToggle?.newStatus === 0 ? 'btn-danger' : 'btn-success']"
           type="button"
           @click="doToggle"
         >
-          确认{{ pendingToggle.newStatus === 0 ? '禁用' : '启用' }}
+          确认{{ pendingToggle?.newStatus === 0 ? '禁用' : '启用' }}
         </button>
       </template>
     </AppDialog>

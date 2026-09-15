@@ -20,7 +20,7 @@ public class NotificationDTO {
     private String type_wsh;
     @Schema(description = "是否已读（0-未读 1-已读）")
     private Integer is_read_wsh;
-    @Schema(description = "关联业务ID")
+    @Schema(description = "关联业务ID（多态关联，含义由 type_wsh 决定：order_feedback/order_fulfillment=订单ID，notice=公告ID，complaint=投诉ID，ticket=工单ID；无关联业务时为空）")
     private Long related_id_wsh;
     @Schema(description = "创建时间")
     private LocalDateTime created_at_wsh;

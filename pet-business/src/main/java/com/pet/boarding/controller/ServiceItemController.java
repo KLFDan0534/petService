@@ -3,7 +3,6 @@ package com.pet.boarding.controller;
 import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
 import com.pet.boarding.dto.ServiceItemDTO;
 import com.pet.boarding.dto.ServiceItemQueryDTO;
-import com.pet.boarding.dto.ServiceItemUpdateImagesRequestDTO;
 import com.pet.boarding.dto.ServiceItemUpdateRequestDTO;
 import com.pet.boarding.dto.ServiceManageDetailVO;
 import com.pet.boarding.dto.ServiceProductDetailVO;
@@ -37,7 +36,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -73,28 +71,6 @@ public class ServiceItemController {
     }
 
     /**
-     * 【获取所有启用的服务项目列表】
-
-     * API: GET /api/services
-
-     * 权限：公开
-     * 场景：用户浏览平台提供的所有服务项目（无筛选/排序/分页参数，
-     * 固定返回第 1 页、默认每页 20 条）。需要分类/关键字/排序/分页/
-     * 距离查询请使用 GET /api/services/public。
-     * 仅返回 status = ENABLED 的服务项。
-     */
-    @GetMapping
-    @Operation(summary = "获取启用的服务项目列表", description = "无参查询：固定返回第 1 页（默认 20 条）启用的服务项目；筛选/排序/分页请使用 /api/services/public")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "操作成功"),
-            @ApiResponse(responseCode = "500", description = "服务器内部错误")
-    })
-    public Result<List<ServiceItemDTO>> listAll() {
-        log.info("listAll() 被调用");
-        return Result.success(serviceItemService.queryPublic(new ServiceItemQueryDTO()).getItems_wsh());
-    }
-
-    /**
      * 【公开服务列表分页查询】
 
      * API: GET /api/services/public
@@ -109,20 +85,6 @@ public class ServiceItemController {
     public Result<ServiceQueryResultVO> pagePublic(ServiceItemQueryDTO queryDTO) {
         log.info("pagePublic() 被调用");
         return Result.success(serviceItemService.queryPublic(queryDTO));
-    }
-
-    private ServiceItemQueryDTO query(Long categoryId, Long merchantId, String keyword, String sort,
-                                      BigDecimal latitude, BigDecimal longitude, Integer page, Integer size) {
-        ServiceItemQueryDTO q = new ServiceItemQueryDTO();
-        q.setCategory_id_wsh(categoryId);
-        q.setMerchant_id_wsh(merchantId);
-        q.setKeyword_wsh(keyword);
-        q.setSort_wsh(sort);
-        q.setLatitude_wsh(latitude);
-        q.setLongitude_wsh(longitude);
-        q.setPage_wsh(page);
-        q.setSize_wsh(size);
-        return q;
     }
 
     /**
@@ -375,33 +337,6 @@ public class ServiceItemController {
     }
 
     /**
-     * 【按分类获取服务项目列表】
-
-     * API: GET /api/services/category/{categoryId}
-
-     * 权限：公开
-
-     * 场景：用户在分类浏览页面，查看某分类下的所有服务项目。
-     *
-     * @param categoryId 分类 ID
-     */
-    @GetMapping("/category/{categoryId}")
-    @Operation(summary = "按分类获取服务项目列表", description = "根据分类获取启用的服务项目")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "操作成功"),
-            @ApiResponse(responseCode = "404", description = "分类不存在"),
-            @ApiResponse(responseCode = "500", description = "服务器内部错误")
-    })
-    public Result<List<ServiceItemDTO>> listByCategory(@Parameter(description = "分类ID") @PathVariable Long categoryId) {
-        log.info("listByCategory() 被调用");
-        ServiceItemQueryDTO q = new ServiceItemQueryDTO();
-        q.setCategory_id_wsh(categoryId);
-        q.setPage_wsh(1);
-        q.setSize_wsh(100);
-        return Result.success(serviceItemService.queryPublic(q).getItems_wsh());
-    }
-
-    /**
      * 【获取商家服务项目管理列表】
 
      * API:GET /api/services/merchant/{merchantId}/manage
@@ -426,34 +361,6 @@ public class ServiceItemController {
         log.info("listByMerchantForManage() 被调用");
         assertMerchantOwnerOrAdmin(merchantId);
         return Result.success(serviceItemService.listByMerchantForManage(merchantId).stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
-    }
-
-    /**
-     * 【更新服务项目图片】
-
-     * API: PUT /api/services/{id}/images
-
-     * 权限：ADMIN 或 MERCHANT
-
-     * 场：商家更新服务项目的展示图片（如封面图、详情图集）。
-     *
-     * @param id   服务项目 ID
-     * @param body 包含 images_wsh 图片链接数组的请求体
-     */
-    @PutMapping("/{id}/images")
-    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
-    @Operation(summary = "更新服务项目图片", description = "更新服务项目的图片链接")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "操作成功"),
-            @ApiResponse(responseCode = "400", description = "请求参数错误"),
-            @ApiResponse(responseCode = "403", description = "无权限访问"),
-            @ApiResponse(responseCode = "404", description = "服务项目不存在"),
-            @ApiResponse(responseCode = "500", description = "服务器内部错误")
-    })
-    public Result<ServiceItemDTO> updateImages(@Parameter(description = "服务项目ID") @PathVariable Long id, @Valid @RequestBody ServiceItemUpdateImagesRequestDTO body) {
-        log.info("updateImages() 被调用");
-        assertServiceOwnerOrAdmin(id);
-        return Result.success(serviceItemService.toDTO(serviceItemService.updateImages(id, body.getImages_wsh())));
     }
 
     private void assertServiceOwnerOrAdmin(Long serviceId) {

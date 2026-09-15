@@ -1,7 +1,5 @@
 package com.pet.customer.service;
 
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.pet.common.PageRequestDTO;
 import com.pet.customer.dto.MerchantCustomerServiceApplyRequestDTO;
 import com.pet.customer.dto.MerchantCustomerServiceDTO;
 import com.pet.customer.dto.MerchantCustomerServiceReviewRequestDTO;
@@ -131,6 +129,27 @@ public interface MerchantCustomerServiceService {
     MerchantCustomerServiceDTO reject(Long id, Long merchantUserId, MerchantCustomerServiceReviewRequestDTO request);
 
     /**
+     * 【业务名称】超时自动拒绝客服申请
+     * 业务作用：为「商家长期不处理」提供平台兜底。客服申请的唯一审核人是被申请的商家，
+     * 商家若一直不处理，申请会永久停留在 pending，申请人拿不到结果。
+     * 本方法把停留超过 timeoutDays 天的 pending 申请批量置为 rejected。
+     * 调用场景：由定时任务 {@code MerchantCustomerServiceTimeoutScheduler} 每日调用。
+     * 调用链：autoRejectStalePending() → Mapper.update() 批量更新。
+     * 数据处理：以 updated_at_wsh（pending 状态的起始时间）为基准，
+     * 早于 now - timeoutDays 的 pending 记录批量改为 rejected，
+     * 写入 review_note_wsh 说明为系统自动拒绝，reviewed_at_wsh 记为当前时间。
+     * 业务规则：仅 pending 可被自动拒绝；不校验商家归属（系统行为）；
+     * reviewer_id_wsh 保持为 null，表示无人工审核人。
+     * 状态影响：申请记录状态 pending → rejected；不涉及角色变更。
+     * 异常情况：timeoutDays 非正数抛 400。
+     * 注意事项：申请人可重新提交申请（apply() 会复用该记录并重置为 pending）。
+     *
+     * @param timeoutDays 允许商家处理的天数上限，必须为正数
+     * @return 本次自动拒绝的记录条数
+     */
+    int autoRejectStalePending(int timeoutDays);
+
+    /**
      * 【业务名称】客服辞职
      * 业务作用：客服自己申请辞职，自动回收 CUSTOMER_SERVICE 角色。
      * 调用场景：客服主动辞职。
@@ -212,59 +231,6 @@ public interface MerchantCustomerServiceService {
      * @return 该商家的已授权客服用户ID集合
      */
     Set<Long> getApprovedCsUserIds(Long merchantId);
-
-    /**
-     * 【业务名称】管理员分页查询全平台客服申请
-     * 业务作用：管理员查看全平台所有商家的客服申请列表（可按状态筛选）。
-     * 调用场景：管理后台客服审核列表页。
-     * 调用链：pageAll() → Mapper.selectPage()。
-     * 数据处理：按状态精确筛选，按创建时间倒序分页。
-     * 业务规则：status_wsh 为空时查询全部状态。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：仅供 ADMIN 角色调用。
-     *
-     * @param pageParam 分页参数
-     * @param status_wsh 状态（可空，如 pending/approved/rejected）
-     * @return 分页的申请记录实体
-     */
-    IPage<MerchantCustomerService> pageAll(PageRequestDTO pageParam, String status_wsh);
-
-    /**
-     * 【业务名称】管理员通过客服申请
-     * 业务作用：管理员通过指定客服申请，自动为用户授予 CUSTOMER_SERVICE 角色。
-     * 调用场景：管理后台审核客服申请通过。
-     * 调用链：approveByAdmin() → 查记录 → 校验 → update → 授予角色。
-     * 数据处理：仅 pending 可改为 approved，记录审核人、审核备注、审核时间。
-     * 业务规则：不校验商家归属，管理员可审批全平台申请。
-     * 状态影响：申请记录状态 approved；用户新增 CUSTOMER_SERVICE 角色。
-     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
-     * 注意事项：仅供 ADMIN 角色调用。
-     *
-     * @param id 申请记录ID
-     * @param adminUserId 管理员用户ID
-     * @param reviewNote 审核备注
-     * @return 更新后的申请记录DTO
-     */
-    MerchantCustomerServiceDTO approveByAdmin(Long id, Long adminUserId, String reviewNote);
-
-    /**
-     * 【业务名称】管理员驳回客服申请
-     * 业务作用：管理员驳回指定客服申请。
-     * 调用场景：管理后台审核客服申请驳回。
-     * 调用链：rejectByAdmin() → 查记录 → 校验 → update。
-     * 数据处理：仅 pending 可改为 rejected，记录审核人、审核备注、审核时间。
-     * 业务规则：不校验商家归属，管理员可审批全平台申请。
-     * 状态影响：申请记录状态 rejected。
-     * 异常情况：申请不存在抛 404；状态非 pending 抛 400。
-     * 注意事项：仅供 ADMIN 角色调用。
-     *
-     * @param id 申请记录ID
-     * @param adminUserId 管理员用户ID
-     * @param reviewNote 审核备注
-     * @return 更新后的申请记录DTO
-     */
-    MerchantCustomerServiceDTO rejectByAdmin(Long id, Long adminUserId, String reviewNote);
 
     /**
      * 【业务名称】申请记录实体转DTO

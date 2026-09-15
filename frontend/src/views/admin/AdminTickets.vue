@@ -57,7 +57,7 @@
     </DataTable>
 
     <AppDialog
-      :visible="pendingResolve"
+      :visible="!!pendingResolve"
       :width="460"
       title="解决工单"
       @close="cancelResolve"

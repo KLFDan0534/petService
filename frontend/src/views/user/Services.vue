@@ -120,7 +120,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { getActiveNotices } from '@/api/notice'
-import { getServices } from '@/api/service'
+import { getPublicServices } from '@/api/service'
 import { getMerchants } from '@/api/merchant'
 import { useAppStore } from '@/stores/app'
 import { useCategoryStore } from '@/stores/category'
@@ -200,8 +200,12 @@ function resetFilters() {
 async function loadServices() {
   loading.value = true
   try {
-    const [serviceResponse, merchantResponse] = await Promise.all([getServices(), getMerchants()])
-    if (serviceResponse.code === 200) services.value = normalizeList(serviceResponse.data)
+    // 统一走公开分页接口；首页需要一次性展示全部服务，故取最大页容量
+    const [serviceResponse, merchantResponse] = await Promise.all([
+      getPublicServices({ page: 1, size: 100 }),
+      getMerchants(),
+    ])
+    if (serviceResponse.code === 200) services.value = normalizeList(serviceResponse.data?.items_wsh)
     const merchantList = merchantResponse.code === 200 ? normalizeList(merchantResponse.data) : []
     merchants.value = merchantList
     // 服务卡片距离：用户位置 + 商家地址均走高德（不依赖本地经纬度）
