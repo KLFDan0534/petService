@@ -92,7 +92,7 @@ services:
   nginx:
     image: nginx:latest
     container_name: pet-nginx
-    restart: always
+    restart: "no"
     ports:
       - "80:80"
     volumes:
