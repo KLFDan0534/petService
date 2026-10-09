@@ -85,6 +85,16 @@ export async function getTimeline(orderId) {
   return res.data
 }
 
+export async function getFulfillmentOverview(orderId) {
+  const res = await request.get(`/api/order-fulfillments/${orderId}`)
+  return res.data
+}
+
+export async function createTimeline(orderId, data) {
+  const res = await request.post(`/api/order-fulfillments/${orderId}/timeline`, data)
+  return res.data
+}
+
 export async function getDailyStatus(orderId) {
   const res = await request.get(`/api/order-fulfillments/${orderId}/daily-status`)
   return res.data

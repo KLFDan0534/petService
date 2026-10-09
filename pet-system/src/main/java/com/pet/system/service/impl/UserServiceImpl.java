@@ -119,6 +119,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("用户名已存在");
         }
 
+//        默认角色
         Role ownerRole = roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getCode_wsh, "OWNER"));
         if (ownerRole != null) {
             UserRole userRole = new UserRole();
@@ -922,6 +923,9 @@ public class UserServiceImpl implements UserService {
         User existed = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone_wsh, phone).last("LIMIT 1"));
         if (existed != null && (currentUserId == null || !currentUserId.equals(existed.getId_wsh()))) {
             throw new BusinessException("手机号已被绑定");
+        }
+        if (phone.length() != 11){
+            System.out.println("非法手机号");
         }
     }
 

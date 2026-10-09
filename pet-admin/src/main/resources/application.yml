@@ -1,162 +1,263 @@
-# 服务器配置
+# ==================== 服务器配置 ====================
 server:
+  # 端口
   port: 8080
   servlet:
     encoding:
+      # 请求/响应字符集
       charset: UTF-8
+      # 是否启用字符集过滤
       enabled: true
+      # 是否强制使用该字符集
       force: true
 
-# Spring 配置
+# ==================== Spring 配置 ====================
 spring:
   config:
+    # 可选导入本地 .env 文件，用于读取环境变量；文件不存在也不报错
     import: optional:file:.env[.properties]
   application:
+    # 应用名称
     name: pet-service
   web:
     resources:
+      # 关闭 Spring Boot 默认的静态资源映射
       add-mappings: false
   security:
     user:
+      # Spring Security 默认用户名
       name: admin
+      # 默认密码从环境变量 SPRING_SECURITY_PASSWORD 读取，未设置则为空
       password: ${SPRING_SECURITY_PASSWORD:}
   autoconfigure:
+    # 排除 Spring AI 的 OpenAI 自动配置，避免未配置 API Key 时启动报错
     exclude:
       - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
 
-# 数据源配置
+  # ==================== 数据源配置 ====================
   sql:
     init:
+      # 不自动执行 SQL 初始化脚本
       mode: never
 
   datasource:
+    # MySQL 连接地址，支持通过环境变量 MYSQL_URL 覆盖
+    # 默认连接 localhost:3308/pet_service，并设置 UTF-8、时区、自动建库等参数
     url: ${MYSQL_URL:jdbc:mysql://localhost:3308/pet_service?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true&sessionVariables=character_set_client=utf8mb4,character_set_connection=utf8mb4,character_set_results=utf8mb4}
+    # 数据库用户名，默认 root
     username: ${MYSQL_USERNAME:root}
+    # 数据库密码，默认空
     password: ${MYSQL_PASSWORD:}
+    # MySQL 驱动类
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  # ==================== Redis 配置 ====================
   data:
     redis:
+      # Redis 主机
       host: localhost
+      # Redis 端口
       port: 6379
+      # 使用的数据库索引
       database: 0
+      # 连接超时时间
       timeout: 5000ms
       lettuce:
         pool:
+          # 最大活跃连接数
           max-active: 8
+          # 最大空闲连接数
           max-idle: 8
+          # 最小空闲连接数
           min-idle: 0
 
+  # ==================== RabbitMQ 配置 ====================
   rabbitmq:
+    # RabbitMQ 主机
     host: localhost
+    # RabbitMQ 端口
     port: 5672
+    # 用户名
     username: guest
+    # 密码
     password: guest
+    # 虚拟主机
     virtual-host: /
+    # 发布确认类型：correlated 表示关联确认
     publisher-confirm-type: correlated
+    # 开启发布返回
     publisher-returns: true
     template:
+      # 消息无法路由时返回给发送者
       mandatory: true
     listener:
       simple:
+        # 手动 ACK 模式
         acknowledge-mode: manual
+        # 每个消费者预取消息数量
         prefetch: 1
 
+  # ==================== 文件上传配置 ====================
   servlet:
     multipart:
+      # 单个文件最大 50MB
       max-file-size: 50MB
+      # 单次请求最大 100MB
       max-request-size: 100MB
 
+  # ==================== Jackson 序列化配置 ====================
   jackson:
+    # 日期格式
     date-format: yyyy-MM-dd HH:mm:ss
+    # 时区
     time-zone: Asia/Shanghai
+    # 忽略 null 字段
     default-property-inclusion: non_null
 
+# ==================== MyBatis-Plus 配置 ====================
 mybatis-plus:
   configuration:
+    # 关闭下划线转驼峰，字段名需与数据库列名完全一致
     map-underscore-to-camel-case: false
+    # 日志实现使用 SLF4J
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
   global-config:
     db-config:
+      # 主键策略：数据库自增
       id-type: auto
+      # 逻辑删除字段名
       logic-delete-field: deleted_wsh
+      # 已删除值
       logic-delete-value: 1
+      # 未删除值
       logic-not-delete-value: 0
 
+# ==================== MinIO 对象存储配置 ====================
 minio:
+  # MinIO 服务地址
   endpoint: http://localhost:9000
+  # 对外访问前缀，通常配合反向代理
   public-url: /minio
+  # Access Key，可通过环境变量覆盖
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  # Secret Key，可通过环境变量覆盖
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  # 默认存储桶名称
   bucket: pet-service
 
+# ==================== 产品媒体上传限制 ====================
 product-media:
+  # 最多上传数量
   max-count: 10
+  # 单文件最大字节数（10MB）
   max-bytes: 10485760
+  # 图片最大边长（像素）
   max-dimension: 4096
 
+# ==================== 应用迁移配置 ====================
 app:
   migration:
+    # 产品媒体迁移版本标识
     product-media-version: v6_service_product_media
 
+# ==================== JWT 配置 ====================
 jwt:
+  # 访问令牌有效期（毫秒），默认 1 天
   access-token-expiration: 86400000
+  # 刷新令牌有效期（毫秒），默认 7 天
   refresh-token-expiration: 604800000
   # 开发/本地兜底密钥（384bit 随机 Base64，仅供开发测试）
   # 生产环境务必用环境变量 JWT_SECRET 覆盖，且不要提交真实密钥到仓库
   secret: ${JWT_SECRET:0flNBn7ERj7uWG4a3B5nrnGrB/URisxq1XCQlFJ2uOWpl2zHnjlLkn/DvQCpOfgK}
 
-# Cloudflare Turnstile 人机校验
+# ==================== Cloudflare Turnstile 人机校验 ====================
 turnstile:
+  # Turnstile 密钥，从环境变量读取
   secret: ${TURNSTILE_SECRET:}
+  # 允许的主机名列表，逗号分隔
   allowed-hostnames: ${TURNSTILE_HOSTNAMES:localhost,127.0.0.1}
 
+# ==================== 日志配置 ====================
 logging:
   file:
+    # 日志文件路径
     name: logs/pet-service.log
   level:
+    # com.pet 包日志级别为 DEBUG
     com.pet: DEBUG
 
+# ==================== SpringDoc / Swagger 配置 ====================
 springdoc:
   api-docs:
+    # OpenAPI JSON 文档路径
     path: /api-docs
   swagger-ui:
+    # Swagger UI 页面路径
     path: /swagger-ui.html
+    # 接口按 HTTP 方法排序
     operations-sorter: method
+    # 默认不展开文档
     doc-expansion: none
+    # 默认模型展开深度 -1 表示不展开
     default-models-expand-depth: -1
   cache:
+    # 是否禁用缓存
     disabled: false
   show-actuator: false
 
+# ==================== AI 配置 ====================
 ai:
   deepseek:
+    # API Key，从环境变量 ZHIPU_API_KEY 读取
     api-key: ${ZHIPU_API_KEY:}
+    # 模型名称
     model: ${ZHIPU_MODEL:glm-5.3-flash}
+    # API 端点
     endpoint: ${ZHIPU_ENDPOINT:https://api.b.ai/v1}
+    # 最大生成 token 数
     max-tokens: ${ZHIPU_MAX_TOKENS:8192}
+    # 温度参数
     temperature: ${ZHIPU_TEMPERATURE:1.0}
+    # 思考类型，disabled 表示关闭
     thinking-type: ${ZHIPU_THINKING_TYPE:disabled}
   kenari:
+    # API Key，从环境变量 KENARI_API_KEY 读取
     api-key: ${KENARI_API_KEY:}
+    # 模型名称
     model: ${KENARI_MODEL:glm-5.3-flash}
+    # API 端点
     endpoint: ${KENARI_ENDPOINT:https://api.b.ai/v1}
+    # 最大生成 token 数
     max-tokens: ${KENARI_MAX_TOKENS:8192}
+    # 温度参数
     temperature: ${KENARI_TEMPERATURE:1.0}
 
+# ==================== Chroma 向量数据库配置 ====================
 chroma:
+  # Chroma 服务地址
   url: ${CHROMA_URL:http://localhost:8000}
+  # 租户
   tenant: ${CHROMA_TENANT:default_tenant}
+  # 数据库
   database: ${CHROMA_DATABASE:default_database}
 
+# ==================== 高德地图配置 ====================
 gao:
   map:
+    # 高德地图 API Key
     api-key: ${GAO_MAP_API_KEY:}
+    # 安全密钥
     security-code: ${GAO_MAP_SECURITY_CODE:}
+    # 交接半径（米）
     handover-radius-meters: ${GAO_MAP_HANDOVER_RADIUS_METERS:500}
+    # 打卡半径（米）
     attendance-radius-meters: ${GAO_MAP_ATTENDANCE_RADIUS_METERS:300}
 
+# ==================== 预约业务配置 ====================
 booking:
+  # 时间槽长度（分钟）
   slot-minutes: ${BOOKING_SLOT_MINUTES:30}
+  # 最大可预约天数
   max-booking-days: ${BOOKING_MAX_BOOKING_DAYS:91}
+  # 最大订单天数
   max-order-days: ${BOOKING_MAX_ORDER_DAYS:365}

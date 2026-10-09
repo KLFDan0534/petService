@@ -33,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -512,6 +513,32 @@ public class OrderController {
         body = requireBody(body);
         PetOrder order = orderService.getById(id);
         orderService.updateOrderStatus(order.getOrder_no_wsh(), body.getStatus_wsh());
+        return Result.success();
+    }
+
+    /**
+     * 【删除订单】
+     *
+     * API: DELETE /api/orders/{id}
+     *
+     * 权限：仅 ADMIN
+     *
+     * 业务作用：
+     * 管理员删除订单记录。采用 @TableLogic 逻辑删除（deleted_wsh=1），
+     * 不物理删除，不影响支付/退款/履约等关联数据，也不触发资金操作。
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "删除订单", description = "逻辑删除指定订单")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "400", description = "请求参数错误"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> delete(@Parameter(description = "订单ID") @PathVariable Long id) {
+        log.info("调用 delete()");
+        orderService.delete(id);
         return Result.success();
     }
 

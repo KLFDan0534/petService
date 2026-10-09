@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,7 +26,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -65,6 +68,16 @@ public class RagController {
     @Operation(summary = "新增知识库文档")
     public Result<RagDocumentDTO> createDocument(@Valid @RequestBody RagDocumentUpsertRequestDTO request) {
         return Result.success(ragService.createDocument(request));
+    }
+
+    @PostMapping(value = "/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "上传文档文件", description = "上传 txt/docx 文件并自动提取文本创建知识文档")
+    public Result<RagDocumentDTO> uploadDocument(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String category) throws IOException {
+        return Result.success(ragService.createFromFile(file.getOriginalFilename(), file.getBytes(), title, category));
     }
 
     @PutMapping("/documents/{id}")

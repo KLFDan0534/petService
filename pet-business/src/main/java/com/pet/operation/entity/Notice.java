@@ -55,7 +55,7 @@ public class Notice {
     private Integer sort_order_wsh;
 
     @TableField(value = "status_wsh")
-    @Schema(description = "状态")
+    @Schema(description = "发布状态")
     private Integer status_wsh;
 
     @JsonIgnore

@@ -73,6 +73,19 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = loadUser()
   }
 
+  /**
+   * 退出登录：先通知后端将当前 token 加入黑名单，再清理本地状态。
+   * 后端调用失败时仍继续本地退出，避免用户被卡住。
+   */
+  async function logout() {
+    try {
+      await request.post('/api/auth/logout')
+    } catch (e) {
+      // 忽略：后端不可用不应阻塞本地退出
+    }
+    clearAuth()
+  }
+
   async function apiGet(url, params) {
     const r = await request.get(url, { params })
     return r.data
@@ -98,5 +111,5 @@ export const useAuthStore = defineStore('auth', () => {
     return r.data
   }
 
-  return { user, token, refreshToken, isLoggedIn, isAdmin, isMerchant, isOwner, isCs, hasRole, setAuth, clearAuth, refetchUser, apiGet, apiPost, apiPut, apiDelete, apiPatch }
+  return { user, token, refreshToken, isLoggedIn, isAdmin, isMerchant, isOwner, isCs, hasRole, setAuth, clearAuth, logout, refetchUser, apiGet, apiPost, apiPut, apiDelete, apiPatch }
 })

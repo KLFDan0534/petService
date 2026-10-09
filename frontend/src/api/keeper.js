@@ -50,5 +50,45 @@ export async function uploadKeeperAvatar(data) {
   return res.data
 }
 
+export async function getMyKeeperApplication() {
+  const res = await request.get('/api/keepers/my-application')
+  return res.data
+}
+
+export async function getNearbyKeepers(params) {
+  const res = await request.get('/api/keepers/nearby', { params })
+  return res.data
+}
+
+export async function getPendingKeepers() {
+  const res = await request.get('/api/keepers/pending')
+  return res.data
+}
+
+export async function getMerchantPendingKeepers() {
+  const res = await request.get('/api/keepers/merchant/pending')
+  return res.data
+}
+
+export async function resignKeeper(id) {
+  const res = await request.post(`/api/keepers/${id}/resign`, {})
+  return res.data
+}
+
+export async function merchantApproveKeeper(id) {
+  const res = await request.post(`/api/keepers/${id}/merchant-approve`, {})
+  return res.data
+}
+
+export async function merchantRejectKeeper(id) {
+  const res = await request.post(`/api/keepers/${id}/merchant-reject`, {})
+  return res.data
+}
+
+export async function merchantTerminateKeeper(id) {
+  const res = await request.post(`/api/keepers/${id}/merchant-terminate`, {})
+  return res.data
+}
+
 
 

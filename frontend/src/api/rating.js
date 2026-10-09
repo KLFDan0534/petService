@@ -30,6 +30,11 @@ export async function getReviews() {
   return res.data
 }
 
+export async function getPendingReviews() {
+  const res = await request.get('/api/reviews/pending')
+  return res.data
+}
+
 export async function createReview(data) {
   const res = await request.post('/api/reviews', data)
   return res.data

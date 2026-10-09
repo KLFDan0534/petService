@@ -6,6 +6,7 @@ import com.pet.common.annotation.LogOperation;
 import com.pet.boarding.dto.MerchantCreateRequestDTO;
 import com.pet.boarding.dto.MerchantDTO;
 import com.pet.boarding.dto.MerchantStoreModeRequestDTO;
+import com.pet.boarding.dto.MerchantStatusRequestDTO;
 import com.pet.boarding.dto.MerchantUpdateRequestDTO;
 import com.pet.security.JwtAuthenticationToken;
 import com.pet.boarding.service.MerchantService;
@@ -235,6 +236,71 @@ public class MerchantController {
             return Result.error(403, "无权修改此商家");
         }
         return Result.success(merchantService.toDTO(merchantService.update(id, dto)));
+    }
+
+    /**
+     * 【更新商家审核状态】
+     *
+     * API: PUT /api/merchants/{id}/status
+     *
+     * 权限：仅 ADMIN
+     *
+     * 业务作用：
+     * 管理员在商家列表中直接切换审核状态（待审核/已通过/已拒绝）。
+     * 复用 Service 层已有的 approve/reject 联动逻辑，不新建状态机。
+     *
+     * 请求体：{"status_wsh": 0|1|2}
+     *
+     * @param token 当前用户认证信息
+     * @param id    商家 ID
+     * @param body  目标状态请求体
+     * @return 无返回值
+     */
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    @LogOperation(module = "merchant", operation = "update-status", description = "Update merchant status")
+    @Operation(summary = "更新商家审核状态", description = "管理员直接将商家状态置为待审核/已通过/已拒绝")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> updateStatus(@Parameter(description = "商家ID") @PathVariable Long id,
+                                     @RequestBody MerchantStatusRequestDTO body) {
+        log.info("调用 updateStatus()");
+        merchantService.updateStatus(id, body == null ? null : body.getStatus_wsh());
+        return Result.success();
+    }
+
+    /**
+     * 【删除商家】
+     *
+     * API: DELETE /api/merchants/{id}
+     *
+     * 权限：仅 ADMIN
+     *
+     * 业务作用：
+     * 管理员删除违规商家。采用 @TableLogic 逻辑删除（deleted_wsh=1），
+     * 不物理删除数据库记录，避免破坏历史订单等关联数据。
+     *
+     * @param id 商家 ID
+     * @return 无返回值
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @LogOperation(module = "merchant", operation = "delete", description = "Delete merchant")
+    @Operation(summary = "删除商家", description = "逻辑删除指定商家")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "操作成功"),
+        @ApiResponse(responseCode = "400", description = "请求参数错误"),
+        @ApiResponse(responseCode = "403", description = "权限不足"),
+        @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<Void> delete(@Parameter(description = "商家ID") @PathVariable Long id) {
+        log.info("调用 delete()");
+        merchantService.delete(id);
+        return Result.success();
     }
 
     /**

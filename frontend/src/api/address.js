@@ -5,6 +5,11 @@ export async function getAddresses() {
   return res.data
 }
 
+export async function getAddress(id) {
+  const res = await request.get(`/api/addresses/${id}`)
+  return res.data
+}
+
 export async function createAddress(data) {
   const res = await request.post('/api/addresses', data)
   return res.data

@@ -250,8 +250,8 @@ function goProfile() {
   router.push('/profile')
 }
 
-function logout() {
-  authStore.clearAuth()
+async function logout() {
+  await authStore.logout()
   resetDynamicRoutes()
   router.push('/login')
 }

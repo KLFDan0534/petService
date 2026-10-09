@@ -96,3 +96,8 @@ export async function deleteMemberPlan(id) {
   const res = await request.delete(`/api/membership/admin/plans/${id}`)
   return res.data
 }
+
+export async function getAdminMemberPlan(id) {
+  const res = await request.get(`/api/membership/admin/plans/${id}`)
+  return res.data
+}

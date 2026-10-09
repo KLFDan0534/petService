@@ -21,6 +21,11 @@ export async function getTicketMessages(id) {
   return res.data
 }
 
+export async function getTicket(id) {
+  const res = await request.get(`/api/tickets/${id}`)
+  return res.data
+}
+
 export async function sendTicketMessage(id, data) {
   const res = await request.post(`/api/tickets/${id}/messages`, data)
   return res.data

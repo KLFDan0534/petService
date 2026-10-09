@@ -10,6 +10,11 @@ export async function getCategory(id) {
   return res.data
 }
 
+export async function getCategoriesByParent(parentId) {
+  const res = await request.get(`/api/categories/parent/${parentId}`)
+  return res.data
+}
+
 export async function createCategory(data) {
   const res = await request.post('/api/categories', data)
   return res.data

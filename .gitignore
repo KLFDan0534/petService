@@ -126,3 +126,18 @@ android-app/
 
 # 备份文件
 *.bak
+
+# ===== 2026-10-09 提交前补充：根目录临时文件（含密钥，禁止入库） =====
+_env.sh
+_cp.txt
+_jvmargs.txt
+_manifest.mf
+_check.txt
+_probe.txt
+b.txt
+
+# pet-allinone 构建产物（保留 Dockerfile/脚本，忽略前端构建输出）
+pet-allinone/dist/
+
+# 临时代码查找笔记
+代码关联/

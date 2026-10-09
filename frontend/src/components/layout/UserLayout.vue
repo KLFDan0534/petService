@@ -283,9 +283,9 @@ function goProfile() {
 }
 
 function logout() {
-  window.$modal.open('提示', '确定要退出登录吗？', () => {
+  window.$modal.open('提示', '确定要退出登录吗？', async () => {
     closeMobileMenu()
-    authStore.clearAuth()
+    await authStore.logout()
     router.push('/login')
   })
 }

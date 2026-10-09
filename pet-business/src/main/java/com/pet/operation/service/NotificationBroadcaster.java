@@ -22,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Service
 @Slf4j
 public class NotificationBroadcaster {
+    //当前连接的sse,也可以用来判断用户是否在线
     private final Map<Long, CopyOnWriteArrayList<SseEmitter>> emittersByUser = new ConcurrentHashMap<>();
 
     /**

@@ -47,7 +47,7 @@ public class NotificationEventController {
             @ApiResponse(responseCode = "200", description = "成功建立SSE连接，持续推送事件"),
             @ApiResponse(responseCode = "401", description = "Token无效或未授权"),
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
-    })
+    })  
     public SseEmitter stream(@Parameter(description = "JWT认证令牌") @RequestParam("token") String token) {
         return broadcaster.connect(sseTokenService.requireUserId(token));
     }

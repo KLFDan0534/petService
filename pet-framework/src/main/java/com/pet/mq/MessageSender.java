@@ -211,4 +211,26 @@ public class MessageSender {
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
                 RabbitMQConfig.QUEUE_COMPLAINT_PROCESS, complaintId.toString());
     }
+
+    /**
+     * 【公告通知事件】
+     *
+     * 业务作用：
+     * 公告创建/更新后，把公告ID投递到 MQ，由消费者在后台为该公告
+     * 批量生成全量用户通知，避免同步插入阻塞发公告请求。
+     *
+     * 触发时机：
+     * NoticeServiceImpl.create()
+     * NoticeServiceImpl.update() 调用时。
+     *
+     * 消费者：
+     * MessageListener.handleNoticeNotification() → NoticeNotificationHandler.handle()
+     *
+     * @param noticeId 公告 ID
+     */
+    public void sendNoticeNotification(Long noticeId){
+        log.info("发送通知事件: {}", noticeId);
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
+                RabbitMQConfig.QUEUE_NOTICE_NOTIFICATION, noticeId.toString());
+    }
 }

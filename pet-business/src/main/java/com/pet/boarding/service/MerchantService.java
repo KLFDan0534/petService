@@ -538,4 +538,58 @@ public interface MerchantService {
      * @return true 表示该用户是该商家的所有者
      */
     boolean isOwner(Long merchantId, Long userId);
+
+    /**
+     * 【更新商家审核状态】
+     *
+     * 业务作用：
+     * 管理员后台直接将商家审核状态改为待审核/已通过/已拒绝，
+     * 等价于已有的 approve()/reject() 的组合入口。
+     *
+     * 调用场景：
+     * 管理端商家列表中切换状态下拉框时调用（PUT /api/merchants/{id}/status）。
+     *
+     * 数据处理：
+     * 状态为已通过时复用 approve 逻辑；已拒绝时复用 reject 逻辑；
+     * 待审核时仅重置 status，不改变营业模式。
+     *
+     * 业务规则：
+     * 仅支持 StatusCode.MERCHANT_PENDING / MERCHANT_APPROVED / MERCHANT_REJECTED 三个值。
+     *
+     * 状态影响：
+     * status 字段更新；已通过/已拒绝时联动 store_mode 与 store_status。
+     *
+     * 异常情况：
+     * status 为 null 或非法枚举值时抛 BusinessException。
+     *
+     * @param id     商家ID
+     * @param status 目标审核状态值（0/1/2）
+     */
+    void updateStatus(Long id, Integer status);
+
+    /**
+     * 【删除商家（逻辑删除）】
+     *
+     * 业务作用：
+     * 管理员后台删除违规商家。复用 MyBatis-Plus 的 @TableLogic 逻辑删除机制，
+     * 仅将 deleted_wsh 置为 1，不物理删除数据库记录。
+     *
+     * 调用场景：
+     * 管理端商家列表点击删除按钮时调用（DELETE /api/merchants/{id}）。
+     *
+     * 数据处理：
+     * 校验商家存在后调用 merchantMapper.deleteById(id)，由 @TableLogic 转为 UPDATE deleted_wsh=1。
+     *
+     * 业务规则：
+     * 若商家仍在营业（store_status=1），先关闭店铺并同步旗下看护者下线，避免删除后仍在接单。
+     *
+     * 状态影响：
+     * deleted_wsh 置 1；必要时 store_mode/store_status 更新。
+     *
+     * 异常情况：
+     * 商家不存在时抛 BusinessException。
+     *
+     * @param id 商家ID
+     */
+    void delete(Long id);
 }

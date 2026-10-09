@@ -77,4 +77,16 @@ public interface RagService {
      * 异常情况：无。
      */
     List<RagDocumentDTO> search(String query, int limit);
+
+    /**
+     * 【业务名称】从文件导入文档
+     * 业务作用：上传 .txt/.docx 文件，提取文本后按普通文档创建，写入 MySQL。
+     * 调用场景：管理端知识库「上传文件」导入。
+     * 数据处理：按后缀选择解析方式（.txt 直读 UTF-8；.docx 用 POI 提取）；
+     *          标题为空时取文件名（去后缀）；source_type 固定为 "upload"。
+     * 业务规则：仅支持 .txt 和 .docx；内容与标题校验复用 createDocument。
+     * 状态影响：新增一条知识文档记录。
+     * 异常情况：格式不支持或解析失败抛 BusinessException(400)。
+     */
+    RagDocumentDTO createFromFile(String fileName, byte[] fileBytes, String title, String category);
 }

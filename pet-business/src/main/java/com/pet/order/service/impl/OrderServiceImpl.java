@@ -165,12 +165,12 @@ public class OrderServiceImpl implements OrderService {
                             AccountingService accountingService,
                             KeeperAttendanceService keeperAttendanceService,
                             KeeperLeaveService keeperLeaveService,
-CouponService couponService,
-                             MembershipBenefitService membershipBenefitService,
-                             ObjectMapper objectMapper,
-                             BusinessHoursService businessHoursService,
-                             BusinessHoursTargetResolver businessHoursTargetResolver,
-                             RatingMapper ratingMapper) {
+                            CouponService couponService,
+                            MembershipBenefitService membershipBenefitService,
+                            ObjectMapper objectMapper,
+                            BusinessHoursService businessHoursService,
+                            BusinessHoursTargetResolver businessHoursTargetResolver,
+                            RatingMapper ratingMapper) {
         this.ratingMapper = ratingMapper;
         this.orderMapper = orderMapper;
         this.paymentMapper = paymentMapper;
@@ -427,6 +427,33 @@ CouponService couponService,
     @Transactional(readOnly = true)
     public OrderDTO getDTOByOrderNo(String orderNo) {
         return toDTOEnriched(getByOrderNo(orderNo));
+    }
+
+    /**
+     * 【删除订单（逻辑删除实现）】
+     *
+     * 业务作用：
+     * 管理员删除订单记录，仅置 deleted_wsh=1，不物理删除，不触碰资金与状态。
+     *
+     * 调用链：
+     * OrderController.delete()
+     * ↓
+     * delete @Transactional
+     * ↓
+     * getById → OrderMapper.deleteById（@TableLogic 转为 UPDATE deleted_wsh=1）
+     *
+     * 状态影响：
+     * deleted_wsh 置 1；订单状态字段不变。
+     *
+     * 异常情况：
+     * 订单不存在时 getById 抛 BusinessException。
+     */
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        log.info("delete() 被调用: id={}", id);
+        getById(id);
+        orderMapper.deleteById(id);
     }
 
     /**

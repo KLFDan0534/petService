@@ -1,5 +1,10 @@
 import request from '@/utils/request'
 
+export async function getPublicQualifications(ownerType, ownerId) {
+  const res = await request.get(`/api/qualifications/${ownerType}/${ownerId}`)
+  return res.data
+}
+
 export async function getPendingQualifications() {
   const res = await request.get('/api/qualifications/pending')
   return res.data

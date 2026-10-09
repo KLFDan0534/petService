@@ -80,6 +80,7 @@ public class NotificationController {
     })
     public Result<UnreadCountResponseDTO> unreadCount(@AuthenticationPrincipal JwtAuthenticationToken token) {
         log.info("unreadCount() 被调用");
+        // TODO 需要调用SSE而不是轮询了
         long count = notificationService.countUnread(token.getUserId());
         return Result.success(new UnreadCountResponseDTO(count));
     }

@@ -513,6 +513,98 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
+     * 【更新商家审核状态（实现）】
+     *
+     * 业务作用：
+     * 管理员直接指定商家审核状态，复用既有 approve/reject 的联动逻辑，
+     * 避免为同一状态字段再建第二套状态机。
+     *
+     * 调用链：
+     * MerchantController.updateStatus()
+     * ↓
+     * updateStatus @Transactional
+     * ↓
+     * approve() | reject() | MerchantMapper.updateById
+     *
+     * 数据处理：
+     * 校验 status 合法性后，已通过复用 approve()、已拒绝复用 reject()、
+     * 待审核仅重置 status_wsh。
+     *
+     * 业务规则：
+     * 仅支持 0（待审核）/1（已通过）/2（已拒绝）。
+     *
+     * 状态影响：
+     * status_wsh 更新；1/2 时联动 store_mode 与 store_status。
+     *
+     * 异常情况：
+     * status 为 null 或非法值时抛 BusinessException(400)。
+     */
+    @Override
+    @Transactional
+    public void updateStatus(Long id, Integer status) {
+        log.info("updateStatus() 被调用: id={}, status={}", id, status);
+        getById(id);
+        if (status == null
+                || (status != StatusCode.MERCHANT_PENDING.getValue()
+                && status != StatusCode.MERCHANT_APPROVED.getValue()
+                && status != StatusCode.MERCHANT_REJECTED.getValue())) {
+            throw new BusinessException(400, "商家状态无效");
+        }
+        if (status == StatusCode.MERCHANT_APPROVED.getValue()) {
+            approve(id);
+            return;
+        }
+        if (status == StatusCode.MERCHANT_REJECTED.getValue()) {
+            reject(id);
+            return;
+        }
+        Merchant merchant = getById(id);
+        merchant.setStatus_wsh(StatusCode.MERCHANT_PENDING.getValue());
+        merchantMapper.updateById(merchant);
+    }
+
+    /**
+     * 【删除商家（逻辑删除实现）】
+     *
+     * 业务作用：
+     * 管理员删除违规商家，复用 @TableLogic 逻辑删除，不物理删除记录。
+     *
+     * 调用链：
+     * MerchantController.delete()
+     * ↓
+     * delete @Transactional
+     * ↓
+     * getById → 关店同步看护者 → MerchantMapper.deleteById
+     *
+     * 数据处理：
+     * 校验商家存在；若当前处于营业中，先置为强制关店并同步旗下看护者下线；
+     * 最后 deleteById 由 @TableLogic 转为 UPDATE deleted_wsh=1。
+     *
+     * 业务规则：
+     * 不物理删除；营业中的商家先关店避免删除后仍接单。
+     *
+     * 状态影响：
+     * deleted_wsh 置 1；必要时 store_mode/store_status 联动更新。
+     *
+     * 异常情况：
+     * 商家不存在时 getById 抛 BusinessException。
+     */
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        log.info("delete() 被调用: id={}", id);
+        Merchant merchant = getById(id);
+        if (merchant.getStore_status_wsh() != null
+                && merchant.getStore_status_wsh() == MerchantStoreConstants.STATUS_OPEN) {
+            merchant.setStore_mode_wsh(MerchantStoreConstants.MODE_MANUAL_CLOSED);
+            merchant.setStore_status_wsh(MerchantStoreConstants.STATUS_CLOSED);
+            merchantMapper.updateById(merchant);
+            keeperService.syncMerchantStoreStatus(merchant.getId_wsh(), false);
+        }
+        merchantMapper.deleteById(id);
+    }
+
+    /**
      * 【更新商家营业模式】
      *
      * 业务作用：

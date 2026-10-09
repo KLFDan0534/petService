@@ -2,6 +2,7 @@ package com.pet.operation.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.pet.common.PageRequestDTO;
+import com.pet.operation.entity.Notice;
 import com.pet.operation.entity.Notification;
 
 import java.util.List;
@@ -48,6 +49,10 @@ public interface NotificationService {
      * @return 创建完成后的通知实体（含自增 ID）
      */
     Notification create(Notification notification);
+
+
+
+//    Integer createBatch(List<Notification> notifications, Notice notice);
 
     /**
      * 将指定通知标记为已读。仅当通知属于该用户时才执行更新

@@ -7,16 +7,16 @@ import com.pet.operation.dto.NoticeCreateRequestDTO;
 import com.pet.operation.dto.NoticeUpdateRequestDTO;
 import com.pet.operation.entity.Notice;
 import com.pet.operation.entity.NoticeRead;
-import com.pet.operation.entity.Notification;
 import com.pet.operation.mapper.NoticeMapper;
 import com.pet.operation.mapper.NoticeReadMapper;
 import com.pet.operation.service.NoticeService;
 import com.pet.operation.service.NotificationService;
-import com.pet.system.entity.User;
+import com.pet.mq.MessageSender;
 import com.pet.system.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,13 +39,16 @@ public class NoticeServiceImpl implements NoticeService {
     private final NoticeReadMapper noticeReadMapper;
     private final NotificationService notificationService;
     private final UserMapper userMapper;
+    private final MessageSender messageSender;
 
     public NoticeServiceImpl(NoticeMapper noticeMapper, NoticeReadMapper noticeReadMapper,
-                             NotificationService notificationService, UserMapper userMapper) {
+                             NotificationService notificationService, UserMapper userMapper,
+                             MessageSender messageSender) {
         this.noticeMapper = noticeMapper;
         this.noticeReadMapper = noticeReadMapper;
         this.notificationService = notificationService;
         this.userMapper = userMapper;
+        this.messageSender = messageSender;
     }
 
     /**
@@ -100,6 +103,10 @@ public class NoticeServiceImpl implements NoticeService {
 
     /**
      * 获取用户尚未关闭的弹窗公告列表（投递方式含 "popup"）
+     * <p>
+     * 懒加载模型：notice_read_wsh 表中「有记录 = 用户已关闭该弹窗 = 不再弹」，
+     * 「无记录 = 用户还没见过 = 需要弹」。因此用 NOT EXISTS 排除已有记录的公告，
+     * 不再依赖 is_read_wsh 字段做状态判断。
      */
     @Override
     public List<Notice> listPopup(Long userId) {
@@ -109,17 +116,24 @@ public class NoticeServiceImpl implements NoticeService {
 
     /**
      * 记录用户已关闭弹窗公告，如果已有记录则忽略
+     * <p>
+     * 懒加载模型：用户关闭弹窗时，才为该用户插入一条阅读记录（"有记录 = 已读"）。
+     * 依靠唯一索引 uk_notice_read_notice_user 保证并发下不会重复插入。
      */
     @Override
+    @Transactional
     public void dismissPopup(Long id, Long userId) {
         log.info("dismissPopup() 被调用");
-        NoticeRead existing = noticeReadMapper.selectOne(
-                new LambdaQueryWrapper<NoticeRead>()
-                        .eq(NoticeRead::getNotice_id_wsh, id)
-                        .eq(NoticeRead::getUser_id_wsh, userId)
-                        .last("LIMIT 1"));
-        if (existing != null) return;
 
+        if(userMapper.selectById(userId) == null) return;
+
+        // 1. 幂等：该用户对该公告已有记录（说明之前已关闭过），直接返回
+        Long count = noticeReadMapper.selectCount(new LambdaQueryWrapper<NoticeRead>()
+                .eq(NoticeRead::getNotice_id_wsh, id)
+                .eq(NoticeRead::getUser_id_wsh, userId));
+        if (count != null && count > 0) return;
+
+        // 2. 无记录 → 首次关闭，插入一条已读记录（记录存在即代表已读）
         NoticeRead read = new NoticeRead();
         read.setNotice_id_wsh(id);
         read.setUser_id_wsh(userId);
@@ -127,6 +141,7 @@ public class NoticeServiceImpl implements NoticeService {
         try {
             noticeReadMapper.insert(read);
         } catch (DuplicateKeyException ignored) {
+            // 并发场景下两次请求同时插入，靠唯一索引兜底，忽略即可
         }
     }
 
@@ -146,13 +161,19 @@ public class NoticeServiceImpl implements NoticeService {
      * 创建公告，校验类型与投递方式，并按投递方式为用户生成通知
      */
     @Transactional
-    @CacheEvict(value = "notice", allEntries = true)
+//    TODO 需要区分公告是否有选择消息通知,如果没选择应该是不需要清空通知的缓存的
+    @Caching(evict = {
+        @CacheEvict(value = "notice", allEntries = true),
+        @CacheEvict(value = "notification", allEntries = true),
+        @CacheEvict(value = "notificationUnreadCount", allEntries = true)
+    })
     @Override
     public Notice create(NoticeCreateRequestDTO request) {
         log.info("create() 被调用");
         Notice notice = new Notice();
         String type = normalizeTypeOrDefault(request.getType_wsh());
         String content = request.getContent_wsh();
+        // 弹窗或是消息
         String deliveryType = normalizeDeliveryType(request.getDelivery_type_wsh());
 
         if (isNoticeType(type)) {
@@ -173,7 +194,10 @@ public class NoticeServiceImpl implements NoticeService {
         notice.setStatus_wsh(request.getStatus_wsh() != null ? request.getStatus_wsh() : StatusCode.NOTICE_ACTIVE.getValue());
         noticeMapper.insert(notice);
 
-        createNoticeNotifications(notice);
+        // 通知生成改为异步：只投递公告ID，由 MQ 消费者在后台批量生成
+        if (shouldCreateNotifications(notice)) {
+            messageSender.sendNoticeNotification(notice.getId_wsh());
+        }
         return notice;
     }
 
@@ -181,7 +205,11 @@ public class NoticeServiceImpl implements NoticeService {
      * 更新公告，清空旧已读记录并重新同步通知
      */
     @Transactional
-    @CacheEvict(value = "notice", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "notice", allEntries = true),
+        @CacheEvict(value = "notification", allEntries = true),
+        @CacheEvict(value = "notificationUnreadCount", allEntries = true)
+    })
     @Override
     public Notice update(Long id, NoticeUpdateRequestDTO request) {
         log.info("update() 被调用");
@@ -259,28 +287,12 @@ public class NoticeServiceImpl implements NoticeService {
         if (noticeId == null) return;
 
         notificationService.deleteByRelatedId(noticeId);
-        createNoticeNotifications(notice);
+        if (shouldCreateNotifications(notice)) {
+            messageSender.sendNoticeNotification(noticeId);
+        }
     }
 
-    private void createNoticeNotifications(Notice notice) {
-        Long noticeId = notice.getId_wsh();
-        if (noticeId == null || !shouldCreateNotifications(notice)) return;
-
-        log.info("向所有用户广播通知 {}", noticeId);
-        List<User> users = userMapper.selectList(null);
-        if (users == null || users.isEmpty()) return;
-
-        users.forEach(user -> {
-            Notification notification = new Notification();
-            notification.setUser_id_wsh(user.getId_wsh());
-            notification.setTitle_wsh(notice.getTitle_wsh());
-            notification.setContent_wsh(notice.getContent_wsh());
-            notification.setType_wsh(TYPE_NOTICE);
-            notification.setRelated_id_wsh(noticeId);
-            notificationService.create(notification);
-        });
-    }
-
+//    通知状态验证
     private boolean shouldCreateNotifications(Notice notice) {
         return isNoticeType(notice.getType_wsh())
                 && Integer.valueOf(StatusCode.NOTICE_ACTIVE.getValue()).equals(notice.getStatus_wsh())

@@ -1,7 +1,10 @@
 package com.pet.mq;
 
 import com.pet.common.mq.ComplaintProcessHandler;
+import com.pet.common.mq.NoticeNotificationHandler;
+import com.pet.config.RabbitMQConfig;
 import com.rabbitmq.client.Channel;
+import org.hibernate.validator.constraints.Range;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
@@ -42,6 +45,9 @@ public class MessageListener {
 
     @Autowired(required = false)
     private ComplaintProcessHandler complaintProcessHandler;
+
+    @Autowired(required = false)
+    private NoticeNotificationHandler noticeNotificationHandler;
 
     /**
      * 【订单创建事件处理】
@@ -199,6 +205,43 @@ public class MessageListener {
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
             log.error("处理投诉失败: {}", complaintId, e);
+            try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * 【公告通知事件】
+     *
+     * 生产者：
+     * MessageSender.sendNoticeNotification()
+     *   触发时机：NoticeServiceImpl.create() / update() 成功后
+     *
+     * 业务流：
+     * handleNoticeNotification()
+     *   ↓
+     * NoticeNotificationHandler.handle(noticeId)
+     *   ↓ (pet-business 模块实现)
+     * 为该公告批量创建全量用户通知，并向在线用户推送 SSE
+     *
+     * 说明：
+     * 消息载荷为公告ID的字符串形式（noticeId.toString()），消费时转回 Long。
+     *
+     * @param noticeId 公告 ID（字符串形式）
+     * @param message AMQP 消息体
+     * @param channel RabbitMQ 信道
+     */
+    @RabbitListener(queues = RabbitMQConfig.QUEUE_NOTICE_NOTIFICATION)
+    public void handleNoticeNotification(String noticeId, Message message, Channel channel) {
+        try {
+            log.info("公告通知事件: {}", noticeId);
+            if (noticeNotificationHandler != null) {
+                noticeNotificationHandler.handle(Long.valueOf(noticeId));
+            } else {
+                log.warn("上下文中没有可用的 NoticeNotificationHandler");
+            }
+            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+        } catch (Exception e) {
+            log.error("处理公告通知失败: {}", noticeId, e);
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }

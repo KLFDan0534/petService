@@ -94,8 +94,8 @@ const isSupportOnly = computed(() =>
 )
 const navItems = computed(() => (isSupportOnly.value ? supportNavItems : merchantNavItems))
 
-function logout() {
-  authStore.clearAuth()
+async function logout() {
+  await authStore.logout()
   resetDynamicRoutes()
   router.push('/login')
 }

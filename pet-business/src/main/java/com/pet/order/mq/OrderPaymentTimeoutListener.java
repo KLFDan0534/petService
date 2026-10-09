@@ -46,6 +46,7 @@ public class OrderPaymentTimeoutListener {
         } catch (Exception e) {
             log.error("处理支付超时消息失败: {}", orderNo, e);
             try {
+                // TODO 处理 nack 失败的情况, 最后的 false 表示不重新入队,但是会导致改订单无限未支付状态
                 channel.basicNack(deliveryTag, false, false);
             } catch (Exception nackError) {
                 log.warn("支付超时消息 nack 失败: {}", orderNo, nackError);

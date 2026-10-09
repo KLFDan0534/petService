@@ -45,6 +45,11 @@ export async function getOperationLogs(params) {
   return res.data
 }
 
+export async function getOperationLog(id) {
+  const res = await request.get(`/api/operation-logs/${id}`)
+  return res.data
+}
+
 export async function getRecycleBinTables() {
   const res = await request.get('/api/recycle-bin/tables')
   return res.data
@@ -57,6 +62,11 @@ export async function getRecycleBin(params) {
 
 export async function restoreFromRecycleBin(table, id) {
   const res = await request.post(`/api/recycle-bin/restore?table=${table}&id=${id}`, {})
+  return res.data
+}
+
+export async function permanentDeleteFromRecycleBin(table, id) {
+  const res = await request.post(`/api/recycle-bin/delete?table=${table}&id=${id}`, {})
   return res.data
 }
 

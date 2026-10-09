@@ -23,6 +23,7 @@
             <td v-for="(v,k) in sample" :key="k" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ formatValue(r[k]) }}</td>
             <td>
               <button class="btn btn-sm btn-success" @click="restore(r.id_wsh || r.id_wsh)">恢复</button>
+              <button class="btn btn-sm btn-danger" @click="permanentDelete(r.id_wsh || r.id_wsh)">永久删除</button>
             </td>
           </tr>
         </tbody>
@@ -35,7 +36,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { getRecycleBinTables, getRecycleBin, restoreFromRecycleBin } from '@/api/admin'
+import { getRecycleBinTables, getRecycleBin, restoreFromRecycleBin, permanentDeleteFromRecycleBin } from '@/api/admin'
 
 
 const appStore = useAppStore()
@@ -65,6 +66,12 @@ async function loadDeleted() {
 async function restore(id) {
   try { await restoreFromRecycleBin(selectedTable.value, id); appStore.addToast('恢复成功', 'success'); loadDeleted() }
   catch (e) { appStore.addToast('恢复失败', 'error') }
+}
+
+async function permanentDelete(id) {
+  if (!confirm('永久删除后无法恢复，确定继续？')) return
+  try { await permanentDeleteFromRecycleBin(selectedTable.value, id); appStore.addToast('已永久删除', 'success'); loadDeleted() }
+  catch (e) { appStore.addToast('删除失败', 'error') }
 }
 
 function formatValue(v) {

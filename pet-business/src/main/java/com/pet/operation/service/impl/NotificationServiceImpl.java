@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+
 @Service
 @Slf4j
 public class NotificationServiceImpl implements NotificationService {
@@ -33,6 +34,9 @@ public class NotificationServiceImpl implements NotificationService {
     private static final String CACHE_NOTIFICATION = "notification";
     /** 未读通知数量缓存名 */
     private static final String CACHE_UNREAD_COUNT = "notificationUnreadCount";
+    /** 单次最大插入数量  */
+    private static final int NOTIFICATION_BATCH_SIZE = 500;
+
 
     private final NotificationMapper notificationMapper;
     private final NoticeMapper noticeMapper;
@@ -175,6 +179,21 @@ public class NotificationServiceImpl implements NotificationService {
         notificationBroadcaster.broadcast(notification.getUser_id_wsh(), notification);
         return notification;
     }
+
+/*    @Transactional
+    @Override
+    public Integer createBatch(List<Notification> notifications, Notice notice){
+        log.info("createBatch() 被调用");
+        int total = 0;
+        for (int i = 0; i < notifications.size(); i += NOTIFICATION_BATCH_SIZE) {
+            List<Notification> batch = notifications.subList(
+                i, Math.min(i + NOTIFICATION_BATCH_SIZE, notifications.size()));
+            total += notificationMapper.insertBatch(batch);
+        }
+        log.info("公告 {} 通知批量插入完成，共 {} 条", notice.getId_wsh(), total);
+
+        return total;
+    }*/
 
     /**
      * 标记指定通知为已读。仅该通知属于当前用户时才生效

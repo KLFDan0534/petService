@@ -890,5 +890,28 @@ public interface OrderService {
      * @return 增强订单DTO
      */
     OrderDTO getDTOByOrderNo(String orderNo);
+
+    /**
+     * 【删除订单（逻辑删除）】
+     *
+     * 业务作用：
+     * 管理员后台删除订单记录。复用 MyBatis-Plus 的 @TableLogic 逻辑删除机制，
+     * 仅将 deleted_wsh 置为 1，不物理删除记录，避免破坏支付/退款/履约/评价/财务等关联数据。
+     *
+     * 调用场景：
+     * 管理端订单列表点击删除按钮时调用（DELETE /api/orders/{id}）。
+     *
+     * 数据处理：
+     * 校验订单存在后调用 orderMapper.deleteById(id)。
+     *
+     * 业务规则：
+     * 仅进行逻辑删除，不改变订单状态字段，不触发退款等资金操作。
+     *
+     * 异常情况：
+     * 订单不存在时抛 BusinessException。
+     *
+     * @param id 订单ID
+     */
+    void delete(Long id);
 }
 

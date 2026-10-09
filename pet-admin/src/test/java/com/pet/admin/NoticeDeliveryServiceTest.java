@@ -3,6 +3,7 @@ package com.pet.admin;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pet.common.BusinessException;
 import com.pet.common.StatusCode;
+import com.pet.mq.MessageSender;
 import com.pet.operation.dto.NoticeCreateRequestDTO;
 import com.pet.operation.dto.NoticeUpdateRequestDTO;
 import com.pet.operation.entity.Notice;
@@ -11,15 +12,11 @@ import com.pet.operation.mapper.NoticeMapper;
 import com.pet.operation.mapper.NoticeReadMapper;
 import com.pet.operation.service.NotificationService;
 import com.pet.operation.service.impl.NoticeServiceImpl;
-import com.pet.system.entity.User;
 import com.pet.system.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,6 +36,7 @@ class NoticeDeliveryServiceTest {
     @Mock private NoticeReadMapper noticeReadMapper;
     @Mock private NotificationService notificationService;
     @Mock private UserMapper userMapper;
+    @Mock private MessageSender messageSender;
 
     @Test
     void bannerCreateAllowsBlankContentAndDelivery() {
@@ -55,6 +53,8 @@ class NoticeDeliveryServiceTest {
         assertEquals("", result.getDelivery_type_wsh());
         verify(notificationService, never()).create(any(Notification.class));
         verify(notificationService, never()).deleteByRelatedId(any());
+        // banner 类型不投递通知，不应产生 MQ 消息
+        verify(messageSender, never()).sendNoticeNotification(any());
     }
 
     @Test
@@ -70,24 +70,28 @@ class NoticeDeliveryServiceTest {
     }
 
     @Test
-    void noticeCreateWithNotificationCreatesUserNotifications() {
+    void noticeCreateWithNotificationSendsMqMessage() {
         stubInsertId(NOTICE_ID);
-        when(userMapper.selectList(any())).thenReturn(List.of(user(1L), user(2L)));
         NoticeCreateRequestDTO request = noticeCreateRequest(" Notification , popup , notification ");
 
         Notice result = service().create(request);
 
         assertEquals("notification,popup", result.getDelivery_type_wsh());
-        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-        verify(notificationService, times(2)).create(captor.capture());
-        assertEquals(List.of(1L, 2L), captor.getAllValues().stream().map(Notification::getUser_id_wsh).toList());
-        captor.getAllValues().forEach(notification -> {
-            assertEquals("notice", notification.getType_wsh());
-            assertEquals(NOTICE_ID, notification.getRelated_id_wsh());
-            assertEquals("系统公告", notification.getTitle_wsh());
-            assertEquals("公告内容", notification.getContent_wsh());
-        });
+        // 通知生成已改为异步：create() 只投递公告ID，不再同步插入通知
+        verify(messageSender, times(1)).sendNoticeNotification(NOTICE_ID);
+        verify(notificationService, never()).create(any(Notification.class));
         verify(notificationService, never()).deleteByRelatedId(any());
+    }
+
+    @Test
+    void noticeCreateWithPopupOnlyDoesNotSendMqMessage() {
+        stubInsertId(NOTICE_ID);
+        NoticeCreateRequestDTO request = noticeCreateRequest("popup");
+
+        service().create(request);
+
+        // 纯弹窗公告不需要生成站内通知
+        verify(messageSender, never()).sendNoticeNotification(any());
     }
 
     @Test
@@ -104,20 +108,23 @@ class NoticeDeliveryServiceTest {
         verify(notificationService, never()).create(any(Notification.class));
         verify(noticeReadMapper).delete(any(LambdaQueryWrapper.class));
         verify(noticeMapper).updateById(existing);
+        // 改为纯弹窗后不再需要生成通知
+        verify(messageSender, never()).sendNoticeNotification(any());
     }
 
     @Test
-    void updateFromPopupToNotificationRecreatesUserNotifications() {
+    void updateFromPopupToNotificationSendsMqMessage() {
         Notice existing = activeNotice("popup");
         when(noticeMapper.selectById(NOTICE_ID)).thenReturn(existing);
-        when(userMapper.selectList(any())).thenReturn(List.of(user(1L), user(2L)));
         NoticeUpdateRequestDTO request = new NoticeUpdateRequestDTO();
         request.setDelivery_type_wsh("notification");
 
         service().update(NOTICE_ID, request);
 
         verify(notificationService).deleteByRelatedId(NOTICE_ID);
-        verify(notificationService, times(2)).create(any(Notification.class));
+        // 重新同步同样走 MQ 异步
+        verify(messageSender, times(1)).sendNoticeNotification(NOTICE_ID);
+        verify(notificationService, never()).create(any(Notification.class));
     }
 
     @Test
@@ -132,10 +139,13 @@ class NoticeDeliveryServiceTest {
         assertEquals(StatusCode.NOTICE_DRAFT.getValue(), result.getStatus_wsh());
         verify(notificationService).deleteByRelatedId(NOTICE_ID);
         verify(notificationService, never()).create(any(Notification.class));
+        // 草稿状态不生成通知
+        verify(messageSender, never()).sendNoticeNotification(any());
     }
 
     private NoticeServiceImpl service() {
-        return new NoticeServiceImpl(noticeMapper, noticeReadMapper, notificationService, userMapper);
+        return new NoticeServiceImpl(noticeMapper, noticeReadMapper, notificationService,
+                userMapper, messageSender);
     }
 
     private void stubInsertId(Long id) {
@@ -164,11 +174,5 @@ class NoticeDeliveryServiceTest {
         notice.setDelivery_type_wsh(deliveryType);
         notice.setStatus_wsh(StatusCode.NOTICE_ACTIVE.getValue());
         return notice;
-    }
-
-    private User user(Long id) {
-        User user = new User();
-        user.setId_wsh(id);
-        return user;
     }
 }

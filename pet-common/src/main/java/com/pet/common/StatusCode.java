@@ -63,7 +63,19 @@ public enum StatusCode {
     /** 操作日志状态：执行成功 */
     LOG_SUCCESS(1),
     /** 操作日志状态：执行失败 */
-    LOG_FAILURE(0);
+    LOG_FAILURE(0),
+
+    // ==================== (通知)已读 ====================
+    /** 已读状态：已读 */
+    NOTIFICATION_READ(1),
+    /** 已读状态：未读 */
+    NOTIFICATION_UNREAD(0),
+
+    // ==================== 删除状态 ====================
+    /** 删除状态：删除 */
+    DELETE_DELETED(1),
+    /** 删除状态：未删除 */
+    DELETE_UNDELETED(0);
 
     private final int value;
 

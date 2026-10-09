@@ -10,9 +10,13 @@ import com.pet.ai.mapper.KnowledgeDocumentMapper;
 import com.pet.ai.service.RagService;
 import com.pet.common.BusinessException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -112,6 +116,50 @@ public class RagServiceImpl implements RagService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public RagDocumentDTO createFromFile(String fileName, byte[] fileBytes, String title, String category) {
+        if (fileName == null || fileName.isBlank()) {
+            throw new BusinessException(400, "文件名不能为空");
+        }
+        String content = extractText(fileName, fileBytes);
+        String resolvedTitle = (title == null || title.isBlank()) ? titleFromFileName(fileName) : title;
+        RagDocumentUpsertRequestDTO request = new RagDocumentUpsertRequestDTO();
+        request.setTitle_wsh(resolvedTitle);
+        request.setContent_wsh(content);
+        request.setCategory_wsh(category);
+        request.setSource_type_wsh("upload");
+        return createDocument(request);
+    }
+
+    /**
+     * 从文件名提取默认标题（去掉最后一个 .后缀）。
+     */
+    private String titleFromFileName(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        return dot > 0 ? fileName.substring(0, dot) : fileName;
+    }
+
+    /**
+     * 按后缀解析文件文本：.txt 直读 UTF-8；.docx 用 POI 提取。
+     */
+    private String extractText(String fileName, byte[] fileBytes) {
+        String lower = fileName.toLowerCase();
+        if (lower.endsWith(".txt")) {
+            return new String(fileBytes, StandardCharsets.UTF_8);
+        }
+        if (lower.endsWith(".docx")) {
+            try (XWPFDocument document = new XWPFDocument(new ByteArrayInputStream(fileBytes));
+                 XWPFWordExtractor extractor = new XWPFWordExtractor(document)) {
+                return extractor.getText();
+            } catch (Exception e) {
+                log.error("从docx文件提取文本失败: {}", fileName, e);
+                throw new BusinessException(400, "无法解析Word文档: " + fileName);
+            }
+        }
+        throw new BusinessException(400, "不支持的文件格式，仅支持 .txt 和 .docx 文件");
+    }
+
     /**
      * 【业务名称】文档相关性打分（实现）
      * 业务作用：计算查询词与文档标题/内容的匹配得分。
@@ -176,8 +224,7 @@ public class RagServiceImpl implements RagService {
         }
     }
 
-    private KnowledgeDocument requireDocument(Long id) {
-        KnowledgeDocument doc = documentMapper.selectById(id);
+    private KnowledgeDocument requireDocument(Long id) {        KnowledgeDocument doc = documentMapper.selectById(id);
         if (doc == null) {
             throw new BusinessException(404, "文档不存在");
         }

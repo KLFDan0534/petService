@@ -57,8 +57,11 @@ services:
       - pet-network
 
   minio:
-    image: minio/minio:latest
+    # NOTE: 上游 minio/minio 已归档下架（官方镜像/二进制停止分发），改用同源 MinIO 的可用镜像
+    image: cgr.dev/chainguard/minio:latest
     container_name: pet-minio
+    user: "0:0"  # 原数据卷文件属主为 root，需以 root 运行否则报 file access denied
+    restart: unless-stopped
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -69,7 +72,7 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "/usr/bin/mc", "ready", "local"]
       interval: 10s
       timeout: 5s
       retries: 5

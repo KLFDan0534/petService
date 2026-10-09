@@ -14,6 +14,11 @@ export async function getServiceDetail(id) {
   return res.data
 }
 
+export async function getService(id) {
+  const res = await request.get(`/api/services/${id}`)
+  return res.data
+}
+
 export async function getServicesByMerchant(merchantId) {
   const res = await request.get(`/api/services/merchant/${merchantId}`)
   return res.data
