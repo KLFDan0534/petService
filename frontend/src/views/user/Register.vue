@@ -136,11 +136,6 @@
                 <p v-if="errors.confirm" class="auth-error">{{ errors.confirm }}</p>
               </div>
 
-              <div class="auth-field">
-                <div ref="turnstileRef" class="turnstile-wrap" aria-label="人机验证"></div>
-                <p v-if="turnstileError" class="auth-error">{{ turnstileError }}</p>
-              </div>
-
             </div>
 
             <button type="submit" class="cta cta-dark cta-lg" :disabled="loading">
@@ -200,7 +195,6 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { addDynamicRoutes } from '@/router'
 import { register, requestRegisterCaptcha } from '@/api/auth'
-import { useTurnstile } from '@/composables/useTurnstile'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -212,10 +206,6 @@ const captchaHint = ref('')
 const formError = ref('')
 const confirm_wsh = ref('')
 const countdownTimer = ref(null)
-
-// Cloudflare Turnstile 人机验证
-const turnstileRef = ref(null)
-const { token: turnstileToken, error: turnstileError, unavailable: turnstileUnavailable, reset: resetTurnstile } = useTurnstile(turnstileRef)
 
 const form = reactive({
   username_wsh: '',
@@ -283,12 +273,6 @@ async function handleRegister() {
   formError.value = ''
   if (validate()) return
 
-  // 人机验证不可用时放行（后端未配置 TURNSTILE_SECRET 时本就是 fail-open，后端才是安全边界）
-  if (!turnstileToken.value && !turnstileUnavailable.value) {
-    formError.value = '请先完成人机验证'
-    return
-  }
-
   loading.value = true
   try {
     const r = await register({
@@ -297,7 +281,6 @@ async function handleRegister() {
       phone_wsh: form.phone_wsh,
       captcha_wsh: form.captcha_wsh.trim(),
       password_wsh: form.password_wsh,
-      turnstileToken: turnstileToken.value,
     })
     if (r.code === 200) {
       authStore.setAuth(r.data)
@@ -305,11 +288,9 @@ async function handleRegister() {
       router.push('/dashboard')
     } else {
       formError.value = r.message || r.msg || '注册失败，请检查填写内容'
-      resetTurnstile()
     }
   } catch (e) {
     formError.value = e.response?.data?.message || '注册服务暂时无法连接，请稍后重试'
-    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -434,13 +415,6 @@ onUnmounted(() => {
 }
 .auth-send:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); color: var(--ref-ink); }
 .auth-send:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* ═══ Turnstile 人机验证 ═══ */
-.turnstile-wrap {
-  min-height: 65px; width: 100%;
-  display: flex; align-items: center; justify-content: flex-start;
-}
-.turnstile-wrap:empty + p { display: none; }
 
 /* ═══ CTA ═══ */
 .cta {

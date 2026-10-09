@@ -52,11 +52,6 @@
               <p v-if="error" class="auth-error">{{ error }}</p>
             </div>
 
-            <div class="auth-field">
-              <div ref="turnstileRef" class="turnstile-wrap" aria-label="人机验证"></div>
-              <p v-if="turnstileError" class="auth-error">{{ turnstileError }}</p>
-            </div>
-
             <button type="submit" class="cta cta-dark cta-lg" :disabled="loading">
               {{ loading ? '发送中…' : '发送重置链接' }}
               <span class="cta-arrow" aria-hidden="true">→</span>
@@ -111,17 +106,12 @@
 <script setup>
 import { ref } from 'vue'
 import { forgotPassword } from '@/api/auth'
-import { useTurnstile } from '@/composables/useTurnstile'
 
 const account = ref('')
 const error = ref('')
 const formError = ref('')
 const sent = ref(false)
 const loading = ref(false)
-
-// Cloudflare Turnstile 人机验证
-const turnstileRef = ref(null)
-const { token: turnstileToken, error: turnstileError, unavailable: turnstileUnavailable, reset: resetTurnstile } = useTurnstile(turnstileRef)
 
 function resetForm() {
   sent.value = false
@@ -138,24 +128,16 @@ async function handleReset() {
     return
   }
 
-  // 人机验证不可用时放行（后端未配置 TURNSTILE_SECRET 时本就是 fail-open，后端才是安全边界）
-  if (!turnstileToken.value && !turnstileUnavailable.value) {
-    formError.value = '请先完成人机验证'
-    return
-  }
-
   loading.value = true
   try {
-    const r = await forgotPassword({ email_wsh: account.value.trim(), turnstileToken: turnstileToken.value })
+    const r = await forgotPassword({ email_wsh: account.value.trim() })
     if (r.code === 200) {
       sent.value = true
     } else {
       formError.value = r.message || r.msg || '发送失败，请确认账号是否正确'
-      resetTurnstile()
     }
   } catch (e) {
     formError.value = e.response?.data?.message || '重置服务暂时无法连接，请稍后重试'
-    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -260,13 +242,6 @@ async function handleReset() {
 .auth-error {
   margin: 0; font-size: 11px; line-height: 1.6; color: var(--ref-brand-deep);
 }
-
-/* ═══ Turnstile 人机验证 ═══ */
-.turnstile-wrap {
-  min-height: 65px; width: 100%;
-  display: flex; align-items: center; justify-content: flex-start;
-}
-.turnstile-wrap:empty + p { display: none; }
 
 /* ═══ CTA ═══ */
 .cta {

@@ -60,11 +60,6 @@
               <router-link to="/forget-password" class="auth-link-sm">忘记密码？</router-link>
             </div>
 
-            <div class="auth-field">
-              <div ref="turnstileRef" class="turnstile-wrap" aria-label="人机验证"></div>
-              <p v-if="turnstileError" class="auth-error">{{ turnstileError }}</p>
-            </div>
-
             <button type="submit" class="cta cta-dark cta-lg" :disabled="loading">
               {{ loading ? '登录中…' : '登录' }}
               <span class="cta-arrow" aria-hidden="true">→</span>
@@ -132,7 +127,6 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { addDynamicRoutes } from '@/router'
 import { safeRedirect } from '@/utils/safeRedirect'
-import { useTurnstile } from '@/composables/useTurnstile'
 import axios from 'axios'
 
 const router = useRouter()
@@ -145,10 +139,6 @@ const errors = reactive({ username: '', password: '' })
 const formError = ref('')
 const loading = ref(false)
 
-// Cloudflare Turnstile 人机验证
-const turnstileRef = ref(null)
-const { token: turnstileToken, error: turnstileError, unavailable: turnstileUnavailable, reset: resetTurnstile } = useTurnstile(turnstileRef)
-
 async function handleLogin() {
   // 逐字段校验
   const next = { username: '', password: '' }
@@ -159,18 +149,11 @@ async function handleLogin() {
   formError.value = ''
   if (next.username || next.password) return
 
-  // 人机验证不可用时放行（后端未配置 TURNSTILE_SECRET 时本就是 fail-open，后端才是安全边界）
-  if (!turnstileToken.value && !turnstileUnavailable.value) {
-    formError.value = '请先完成人机验证'
-    return
-  }
-
   loading.value = true
   try {
     const r = await axios.post('/api/auth/login', {
       username_wsh: username_wsh.value.trim(),
       password_wsh: password_wsh.value,
-      turnstileToken: turnstileToken.value,
     })
     if (r.data.code === 200) {
       authStore.setAuth(r.data.data)
@@ -179,11 +162,9 @@ async function handleLogin() {
       router.push(redirect)
     } else {
       errors.password = r.data.msg || r.data.message || '用户名或密码不正确'
-      resetTurnstile()
     }
   } catch (e) {
     formError.value = e.response?.data?.message || '登录服务暂时无法连接，请稍后重试'
-    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -291,13 +272,6 @@ async function handleLogin() {
 .auth-forgot { display: flex; justify-content: flex-end; }
 .auth-link-sm { font-size: 12.5px; color: var(--ref-muted); text-decoration: none; transition: color 0.15s; }
 .auth-link-sm:hover { color: var(--ref-brand); }
-
-/* ═══ Turnstile 人机验证 ═══ */
-.turnstile-wrap {
-  min-height: 65px; width: 100%;
-  display: flex; align-items: center; justify-content: flex-start;
-}
-.turnstile-wrap:empty + p { display: none; }
 
 /* ═══ 主按钮（CTA） ═══ */
 .cta {
