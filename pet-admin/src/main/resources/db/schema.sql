@@ -818,16 +818,109 @@ CREATE TABLE IF NOT EXISTS `keeper_leave_wsh` (
 
 -- Finance ledger compatibility. Keep this block near the end so older table
 -- definitions above are upgraded without introducing a separate heavy ledger.
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `balance_before_wsh` DECIMAL(12,2) COMMENT 'Balance before change' AFTER `amount_wsh`;
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `frozen_before_wsh` DECIMAL(12,2) COMMENT 'Frozen amount before change' AFTER `balance_after_wsh`;
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `frozen_after_wsh` DECIMAL(12,2) COMMENT 'Frozen amount after change' AFTER `frozen_before_wsh`;
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `direction_wsh` VARCHAR(20) COMMENT 'Ledger direction' AFTER `frozen_after_wsh`;
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `status_wsh` VARCHAR(20) DEFAULT 'success' COMMENT 'Ledger status' AFTER `direction_wsh`;
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `business_type_wsh` VARCHAR(50) COMMENT 'Business type' AFTER `status_wsh`;
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `business_id_wsh` VARCHAR(100) COMMENT 'Business id' AFTER `business_type_wsh`;
-ALTER TABLE wallet_transaction_wsh ADD COLUMN IF NOT EXISTS `request_id_wsh` VARCHAR(120) COMMENT 'Idempotency request id' AFTER `business_id_wsh`;
-ALTER TABLE refund_wsh ADD COLUMN IF NOT EXISTS `order_status_before_refund_wsh` VARCHAR(30) COMMENT 'Order status before refund' AFTER `status_wsh`;
+-- 注意：MySQL 8.0 不支持 ADD COLUMN IF NOT EXISTS（MariaDB 语法），此处使用标准写法。
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `balance_before_wsh` DECIMAL(12,2) COMMENT 'Balance before change' AFTER `amount_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `frozen_before_wsh` DECIMAL(12,2) COMMENT 'Frozen amount before change' AFTER `balance_after_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `frozen_after_wsh` DECIMAL(12,2) COMMENT 'Frozen amount after change' AFTER `frozen_before_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `direction_wsh` VARCHAR(20) COMMENT 'Ledger direction' AFTER `frozen_after_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `status_wsh` VARCHAR(20) DEFAULT 'success' COMMENT 'Ledger status' AFTER `direction_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `business_type_wsh` VARCHAR(50) COMMENT 'Business type' AFTER `status_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `business_id_wsh` VARCHAR(100) COMMENT 'Business id' AFTER `business_type_wsh`;
+ALTER TABLE wallet_transaction_wsh ADD COLUMN `request_id_wsh` VARCHAR(120) COMMENT 'Idempotency request id' AFTER `business_id_wsh`;
+ALTER TABLE refund_wsh ADD COLUMN `order_status_before_refund_wsh` VARCHAR(30) COMMENT 'Order status before refund' AFTER `status_wsh`;
 
 ALTER TABLE wallet_transaction_wsh ADD UNIQUE INDEX `uk_wallet_tx_request` (`request_id_wsh`);
 ALTER TABLE wallet_transaction_wsh ADD INDEX `idx_wallet_tx_user` (`user_id_wsh`);
 ALTER TABLE wallet_transaction_wsh ADD INDEX `idx_wallet_tx_business` (`business_type_wsh`, `business_id_wsh`);
+
+-- ============================================================================
+-- 2026-10-09 对齐补丁：与真实运行库（本地 docker pet_service）结构保持一致
+-- 背景：部分功能表与实体字段此前未同步进本脚本，导致数据库缺表缺列，
+--       对应接口运行时抛 Unknown column / Table doesn't exist，返回 500。
+-- 本次按真实库补齐：5 张功能表 + 5 处缺失列。
+-- 注意：本脚本仅在数据库首次初始化时执行（docker-entrypoint-initdb.d），
+--       对已存在的库请手工执行本段。
+-- ============================================================================
+
+-- ---------- 1) 补齐此前遗漏的功能表 ----------
+CREATE TABLE IF NOT EXISTS `operation_log_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id_wsh` BIGINT COMMENT '用户ID',
+    `username_wsh` VARCHAR(64) COMMENT '用户名',
+    `module_wsh` VARCHAR(64) COMMENT '模块',
+    `operation_wsh` VARCHAR(64) COMMENT '操作',
+    `description_wsh` VARCHAR(500) COMMENT '描述',
+    `method_wsh` VARCHAR(16) COMMENT '请求方法',
+    `request_url_wsh` VARCHAR(500) COMMENT '请求URL',
+    `request_params_wsh` TEXT COMMENT '请求参数',
+    `request_body_wsh` TEXT COMMENT '请求体',
+    `response_body_wsh` TEXT COMMENT '响应体',
+    `ip_address_wsh` VARCHAR(64) COMMENT 'IP地址',
+    `duration_wsh` BIGINT COMMENT '耗时(ms)',
+    `status_wsh` INT COMMENT '状态',
+    `error_msg_wsh` VARCHAR(1000) COMMENT '错误信息',
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX `idx_oplog_user` (`user_id_wsh`),
+    INDEX `idx_oplog_created` (`created_at_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志';
+
+CREATE TABLE IF NOT EXISTS `complaint_message_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `complaint_id_wsh` BIGINT NOT NULL COMMENT '投诉ID',
+    `from_user_id_wsh` BIGINT NOT NULL COMMENT '发送人ID',
+    `to_user_id_wsh` BIGINT COMMENT '接收人ID',
+    `content_wsh` TEXT COMMENT '消息内容',
+    `file_url_wsh` VARCHAR(500) COMMENT '图片附件URL',
+    `is_read_wsh` TINYINT DEFAULT 0 COMMENT '是否已读',
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_cm_complaint` (`complaint_id_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='投诉沟通消息';
+
+CREATE TABLE IF NOT EXISTS `business_hours_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `merchant_id_wsh` BIGINT NOT NULL COMMENT '商家ID',
+    `day_of_week_wsh` INT NOT NULL COMMENT '星期几 1-7',
+    `open_time_wsh` TIME COMMENT '营业开始时间',
+    `close_time_wsh` TIME COMMENT '营业结束时间',
+    `is_closed_wsh` TINYINT DEFAULT 0 COMMENT '是否休息',
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_bh_merchant` (`merchant_id_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商家营业时间';
+
+CREATE TABLE IF NOT EXISTS `ai_chat_history_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `user_id_wsh` BIGINT COMMENT '用户ID',
+    `session_id_wsh` VARCHAR(64) COMMENT '会话ID',
+    `role_wsh` VARCHAR(20) COMMENT '角色 user/assistant',
+    `content_wsh` TEXT COMMENT '消息内容',
+    `sources_wsh` VARCHAR(500) COMMENT '参考文档标题',
+    `need_human_wsh` TINYINT DEFAULT 0 COMMENT '是否需要转人工',
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_aichat_user_session` (`user_id_wsh`, `session_id_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 聊天记录';
+
+CREATE TABLE IF NOT EXISTS `ai_config_wsh` (
+    `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `name_wsh` VARCHAR(100) COMMENT '配置名称',
+    `usage_wsh` VARCHAR(20) COMMENT '用途 agent/cs',
+    `endpoint_wsh` VARCHAR(500) COMMENT 'API 基础地址',
+    `api_key_wsh` VARCHAR(500) COMMENT 'API Key',
+    `model_wsh` VARCHAR(100) COMMENT '模型名',
+    `max_tokens_wsh` INT COMMENT '最大 Token 数',
+    `temperature_wsh` DECIMAL(3,2) COMMENT '温度',
+    `enabled_wsh` TINYINT DEFAULT 0 COMMENT '是否启用',
+    `deleted_wsh` TINYINT DEFAULT 0,
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 配置';
+
+-- ---------- 2) 补齐此前遗漏的列 ----------
+ALTER TABLE `notice_wsh` ADD COLUMN `delivery_type_wsh` VARCHAR(50) COMMENT '投递方式(逗号分隔: popup/notification/broadcast)' AFTER `type_wsh`;
+ALTER TABLE `keeper_leave_wsh` ADD COLUMN `status_wsh` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '审批状态 pending/approved/rejected' AFTER `reason_wsh`;
+ALTER TABLE `ticket_message_wsh` ADD COLUMN `file_url_wsh` VARCHAR(500) COMMENT '图片附件URL' AFTER `content_wsh`;
+ALTER TABLE `ticket_message_wsh` ADD COLUMN `is_read_wsh` TINYINT COMMENT '是否已读 0-否 1-是' AFTER `file_url_wsh`;
+ALTER TABLE `wallet_transaction_wsh` ADD COLUMN `operator_id_wsh` BIGINT COMMENT '操作人用户ID，仅管理员调账时记录' AFTER `request_id_wsh`;

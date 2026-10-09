@@ -121,7 +121,7 @@ const loading = ref(false)
 
 // Cloudflare Turnstile 人机验证
 const turnstileRef = ref(null)
-const { token: turnstileToken, error: turnstileError, reset: resetTurnstile } = useTurnstile(turnstileRef)
+const { token: turnstileToken, error: turnstileError, unavailable: turnstileUnavailable, reset: resetTurnstile } = useTurnstile(turnstileRef)
 
 function resetForm() {
   sent.value = false
@@ -138,7 +138,8 @@ async function handleReset() {
     return
   }
 
-  if (!turnstileToken.value) {
+  // 人机验证不可用时放行（后端未配置 TURNSTILE_SECRET 时本就是 fail-open，后端才是安全边界）
+  if (!turnstileToken.value && !turnstileUnavailable.value) {
     formError.value = '请先完成人机验证'
     return
   }
