@@ -14,6 +14,7 @@
           <div class="oc-info-top">
             <p class="oc-order-no">{{ order.order_no_wsh || `#${order.id_wsh}` }}</p>
             <div class="oc-top-tags">
+              <!-- 已完成但还没评价的订单，额外挂一个"待反馈"小标签 -->
               <span v-if="isCompleted && !order.has_feedback_wsh" class="oc-tag-feedback">待反馈</span>
               <span class="oc-badge" :class="statusToneClass(meta.tone)">{{ meta.label }}</span>
             </div>
@@ -55,6 +56,7 @@
       </div>
     </button>
 
+    <!-- 待付款订单才有这块倒计时，付完款整块就不显示了 -->
     <div v-if="showPaymentCountdown" class="oc-countdown">
       <span class="oc-countdown-icon">🕐</span>
       <p v-if="paymentRemaining <= 0" class="oc-countdown-text">支付已超时，订单即将自动取消。</p>
@@ -67,6 +69,7 @@
     </div>
 
     <div class="oc-progress-wrap">
+      <!-- 正常走流程的订单显示四步进度；取消、退款这类没走完的，改显示一句说明 -->
       <ol v-if="phaseIndex >= 0" class="oc-progress" aria-label="服务进度">
         <li v-for="(phase, index) in PHASES" :key="phase.key" class="oc-phase">
           <div class="oc-phase-head">
@@ -85,6 +88,7 @@
       </div>
     </div>
 
+    <!-- 底部按钮全看订单状态：待付款给取消+付款，已支付只能等门店，待送达确认收货，服务中看动态，已完成评价打赏，取消退款类只能重约 -->
     <footer class="oc-actions">
       <template v-if="order.status_wsh === 'pending'">
         <button class="oc-btn oc-btn-danger" type="button" :disabled="processing" @click="$emit('cancel', order)">取消订单</button>
@@ -96,6 +100,7 @@
         <button class="oc-btn" type="button" @click="$emit('viewDetail', order)">订单详情</button>
       </template>
 
+      <!-- 门店已经接单，这一步轮到家长点"确认已送达" -->
       <template v-else-if="order.status_wsh === 'confirmed'">
         <button class="oc-btn" type="button" @click="$emit('viewDetail', order)">订单详情</button>
         <button class="oc-btn oc-btn-primary" type="button" :disabled="processing" @click="$emit('deliver', order)">确认已送达</button>
@@ -106,6 +111,7 @@
         <button class="oc-btn oc-btn-primary" type="button" @click="$emit('viewDetail', order)">查看服务动态</button>
       </template>
 
+      <!-- 已完成：没评过的才显示"评价服务"，评过了就换成详情入口，避免重复评价 -->
       <template v-else-if="isCompleted">
         <button class="oc-btn oc-btn-quiet" type="button" @click="rebook">再次预约</button>
         <button class="oc-btn" type="button" :disabled="processing" @click="$emit('tip', order)">打赏照护师</button>
@@ -139,6 +145,7 @@ defineEmits(['cancel', 'pay', 'deliver', 'review', 'tip', 'viewDetail'])
 const router = useRouter()
 
 /* ── 状态与语气 ── */
+// 每个状态配一句中文和一个语气色，语气色决定徽章长什么样
 const STATUS_META = {
   pending: { label: '待付款', tone: 'action' },
   paid: { label: '已支付', tone: 'queued' },
@@ -151,6 +158,7 @@ const STATUS_META = {
   refunding: { label: '退款中', tone: 'action' },
   refunded: { label: '已退款', tone: 'closed' },
 }
+// 状态换算成进度条上的位置，-1 表示这单不该显示进度条；下面四步各取订单上的一个时间字段
 const PHASE_INDEX = { pending: 0, paid: 1, confirmed: 1, delivered: 2, received: 2, in_progress: 2, completed: 3, cancelled: -1, refunding: -1, refunded: -1 }
 const PHASES = [
   { key: 'placed', label: '已下单', timeField: 'created_at_wsh' },
@@ -162,7 +170,7 @@ const PHASES = [
 const status = computed(() => props.order.status_wsh || '')
 const meta = computed(() => STATUS_META[status.value] || { label: status.value || '未知状态', tone: 'closed' })
 const phaseIndex = computed(() => PHASE_INDEX[status.value] ?? -1)
-const isActive = computed(() => ['delivered', 'received', 'in_progress'].includes(status.value))
+const isActive = computed(() => ['delivered', 'received', 'in_progress'].includes(status.value))   // 服务中的三个状态按钮和样式完全一样，归成一类
 const isCompleted = computed(() => status.value === 'completed')
 
 function statusToneClass(tone) {
@@ -185,6 +193,7 @@ const billing = computed(() => billingText(props.order))
 const nights = computed(() => nightsBetween(props.order.start_date_wsh, props.order.end_date_wsh))
 const contactPhone = computed(() => props.order.merchant_phone_wsh || props.order.contact_phone_wsh || '')
 
+// 品种、年龄、体重拼成一行，缺哪个就跳过，全缺时给一句提示
 const petSummaryText = computed(() => {
   const parts = [
     props.order.pet_breed_wsh,
@@ -199,6 +208,7 @@ const cover = computed(() => {
   return images[0] || props.order?.start_photo_wsh || ''
 })
 
+// 图片字段可能是数组，也可能是 JSON 字符串或逗号分隔的字符串，三种都得认
 function parseImages(raw) {
   if (!raw) return []
   if (Array.isArray(raw)) return raw.filter(Boolean)
@@ -215,6 +225,7 @@ function parseImages(raw) {
 }
 
 /* ── 支付倒计时 ── */
+// 只有待付款订单才算剩余时间，其它状态给 null，倒计时那一块就不显示
 const paymentRemaining = computed(() => props.order.status_wsh === 'pending' ? getPaymentTimeoutRemaining(props.order, props.nowMs) : null)
 const showPaymentCountdown = computed(() => paymentRemaining.value != null)
 const paymentCountdownText = computed(() => formatPaymentTimeoutRemaining(paymentRemaining.value))
@@ -232,6 +243,7 @@ function formatMoney(value) {
   const n = Number(value || 0)
   return Number.isFinite(n) ? n.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '0.00'
 }
+// 为什么把年份截掉？列表里的订单都是近期的，带上年份一行就放不下了
 function formatDayRange(start, end) {
   const compact = (value) => {
     const day = value ? String(value).slice(0, 10) : ''
@@ -250,6 +262,7 @@ function nightsBetween(start, end) {
   return Math.round((b - a) / 86400000)
 }
 const processingAny = computed(() => props.processing)
+// 进度条每一步下面那行时间，订单上没有这个时间就显示一个破折号
 function phaseStamp(phase) {
   const stamp = props.order?.[phase.timeField]
   return stamp ? formatDateTime(stamp, { format: 'compact' }) : '—'

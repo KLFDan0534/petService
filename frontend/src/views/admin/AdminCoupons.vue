@@ -324,10 +324,12 @@ import { getUsers } from '@/api/admin'
 import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
+// 一堆开关放一起：列表加载、提交中、新建弹窗、发放弹窗指向哪张券
 const loading = ref(false)
 const submitting = ref(false)
 const showCreate = ref(false)
 const templates = ref([])
+// grantTarget 记着这次要发哪张券，grantMode 记着三种发放方式里选了哪种
 const grantTarget = ref(null)
 const grantMode = ref('selected')
 const grantAllConfirming = ref(false)
@@ -340,6 +342,7 @@ const grantForm = reactive(defaultGrantForm())
 
 onMounted(loadTemplates)
 
+// 拉券列表，进页面和每次增删改之后都靠它刷新
 async function loadTemplates() {
   loading.value = true
   try {
@@ -352,6 +355,7 @@ async function loadTemplates() {
   }
 }
 
+// 新建这条线：先校验，通过再拼参数提交，成功就清空表单、关弹窗、重拉列表
 async function submitCreate() {
   if (submitting.value) return
   const error = validateCreateForm()
@@ -372,6 +376,7 @@ async function submitCreate() {
   }
 }
 
+// 启停只改状态一个值，成功后直接改本地这一行，不用整表重拉
 async function toggleStatus(item) {
   if (submitting.value) return
   submitting.value = true
@@ -389,6 +394,7 @@ async function toggleStatus(item) {
   }
 }
 
+// 打开发放弹窗时把模式、搜索词、搜索结果、已选用户全清掉，免得带上一次的残留
 function openGrant(item) {
   grantTarget.value = item
   grantMode.value = 'selected'
@@ -399,6 +405,7 @@ function openGrant(item) {
   Object.assign(grantForm, defaultGrantForm())
 }
 
+// 关弹窗时连已选用户一起清空，下次发券不会莫名其妙带着上次的人
 function closeGrant() {
   grantTarget.value = null
   grantAllConfirming.value = false
@@ -407,6 +414,7 @@ function closeGrant() {
   userSearch.value = ''
 }
 
+// 搜用户：关键词为空就不发请求，直接提醒；接口可能返回 {list:[]} 也可能直接返回数组
 async function searchGrantUsers() {
   if (!userSearch.value) {
     userOptions.value = []
@@ -426,6 +434,7 @@ async function searchGrantUsers() {
   }
 }
 
+// 勾一下就是加人，再勾一下就是删人，勾选状态靠 id 比对算出来
 function toggleSelectedUser(user) {
   if (isUserSelected(user.id_wsh)) {
     removeSelectedUser(user.id_wsh)
@@ -442,10 +451,13 @@ function isUserSelected(userId) {
   return selectedUsers.value.some(user => Number(user.id_wsh) === Number(userId))
 }
 
+// 昵称、用户名都没有就退回显示 id，保证列表里总有字可看
 function userLabel(user) {
   return user.nickname_wsh || user.username_wsh || `用户 ${user.id_wsh}`
 }
 
+// 发给选中的人：一个用户一次请求，中途有一个失败就抛错整体停下，
+// 最后把发出去的张数加起来当作总数返回
 async function submitGrantSelected() {
   if (!grantTarget.value) return
   if (selectedUsers.value.length === 0) return appStore.addToast('请选择用户', 'warning')
@@ -465,12 +477,14 @@ async function submitGrantSelected() {
   })
 }
 
+// 发全体用户影响面太大，先弹个二次确认，确认了才真发
 function confirmGrantAll() {
   if (!grantTarget.value) return
   if (Number(grantForm.quantity_wsh || 0) <= 0) return appStore.addToast('数量必须大于0', 'warning')
   grantAllConfirming.value = true
 }
 
+// 发给全部正常用户：只传数量，具体发给谁由后端自己筛
 async function submitGrantAll() {
   if (!grantTarget.value) return
   await submitGrant(() => grantCouponToAll(grantTarget.value.id_wsh, {
@@ -478,11 +492,13 @@ async function submitGrantAll() {
   }))
 }
 
+// 按条件发放：条件先整理成后端要的格式，剩下的交给 submitGrant
 async function submitGrantCondition() {
   if (!grantTarget.value) return
   await submitGrant(() => grantCouponByCondition(grantTarget.value.id_wsh, buildGrantConditionPayload()))
 }
 
+// 三种发放方式共用这一段：先卡数量，再执行传进来的请求，成功后关弹窗刷新列表
 async function submitGrant(action) {
   if (submitting.value) return
   if (Number(grantForm.quantity_wsh || 0) <= 0) return appStore.addToast('数量必须大于0', 'warning')
@@ -503,6 +519,7 @@ async function submitGrant(action) {
   }
 }
 
+// 新建券的校验：名称、有效期先后、满减金额或折扣率、指定商家必须填商家 id
 function validateCreateForm() {
   if (!createForm.name_wsh) return '请填写优惠券名称'
   if (!createForm.valid_from_wsh || !createForm.valid_to_wsh) return '请选择有效期'
@@ -516,6 +533,7 @@ function validateCreateForm() {
   return ''
 }
 
+// 满减券和折扣券只填自己那个值，另一个传 null；库存留空表示不限量
 function buildCreatePayload() {
   return {
     name_wsh: createForm.name_wsh,
@@ -535,6 +553,7 @@ function buildCreatePayload() {
   }
 }
 
+// 默认有效期直接给 30 天，省得每次开弹窗都要手动挑时间
 function defaultCreateForm() {
   const now = new Date()
   const end = new Date(now)
@@ -571,6 +590,7 @@ function defaultGrantForm() {
   }
 }
 
+// 条件发放这堆条件先整理一遍：时间补上秒、空值转成 null、用户 id 文本拆成数组
 function buildGrantConditionPayload() {
   return {
     quantity_wsh: Number(grantForm.quantity_wsh || 1),
@@ -586,6 +606,7 @@ function buildGrantConditionPayload() {
   }
 }
 
+// 逗号、空格、中文逗号都当分隔符，转不成数字或者小于等于 0 的直接丢掉
 function parseIdList(value) {
   if (!value) return []
   return String(value)
@@ -594,10 +615,12 @@ function parseIdList(value) {
     .filter(item => Number.isFinite(item) && item > 0)
 }
 
+// 空值给 null 表示“这个条件不限制”，填了才转成数字
 function emptyToNull(value) {
   return value === '' || value === null || value === undefined ? null : Number(value)
 }
 
+// 折扣券显示几折加最高减多少，满减券只显示减多少
 function discountText(item) {
   if (item.type_wsh === 'percent') {
     const rate = Number(item.discount_rate_wsh || 0)
@@ -607,12 +630,14 @@ function discountText(item) {
   return `减¥${money(item.discount_amount_wsh)}`
 }
 
+// 总库存是 0 或者没填就表示不限量，只显示已经发了多少
 function stockText(item) {
   const total = Number(item.total_quantity_wsh || 0)
   if (!total) return `已发 ${item.issued_quantity_wsh || 0} / 不限`
   return `已发 ${item.issued_quantity_wsh || 0} / ${total}`
 }
 
+// 后端给的时间带 T 带秒，这里换成空格再截到分钟，表格里看着清爽
 function dateText(value) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 16)
@@ -622,14 +647,17 @@ function money(value) {
   return Number(value || 0).toFixed(2)
 }
 
+// 金额先保留两位小数再转回数字，避免浮点尾巴传给后端
 function moneyNumber(value) {
   return Number(Number(value || 0).toFixed(2))
 }
 
+// 输入框给的是 2026-01-01T10:00，后端要带秒，补一个 :00
 function toApiDateTime(value) {
   return value ? `${value}:00` : null
 }
 
+// 反过来把日期对象转成输入框认识的格式，用来填默认有效期
 function toInputDateTime(date) {
   const pad = value => String(value).padStart(2, '0')
   return [

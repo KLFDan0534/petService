@@ -6,6 +6,7 @@
         <span class="sh-line" aria-hidden="true"></span>
         <span class="sh-lbl" :class="{ 'sh-lbl-dark': tone === 'dark' }">{{ label }}</span>
       </div>
+      <!-- tone 传 dark 时，编号、标题、说明一起换成浅色，铺在深色底上才看得清 -->
       <h2 class="sh-title" :class="{ 'sh-title-dark': tone === 'dark' }">
         <slot>{{ title }}</slot>
       </h2>
@@ -13,6 +14,7 @@
         {{ description }}
       </p>
     </div>
+    <!-- 右边的按钮是可选的，父组件没给 action 插槽就整块不占地方 -->
     <div v-if="$slots.action" class="sh-action">
       <slot name="action" />
     </div>
@@ -20,6 +22,7 @@
 </template>
 
 <script setup>
+// 一行编号 + 一句标签 + 大标题 + 可选说明，拼成每个板块开头那块小标题
 defineProps({
   index: { type: String, default: '' },
   label: { type: String, default: '' },

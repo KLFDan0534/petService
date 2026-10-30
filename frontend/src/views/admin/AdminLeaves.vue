@@ -61,6 +61,7 @@ import { getAdminLeaves, approveLeave, rejectLeave } from '@/api/attendance'
 import { LeaveApprovalStatus, enrichWithStatus } from '@/constants/statusMaps'
 
 const appStore = useAppStore()
+// 分页三件套：当前页、每页多少条、总条数
 const leaves = ref([])
 const currentPage = ref(1)
 const size = ref(20)
@@ -68,8 +69,10 @@ const total = ref(0)
 const filters = reactive({ status_wsh: '' })
 const rejectTarget = ref(null)
 const rejectReason = ref('')
+// 总条数除以每页条数，至少算 1 页，不然一条都没有时会显示第 0 页
 const pageCount = computed(() => Math.ceil(total.value / size.value) || 1)
 
+// 补状态文字，寄养员和商家取不到就显示短横，表格里别留空
 function enrich(l) {
   const e = enrichWithStatus(l, 'status_wsh', LeaveApprovalStatus)
   e.keeper_name_wsh = e.keeper_name_wsh || '-'
@@ -77,6 +80,7 @@ function enrich(l) {
   return e
 }
 
+// 筛选条件是空的就不带这个参数，让后端不加条件
 function buildParams() {
   const params = { page: currentPage.value, size: size.value }
   if (filters.status_wsh) params.status_wsh = filters.status_wsh
@@ -93,6 +97,7 @@ async function load() {
   } catch (e) {}
 }
 
+// 换筛选条件得退回第一页，不然可能停在一个已经没数据的页码上
 function applyFilters() { currentPage.value = 1; load() }
 function resetFilters() { filters.status_wsh = ''; applyFilters() }
 function changePage(page) { currentPage.value = page; load() }
@@ -105,8 +110,10 @@ async function doApprove(id) {
   } catch (e) { appStore.addToast('操作失败', 'error') }
 }
 
+// 拒绝要填原因，所以先弹框，别直接发请求
 function openReject(row) { rejectTarget.value = row; rejectReason.value = '' }
 
+// 提交前把原因两头的空格去掉，免得存进去一堆空白
 async function doReject() {
   try {
     await rejectLeave(rejectTarget.value.id_wsh, rejectReason.value.trim())

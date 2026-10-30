@@ -123,6 +123,7 @@ import { Close, Location, MapLocation, Search } from '@element-plus/icons-vue'
 import { getCurrentAddress, loadAmap, reverseGeocodeDetail, searchAmapAddress } from '@/composables/useAmapLocation'
 import { useAppStore } from '@/stores/app'
 
+// 既没有坐标也没搜到结果时，地图先落在市中心，总比空白强
 const DEFAULT_CENTER = Object.freeze({ longitude_wsh: 121.4737, latitude_wsh: 31.2304 })
 const SEARCH_DEBOUNCE_MS = 500
 
@@ -168,12 +169,16 @@ let hideTipsTimer = null
 let mapSearchTimer = null
 let mapInstance = null
 let markerInstance = null
+// 每点一次地图就自增，回来的结果对不上号就丢掉，免得旧地址盖掉新地址
 let reverseSequence = 0
+// 反查地址会顺手把结果填进搜索框，填的这一刻做个记号，别当成用户输入又搜一遍
 let suppressedMapKeywordValue = null
 
 const hasActionButtons = computed(() => props.showLocateButton || props.showMapButton)
+// 点定下来了、地址也认出来了，才允许点确认
 const canConfirmMap = computed(() => Boolean(pendingPoint.value && pendingAddress.value && !resolvingAddress.value))
 
+// 地址是怎么来的，决定下面那句小字提示怎么写
 const selectedText = computed(() => {
   if (!props.modelValue || !props.source) return ''
   if (props.source === 'merchant') return '已选择商家位置'
@@ -183,6 +188,7 @@ const selectedText = computed(() => {
   return '已确认地址位置'
 })
 
+// 手一打字，之前选中的坐标就作废了，否则文字和坐标会对不上
 function onInput(event) {
   emit('update:modelValue', event.target.value)
   emit('update:latitude', null)
@@ -192,6 +198,7 @@ function onInput(event) {
   searchTimer = window.setTimeout(search, SEARCH_DEBOUNCE_MS)
 }
 
+// 少于两个字不搜，一搜就是一大把无关结果
 async function search() {
   const keyword = String(props.modelValue || '').trim()
   window.clearTimeout(hideTipsTimer)
@@ -211,6 +218,7 @@ async function search() {
   }
 }
 
+// 为什么不是马上收起来？输入框一失焦就收起，鼠标还没来得及点下拉项，它就没了
 function hideTipsSoon() {
   window.clearTimeout(hideTipsTimer)
   hideTipsTimer = window.setTimeout(() => {
@@ -229,6 +237,7 @@ async function useCurrentLocation() {
   }
 }
 
+// 打开前先把上一次留下的结果清干净，不然会闪一下旧内容
 async function openMapDialog() {
   mapDialogVisible.value = true
   mapLoading.value = true
@@ -262,11 +271,12 @@ function closeMapDialog() {
   mapLoading.value = false
   mapSearching.value = false
   resolvingAddress.value = false
-  reverseSequence += 1
+  reverseSequence += 1   // 号往前推一格，还在路上的反查结果就作废了
   window.clearTimeout(mapSearchTimer)
   destroyMap()
 }
 
+// 有坐标直接用坐标；只有文字地址时，先搜一条最像的，把地图挪过去
 async function resolveInitialSelection() {
   const point = normalizePoint(props.longitude, props.latitude)
   if (point) {
@@ -300,6 +310,7 @@ function initializeMap(AMap, centerPoint, shouldShowMarker) {
   const center = toAmapPosition(centerPoint)
   mapInstance = new AMap.Map(mapContainer.value, {
     center,
+    // 已经知道在哪就放大到街道级，只知道城市就先拉远看个大概
     zoom: shouldShowMarker ? 16 : 11,
     resizeEnable: true,
     viewMode: '2D',
@@ -313,6 +324,7 @@ function initializeMap(AMap, centerPoint, shouldShowMarker) {
   }
 }
 
+// 标记只建一次，之后都是挪位置；反复删了重建会闪一下
 function createOrMoveMarker(point) {
   if (!window.AMap || !mapInstance) return
   const position = toAmapPosition(point)
@@ -332,6 +344,7 @@ function createOrMoveMarker(point) {
   }
 }
 
+// 点地图、拖标记、搜结果最后都走这里：先把点定下来，再去问这是哪儿
 async function updateSelectionFromLngLat(lnglat, source) {
   const point = normalizeLngLat(lnglat)
   if (!point) return
@@ -342,7 +355,7 @@ async function updateSelectionFromLngLat(lnglat, source) {
   }
   setPendingSelection(point, '正在识别地址...', source, true)
 
-  const sequence = ++reverseSequence
+  const sequence = ++reverseSequence   // 这次请求的号，回来时对不上就别写了
   try {
     const detail = await reverseGeocodeDetail(point.longitude_wsh, point.latitude_wsh, { radius: 1200 })
     if (sequence === reverseSequence) {
@@ -362,6 +375,7 @@ async function updateSelectionFromLngLat(lnglat, source) {
   }
 }
 
+// 地图里搜出结果默认就选第一条，省得用户还要再点一下
 async function searchInMap(options = {}) {
   const keyword = String(mapKeyword.value || '').trim()
   if (keyword.length < 2) {
@@ -395,6 +409,7 @@ function selectMapResult(result) {
 
   createOrMoveMarker(point)
   if (mapInstance) {
+    // 高德有些版本没这个合并方法，只能拆成两次调用
     if (typeof mapInstance.setZoomAndCenter === 'function') {
       mapInstance.setZoomAndCenter(16, toAmapPosition(point))
     } else {
@@ -433,6 +448,7 @@ function selectTip(tip) {
   showTips.value = false
 }
 
+// 空字符串、null 转数字都会变成 0，得先确认拿到的是个正常数字
 function normalizePoint(longitude, latitude) {
   const lng = Number(longitude)
   const lat = Number(latitude)
@@ -440,6 +456,7 @@ function normalizePoint(longitude, latitude) {
   return { longitude_wsh: lng, latitude_wsh: lat }
 }
 
+// 高德给的是 LngLat 对象，自己算出来的是普通对象，两种都得认
 function normalizeLngLat(value) {
   if (!value) return null
   const lng = typeof value.getLng === 'function' ? value.getLng() : value.lng
@@ -456,6 +473,7 @@ function getMapCenterPoint() {
   return normalizeLngLat(mapInstance.getCenter())
 }
 
+// 反查回来的地址要写进搜索框，但这次不算用户改的，别再搜一轮
 function syncMapKeywordAndSearch(keyword) {
   const nextKeyword = String(keyword || '').trim()
   if (mapKeyword.value !== nextKeyword) {
@@ -470,6 +488,7 @@ function syncMapKeywordAndSearch(keyword) {
   queueMapSearch()
 }
 
+// 关键字变了等半秒再搜，边打字边发请求太浪费
 function queueMapSearch() {
   if (!mapDialogVisible.value) return
   window.clearTimeout(mapSearchTimer)
@@ -484,6 +503,7 @@ function queueMapSearch() {
   }, SEARCH_DEBOUNCE_MS)
 }
 
+// 地图实例得手动销毁，否则关了弹窗它还在后台跑
 function destroyMap() {
   markerInstance = null
   if (mapInstance) {
@@ -492,6 +512,7 @@ function destroyMap() {
   }
 }
 
+// 搜索框内容变了才去搜；上面自己填进去的那一次直接跳过
 watch(mapKeyword, value => {
   if (suppressedMapKeywordValue === value) {
     suppressedMapKeywordValue = null
@@ -500,6 +521,7 @@ watch(mapKeyword, value => {
   queueMapSearch()
 })
 
+// 组件没了，定时器和地图一起清掉，不然回调会打到已经消失的组件上
 onBeforeUnmount(() => {
   window.clearTimeout(searchTimer)
   window.clearTimeout(hideTipsTimer)

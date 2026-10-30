@@ -19,9 +19,12 @@ import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import request from '@/utils/request'
 
+// 顶部问候用登录账号的昵称，没昵称就退回用户名
 const authStore = useAuthStore()
+// 四张卡片的数字都放这儿，接口还没回来时是空对象，模板里靠 || 0 顶着
 const stats = ref({})
 
+// 进页面拉一次统计，拉不到就算了，卡片显示 0 也比甩个报错强
 onMounted(async () => {
   try {
     const r = await request.get('/statistics/merchant')

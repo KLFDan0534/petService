@@ -64,18 +64,21 @@ const router = useRouter()
 const loading = ref(true)
 const merchant = ref(null)
 
+// 审核状态对照表，页面顶上那个小标签就是从这儿取的
 const statusMap = {
   0: { label: '待审核', badge: 'badge-warning' },
   1: { label: '已通过', badge: 'badge-success' },
   2: { label: '已拒绝', badge: 'badge-danger' },
 }
 
+// 营业模式：自动、手动开、手动关
 const modeMap = {
   0: { label: '自动营业', badge: 'badge-info' },
   1: { label: '手动开店', badge: 'badge-success' },
   2: { label: '手动关店', badge: 'badge-secondary' },
 }
 
+// 模式说的是"打算怎么营业"，状态说的是"现在到底开没开"，两回事，所以分开两个标签
 const storeStatusMap = {
   0: { label: '休息中', badge: 'badge-secondary' },
   1: { label: '营业中', badge: 'badge-success' },
@@ -88,6 +91,7 @@ const modeBadge = computed(() => modeMap[merchant.value?.store_mode_wsh]?.badge 
 const storeStatusLabel = computed(() => storeStatusMap[merchant.value?.store_status_wsh]?.label || '-')
 const storeStatusBadge = computed(() => storeStatusMap[merchant.value?.store_status_wsh]?.badge || 'badge-info')
 
+// 拿当前账号绑定的商家资料，拿不到就当没绑定，走下面的空状态
 async function loadProfile() {
   loading.value = true
   try {
@@ -99,10 +103,12 @@ async function loadProfile() {
   }
 }
 
+// 没资料时给个回控制台的出口，别让人卡在空白页
 function goBack() {
   router.push('/merchant/dashboard')
 }
 
+// 营业时间单独一页，跳过去改
 function goBusinessHours() {
   router.push('/merchant/business-hours')
 }

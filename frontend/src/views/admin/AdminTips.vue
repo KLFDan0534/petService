@@ -27,12 +27,14 @@ import { ref, computed, onMounted } from 'vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { getAdminTips } from '@/api/wallet'
 
+// 打赏流水算账目，只给看，不提供修改和删除
 const tips = ref([])
 const currentPage = ref(1)
 const size = ref(20)
 const total = ref(0)
 const pageCount = computed(() => Math.ceil(total.value / size.value) || 1)
 
+// 金额补成 ¥ 格式，缺打赏人或收款人的显示横杠
 function enrich(t) {
   return {
     ...t,

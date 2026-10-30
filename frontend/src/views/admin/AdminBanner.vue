@@ -53,6 +53,7 @@ const form = reactive({ title_wsh: '', image_url_wsh: '', link_url_wsh: '', sort
 
 onMounted(loadBanners)
 
+// 列表只留 type_wsh 是 banner 的记录，同一张表里还躺着普通公告
 async function loadBanners() {
   try {
     const r = await getNotices({ type: 'banner', _t: Date.now() })
@@ -67,6 +68,7 @@ function addBanner() {
   showForm.value = true
 }
 
+// 选完图先拿本地文件做预览，同时传上去；传成功了才把地址写进表单
 async function onImageSelect(e) {
   const file = e.target.files[0]
   if (!file) return
@@ -77,6 +79,7 @@ async function onImageSelect(e) {
     formData.append('file', file)
     const r = await uploadFileToDirectory('banners', formData)
     if (r.code === 200 && r.data.url_wsh) {
+      // 表单里存的是后端返回的地址，不是本地那个临时预览链接
       form.image_url_wsh = r.data.url_wsh
     } else {
       appStore.addToast('上传失败', 'error')
@@ -89,6 +92,7 @@ async function onImageSelect(e) {
   }
 }
 
+// 编辑时预览直接用它自己存着的地址，不用再上传一遍
 function editBanner(banner) {
   editingBanner.value = banner
   Object.assign(form, { title_wsh: banner.title_wsh, image_url_wsh: banner.image_url_wsh || '', link_url_wsh: banner.link_url_wsh || '', sort_order_wsh: banner.sort_order_wsh || 0 })
@@ -96,6 +100,7 @@ function editBanner(banner) {
   showForm.value = true
 }
 
+// 广告没单独建表，借公告表存，靠 type_wsh 区分开
 async function saveBanner() {
   try {
     const payload = { title_wsh: form.title_wsh, content_wsh: '', type_wsh: 'banner', image_url_wsh: form.image_url_wsh, link_url_wsh: form.link_url_wsh, sort_order_wsh: form.sort_order_wsh }
@@ -110,6 +115,7 @@ async function saveBanner() {
   } catch (e) { appStore.addToast('操作失败', 'error') }
 }
 
+// 上下架就是改状态位，1 在架 0 下架，切完重新拉列表
 async function toggleBanner(banner) {
   try {
     await updateNotice(banner.id_wsh, { status_wsh: banner.status_wsh === 1 ? 0 : 1 })

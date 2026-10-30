@@ -2,6 +2,7 @@
   <div>
     <span v-if="label" class="chip-rail__label">{{ label }}</span>
     <div class="chip-rail">
+      <!-- 选中状态不另存一份，直接拿这一项的 value 跟外面的 modelValue 比，相等就亮起来 -->
       <button
         v-for="opt in options"
         :key="opt.value"
@@ -18,12 +19,14 @@
 </template>
 
 <script setup>
+// options 是一串 { value, label }；谁被选中，只看外面的 modelValue 等于哪个 value
 defineProps({
   label: { type: String, default: '' },
   options: { type: Array, required: true }, // [{ value, label }]
   modelValue: { type: [Number, String], default: null },
   disabled: Boolean,
 })
+// 点了只把新值抛出去，自己不记，改不改由父组件说了算
 const emit = defineEmits(['update:modelValue'])
 </script>
 

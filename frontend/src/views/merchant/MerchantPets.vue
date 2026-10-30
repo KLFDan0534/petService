@@ -29,8 +29,10 @@ import { ref, onMounted } from 'vue'
 import DataTable from '@/components/common/DataTable.vue'
 import { getMerchantPets } from '@/api/pet'
 
+// 商家名下的宠物，模板里直接丢给表格显示
 const pets = ref([])
 
+// 接口有时返回 {list:[...]} 有时直接给数组，这里两种都认
 onMounted(async () => {
   try {
     const r = await getMerchantPets()

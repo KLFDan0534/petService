@@ -53,6 +53,7 @@
             <td>{{ periodText(order) }}</td>
             <td>{{ dateText(order.created_at_wsh) }}</td>
             <td>
+              <!-- 只有待支付的单子才给按钮：已支付的再确认一次，会员时长会被重复加上 -->
               <button
                 v-if="order.status_wsh === 'pending'"
                 class="btn btn-primary btn-sm icon-btn"
@@ -82,13 +83,17 @@ import { confirmMembershipOrderPaid, getAdminMembershipOrders } from '@/api/memb
 import { useAppStore } from '@/stores/app'
 
 const appStore = useAppStore()
+// 列表数据、顶部状态筛选（空串代表全部），外加一个记着「哪一单正在确认」的变量
 const loading = ref(false)
 const statusFilter = ref('')
 const orders = ref([])
+// 记着哪一单正在确认，用来把那一行的按钮锁住
 const confirmingOrderNo = ref('')
 
+// 进来先按默认条件（全部状态）拉一次
 onMounted(loadOrders)
 
+// 顶部下拉一变就重新查，没选就查全部
 async function loadOrders() {
   loading.value = true
   try {
@@ -106,13 +111,16 @@ async function loadOrders() {
   }
 }
 
+// 会员订单的走向：待支付 → 已支付；待支付的可以取消，付过款的可以退款
 async function confirmPaid(order) {
+  // 上一单还在确认就先别开新的，避免两个请求同时打到后端
   if (confirmingOrderNo.value) return
   if (!confirm(`确认会员订单 ${order.order_no_wsh} 已支付吗？`)) return
   confirmingOrderNo.value = order.order_no_wsh
   try {
     const res = await confirmMembershipOrderPaid(order.order_no_wsh)
     if (res.code === 200) {
+      // 确认成功后重新拉一遍，状态和会员有效期会一起变成新的
       appStore.addToast('会员订单已确认支付', 'success')
       await loadOrders()
     } else {
@@ -143,6 +151,7 @@ function statusClass(status) {
   }[status] || 'is-off'
 }
 
+// 模拟支付已经停用，留着这条只是为了让老订单还能显示出支付方式
 function payMethodText(value) {
   return {
     mock: '模拟支付（已停用）',
@@ -152,12 +161,14 @@ function payMethodText(value) {
   }[value] || value || '-'
 }
 
+// 会员有效期的起止两栏，两头都空就显示横杠
 function periodText(order) {
   const start = dateText(order.membership_start_at_wsh)
   const end = dateText(order.membership_end_at_wsh)
   return start === '-' && end === '-' ? '-' : `${start} 至 ${end}`
 }
 
+// 时间去掉 T 截到分钟，金额统一两位小数
 function dateText(value) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 16)

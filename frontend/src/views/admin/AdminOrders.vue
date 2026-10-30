@@ -119,6 +119,7 @@ import AppDialog from '@/components/common/AppDialog.vue'
 import { billingText } from '@/domain/BookingUnit'
 
 const appStore = useAppStore()
+// 整页数据、当前选中的标签、详情弹窗的开合和内容
 const orders = ref([])
 const activeTab = ref('all')
 const showDetailModal = ref(false)
@@ -133,6 +134,7 @@ const columns = [
   { label: '时间', key: 'created_at_wsh' },
 ]
 
+// 这些标签只是在前端挑数据，点来点去不会重新请求后端
 const tabs = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '待付款' },
@@ -143,9 +145,11 @@ const tabs = [
   { key: 'cancelled', label: '已取消' },
 ]
 
+// 状态下拉的可选项直接从 OrderStatus 里取，以后后端加状态这里自动多一项
 const statuses = Object.keys(OrderStatus)
 const statusLabels = Object.fromEntries(statuses.map(status => [status, getStatusLabel(OrderStatus, status)]))
 
+// 选了「全部」就原样给，选了某个标签才按状态挑
 const filteredOrders = computed(() =>
   activeTab.value === 'all'
     ? orders.value
@@ -157,10 +161,12 @@ const detailStatus = computed(() => ({
   badge: getStatusBadge(OrderStatus, detailOrder.value?.status_wsh),
 }))
 
+// 把状态码换成「中文名 + 徽章样式」挂到每条订单上，表格直接拿来显示
 function enrichOrder(order) {
   return enrichWithStatus(order, 'status_wsh', OrderStatus)
 }
 
+// 一次把订单全拉回来，分页和按状态筛选都在前端做，所以切换标签是瞬时的
 async function loadOrders() {
   try {
     const response = await getOrders()
@@ -174,10 +180,14 @@ async function loadOrders() {
 
 onMounted(loadOrders)
 
+// 管理员可以直接把订单改成任意状态。正常走向是：
+// 待付款 → 已支付 → 待送达 → 已送达 → 已接收 → 服务中 → 已完成，中途可以取消或走退款。
+// 下拉里所有状态都摆着，后端也不校验顺序，所以改错了只能再手动改回来。
 async function changeStatus(order, newStatus) {
   try {
     const response = await updateOrderStatus(order.id_wsh, { status_wsh: newStatus })
     if (response.code === 200) {
+      // 只改本地这一条，不重新拉列表，页面不会跳、滚动位置也不会丢
       order.status_wsh = newStatus
       order.status_label_wsh = makeStatusBadge(OrderStatus, newStatus)
       appStore.addToast(`状态已变更为 ${statusLabels[newStatus] || newStatus}`, 'success')
@@ -187,6 +197,7 @@ async function changeStatus(order, newStatus) {
   }
 }
 
+// 列表里没有宠物、看护人、商家这些细项，所以详情要单独再请求一次
 async function showDetail(id) {
   try {
     const response = await getOrder(id)
@@ -199,6 +210,7 @@ async function showDetail(id) {
   }
 }
 
+// 删除是不可逆的，先弹浏览器自带的确认框，删完重新拉一遍列表
 async function deleteOrder(id) {
   if (!confirm('确定删除该订单？')) return
   try {

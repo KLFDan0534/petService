@@ -96,7 +96,9 @@ import { adjustWallet, getWallets } from '@/api/wallet'
 import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
+// 列表数据、分页和排序都放在这一组状态里
 const wallets = ref([])
+// page 是当前第几页，size 是每页显示几条
 const page = ref(1)
 const size = ref(10)
 const total = ref(0)
@@ -106,12 +108,14 @@ const sortOrder = ref('')
 const adjusting = ref(false)
 const submitting = ref(false)
 const adjustAmount = ref('')
+// 弹窗里的表单：用户ID锁死不让改，模式默认「设置余额」，备注留给财务对账用
 const adjustForm = reactive({
   user_id_wsh: '',
   mode_wsh: 'set',
   remark_wsh: '',
 })
 
+// 只有这几列能点表头排序，后面的冻结金额、用户名、操作三列是死的
 const sortableColumns = [
   { label: 'ID', key: 'id' },
   { label: '用户ID', key: 'user_id' },
@@ -119,10 +123,12 @@ const sortableColumns = [
   { label: '创建时间', key: 'created' },
 ]
 
+// 从当前页里找出正在调的那个人，后面要拿他的冻结金额做校验
 const currentWallet = computed(() => wallets.value.find(item => Number(item.user_id_wsh) === Number(adjustForm.user_id_wsh)))
 
 onMounted(loadWallets)
 
+// 分页和排序参数一起丢给后端，没选排序就不传这两个
 async function loadWallets() {
   try {
     const params = { page: page.value, size: size.value }
@@ -141,6 +147,7 @@ async function loadWallets() {
   }
 }
 
+// 点同一列就翻个方向；换到别的列时，余额默认从大到小，其他列从小到大
 function toggleSort(key) {
   if (sortKey.value === key) {
     sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -152,11 +159,13 @@ function toggleSort(key) {
   loadWallets()
 }
 
+// 没在排序的列挂个灰三角，正在排序的列按方向变亮
 function sortIndicatorClass(key) {
   if (sortKey.value !== key) return 'sort-idle'
   return sortOrder.value === 'asc' ? 'sort-asc' : 'sort-desc'
 }
 
+// 金额补两位小数，时间去掉 T 只留到秒
 function formatMoney(v) {
   if (v == null) return '0.00'
   return Number(v).toFixed(2)
@@ -167,6 +176,7 @@ function formatTime(v) {
   return String(v).replace('T', ' ').slice(0, 19)
 }
 
+// 打开弹窗时把当前余额填进去，默认「设置余额」，改起来最省事
 function openAdjust(row) {
   adjustForm.user_id_wsh = row.user_id_wsh
   adjustForm.mode_wsh = 'set'
@@ -179,6 +189,7 @@ function closeAdjust() {
   adjusting.value = false
 }
 
+// 三种模式的参数不一样：设置余额传最终值，增加和扣减传变动多少
 async function submitAdjust() {
   const amount = Number(adjustAmount.value)
   if (!Number.isFinite(amount) || amount < 0) {
@@ -193,6 +204,7 @@ async function submitAdjust() {
   if (adjustForm.mode_wsh === 'set') payload.balance_wsh = amount
   else payload.amount_wsh = amount
 
+  // 为什么单独拦一下？因为余额里有一部分已经冻结了，设得比它还低，退款时钱就不够扣
   if (adjustForm.mode_wsh === 'set' && currentWallet.value && amount < Number(currentWallet.value.frozen_amount_wsh || 0)) {
     appStore.addToast('余额不能低于冻结金额', 'warning')
     return

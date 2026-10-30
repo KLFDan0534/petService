@@ -1,4 +1,5 @@
 <template>
+  <!-- 角色不够被挡下来时进这里，只留两个出口：回首页或退回上一页 -->
   <div class="error-page">
     <div class="error-card">
       <div class="error-code">403</div>

@@ -33,6 +33,7 @@ import { getRoles, createRole, updateRole, deleteRole as apiDeleteRole } from '@
 
 
 const appStore = useAppStore()
+// 角色就是一包权限：用户挂上角色，才间接拿到权限。这页只管角色的增删改，权限项在别处配
 const roles = ref([])
 const showForm = ref(false)
 const editingRole = ref(null)
@@ -43,10 +44,12 @@ const columns = [
   { label: '描述', key: 'description_wsh' },
   { label: '用户数', key: 'user_count_wsh' },
 ]
+// code 只在新建时填，后端是拿它认角色的；编辑时输入框锁住，免得改完角色就找不到了
 const form = reactive({ name_wsh: '', code_wsh: '', description_wsh: '' })
 
 onMounted(loadRoles)
 
+// 用户数是后端连表数好的，前端拿来直接显示，不用自己算
 async function loadRoles() {
   try { const r = await getRoles(); if (r.code === 200) roles.value = r.data }
   catch (e) {}
@@ -74,6 +77,7 @@ function editRole(role) {
   showForm.value = true
 }
 
+// 客服角色是商家申请通过时自动建的，人工改动会跟申请流程对不上，所以编辑/删除按钮要藏掉
 function isManagedCustomerServiceRole(role) {
   return String(role?.code_wsh || '').trim().toUpperCase() === 'CUSTOMER_SERVICE'
 }

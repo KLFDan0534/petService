@@ -30,6 +30,7 @@ import { MerchantStatus, enrichWithStatus } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
 
 const appStore = useAppStore()
+// 商家状态就三种：待审核 / 已通过 / 已拒绝，下面的按钮和下拉都围着它转
 const merchants = ref([])
 
 function enrichMerchant(m) {
@@ -52,6 +53,7 @@ async function reject(id) {
   catch (e) { appStore.addToast('操作失败', 'error') }
 }
 
+// 下拉框直接改状态，先弹一句确认，防止手滑点错
 async function changeStatus(id, status) {
   const labels = { 0: '待审核', 1: '已通过', 2: '已拒绝' }
   if (!confirm(`确定将状态变更为"${labels[status]}"？`)) return

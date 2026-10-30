@@ -33,6 +33,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import { getAdminFavorites } from '@/api/favorite'
 import { FavoriteTargetTypeMap, enrichWithStatus } from '@/constants/statusMaps'
 
+// 收藏记录只读，用来看谁收藏了什么，页面不提供增删
 const favorites = ref([])
 const currentPage = ref(1)
 const size = ref(20)
@@ -40,6 +41,7 @@ const total = ref(0)
 const filters = reactive({ target_type_wsh: '' })
 const pageCount = computed(() => Math.ceil(total.value / size.value) || 1)
 
+// 收藏类型存的是编码，翻成中文再显示；没名字的补个横杠
 function enrich(f) {
   const e = enrichWithStatus(f, 'target_type_wsh', FavoriteTargetTypeMap, 'type_label_wsh')
   e.user_name_wsh = e.user_name_wsh || '-'

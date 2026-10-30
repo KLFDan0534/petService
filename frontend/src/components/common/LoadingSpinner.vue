@@ -10,6 +10,7 @@ defineProps({ text: String })
 </script>
 
 <style scoped>
+/* 三边灰、只给顶边上色，转起来就有一道光扫过去 */
 .spinner {
   width: 32px; height: 32px;
   border: 3px solid var(--color-border);

@@ -30,6 +30,7 @@
       <DataTable :columns="staffColumns" :data="staffList" />
     </section>
 
+    <!-- 通过和拒绝共用一个弹窗，标题和按钮文字跟着 action 变 -->
     <AppDialog
       :visible="!!pendingReview"
       :width="500"
@@ -68,11 +69,13 @@ import {
 } from '@/api/merchantCustomerService'
 
 const appStore = useAppStore()
+// 两份数据：还没审的申请，和已经通过、能干活儿的客服
 const pendingApplications = ref([])
 const staffList = ref([])
-const pendingReview = ref(null)
+const pendingReview = ref(null)   // 正在审的那条，null 就是没开弹窗
 const reviewNote = ref('')
 
+// 表格要显示哪几列，key 对应下面补出来的那几个名字
 const pendingColumns = [
   { label: '申请人', key: 'display_name_wsh' },
   { label: '账号', key: 'username_wsh' },
@@ -87,6 +90,7 @@ const staffColumns = [
   { label: '通过时间', key: 'reviewed_at_wsh' },
 ]
 
+// 两个列表一起拉，省得来回跑两趟
 async function loadData() {
   const [pendingResponse, staffResponse] = await Promise.all([
     getPendingCustomerServiceApplications(),
@@ -100,6 +104,7 @@ async function loadData() {
   }
 }
 
+// 补一个能显示的名字和几个占位符，免得表格里出现空白格子
 function enrichApplication(item) {
   const displayName = item.nickname_wsh || item.username_wsh || `用户 #${item.user_id_wsh}`
   return {
@@ -110,6 +115,7 @@ function enrichApplication(item) {
   }
 }
 
+// 点通过或拒绝先把这条记下来，弹窗再按 action 换标题和默认意见
 function openReview(row, action) {
   pendingReview.value = {
     id: row.id_wsh,
@@ -124,6 +130,8 @@ function cancelReview() {
   reviewNote.value = ''
 }
 
+// 审核结果就两条路：通过的人进下面客服名单，拒绝的人从待审表里彻底消失
+// 提交完关掉弹窗再重新拉两份列表，页面上的状态跟着一起变
 async function submitReview() {
   if (!pendingReview.value) return
   const action = pendingReview.value.action

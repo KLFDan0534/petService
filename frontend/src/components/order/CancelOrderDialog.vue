@@ -8,6 +8,7 @@
     description="取消后档期会立即释放，需要重新预约才能恢复。"
     @close="$emit('close')"
   >
+    <!-- 确认取消之前先把退多少钱、多久到账摆出来，用户心里有数再决定 -->
     <dl class="cancel-body">
       <div class="cancel-row">
         <dt>订单号</dt>
@@ -23,6 +24,7 @@
       </div>
     </dl>
 
+    <!-- 为什么左边按钮写"保留订单"而不是"取消"？这里的取消指的是取消订单，写清楚才不会被误点 -->
     <template #footer>
       <AppButton variant="quiet" :disabled="loading" @click="$emit('close')">保留订单</AppButton>
       <AppButton variant="danger" :loading="loading" @click="$emit('cancel', order)">
@@ -46,6 +48,7 @@ const props = defineProps({
 defineEmits(['close', 'cancel'])
 
 const orderNo = computed(() => props.order?.order_no_wsh || props.order?.id_wsh || '—')
+// 退的是实付金额；实付没记录就依次退到订单总额、结算金额
 const refundAmount = computed(() =>
   Number(props.order?.final_amount_wsh || props.order?.total_amount_wsh || props.order?.settlement_amount_wsh || 0)
 )

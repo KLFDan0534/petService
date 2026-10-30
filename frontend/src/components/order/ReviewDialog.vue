@@ -12,6 +12,7 @@
         已评 <span class="review-num">{{ ratedCount }}/{{ dimensions.length }}</span> 个维度
       </p>
 
+      <!-- 三个维度各打一次分：商家、看护人、服务；已经评过或订单里没这个对象的，星星直接禁掉 -->
       <div class="review-rows">
         <div
           v-for="(dim, i) in dimensions"
@@ -68,6 +69,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import StarRating from '@/components/ui/StarRating.vue'
 import FormField from '@/components/ui/FormField.vue'
 
+// 留言上限只在这里写一次，输入框的 maxlength 和计数器都读它
 const MAX_COMMENT = 200
 
 const props = defineProps({
@@ -82,6 +84,7 @@ const error = ref('')
 const submitting = ref(false)
 const ratings = reactive({ merchant: 0, keeper: 0, service: 0 })
 
+// 三个维度都从订单上现取对象 id 和名字，订单里没带某个对象的，这个维度就不让评
 const dimensions = computed(() => {
   const order = props.order || {}
   return [
@@ -113,6 +116,7 @@ const description = computed(() => {
 })
 const orderNo = computed(() => props.order?.order_no_wsh || props.order?.id_wsh)
 
+// 每次重新打开都清空上一轮的打分和留言，免得串到别的订单上
 watch(() => props.visible, (val) => {
   if (val) {
     ratings.merchant = 0
@@ -124,6 +128,7 @@ watch(() => props.visible, (val) => {
   }
 })
 
+// 只提交"有对象、还没评过、并且打了星"的维度，一个都没打星就不让提交
 async function submitReviews() {
   const pending = dimensions.value.filter(d => d.targetId && !d.done && ratings[d.type] > 0)
   if (!pending.length) {

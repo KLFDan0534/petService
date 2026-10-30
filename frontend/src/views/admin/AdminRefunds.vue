@@ -22,6 +22,7 @@ import { RefundStatus, enrichWithStatus } from '@/constants/statusMaps'
 
 
 const appStore = useAppStore()
+// 退款单只读展示，能做的动作只有通过、拒绝、完成这三个
 const refunds = ref([])
 
 function enrichRefund(r) {
@@ -34,6 +35,7 @@ async function loadRefunds() {
 }
 onMounted(loadRefunds)
 
+// 退款分两步走：先审通过，再点「完成退款」才真的把钱退回去，中间那步别省
 async function approve(id) { try { await approveRefund(id); appStore.addToast('已通过', 'success'); await loadRefunds() } catch (e) { appStore.addToast('操作失败', 'error') } }
 async function reject(id) { try { await rejectRefund(id); appStore.addToast('已拒绝', 'success'); await loadRefunds() } catch (e) { appStore.addToast('操作失败', 'error') } }
 async function completeRefund(id) { try { await apiCompleteRefund(id); appStore.addToast('退款完成', 'success'); await loadRefunds() } catch (e) { appStore.addToast('操作失败', 'error') } }

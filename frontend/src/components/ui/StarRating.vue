@@ -7,6 +7,7 @@
       tabindex="0"
       @keydown="onKeydown"
     >
+      <!-- 一组星星里只有当前那颗能被 Tab 键停住，其余跳过；一颗都没选时让第一颗顶上 -->
       <button
         v-for="star in max"
         :key="star"
@@ -36,6 +37,7 @@
 <script setup>
 import { defineProps, defineEmits } from 'vue'
 
+// 分数只往外抛，组件自己不留副本，星星亮几颗全看父组件传进来的 modelValue
 const props = defineProps({
   label: { type: String, required: true },
   modelValue: { type: Number, default: 0 },
@@ -44,11 +46,13 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue'])
 
+// 禁用了就别再抛值，省得父组件还得自己再挡一道
 function select(v) {
   if (props.disabled) return
   emit('update:modelValue', v)
 }
 
+// 上下左右四个方向键都能加减分；往下减到 1 就停住，不会掉到 0 或负数
 function onKeydown(e) {
   if (props.disabled) return
   if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {

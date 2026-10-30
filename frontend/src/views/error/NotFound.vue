@@ -1,4 +1,5 @@
 <template>
+  <!-- 地址打错或者页面下掉了都会落到这里，给用户一条回得去的路 -->
   <div class="error-page">
     <div class="error-card">
       <div class="error-code">404</div>

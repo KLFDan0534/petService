@@ -65,10 +65,12 @@ const page = ref(1)
 const size = ref(20)
 const total = ref(0)
 const pages = ref(0)
+// status 用空字符串表示「全部」，所以下面判断要写 !== ''，不能只看真假
 const filter = reactive({ module: '', operation: '', status: '' })
 
 onMounted(() => { load() })
 
+// 三个下拉只有选了才往参数里放，没选就让后端返回全部
 async function load() {
   try {
     const params = { page: page.value, size: size.value }
@@ -79,6 +81,7 @@ async function load() {
     if (r.code === 200) {
       logs.value = r.data?.list || r.data?.records || []
       total.value = r.data.total || 0
+      // 总页数各接口叫法不一样，pages 取不到就退回 pages_wsh
       pages.value = r.data.pages || r.data.pages_wsh || 0
     }
   } catch (e) { /* ignore */ }

@@ -40,6 +40,7 @@ import { useNotificationStore } from '@/stores/notification'
 
 const router = useRouter()
 const notificationStore = useNotificationStore()
+// 红点只跟未读数走，列表要等鼠标移上来才去拉
 const unreadCount = computed(() => notificationStore.unreadCount)
 const notifications = computed(() => notificationStore.notifications)
 
@@ -47,14 +48,17 @@ const notifications = computed(() => notificationStore.notifications)
 const emit = defineEmits(['open'])
 const dropdownOpen = ref(false)
 const loading = ref(false)
+// 为什么移开鼠标不马上收？得留一点时间让鼠标从按钮挪进下拉框里
 let closeTimer = null
 
+// 每次打开都重新拉一遍，未读数可能在别的地方已经变了
 async function loadNotifications() {
   loading.value = true
   await notificationStore.fetchNotifications()
   loading.value = false
 }
 
+// 鼠标回来了，就把刚才那个「准备关掉」的定时器撤掉
 function openDropdown() {
   if (closeTimer) { clearTimeout(closeTimer); closeTimer = null }
   dropdownOpen.value = true
@@ -75,18 +79,22 @@ function closeDropdown() {
   dropdownOpen.value = false
 }
 
+// 父组件点到别处时，可以顺手把这个下拉收起来
 defineExpose({ closeDropdown })
 
+// 点进去就当看过了，先把这条标成已读
 function handleItemClick(n) {
   dropdownOpen.value = false
   if (!n.is_read_wsh) notificationStore.markAsRead(n.id_wsh)
 }
 
+// 一周之内说「几分钟前」「几小时前」，再久就直接给日期
 function formatTime(value) {
   if (!value) return ''
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return ''
   const diff = Date.now() - d.getTime()
+  // 先把一分钟、一小时、一天各是多少毫秒算好，下面比大小就看得懂了
   const MIN = 60 * 1000
   const HOUR = 60 * MIN
   const DAY = 24 * HOUR

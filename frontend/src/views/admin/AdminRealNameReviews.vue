@@ -61,6 +61,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
+// 当前 tab、页码、搜索词都在这，切换 tab 会重新拉一次
 const reviews = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -77,15 +78,18 @@ const showRejectDialog = ref(false)
 const rejectTarget = ref(null)
 const rejectReason = ref('')
 
+// tab 换成接口要的数字状态，"全部"给 null 表示不加这个条件
 const statusMap = { pending: 1, all: null, approved: 2, rejected: 3 }
 
 onMounted(loadList)
 
+// 这里是就地改这一行再返回，表格拿到的就直接带状态文字
 function enrich(r) {
   enrichWithStatus(r, 'real_name_status_wsh', RealNameStatus, 'status_label_wsh')
   return r
 }
 
+// 页码和总页数用后端返回的，本地自己算容易算错
 async function loadList() {
   try {
     const r = await getRealNameReviews({ page: page.value, size: 20, status: statusMap[activeTab.value], q: keyword.value || undefined })
@@ -98,6 +102,7 @@ async function loadList() {
   } catch (e) {}
 }
 
+// 实名通过点错了不好撤回，先让管理员确认一遍
 async function approve(row) {
   if (!confirm(`确定通过 ${row.real_name_wsh || row.username_wsh} 的实名认证？`)) return
   try {
@@ -112,6 +117,7 @@ function showReject(row) {
   showRejectDialog.value = true
 }
 
+// 驳回原因选填，没填就不带这个参数
 async function doReject() {
   try {
     const r = await rejectRealNameReview(rejectTarget.value.id_wsh, { remark_wsh: rejectReason.value || undefined })

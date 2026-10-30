@@ -198,6 +198,7 @@ const appStore = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const complaints = ref([])
+// 筛选条件、证据弹窗、待处理的投诉，页面状态就这几块
 const filters = reactive({ status_wsh: '', keyword: '', merchant_id_wsh: null })
 const evidenceVisible = ref(false)
 const evidenceLoading = ref(false)
@@ -215,6 +216,7 @@ const columns = [
   { label: '时间', key: 'created_at_wsh' },
 ]
 
+// 列表接口只给状态码和证据条数，这里补上状态文字、订单号和证据摘要给表格用
 function enrichComplaint(complaint) {
   const enriched = enrichWithStatus(complaint, 'status_wsh', ComplaintStatus)
   const evidence = complaint.evidence_summary_wsh
@@ -225,6 +227,7 @@ function enrichComplaint(complaint) {
   return enriched
 }
 
+// 只把填了的条件带上，空的一律不传，免得后端把空串当成真条件
 function buildFilterParams() {
   const params = {}
   if (filters.status_wsh) params.status_wsh = filters.status_wsh
@@ -233,6 +236,7 @@ function buildFilterParams() {
   return params
 }
 
+// 清空三个条件后马上按新条件重查一遍
 function resetFilters() {
   filters.status_wsh = ''
   filters.keyword = ''
@@ -240,6 +244,7 @@ function resetFilters() {
   loadComplaints()
 }
 
+// 接口有时返回 {list:[]}，有时直接返回数组，两种都得能接住
 async function loadComplaints() {
   try {
     const response = await getComplaints(buildFilterParams())
@@ -251,6 +256,7 @@ async function loadComplaints() {
   }
 }
 
+// 先把弹窗打开再请求证据，加载过程中弹窗里显示“加载中”，不会白屏
 async function openEvidence(row) {
   evidenceVisible.value = true
   evidenceLoading.value = true
@@ -270,6 +276,7 @@ function closeEvidence() {
   selectedEvidence.value = null
 }
 
+// 跳到客服聊天页，把投诉人、订单号、投诉标题一起带过去，那边不用再查一遍
 function goChat(row) {
   const userId = row.owner_id_wsh
   if (!userId) {
@@ -291,6 +298,7 @@ function goChat(row) {
   })
 }
 
+// 受理只是把状态推到“受理中”，改完重拉列表让状态跟着变
 async function accept(row) {
   try {
     const response = await acceptComplaint(row.id_wsh)
@@ -303,6 +311,8 @@ async function accept(row) {
   }
 }
 
+// 处理和驳回共用同一个弹窗，action 决定待会调哪个接口，
+// 先塞一段默认意见，多数情况点一下就能提交
 function openReview(row, action) {
   pendingReview.value = {
     id: row.id_wsh,
@@ -317,6 +327,7 @@ function cancelReview() {
   reviewResult.value = ''
 }
 
+// 按 action 分两路提交处理意见，成功后关弹窗重拉列表
 async function submitReview() {
   if (!pendingReview.value || !reviewResult.value.trim()) return
   try {
@@ -333,22 +344,26 @@ async function submitReview() {
   }
 }
 
+// 时间戳能转成日期就转成本地格式，转不了就原样显示，别让页面出现 Invalid Date
 function formatTime(value) {
   if (!value) return '-'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString()
 }
 
+// 照护记录里的图片是一串逗号拼起来的地址，拆开顺便去掉空项
 function parseImages(value) {
   if (!value) return []
   return String(value).split(',').map(item => item.trim()).filter(Boolean)
 }
 
+// 只看扩展名判断是不是图片，不是图片就退化成“查看附件”的普通链接
 function isImageUrl(value) {
   if (!value) return false
   return /\.(jpe?g|png|gif|webp|bmp|svg|avif)(\?.*)?$/i.test(String(value))
 }
 
+// 从别的页面带状态或商家 id 跳过来时，先把筛选条件填上再查，省得用户再选一遍
 onMounted(() => {
   if (route.query.status_wsh) filters.status_wsh = String(route.query.status_wsh)
   if (route.query.merchant_id_wsh) filters.merchant_id_wsh = Number(route.query.merchant_id_wsh)

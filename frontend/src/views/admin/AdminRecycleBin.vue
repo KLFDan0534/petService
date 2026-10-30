@@ -40,11 +40,13 @@ import { getRecycleBinTables, getRecycleBin, restoreFromRecycleBin, permanentDel
 
 
 const appStore = useAppStore()
+// 删掉的数据并没有真的消失，还躺在原来那张表里，只是被标了删除记号；所以要按表名一张张去捞
 const tables = ref([])
 const selectedTable = ref('')
 const records = ref([])
 const searched = ref(false)
 
+// 每张表的列都不一样，没法写死表头，就拿第一条记录的键当列名，最多摆 8 列免得挤爆
 const sample = computed(() => {
   if (records.value.length === 0) return {}
   const keys = Object.keys(records.value[0])
@@ -56,6 +58,7 @@ onMounted(async () => {
   catch (e) {}
 })
 
+// 按选中的表去捞已删除记录，查完不管有没有结果都标成「查过了」，好显示空状态
 async function loadDeleted() {
   if (!selectedTable.value) return
   searched.value = true
@@ -63,6 +66,7 @@ async function loadDeleted() {
   catch (e) { records.value = [] }
 }
 
+// 恢复就是把删除记号擦掉，记录本来就一直在表里没动过
 async function restore(id) {
   try { await restoreFromRecycleBin(selectedTable.value, id); appStore.addToast('恢复成功', 'success'); loadDeleted() }
   catch (e) { appStore.addToast('恢复失败', 'error') }

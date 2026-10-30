@@ -43,6 +43,7 @@ import { checkIn, checkOut, getCurrentAttendance, getTodayAttendance } from '@/a
 
 const appStore = useAppStore()
 
+// currentAttendance 是今天还没下班的那条，records 是今天全部的打卡流水
 const currentAttendance = ref(null)
 const records = ref([])
 const loading = ref(false)
@@ -53,6 +54,7 @@ onMounted(loadAttendance)
 async function loadAttendance() {
   loading.value = true
   try {
+    // 两个接口互不依赖，一起发出去，不用等第一个回来再发第二个
     const [currentRes, todayRes] = await Promise.all([
       getCurrentAttendance(),
       getTodayAttendance(),
@@ -66,6 +68,7 @@ async function loadAttendance() {
   }
 }
 
+// 上班和下班走同一套提交逻辑，只是调的接口和成功提示不一样
 async function submitCheckIn() {
   await submitAttendance(checkIn, '上班打卡成功')
 }
@@ -78,6 +81,7 @@ async function submitAttendance(action, successText) {
   if (submitting.value) return
   submitting.value = true
   try {
+    // 为什么打卡前要先拿定位？后端要靠经纬度算出离店多远，顺便记下地址
     const location = await getCurrentAddress()
     const res = await action({
       latitude_wsh: location.latitude_wsh,
@@ -101,6 +105,7 @@ function formatDateTime(value) {
   return utilFormatDateTime(value, { fallback: '-' })
 }
 
+// 后端给的距离是带小数的米数，界面上取整再加个单位就够了
 function formatMeters(value) {
   const number = Number(value)
   if (!Number.isFinite(number)) return '-'

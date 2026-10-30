@@ -1,4 +1,5 @@
 <template>
+  <!-- 鼠标移到横幅上、或者键盘聚焦进来，都先停下自动轮播，让人看清楚再走 -->
   <section
     v-if="slides.length"
     class="campaign-banner"
@@ -36,6 +37,7 @@
       </a>
     </Transition>
 
+    <!-- 只有一条广告时，左右箭头和圆点摆出来也没得点，索性不渲染 -->
     <template v-if="slides.length > 1">
       <button class="campaign-arrow campaign-prev" type="button" aria-label="上一条广告" @click="showPrevious">
         <AppIcon aria-hidden="true"><ArrowLeft /></AppIcon>
@@ -67,13 +69,16 @@ const props = defineProps({
   banners: { type: Array, default: () => [] },
 })
 
+// activeIndex 记当前停在第几条；timer 存定时器编号，想停的时候得靠它
 const activeIndex = ref(0)
 let timer = null
 
+// 先把没有 id 的、被下架的广告剔掉，后面的下标都按这份干净列表来数
 const slides = computed(() => props.banners.filter(banner => banner?.id_wsh && banner.status_wsh !== 0))
 const currentBanner = computed(() => slides.value[activeIndex.value] || {})
 const safeCurrentLink = computed(() => toSafeUrl(currentBanner.value.link_url_wsh))
 
+// 为什么链接还要再验一遍？后台填的可能是一串 javascript: 开头的地址，直接塞进 href 点一下就执行脚本了
 function toSafeUrl(value) {
   const rawUrl = String(value || '').trim()
   if (!rawUrl || typeof window === 'undefined') return ''
@@ -86,6 +91,7 @@ function toSafeUrl(value) {
   }
 }
 
+// 点圆点、点箭头最后都落到这里；加长度再取余，是为了从最后一条往后翻能绕回第一条
 function showSlide(index) {
   if (!slides.value.length) return
   activeIndex.value = (index + slides.value.length) % slides.value.length
@@ -100,15 +106,18 @@ function showNext() {
   showSlide(activeIndex.value + 1)
 }
 
+// 系统里开了「减少动态效果」的人，就别给他自动翻页了，晃着难受
 function prefersReducedMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
+// 停表：清掉定时器再把编号置空，不然下次判断不出到底还转不转
 function pause() {
   if (timer) window.clearInterval(timer)
   timer = null
 }
 
+// 开表：先停旧的再起新的，这样连点几下箭头也不会同时有好几个定时器在跑
 function resume() {
   pause()
   if (slides.value.length > 1 && !prefersReducedMotion()) {
@@ -118,11 +127,13 @@ function resume() {
   }
 }
 
+// 广告列表换了（比如接口数据刚回来），回到第一条重新开始转
 watch(slides, () => {
   activeIndex.value = 0
   resume()
 })
 
+// 挂上去才开始转；卸载时一定要停，否则组件没了定时器还在后台一直跑
 onMounted(resume)
 onUnmounted(pause)
 </script>

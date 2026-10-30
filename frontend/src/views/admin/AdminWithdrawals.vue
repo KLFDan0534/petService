@@ -39,10 +39,12 @@ import { WithdrawalStatus, enrichWithStatus } from '@/constants/statusMaps'
 const appStore = useAppStore()
 const withdrawals = ref([])
 
+// 补上状态文字，表格状态列才有中文可看
 function enrichWithdrawal(w) {
   return enrichWithStatus(w, 'status_wsh', WithdrawalStatus)
 }
 
+// 接口回来的是分页结构，真正的数组在 list 里
 async function loadWithdrawals() {
   try {
     const r = await getWithdrawals()
@@ -54,6 +56,7 @@ async function loadWithdrawals() {
 
 onMounted(loadWithdrawals)
 
+// 通过只是同意申请，钱还冻着，要等线下打款完才算扣
 async function approve(id) {
   try {
     await approveWithdrawal(id)
@@ -74,6 +77,7 @@ async function reject(id) {
   }
 }
 
+// 这一步才真正从钱包里扣钱，所以单独一个按钮，跟"通过"分开
 async function complete(id) {
   try {
     await completeWithdrawal(id)

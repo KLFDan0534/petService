@@ -63,6 +63,7 @@
             {{ statusLabel(order.status_wsh) }}
           </span>
         </header>
+        <!-- 待支付的单子顶上挂个倒计时，时间一到后端会把订单关掉 -->
         <div v-if="showPaymentCountdown(order)" class="payment-countdown">
           <span>支付剩余</span>
           <strong>{{ paymentCountdownText(order) }}</strong>
@@ -104,6 +105,7 @@
 
         <p v-if="order.remark_wsh" class="remark">{{ order.remark_wsh }}</p>
 
+        <!-- 商家在这一页只有查看入口，接单、送达、完结都得进详情页做 -->
         <footer class="order-actions">
           <button class="btn btn-sm btn-outline" type="button" @click="goDetail(order)">
             查看详情
@@ -132,14 +134,16 @@ import {
 const router = useRouter()
 const appStore = useAppStore()
 
+// 订单列表，加上加载中、出错、正常三种页面状态
 const orders = ref([])
 const loading = ref(false)
 const error = ref('')
 const activeTab = ref('all')
-const nowMs = ref(Date.now())
+const nowMs = ref(Date.now())   // 当前时间，倒计时靠它走
 let countdownTimer = null
-let nextPaymentTimeoutRefreshAt = 0
+let nextPaymentTimeoutRefreshAt = 0   // 下次允许重新拉列表的时间点
 
+// 顶部页签，key 拿去和下面 tabStatusMap 里的状态分组对上
 const tabs = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '待支付' },
@@ -150,6 +154,7 @@ const tabs = [
   { key: 'refund', label: '退款' },
 ]
 
+// 一个页签可能对着好几个后端状态，比如"服务中"把已确认一路到进行中都算进来
 const tabStatusMap = {
   pending: ['pending'],
   paid: ['paid'],
@@ -159,16 +164,19 @@ const tabStatusMap = {
   refund: ['refunding', 'refunded'],
 }
 
+// 按当前页签挑订单，"全部"就直接把原列表给出去
 const filteredOrders = computed(() => {
   if (activeTab.value === 'all') return orders.value
   const statuses = tabStatusMap[activeTab.value] || [activeTab.value]
   return orders.value.filter(order => statuses.includes(orderStatus(order)))
 })
 
+// 概览里的"服务中"是这四种状态加起来的总数
 const activeCount = computed(() =>
   ['confirmed', 'delivered', 'received', 'in_progress'].reduce((sum, status) => sum + countByStatus(status), 0)
 )
 
+// 每秒把当前时间往前推一格，支付倒计时才会走字，顺便看看有没有订单超时要刷新
 onMounted(() => {
   countdownTimer = window.setInterval(() => {
     nowMs.value = Date.now()
@@ -181,6 +189,7 @@ onUnmounted(() => {
   if (countdownTimer) window.clearInterval(countdownTimer)
 })
 
+// 拉商家收到的订单，顺手把每条的状态整理成统一的英文小写
 async function loadOrders() {
   loading.value = true
   error.value = ''
@@ -202,6 +211,8 @@ async function loadOrders() {
   }
 }
 
+// 有订单过了支付时限就重新拉一次列表，让后端把状态改掉
+// 为什么还看一眼 nextPaymentTimeoutRefreshAt？因为每秒都打接口太费，隔一阵才真发
 function refreshExpiredPaymentOrders() {
   if (loading.value || nowMs.value < nextPaymentTimeoutRefreshAt) {
     return
@@ -214,16 +225,19 @@ function refreshExpiredPaymentOrders() {
   void loadOrders()
 }
 
+// 概览卡片要用，按状态数一下有几单
 function countByStatus(status) {
   return orders.value.filter(order => orderStatus(order) === status).length
 }
 
+// 页签上的小数字，跟筛选用的是同一套状态分组，不会出现数字和列表对不上
 function countByTab(key) {
   if (key === 'all') return orders.value.length
   const statuses = tabStatusMap[key] || [key]
   return orders.value.filter(order => statuses.includes(orderStatus(order))).length
 }
 
+// 后端有时给英文有时给中文，这里统一翻成英文小写，后面判断就不用管来源了
 function orderStatus(order) {
   const raw = String(order?.status_wsh ?? order?.status ?? '').trim()
   const normalized = raw.toLowerCase()
@@ -246,6 +260,7 @@ function orderStatus(order) {
   return aliasMap[raw] || normalized
 }
 
+// 状态文案和颜色都去 constants 里查，别在页面里再抄一遍
 function statusLabel(status) {
   return getStatusLabel(OrderStatus, String(status || '').trim().toLowerCase())
 }
@@ -254,14 +269,17 @@ function statusBadge(status) {
   return getStatusBadge(OrderStatus, String(status || '').trim().toLowerCase())
 }
 
+// 只有待支付、而且还能算出剩余时间的订单才显示倒计时
 function showPaymentCountdown(order) {
   return orderStatus(order) === 'pending' && getPaymentTimeoutRemaining(order, nowMs.value) != null
 }
 
+// 把剩余时间转成 12:03 这种字样
 function paymentCountdownText(order) {
   return formatPaymentTimeoutRemaining(getPaymentTimeoutRemaining(order, nowMs.value))
 }
 
+// 这一页只负责看，接单、完成这些操作都去订单详情页做
 function goDetail(order) {
   if (!order?.id_wsh) return
   router.push({ name: 'OrderDetail', params: { id: order.id_wsh } })

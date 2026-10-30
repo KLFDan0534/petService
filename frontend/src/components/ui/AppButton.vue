@@ -1,4 +1,5 @@
 <template>
+  <!-- 加载中也要一并禁掉，不然用户手快能连点好几下 -->
   <button
     type="button"
     class="app-btn"
@@ -27,6 +28,7 @@
 </template>
 
 <script setup>
+// variant 和 size 会被拼成 app-btn--primary、app-btn--md 这类类名，样式按类名分开写
 const props = defineProps({
   label: { type: String, default: '' },
   variant: {
@@ -91,6 +93,7 @@ const emit = defineEmits(['click'])
 .app-btn.is-arrow:hover:not(:disabled) .app-btn__arrow { transform: translateX(3px); }
 
 /* loading spinner */
+/* 转圈其实就是个只留三边边框的圆，靠旋转动画转起来 */
 .app-btn__spinner {
   width: 14px;
   height: 14px;

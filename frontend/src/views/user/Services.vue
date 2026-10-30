@@ -64,6 +64,8 @@
           </header>
         </Reveal>
 
+        <!-- 分类按钮：分类是从下面的服务列表里整理出来的，不是另外请求的
+             「全部」用空字符串表示不筛选，点其他按钮就把分类名记下来，列表跟着变 -->
         <div class="s-rail" role="group" aria-label="服务分类">
           <button
             type="button"
@@ -85,6 +87,7 @@
           </button>
         </div>
 
+        <!-- 搜索框：和上面的分类按钮一起生效，两个条件都要满足才显示 -->
         <div class="s-toolbar" role="search" aria-label="筛选预约服务">
           <div class="s-search">
             <AppIcon class="s-search-icon" aria-hidden="true"><Search /></AppIcon>
@@ -110,6 +113,7 @@
           </div>
         </div>
 
+        <!-- 卡片列表：这里只给筛好的结果，卡片组件自己不做筛选 -->
         <ServiceGrid :services="filteredServices" :loading="loading" />
       </section>
     </div>
@@ -134,6 +138,11 @@ import { useServiceDistance } from '@/composables/useServiceDistance'
 const appStore = useAppStore()
 const categoryStore = useCategoryStore()
 const { attachDistances } = useServiceDistance()
+
+// ---------- 页面用到的数据 ----------
+// services：这一页要展示的全部服务，一次取回来，分类和搜索都在本地做
+// banners：顶部广告轮播，单独请求，取不到也不影响下面的服务列表
+// merchants：商家列表，只用来数「覆盖门店」，顺便给卡片补距离
 const services = ref([])
 const banners = ref([])
 const merchants = ref([])
@@ -141,32 +150,44 @@ const loading = ref(true)
 const searchQuery = ref('')
 const selectedCategory = ref('')
 
+// 接口有时候直接给一个数组，有时候把数组装在 list 里面，这里统一成数组再往下用
 function normalizeList(data) {
   if (Array.isArray(data)) return data
   if (Array.isArray(data?.list)) return data.list
   return []
 }
 
+// 取一个服务的分类名，按顺序找：
+// 1. 服务自己带的 category_name_wsh，是后端连表查出来的，最准
+// 2. 服务只给了分类 id，就去本地分类表里按 id 查名字
+// 如果两处都查不到，第 2 步会返回「服务」两个字
 function categoryLabel(service) {
   return service.category_name_wsh || categoryStore.getCategoryName(service.category_id_wsh)
 }
 
+// 卡片主图统一从本地图片表里取，不用管后端有没有给图片字段
 function firstImage(service) {
   return coverForService(service)
 }
 
+// ---------- 分类按钮：从服务列表里整理出来 ----------
+// 重点：这些分类不是从分类接口拿的，是从已经查回来的服务里，把分类名挑出来去重得到的。
+// 所以后端某个分类下一个服务都没有，这个分类按钮就不会出现。
 const categories = computed(() => {
-  // 分类芯片、计数与筛选全部以服务自身的 category_name_wsh 为准（与参考设计一致）
+  // 分类按钮、按钮上的数字、点击后的筛选，用的都是服务自己的 category_name_wsh（和参考设计一致）
   const seen = new Set()
   const list = []
   for (const service of services.value) {
     const label = categoryLabel(service)
+    // 跳过空的、跳过「服务」（代表这个服务没匹配到分类）、跳过已经加过的
     if (!label || label === '服务' || seen.has(label)) continue
     seen.add(label)
     list.push(label)
   }
   return list.sort((a, b) => a.localeCompare(b, 'zh-CN'))
 })
+// 每个分类各有多少个服务，显示在按钮右边的数字
+// 注意：这里数的是全部服务，搜索框里输入什么都改不了这些数字
 const categoryCounts = computed(() => {
   const map = {}
   for (const service of services.value) {
@@ -175,42 +196,56 @@ const categoryCounts = computed(() => {
   }
   return map
 })
+// 有没有在筛选（页面上暂时没用到，留给以后的重置按钮）
 const hasFilters = computed(() => Boolean(searchQuery.value || selectedCategory.value))
+// 覆盖门店数：就是商家列表有几条，没有再筛掉「没有服务在卖」的店
 const merchantCount = computed(() => merchants.value.length)
+// 顶部大图用第一个服务的封面；一个服务都没有就给空值，图片组件自己会显示占位图
 const heroImage = computed(() => firstImage(services.value?.[0]) || '')
+
+// ---------- 最后要显示的服务列表 ----------
+// 服务列表、搜索词、选中的分类，这三个里任何一个变了，都会重新筛一遍
 const filteredServices = computed(() => {
   const keyword = searchQuery.value.toLocaleLowerCase('zh-CN')
   return services.value.filter(service => {
     const category = categoryLabel(service)
+    // 搜索词会去比名称、描述、分类名，命中一个就算匹配
     const searchableText = [service.name_wsh, service.description_wsh, category]
       .filter(Boolean)
       .join(' ')
       .toLocaleLowerCase('zh-CN')
     const matchesSearch = !keyword || searchableText.includes(keyword)
+    // 没选分类时（空字符串）直接算通过，也就是「全部」；选了就要求分类名完全一样
     const matchesCategory = !selectedCategory.value || category === selectedCategory.value
     return matchesSearch && matchesCategory
   })
 })
 
+// 清空全部筛选条件（供重置按钮调用）
 function resetFilters() {
   searchQuery.value = ''
   selectedCategory.value = ''
 }
 
+// 同时去拿服务列表和商家列表，两个请求一起发，谁先回来都行
+// 服务一次最多拿 100 条，超出的不会报错、直接没有，上面的数字也会跟着少
 async function loadServices() {
   loading.value = true
   try {
-    // 统一走公开分页接口；首页需要一次性展示全部服务，故取最大页容量
+    // 用公开的分页接口，一次要 100 条，因为这一页要把服务全列出来
     const [serviceResponse, merchantResponse] = await Promise.all([
       getPublicServices({ page: 1, size: 100 }),
       getMerchants(),
     ])
+    // 分页接口把数据放在 items_wsh 里
     if (serviceResponse.code === 200) services.value = normalizeList(serviceResponse.data?.items_wsh)
     const merchantList = merchantResponse.code === 200 ? normalizeList(merchantResponse.data) : []
     merchants.value = merchantList
-    // 服务卡片距离：用户位置 + 商家地址均走高德（不依赖本地经纬度）
+    // 算卡片上的距离，用高德接口算，不靠本地存的经纬度
+    // 这里不等它算完，距离出不来也不影响列表显示
     void attachDistances(services.value, merchantList)
   } catch (_) {
+    // 只要有一个请求出错，就清空列表并弹提示，不让页面一直转圈
     services.value = []
     merchants.value = []
     appStore.addToast('加载预约服务失败，请稍后重试', 'error')
@@ -219,6 +254,7 @@ async function loadServices() {
   }
 }
 
+// 顶部广告轮播，单独发请求；失败就不显示，不打扰用户
 async function loadBanners() {
   try {
     const response = await getActiveNotices({ type: 'banner' })
@@ -228,6 +264,10 @@ async function loadBanners() {
   }
 }
 
+// 三个请求同时发出，互不影响：
+// - loadServices 决定分类按钮和卡片列表
+// - loadBanners 只管顶部广告
+// - loadCategories 拿的是分类对照表，服务没带分类名时用它按 id 查名字
 onMounted(() => {
   void Promise.all([loadServices(), loadBanners(), categoryStore.loadCategories()])
 })

@@ -20,6 +20,7 @@ import { ReviewStatus, enrichWithStatus } from '@/constants/statusMaps'
 
 
 const appStore = useAppStore()
+// 审核列表：一次拉完，本地不翻页，量小够用
 const reviews = ref([])
 
 function enrichReview(r) {
@@ -32,6 +33,7 @@ async function loadReviews() {
 }
 onMounted(loadReviews)
 
+// 通过和拒绝都只是改状态，改完重新拉一遍列表
 async function approve(id) { try { await approveReview(id); appStore.addToast('已通过', 'success'); await loadReviews() } catch (e) { appStore.addToast('操作失败', 'error') } }
 async function reject(id) { try { await rejectReview(id); appStore.addToast('已拒绝', 'success'); await loadReviews() } catch (e) { appStore.addToast('操作失败', 'error') } }
 </script>

@@ -75,6 +75,7 @@ import { getAdminPets, createPet, updatePet, deletePet as apiDeletePet } from '@
 import DataTable from '@/components/common/DataTable.vue'
 import AppDialog from '@/components/common/AppDialog.vue'
 const appStore = useAppStore()
+// detailPet 有值就弹详情，editingPet 有值就说明是改而不是加
 const pets = ref([])
 const detailPet = ref(null)
 const showForm = ref(false)
@@ -87,6 +88,7 @@ const form = reactive({
 
 onMounted(loadPets)
 
+// 进页面拉一次全量宠物，后台这个列表不分页
 async function loadPets() {
   try { const r = await getAdminPets(); if (r.code === 200) pets.value = r.data }
   catch (e) { appStore.addToast('加载失败', 'error') }
@@ -94,6 +96,7 @@ async function loadPets() {
 
 function viewDetail(pet) { detailPet.value = pet }
 
+// 新增前把 editingPet 置空，不然保存时会走到更新那条分支
 function addPet() {
   editingPet.value = null
   Object.assign(form, {
@@ -104,6 +107,7 @@ function addPet() {
   showForm.value = true
 }
 
+// 把这一行的数据抄进表单，同时留着整行当编辑标记
 function editPet(pet) {
   editingPet.value = pet
   Object.assign(form, {
@@ -118,6 +122,7 @@ function editPet(pet) {
   showForm.value = true
 }
 
+// 没填的项统一送 null，后端拿 null 就当没填
 async function savePet() {
   try {
     const payload = {
@@ -142,6 +147,7 @@ async function savePet() {
   } catch (e) { appStore.addToast('操作失败', 'error') }
 }
 
+// 删之前确认一下，宠物删了关联的寄养记录就断了
 async function deletePet(id) {
   if (!confirm('确定删除该宠物？')) return
   try {

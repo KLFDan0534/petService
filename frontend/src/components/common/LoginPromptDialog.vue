@@ -1,4 +1,5 @@
 <template>
+  <!-- 头部自己画了图标和标题，默认那个关闭按钮就不要了，两个头看着乱 -->
   <AppDialog
     :visible="visible"
     :width="400"
@@ -50,13 +51,16 @@ const emit = defineEmits(['close'])
 const router = useRouter()
 const appStore = useAppStore()
 
+// 从哪个页面被拦下来的就回哪个，没记下就含糊说一句「原来的页面」
 const returnTo = computed(() => appStore.loginRedirectPath || '原来的页面')
 
+// 为什么还要再查一遍？这个地址是从网址里带过来的，不查就能被人改成外站，登录完直接被拐走
 function safeRedirect(raw) {
   if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//')) return '/dashboard'
   return raw
 }
 
+// 先关弹窗再跳，不然登录页后面还压着一层
 function goLogin() {
   emit('close')
   const redirect = encodeURIComponent(safeRedirect(appStore.loginRedirectPath))

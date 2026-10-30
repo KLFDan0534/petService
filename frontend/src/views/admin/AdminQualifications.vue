@@ -59,6 +59,7 @@ async function loadList() {
   } catch (e) {}
 }
 
+// 审核人要一起报给后端，方便查是谁批的，所以从本地登录信息里取当前用户 id
 async function approve(row) {
   if (!confirm(`确定通过该资质？`)) return
   try {
@@ -69,6 +70,7 @@ async function approve(row) {
   } catch (e) { appStore.addToast('操作失败', 'error') }
 }
 
+// 驳回要填原因，所以先把当前这条存住，等弹窗里点确认再一起提交
 function showReject(row) {
   rejectTarget.value = row
   rejectRemark.value = ''

@@ -47,6 +47,7 @@ import { getNotices, createNotice as apiCreateNotice, updateNotice as apiUpdateN
 import AppDialog from '@/components/common/AppDialog.vue'
 
 const appStore = useAppStore()
+// 可选的发送方式，存库时是这些 value 用逗号拼起来的一串
 const deliveryOptions = [
   { value: 'notification', label: '消息通知' },
   { value: 'popup', label: '弹窗' },
@@ -56,6 +57,7 @@ const showForm = ref(false)
 const editingId = ref(null)
 const form = reactive({ title_wsh: '', content_wsh: '', type_wsh: 'notice', delivery_types_wsh: [] })
 
+// 把存下来的那串还原成中文，认不出来的值原样带出来，别吞掉
 function deliveryLabel(type) {
   const parsed = parseDeliveryTypes(type)
   const selected = new Set(parsed)
@@ -66,6 +68,7 @@ function deliveryLabel(type) {
   return [...labels, ...extra].join('、') || '公告'
 }
 
+// 库里存的是逗号串，读出来得拆成数组，多选框才勾得上
 function parseDeliveryTypes(type) {
   return String(type || '')
     .split(',')
@@ -73,10 +76,12 @@ function parseDeliveryTypes(type) {
     .filter(Boolean)
 }
 
+// 勾选的值去掉重复再拼回逗号串，这就是最终写库的样子
 function buildDeliveryTypeValue() {
   return [...new Set(form.delivery_types_wsh.map(item => item.trim().toLowerCase()).filter(Boolean))].join(',')
 }
 
+// 一项都没勾就抛错，交给外面 catch 弹提示
 function getDeliveryPayload() {
   const delivery_type_wsh = buildDeliveryTypeValue()
   if (!delivery_type_wsh) {
@@ -85,6 +90,7 @@ function getDeliveryPayload() {
   return delivery_type_wsh
 }
 
+// 带时间戳是为了让浏览器每次真去问后端，不然可能拿到缓存里的旧公告
 async function loadNotices() {
   try {
     const r = await getNotices({ type: 'notice', _t: Date.now() })
@@ -105,6 +111,7 @@ function cancelForm() {
   resetForm()
 }
 
+// 新建成功后直接塞到列表最前面，省一次请求
 async function createNotice() {
   try {
     const payload = { title_wsh: form.title_wsh, content_wsh: form.content_wsh, type_wsh: 'notice', delivery_type_wsh: getDeliveryPayload() }
@@ -119,6 +126,7 @@ async function createNotice() {
   catch (e) { appStore.addToast(e?.message || '发布失败', 'error') }
 }
 
+// 编辑回填：把库里那串逗号值拆开，多选框才会勾上原来选的项
 function editNotice(n) {
   editingId.value = n.id_wsh
   form.title_wsh = n.title_wsh

@@ -52,6 +52,7 @@ const columns = [
   { label: '创建时间', key: 'created_at_wsh' },
 ]
 
+// 类型码对照表，后端以后加了新类型也不会显示成空白
 const TYPE_LABELS = {
   recharge: '充值',
   admin_adjust: '余额调整',
@@ -60,6 +61,7 @@ const TYPE_LABELS = {
   withdrawal: '提现',
 }
 
+// 没登记过的类型直接显示原值，总比空着好
 function typeLabel(t) {
   return TYPE_LABELS[t] || t || '-'
 }
@@ -72,11 +74,13 @@ function typeTagClass(t) {
 
 onMounted(load)
 
+// 点筛选项就换类型再拉一次列表
 async function setType(t) {
   type.value = t
   await load()
 }
 
+// 选"全部"时类型传 undefined，让后端别加这个筛选条件
 async function load() {
   try {
     const r = await getTransactions({ type: type.value || undefined })

@@ -5,6 +5,7 @@
       <p class="page-subtitle">审核、考勤与休假安排</p>
     </div>
 
+    <!-- 考勤和休假面板放最上面，传的是全部寄养员，不是待审核那批 -->
     <MerchantAttendanceLeavePanel :keepers="allKeepers" />
 
     <div class="review-card">
@@ -65,10 +66,12 @@ import request from '@/utils/request'
 const appStore = useAppStore()
 
 const loading = ref(true)
+// 待审核的和已经通过的寄养员分两份存，上面考勤面板要用通过的那份
 const keepers = ref([])
 const allKeepers = ref([])
-const operating = ref(null)
+const operating = ref(null)   // 正在处理的那条 id
 
+// 进页面两份数据一起拉，谁先回来都无所谓
 onMounted(async () => {
   try {
     await Promise.all([loadPendingKeepers(), loadAllKeepers()])
@@ -79,11 +82,13 @@ onMounted(async () => {
   }
 })
 
+// 待审核的申请，接口按当前登录的商家给，不用自己传 id
 async function loadPendingKeepers() {
   const r = await request.get('/api/keepers/merchant/pending')
   if (r.data.code === 200) keepers.value = r.data.data || []
 }
 
+// 已通过的寄养员要先知道自己属于哪家商家，所以得先取商家资料
 async function loadAllKeepers() {
   const merchantRes = await getMyMerchant()
   const merchantId = merchantRes?.data?.id_wsh
@@ -92,11 +97,13 @@ async function loadAllKeepers() {
   if (r.data.code === 200) allKeepers.value = r.data.data || []
 }
 
+// 通过之后这条就从待审核里拿掉，再刷一遍已通过列表让人数跟上
 async function approve(id) {
   operating.value = id
   try {
     const r = await request.post(`/api/keepers/${id}/merchant-approve`)
     if (r.data.code === 200) {
+      // 先在本地删掉，列表立刻少一条，不用干等重新请求
       keepers.value = keepers.value.filter(k => k.id_wsh !== id)
       await loadAllKeepers()
       appStore.addToast('已审核通过', 'success')
@@ -110,11 +117,13 @@ async function approve(id) {
   }
 }
 
+// 驳回也是从待审核里拿掉，但不会进已通过列表，所以那边不用刷
 async function reject(id) {
   operating.value = id
   try {
     const r = await request.post(`/api/keepers/${id}/merchant-reject`)
     if (r.data.code === 200) {
+      // 驳回的这条直接没了，不用去刷已通过列表
       keepers.value = keepers.value.filter(k => k.id_wsh !== id)
       appStore.addToast('已驳回', 'success')
     } else {

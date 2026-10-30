@@ -113,6 +113,7 @@ const savingDay = ref(null)
 const deletingDay = ref(null)
 const merchant = ref(null)
 
+// 一周七天固定用 1~7 代表周一到周日，跟后端的 day_of_week_wsh 对齐
 const weekDays = [1, 2, 3, 4, 5, 6, 7]
 const dayLabels = {
   1: '周一',
@@ -124,11 +125,14 @@ const dayLabels = {
   7: '周日',
 }
 
+// 七天的设置都挂在这张表里，key 是星期几，值是那天的营业情况
 const scheduleMap = reactive({})
 
+// 营业中还是休息中，无非是把 store_status_wsh 翻成人话再配个颜色
 const storeStatusLabel = computed(() => Number(merchant.value?.store_status_wsh) === 1 ? '营业中' : '休息中')
 const storeStatusBadge = computed(() => Number(merchant.value?.store_status_wsh) === 1 ? 'badge-success' : 'badge-secondary')
 
+// 这天还没存过记录时用这套默认值顶上，营业时间默认朝九晚六
 function createDefaultDay(day) {
   return {
     id_wsh: null,
@@ -140,34 +144,40 @@ function createDefaultDay(day) {
   }
 }
 
+// 先把七天都铺满，后面拿到接口数据再按星期盖上去，表格就永远是七行
 weekDays.forEach(day => {
   scheduleMap[day] = createDefaultDay(day)
 })
 
+// 模板要按周一到周日固定顺序渲染，所以把表里的 key 转成数组
 const scheduleRows = computed(() => weekDays.map(day => ({
   day,
   label: dayLabels[day],
   form: scheduleMap[day],
 })))
 
+// 后端可能给 "09:00:00"，可 input[type=time] 只认 "09:00"，所以把秒砍掉
 function normalizeTime(value) {
   if (!value) return '09:00'
   const text = String(value)
   return text.length >= 5 ? text.slice(0, 5) : text
 }
 
+// 提交时反过来把秒补回去，后端要的是完整的 时:分:秒
 function toPayloadTime(value) {
   if (!value) return null
   const text = String(value)
   return text.length === 5 ? `${text}:00` : text
 }
 
+// 七天全清回默认值，没绑定商家或者加载失败时就停在这个样子
 function resetSchedule() {
   weekDays.forEach(day => {
     scheduleMap[day] = createDefaultDay(day)
   })
 }
 
+// 把接口给的营业时间按星期塞回表里，接口没给的星期就留着默认值
 function applyHours(list) {
   resetSchedule()
   ;(list || []).forEach(item => {
@@ -183,6 +193,7 @@ function applyHours(list) {
   })
 }
 
+// 先取商家资料，再用商家 id 拿这家的营业时间；没有商家就只把七天清成默认
 async function reloadPage() {
   const current = await getMy()
   merchant.value = current || null
@@ -205,6 +216,7 @@ async function loadPage() {
   }
 }
 
+// 切营业模式：0 按每周时间自动判断，1 强制开店，2 强制关店
 async function changeStoreMode(mode) {
   if (!merchant.value?.id_wsh) return
   modeSaving.value = true
@@ -219,12 +231,14 @@ async function changeStoreMode(mode) {
   }
 }
 
+// 一天一天分开存，点哪行的保存就只提交那一天
 async function saveDay(day) {
   if (!merchant.value?.id_wsh) return
   const form = scheduleMap[day]
   if (!form) return
   savingDay.value = day
   try {
+    // 用 upsert 是因为这天可能还没记录，有就改没有就新建，前端不用分两条路
     await upsertBusinessHours(merchant.value.id_wsh, {
       day_of_week_wsh: day,
       open_time_wsh: toPayloadTime(form.open_time_wsh),
@@ -240,6 +254,7 @@ async function saveDay(day) {
   }
 }
 
+// 删除只对已经存过的日子开放，删完那天回到默认的朝九晚六
 async function deleteDay(day) {
   if (!merchant.value?.id_wsh) return
   const form = scheduleMap[day]

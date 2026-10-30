@@ -195,6 +195,7 @@ import { getServiceCategoryList } from '@/api/serviceCategory'
 import { uploadProductImage } from '@/api/file'
 import { normalizeUnit, defaultDurationMinutes, unitLabel } from '@/domain/BookingUnit'
 
+// 图片张数和单张大小的上限，前端先挡一道，后端还会再校验
 const MAX_MEDIA = 10
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
@@ -213,6 +214,7 @@ const selectedCategoryId = ref(0)
 const mediaItems = ref([])
 let formSnapshot = ''
 
+// 新增和编辑共用这一份表单数据，打开弹窗前先清空，编辑时再按详情填回来
 const form = reactive({
   name_wsh: '',
   category_id_wsh: null,
@@ -223,12 +225,14 @@ const form = reactive({
   status_wsh: 1,
 })
 
+// 换计价单位时把时长重置成这个单位该有的值，不然会留着上一单位填的数字
 function onUnitChange(event) {
   const unit = event.target.value
   form.unit_wsh = unit
   form.duration_minutes_wsh = defaultDurationMinutes(unit)
 }
 
+// 时长的规矩跟着单位走，这里统一算出一条错误文案，空串就代表没问题
 const durationError = computed(() => {
   const unit = form.unit_wsh
   const minutes = Number(form.duration_minutes_wsh)
@@ -246,6 +250,7 @@ const durationHint = computed(() => {
   return '范围 15..1440 分钟'
 })
 
+// 分类是分层的，这里按父子关系摊成一列，用缩进表示层级，下拉框才能一眼看到子分类
 const categoryOptions = computed(() => {
   const byParent = new Map()
   categories.value.forEach(cat => {
@@ -254,6 +259,7 @@ const categoryOptions = computed(() => {
     byParent.get(parentId).push(cat)
   })
 
+  // 为什么不能直接把数组排一遍？因为父分类下面还得紧跟它的子分类，只能一层层往里走
   const walk = (parentId = 0, level = 0, rows = []) => {
     const siblings = [...(byParent.get(parentId) || [])].sort((a, b) => {
       const orderDiff = (a.sort_order_wsh || 0) - (b.sort_order_wsh || 0)
@@ -273,6 +279,7 @@ const categoryOptions = computed(() => {
   return walk()
 })
 
+// 老数据把图片塞在一个逗号串里，这里拆成数组；新数据走 media_wsh 就用不着它了
 function parseImages(value) {
   return String(value || '')
     .split(',')
@@ -284,6 +291,7 @@ function firstImage(value) {
   return parseImages(value)[0] || ''
 }
 
+// 把表单和图片拼成一个字符串，后面靠它判断用户到底动没动过
 function currentMediaSignature() {
   return JSON.stringify({
     ...form,
@@ -295,10 +303,12 @@ function takeSnapshot() {
   formSnapshot = currentMediaSignature()
 }
 
+// 跟打开弹窗那一刻记下的快照比一比，不一样就说明还有没保存的东西
 function isDirty() {
   return formSnapshot !== currentMediaSignature()
 }
 
+// 清回新增时的初始值，编辑打开时也先过一遍这里再往上填
 function resetForm() {
   Object.assign(form, {
     name_wsh: '',
@@ -312,6 +322,7 @@ function resetForm() {
   mediaItems.value = []
 }
 
+// 选了父分类时，子分类下的服务也得一起露出来，所以要把子孙 id 全收进来
 function getCategoryIdsIncludingChildren(id, allCats) {
   const ids = [id]
   const children = allCats.filter(c => (c.parent_id_wsh || 0) === id)
@@ -319,6 +330,7 @@ function getCategoryIdsIncludingChildren(id, allCats) {
   return ids
 }
 
+// 顶部筛选条只放一级分类，最前面补一个"全部"
 const filterCategories = computed(() => {
   const topLevel = categories.value.filter(c => !c.parent_id_wsh)
   return [
@@ -327,6 +339,7 @@ const filterCategories = computed(() => {
   ]
 })
 
+// 选了分类就按它和它的子孙分类过滤，没选（id 为 0）就全给
 const filteredServices = computed(() => {
   if (!selectedCategoryId.value) return services.value
   const ids = getCategoryIdsIncludingChildren(selectedCategoryId.value, categories.value)
@@ -338,6 +351,7 @@ function getCategoryName(categoryId) {
   return category?.name_wsh || '未分类'
 }
 
+// 进页面先把商家资料和分类一起拉下来，拿到商家 id 之后再去拉服务列表
 async function loadPage() {
   loading.value = true
   try {
@@ -364,6 +378,7 @@ async function loadServices() {
   services.value = res.code === 200 ? (res.data || []) : []
 }
 
+// 新增：清空表单、记一份初始快照，再把弹窗打开
 function openCreate() {
   editingService.value = null
   resetForm()
@@ -371,6 +386,7 @@ function openCreate() {
   showForm.value = true
 }
 
+// 编辑：先开弹窗再拉详情，因为图片顺序和谁是封面只有详情接口才给
 async function openEdit(service) {
   editingService.value = service
   resetForm()
@@ -400,6 +416,7 @@ async function openEdit(service) {
       url_wsh: item.url_wsh || '',
       is_cover: Number(item.is_cover_wsh) === 1,
     }))
+    // 老服务没有 media_wsh，就把 images_wsh 里的逗号串当图片列表，第一张算封面
     if (!media.length) {
       parseImages(detail.service_wsh?.images_wsh).forEach((url, index) => {
         media.push({ file_id_wsh: null, url_wsh: url, is_cover: index === 0 })
@@ -417,6 +434,7 @@ async function openEdit(service) {
   }
 }
 
+// 有没保存的改动就先问一句，免得手滑关掉白填一遍
 function closeForm() {
   if (saving.value || imageUploading.value || detailLoading.value) return
   if (showForm.value && isDirty() && !window.confirm('有未保存的更改，确定关闭吗？')) return
@@ -425,8 +443,10 @@ function closeForm() {
   mediaItems.value = []
 }
 
+// 选完文件马上传到服务器，拿到 file_id 之后才放进预览列表
 async function uploadServiceImages(event) {
   const files = Array.from(event.target.files || [])
+  // 先把 input 清空，不然连着选同一个文件不会再触发 change
   event.target.value = ''
   if (!files.length) return
 
@@ -471,6 +491,7 @@ async function uploadServiceImages(event) {
           next.push({ ...item, is_cover: false })
         }
       })
+      // 列表里必须有一张封面，一张都没有就把第一张顶上
       if (next.length && !next.some(item => item.is_cover)) {
         next[0].is_cover = true
       }
@@ -488,6 +509,7 @@ async function uploadServiceImages(event) {
   }
 }
 
+// 左移右移就是换掉数组里两个位置，保存时按这个顺序写进 sort_order
 function moveMedia(index, direction) {
   const target = index + direction
   if (target < 0 || target >= mediaItems.value.length) return
@@ -498,12 +520,14 @@ function moveMedia(index, direction) {
   mediaItems.value = next
 }
 
+// 封面只能有一张，所以先把全部熄掉，再点亮选中的那张
 function setCover(index) {
   const next = mediaItems.value.map(item => ({ ...item, is_cover: false }))
   next[index].is_cover = true
   mediaItems.value = next
 }
 
+// 删掉的正好是封面时，把第一张顶上去，别让列表变成没封面
 function removeMedia(index) {
   const removed = mediaItems.value[index]
   const next = mediaItems.value.filter((_, i) => i !== index)
@@ -513,6 +537,7 @@ function removeMedia(index) {
   mediaItems.value = next
 }
 
+// 保存前在这里把关：分类、价格、时长、图片都过了才拼请求体，有一项不对就弹提示返回 null
 function buildPayload() {
   if (!form.category_id_wsh) {
     appStore.addToast('请选择服务分类', 'error')
@@ -545,6 +570,7 @@ function buildPayload() {
     })),
   }
 
+  // 状态只在编辑时提交；新增的服务后端默认就是上架，不用让用户多选一次
   if (editingService.value) {
     payload.status_wsh = form.status_wsh
   }
@@ -552,6 +578,7 @@ function buildPayload() {
   return payload
 }
 
+// 同一个按钮干两件事：手里有编辑对象就改，没有就新建
 async function saveService() {
   if (saving.value || imageUploading.value) return
   const payload = buildPayload()
@@ -577,6 +604,7 @@ async function saveService() {
   }
 }
 
+// 上下架走单独的接口，切完重新拉列表，按钮文字和状态标签才会跟着变
 async function toggleStatus(service) {
   try {
     const res = await toggleServiceStatus(service.id_wsh)
@@ -591,6 +619,7 @@ async function toggleStatus(service) {
   }
 }
 
+// 删之前弹个确认框，把服务名带上，免得手快点错
 async function removeService(service) {
   if (!confirm(`确定删除服务“${service.name_wsh}”吗？`)) return
   try {

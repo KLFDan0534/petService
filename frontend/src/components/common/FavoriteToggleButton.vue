@@ -25,14 +25,17 @@ import { useFavoriteState } from '@/composables/useFavoriteState'
 import { isFavoriteTargetType, normalizeFavoriteTargetType } from '@/constants/favorite'
 
 const props = defineProps({
+  // 要收藏的东西的 id，服务、商家、宠物都用这个字段
   targetId: {
     type: [Number, String],
     required: true,
   },
+  // 收藏的类型，后端靠它决定写到哪张表
   targetType: {
     type: String,
     required: true,
   },
+  // 要不要显示「收藏 / 已收藏」文字，关掉就只剩一颗星
   showText: {
     type: Boolean,
     default: true,
@@ -59,22 +62,28 @@ const route = useRoute()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
+// id 统一转成数字，后端要的是数字
 const targetId = computed(() => Number(props.targetId))
+// 类型统一成小写，防止调用方写成 Service / SERVICE
 const targetType = computed(() => normalizeFavoriteTargetType(props.targetType))
+// id 有效、类型也认识，才算这颗按钮能正常用
 const targetReady = computed(() => targetId.value > 0 && isFavoriteTargetType(targetType.value))
+// 登录了、参数也合法，才去后端查收藏状态；否则只在本地显示个样子
 const syncEnabled = computed(() => authStore.isLoggedIn && targetReady.value)
 
 const {
   isFavorited,
-  loading,
-  toggling,
+  loading,   // 正在查收藏状态
+  toggling,  // 正在提交收藏 / 取消收藏
   toggle,
 } = useFavoriteState(targetId, targetType, { enabled: syncEnabled })
 
+// 查询中、提交中、参数不对，三种情况都不让点
 const buttonDisabled = computed(() => loading.value || toggling.value || !targetReady.value)
 const ariaLabel = computed(() => (isFavorited.value ? props.favoritedLabel : props.unfavoritedLabel))
 
 async function handleClick() {
+  // 没登录：先记住当前页面，登录完还能跳回来
   if (!authStore.isLoggedIn) {
     appStore.loginRedirectPath = route.fullPath
     appStore.showLoginPrompt = true
@@ -86,6 +95,7 @@ async function handleClick() {
   }
   try {
     await toggle()
+    // 接口成功后，isFavorited 已经是新状态了，直接按它提示
     appStore.addToast(isFavorited.value ? '\u5df2\u6536\u85cf' : '\u5df2\u53d6\u6d88\u6536\u85cf', 'success')
   } catch {
     appStore.addToast('\u64cd\u4f5c\u5931\u8d25', 'error')

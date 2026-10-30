@@ -34,10 +34,13 @@ const el = ref(null)
 const visible = ref(false)
 
 const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)'
+// delay 是 0 时干脆不写这个样式，省得拖一条没用的过渡
 const transitionDelay = props.delay ? `${props.delay}s` : undefined
 
+// 用来盯元素有没有滚进视口，进过一次就让它淡进来
 let observer = null
 
+// 系统里开了「减少动态效果」的人，就别给他做动画，直接显示出来
 function reduceMotion() {
   return typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -66,6 +69,7 @@ onMounted(() => {
         }
       })
     },
+    // 上下各收一点边，元素刚露头就播，不用等它整个进屏
     { rootMargin: '-10% 0px -12% 0px', threshold: 0 },
   )
   if (el.value) observer.observe(el.value)

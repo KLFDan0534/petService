@@ -131,16 +131,20 @@ import {
 } from '@/api/membership'
 import { useAppStore } from '@/stores/app'
 
+// 这几个管理页都是同一套路：顶部筛选 → 请求列表 → 表格渲染 → 操作完再拉一遍
 const appStore = useAppStore()
 const loading = ref(false)
 const usageLoading = ref(false)
+// 两个筛选值：上面那张表按状态筛，下面那张按用户ID筛，空串都代表全部
 const statusFilter = ref('')
 const usageUserId = ref('')
 const users = ref([])
 const usages = ref([])
 
+// 一进页面就把会员列表和权益流水都拉一遍
 onMounted(loadAll)
 
+// 会员列表跟着顶部状态筛选走，没选就查全部；拉完顺手刷新下面的流水
 async function loadAll() {
   loading.value = true
   try {
@@ -159,6 +163,7 @@ async function loadAll() {
   await loadUsages()
 }
 
+// 权益流水按用户ID查，输入框空着就查全部
 async function loadUsages() {
   usageLoading.value = true
   try {
@@ -176,6 +181,7 @@ async function loadUsages() {
   }
 }
 
+// 手动让后端把已经到期的会员标成过期，刷完再重新读一遍列表
 async function expireNow() {
   try {
     const res = await expireMembershipsForAdmin()
@@ -190,6 +196,7 @@ async function expireNow() {
   }
 }
 
+// 状态码翻成中文，碰到没见过的值就原样显示
 function statusText(status) {
   return {
     active: '生效中',
@@ -199,6 +206,7 @@ function statusText(status) {
   }[status] || status || '-'
 }
 
+// 只有生效中给绿灯，其他状态都按灰色处理
 function statusClass(status) {
   return {
     active: 'is-on',
@@ -208,6 +216,7 @@ function statusClass(status) {
   }[status] || 'is-off'
 }
 
+// 流水状态里「锁定」表示先占住额度还没真扣，「释放」表示额度退回去了
 function usageStatusText(status) {
   return {
     locked: '已锁定',
@@ -216,6 +225,7 @@ function usageStatusText(status) {
   }[status] || status || '-'
 }
 
+// 流水徽章配色：锁定给黄色，已使用给绿色，释放给灰色
 function usageStatusClass(status) {
   return {
     locked: 'is-wait',
@@ -224,22 +234,26 @@ function usageStatusClass(status) {
   }[status] || 'is-off'
 }
 
+// 折扣率存的是 0~1 的小数，1 就是原价，小于 1 才换算成几折
 function discountText(value) {
   const rate = Number(value || 1)
   return rate >= 1 ? '无折扣' : `${(rate * 10).toFixed(1)} 折`
 }
 
+// 起止时间拼成一段，两头都空就显示横杠
 function periodText(startValue, endValue) {
   const start = dateText(startValue)
   const end = dateText(endValue)
   return start === '-' && end === '-' ? '-' : `${start} 至 ${end}`
 }
 
+// 后端返回的时间带个 T，去掉 T 再截到分钟就够了
 function dateText(value) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 16)
 }
 
+// 金额统一补两位小数，没值就当 0
 function money(value) {
   return Number(value || 0).toFixed(2)
 }

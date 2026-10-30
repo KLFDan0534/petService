@@ -257,11 +257,13 @@ import {
 } from '@/api/membership'
 
 const appStore = useAppStore()
+// 页面上的开关都集中在上面这几行：谁在加载、谁在提交、弹窗开没开
 const loading = ref(false)
 const submitting = ref(false)
 const showForm = ref(false)
 const editingPlan = ref(null)
 const statusFilter = ref('')
+// 上面是各种开关，下面是两份数据：套餐列表和券库里能选的券
 const plans = ref([])
 const couponTemplates = ref([])
 const couponLoading = ref(false)
@@ -270,16 +272,19 @@ const quickCouponSubmitting = ref(false)
 const form = reactive(defaultForm())
 const quickCouponForm = reactive(defaultQuickCouponForm())
 
+// 表单里存的是勾选的券 id，这里换成券对象，模板里才好显示券名
 const selectedCouponTemplates = computed(() => {
   const selectedIds = new Set((form.coupon_template_ids_wsh || []).map(id => Number(id)))
   return couponTemplates.value.filter(coupon => selectedIds.has(Number(coupon.id_wsh)))
 })
 
+// 进页面先拉套餐和券库，不然打开编辑时选券那块是空的
 onMounted(() => {
   loadPlans()
   loadCouponTemplates()
 })
 
+// 按筛选框里的状态拉列表，选“全部状态”时不带这个参数
 async function loadPlans() {
   loading.value = true
   try {
@@ -297,6 +302,7 @@ async function loadPlans() {
   }
 }
 
+// 券库单独拉一份放内存里，套餐表单选券时直接用，不用每次开弹窗都请求
 async function loadCouponTemplates() {
   couponLoading.value = true
   try {
@@ -313,6 +319,7 @@ async function loadCouponTemplates() {
   }
 }
 
+// 新建：把套餐表单和快速建券的小表单都清回默认值，再打开弹窗
 function openCreate() {
   editingPlan.value = null
   Object.assign(form, defaultForm())
@@ -321,6 +328,7 @@ function openCreate() {
   showForm.value = true
 }
 
+// 编辑：把这一行的值搬进表单，券配置是一段 JSON，得单独拆成 id 列表
 function openEdit(plan) {
   editingPlan.value = plan
   Object.assign(form, {
@@ -342,11 +350,14 @@ function openEdit(plan) {
   showForm.value = true
 }
 
+// 关弹窗顺手把“正在编辑”清掉，不然下次打开会被当成编辑
 function closeForm() {
   showForm.value = false
   editingPlan.value = null
 }
 
+// 保存这条线：先跑校验，不通过就弹个提示停在原地；
+// 通过后看 editingPlan 有没有值决定是新增还是修改，成功后关弹窗、重拉列表
 async function submitForm() {
   if (submitting.value) return
   const error = validateForm()
@@ -374,6 +385,7 @@ async function submitForm() {
   }
 }
 
+// 启停只动状态这一个值，不用把整张表单重新提交一遍
 async function toggleStatus(plan) {
   if (submitting.value) return
   submitting.value = true
@@ -393,6 +405,7 @@ async function toggleStatus(plan) {
   }
 }
 
+// 删之前先确认；后端会因为有关联会员或订单拒绝删除，所以错误提示要原样透出来
 async function removePlan(plan) {
   if (!confirm(`确定删除会员套餐“${plan.name_wsh}”吗？已有会员或订单引用时后端会拒绝删除。`)) return
   submitting.value = true
@@ -411,6 +424,8 @@ async function removePlan(plan) {
   }
 }
 
+// 提交前的最后一道关：编码格式、名称、等级、价格、天数、折扣率逐项查，
+// 返回错误文案，返回空串就说明全部通过
 function validateForm() {
   if (!/^[A-Z0-9_]{2,50}$/.test(form.code_wsh || '')) return '套餐编码只能使用大写字母、数字和下划线'
   if (!form.name_wsh) return '请填写套餐名称'
@@ -422,6 +437,7 @@ function validateForm() {
   return ''
 }
 
+// 拼后端要的对象：数字统一转成 Number，备注空着就传 null
 function buildPayload() {
   return {
     code_wsh: form.code_wsh,
@@ -438,6 +454,7 @@ function buildPayload() {
   }
 }
 
+// 新建时的初始值：启用、30 天、不打折
 function defaultForm() {
   return {
     code_wsh: '',
@@ -468,14 +485,17 @@ function defaultQuickCouponForm() {
   }
 }
 
+// 边输边转大写、顺手把非法字符抹掉，省得提交完才被告知格式不对
 function normalizeCodeInput() {
   form.code_wsh = String(form.code_wsh || '').toUpperCase().replace(/[^A-Z0-9_]/g, '')
 }
 
+// 空白字符串统一转成 null，别让库里存一堆空串
 function blankToNull(value) {
   return value && String(value).trim() ? String(value).trim() : null
 }
 
+// 快速建券：建完马上刷新券库，再把新券自动勾进当前套餐，用户不用自己去翻
 async function submitQuickCoupon() {
   if (quickCouponSubmitting.value) return
   const error = validateQuickCouponForm()
@@ -505,6 +525,7 @@ async function submitQuickCoupon() {
   }
 }
 
+// 快速建券的校验：满减券看金额、折扣券看折扣率，两种各查自己那套
 function validateQuickCouponForm() {
   if (!quickCouponForm.name_wsh) return '请填写优惠券名称'
   if (Number(quickCouponForm.threshold_amount_wsh || 0) < 0) return '使用门槛不能为负数'
@@ -519,6 +540,7 @@ function validateQuickCouponForm() {
   return ''
 }
 
+// 有效期从今天算起往后加天数；满减和折扣只填各自那个值，另一个给 null
 function buildQuickCouponPayload() {
   const now = new Date()
   const end = new Date(now)
@@ -541,6 +563,8 @@ function buildQuickCouponPayload() {
   }
 }
 
+// 券配置是一段 JSON，里面除了券 id 可能还有别的设置，
+// 所以要先读出来只改这一项再整体写回去，不能拿新对象直接覆盖
 function buildMonthlyCouponConfig() {
   const config = parseJsonObject(form.monthly_coupon_config_wsh)
   const ids = uniquePositiveIds(form.coupon_template_ids_wsh)
@@ -552,6 +576,7 @@ function buildMonthlyCouponConfig() {
   return Object.keys(config).length ? JSON.stringify(config) : null
 }
 
+// 有折扣才写 order_discount 这个标记，没折扣就把键删掉，别留个 false 在数据里
 function buildBenefitConfig() {
   const config = parseJsonObject(form.benefit_config_wsh)
   if (Number(form.discount_rate_wsh || 1) < 1) {
@@ -567,6 +592,7 @@ function parseCouponTemplateIds(configText) {
   return uniquePositiveIds(config.coupon_template_ids || [])
 }
 
+// 解析失败就当空对象处理，不能因为一条坏数据把整个页面搞崩
 function parseJsonObject(value) {
   if (!value) return {}
   try {
@@ -577,6 +603,7 @@ function parseJsonObject(value) {
   }
 }
 
+// 去重 + 只留正整数，用户可能勾重复，也可能带进空值
 function uniquePositiveIds(value) {
   return [...new Set((Array.isArray(value) ? value : [])
     .map(item => Number(item))
@@ -587,6 +614,7 @@ function monthlyCouponIds(configText) {
   return parseCouponTemplateIds(configText)
 }
 
+// 表格里那串券摘要：两张以内直接列名字，多了只显示前两张再补“等 N 张”
 function monthlyCouponSummary(configText) {
   const ids = monthlyCouponIds(configText)
   if (!ids.length) return ''
@@ -603,6 +631,7 @@ function levelText(value) {
   return `Lv${level}`
 }
 
+// 选券列表里那行小字：折扣券写几折加最高减多少，满减券写满多少减多少
 function couponTemplateText(coupon) {
   if (coupon.type_wsh === 'percent') {
     const rate = Number(coupon.discount_rate_wsh || 0)
@@ -616,6 +645,7 @@ function couponStatusText(coupon) {
   return coupon.status_wsh === 1 ? '启用' : '停用'
 }
 
+// 金额先保留两位小数再转回数字，避免 0.1+0.2 那种尾巴传给后端
 function moneyNumber(value) {
   return Number(Number(value || 0).toFixed(2))
 }
@@ -629,6 +659,7 @@ function discountText(value) {
   return rate >= 1 ? '无折扣' : `${(rate * 10).toFixed(1)} 折`
 }
 
+// 后端给的是 2026-01-01T10:00:00 这种，截成“日期 时分”就够了
 function dateText(value) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 16)

@@ -63,12 +63,14 @@ const props = defineProps({
   submitKey: { type: Number, default: 0 },
 })
 
+// 为什么靠 submitKey 清空？这个组件不知道上传成没成功，只能等父组件改一下这个数字来通知它
 watch(() => props.submitKey, () => {
   recordForm.content_wsh = ''
   clearRecordFiles()
 })
 const emit = defineEmits(['update:orderId', 'upload-timeline', 'refresh'])
 
+// 状态和动态类型的中文名都写死在前端，接口只给英文 key
 const statusMap = {
   pending: '待付款', paid: '已支付', confirmed: '待送达',
   delivered: '已送达', received: '已接收', in_progress: '培养中',
@@ -91,6 +93,7 @@ const recordTabs = [
 
 const recordTypeMap = { feed: '喂食', activity: '活动', medication: '用药', health: '健康', note: '日志' }
 
+// 每种动态类型配一句示例，用户照着改就行，不用自己想怎么写
 const recordPlaceholder = computed(() => ({
   feed: '例如：上午 8 点喂食 100g，食欲正常',
   activity: '例如：下午散步 40 分钟，精神状态良好',
@@ -99,6 +102,7 @@ const recordPlaceholder = computed(() => ({
   note: '例如：今日护理日志',
 }[recordType.value]))
 
+// 选完照片马上生成本地预览地址，不用等上传完才看得见
 function onRecordFilesChange(event) {
   const files = Array.from(event.target.files || [])
   recordFiles.value = files
@@ -111,6 +115,7 @@ function clearRecordFiles() {
   if (recordFileInput.value) recordFileInput.value.value = ''
 }
 
+// 三个条件缺一不可：选了订单、写了内容、至少一张照片
 function submitRecord() {
   if (!props.orderId || !recordForm.content_wsh.trim() || recordFiles.value.length === 0) return
   emit('upload-timeline', {
@@ -125,6 +130,7 @@ function formatDateTime(value) {
   return utilFormatDateTime(value, { fallback: '-' })
 }
 
+// 后端把多张图用逗号拼成一个字符串，这里再拆回数组
 function parseImageUrls(value) {
   return String(value || '').split(',').map(url => url.trim()).filter(Boolean)
 }

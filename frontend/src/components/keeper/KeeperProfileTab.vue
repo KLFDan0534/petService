@@ -29,6 +29,7 @@ const props = defineProps({
 const emit = defineEmits(['save', 'avatar-upload'])
 
 const form = reactive({ nickname_wsh: '', avatar_wsh: '' })
+// 为什么用 watch 而不是直接取初值？资料是父组件异步拉来的，props 可能晚一步才有内容
 watch(() => props.profile, (val) => {
   if (val) {
     form.nickname_wsh = val.nickname_wsh || ''
@@ -38,6 +39,7 @@ watch(() => props.profile, (val) => {
 
 const keeperAvatarInput = ref(null)
 
+// 选完就把文件丢给父组件去上传，这里只负责清空 input，好让同一张图还能再选一次
 function handleAvatarUpload(event) {
   const file = event.target.files?.[0]
   if (file) {

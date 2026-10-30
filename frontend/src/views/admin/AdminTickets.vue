@@ -47,6 +47,7 @@
       {label:'创建时间',key:'created_at_wsh'}
     ]" :data="tickets">
       <template #default="{ row }">
+        <!-- 工单按 待处理 → 处理中 → 已解决 → 已关闭 往下走，所以每行只露出当前这一步该点的按钮 -->
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           <button v-if="row.status_wsh === 'pending'" class="btn btn-sm btn-info" @click="acceptTicket(row.id_wsh)">受理</button>
           <button v-if="row.status_wsh === 'processing'" class="btn btn-sm btn-success" @click="resolve(row.id_wsh)">解决</button>
@@ -92,18 +93,22 @@ import { TicketStatus, TicketCategory, TicketPriority, enrichWithStatus } from '
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+// 列表数据、分页（当前第几页 / 每页几条），还有正在填结果的那个工单
 const tickets = ref([])
 const currentPage = ref(1)
 const size = ref(20)
 const total = ref(0)
 const pendingResolve = ref(null)
 const resolveResult = ref('')
+// 筛选条件拢成一个对象，几个下拉框和输入框都直接绑在它上面
 const filters = reactive({ status_wsh: '', category_wsh: '', priority_wsh: '', keyword: '', onlyMine: false, merchant_id_wsh: null })
 const route = useRoute()
 const router = useRouter()
+// 当前登录的管理员ID（受理工单要拿它当处理人），另一个是总页数
 const currentUserId = computed(() => authStore.user?.id_wsh)
 const pageCount = computed(() => Math.ceil(total.value / size.value) || 1)
 
+// 接口只给状态码、分类码、优先级码，这里补上中文名，表格就能直接显示
 function enrichTicket(t) {
   const enriched = enrichWithStatus(t, 'status_wsh', TicketStatus)
   enriched.priority_label_wsh = TicketPriority[t.priority_wsh]?.label || t.priority_wsh || '-'
@@ -111,6 +116,7 @@ function enrichTicket(t) {
   return enriched
 }
 
+// 只把填了值的条件拼进请求，空着的就不传，免得后端把空串当成筛选条件
 function buildFilterParams() {
   const params = {}
   if (filters.status_wsh) params.status_wsh = filters.status_wsh
@@ -122,6 +128,7 @@ function buildFilterParams() {
   return params
 }
 
+// 带着页码和筛选去查，回来顺手把每条的标签补上
 async function loadTickets() {
   try {
     const r = await getTickets(currentPage.value, size.value, buildFilterParams())
@@ -132,6 +139,7 @@ async function loadTickets() {
   } catch (e) {}
 }
 
+// 换了筛选条件一定回到第一页，否则可能停在一个已经不存在的页码上
 function applyFilters() {
   currentPage.value = 1
   loadTickets()
@@ -151,6 +159,7 @@ function changePage(page) {
   loadTickets()
 }
 
+// 别的页面跳过来时会带参数，比如只看某个商家的工单、只看派给我的
 onMounted(() => {
   if (route.query.status_wsh) filters.status_wsh = String(route.query.status_wsh)
   if (route.query.merchant_id_wsh) filters.merchant_id_wsh = Number(route.query.merchant_id_wsh)
@@ -158,6 +167,7 @@ onMounted(() => {
   loadTickets()
 })
 
+// 受理就是把处理人设成自己，状态由后端从待处理改成处理中
 async function acceptTicket(id) {
   try {
     await apiAssignTicket(id, currentUserId.value)
@@ -174,6 +184,7 @@ async function assignTicket(id) {
   } catch (e) { appStore.addToast('操作失败', 'error') }
 }
 
+// 点「解决」不直接提交，先弹框让人填处理结果，填完才发请求
 function resolve(id) {
   pendingResolve.value = id
   resolveResult.value = '工单已处理完成'
@@ -202,6 +213,7 @@ async function close(id) {
   } catch (e) { appStore.addToast('操作失败', 'error') }
 }
 
+// 跳到客服聊天页，把工单号、用户和标题一起带过去，聊天那边才知道在聊哪一单
 function goChat(row) {
   router.push({
     path: '/merchant/support/chat',

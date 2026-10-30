@@ -13,6 +13,7 @@
 import { ref, onMounted } from 'vue'
 import { getMerchantStatistics } from '@/api/statistics'
 
+// 三个数字都从这一个对象里取，拉不到就一直是空对象，模板里显示 0
 const stats = ref({})
 
 onMounted(async () => {

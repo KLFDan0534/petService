@@ -58,6 +58,7 @@ import { useAppStore } from '@/stores/app'
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
+// records 是这个订单已上报的异常，orders 是下拉里能选的订单
 const records = ref([])
 const orders = ref([])
 const loading = ref(true)
@@ -66,6 +67,7 @@ const selectedOrderId = ref('')
 const selectedOrder = ref(null)
 const selectedPetId = ref(null)
 const form = ref({ type_wsh: 'health', content_wsh: '', images_wsh: '' })
+// 四种异常的中文名，提交时 form.type_wsh 传的是左边那串英文
 const typeMap = { health: '健康异常', diet: '饮食异常', behavior: '行为异常', emergency: '紧急情况' }
 
 function typeLabel(t) { return typeMap[t] || t }
@@ -73,6 +75,7 @@ function typeClass(t) {
   return t === 'emergency' ? 'text-danger' : t === 'health' ? 'text-warning' : ''
 }
 
+// 进来先把我的订单拉一遍，只留下还能上报的那几个状态
 onMounted(async () => {
   try {
     const r = await authStore.apiGet('/orders')
@@ -82,6 +85,7 @@ onMounted(async () => {
   finally { loading.value = false }
 })
 
+// 确认订单后，顺手把这张订单下已经报过的异常查出来
 async function loadOrder() {
   if (!selectedOrderId.value) return
   selectedOrder.value = orders.value.find(o => o.id_wsh === selectedOrderId.value)
@@ -94,11 +98,13 @@ async function loadOrder() {
   finally { loading.value = false }
 }
 
+// 打开弹窗前先把类型定好，内容清空，免得带出上一次的
 function openForm(type) {
   form.value = { type_wsh: type, content_wsh: '', images_wsh: '' }
   showForm.value = true
 }
 
+// 提交的内容就四样：异常类型、描述、图片地址、所属订单号
 async function submitRecord() {
   if (!selectedOrder.value) return
   try {

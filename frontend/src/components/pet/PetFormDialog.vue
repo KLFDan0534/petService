@@ -10,6 +10,7 @@
       </div>
     </template>
 
+    <!-- 这个表单只管收集数据，真正的保存交给父组件，所以提交事件里不带接口调用 -->
     <form @submit.prevent="savePet" class="pet-form">
         <div v-if="formError" class="form-error" role="alert">
           {{ formError }}
@@ -62,6 +63,7 @@
         <!-- Avatar Upload -->
         <div class="form-group">
           <label class="form-label">头像</label>
+          <!-- 选完图就立刻上传拿地址，地址先存在表单里，等点保存再跟其它字段一起交上去 -->
           <div class="avatar-upload-section">
             <div class="avatar-preview-wrap">
               <img v-if="avatarPreview" class="avatar-preview-img" :src="avatarPreview" alt="头像预览">
@@ -162,6 +164,7 @@ const petTypeOptions = [
   { value: 'other', label: '其他' },
 ]
 
+// 表单的空白模板，新增宠物和关掉弹窗之后都回到这份
 function createEmptyPetForm() {
   return {
     name_wsh: '', type_wsh: 'dog', breed_wsh: '', age_wsh: null,
@@ -176,6 +179,7 @@ function normalizeType(type) {
   return String(type || 'other').toLowerCase()
 }
 
+// 空字符串统一换成 null 再提交，不然后端会把 "" 当成真填了内容
 function emptyToNull(value) {
   return value === '' || value === undefined ? null : value
 }
@@ -186,6 +190,7 @@ function resetForm() {
   avatarPreview.value = ''
 }
 
+// 编辑时把宠物身上有的字段搬进表单，没有的给个默认值，同时更新头像预览
 function populateForm(pet) {
   Object.assign(petForm.value, {
     name_wsh: pet.name_wsh || '',
@@ -205,6 +210,7 @@ function populateForm(pet) {
   formError.value = ''
 }
 
+// 提交前收拾一遍表单：空的变 null，勾选变 0/1，数字转成 Number
 function toPayload() {
   return {
     name_wsh: petForm.value.name_wsh,
@@ -222,6 +228,7 @@ function toPayload() {
   }
 }
 
+// 选完照片就上传，成功拿到地址后先写进表单，没成功就弹个提示
 async function onAvatarChange(e) {
   const file = e.target.files[0]
   if (!file) return
@@ -240,7 +247,7 @@ async function onAvatarChange(e) {
     appStore.addToast('上传失败: ' + (err.message || '未知错误'), 'error')
   } finally {
     avatarUploading.value = false
-    e.target.value = ''
+    e.target.value = ''   // 清掉 input 的值，不然连着选同一张图不会再触发 change
   }
 }
 

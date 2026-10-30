@@ -49,6 +49,7 @@ import { getUsers as apiGetUsers, updateUserStatus } from '@/api/admin'
 import { UserStatus, enrichWithStatus } from '@/constants/statusMaps'
 
 const appStore = useAppStore()
+// pendingToggle 存着"要改谁、改成什么"，等弹窗确认了才真发请求
 const users = ref([])
 const searchQuery = ref('')
 const pendingToggle = ref(null)
@@ -61,6 +62,7 @@ const columns = [
   { label: '状态', key: 'status_label_wsh' },
 ]
 
+// 按搜索词拉用户，拉回来先补上人能看懂的角色和状态文字
 async function loadUsers() {
   try {
     const response = await apiGetUsers({ page: 1, size: 100, q: searchQuery.value || undefined })
@@ -73,26 +75,31 @@ async function loadUsers() {
   }
 }
 
+// 后端给的是状态码和角色原串，这里转成表格能直接显示的文字
 function enrichUser(user) {
   const enriched = enrichWithStatus(user, 'status_wsh', UserStatus)
   enriched.role_label_wsh = normalizeRoles(enriched.roles_wsh).join(', ') || '-'
   return enriched
 }
 
+// roles 有时候给数组，有时候给逗号串，两种都得能读
 function normalizeRoles(value) {
   if (!value) return []
   if (Array.isArray(value)) return value.map(cleanRole).filter(Boolean)
   return String(value).split(',').map(cleanRole).filter(Boolean)
 }
 
+// 去掉 ROLE_ 前缀再统一大写，显示成 ADMIN 这种
 function cleanRole(role) {
   return String(role || '').replace('ROLE_', '').trim().toUpperCase()
 }
 
+// 只记下这次要改什么，先弹窗问一句，别点了就立刻生效
 function confirmToggle(id, newStatus) {
   pendingToggle.value = { id, newStatus }
 }
 
+// 先把弹窗关掉再发请求，用户连点也不会重复提交
 async function doToggle() {
   if (!pendingToggle.value) return
   const { id, newStatus } = pendingToggle.value

@@ -69,12 +69,14 @@ import { getRagDocuments, searchRag, createRagDocument, uploadRagDocument, delet
 
 
 const appStore = useAppStore()
+// 页面状态：文档列表、搜索词、弹窗开关都放这一块
 const documents = ref([])
 const loading = ref(true)
 const query = ref('')
 const showForm = ref(false)
 const editing = ref(false)
 const submitting = ref(false)
+// 录入方式开关：手动敲正文，或者传一个 txt/docx 让后端去解析
 const inputMode = ref('manual')
 const selectedFile = ref(null)
 const fileInput = ref(null)
@@ -92,10 +94,12 @@ const columns = [
 
 onMounted(loadDocuments)
 
+// 列表加载：有搜索词就走检索接口，没搜索词才走普通分页列表
 async function loadDocuments() {
   loading.value = true
   try {
     if (query.value.trim()) {
+      // 带搜索词走检索接口，拿回来的是按相关度排好的命中内容
       const r = await searchRag({ query: query.value, limit: 100 })
       if (r.code === 200) {
         documents.value = r.data || []
@@ -112,6 +116,7 @@ async function loadDocuments() {
   loading.value = false
 }
 
+// 打开新增弹窗前把表单和模式全部清一遍，别带上上次的残留
 function openCreate() {
   Object.assign(form, { title_wsh: '', content_wsh: '', category_wsh: '', source_type_wsh: '' })
   editing.value = false
@@ -122,6 +127,7 @@ function openCreate() {
   showForm.value = true
 }
 
+// 编辑得先单独查一次详情，列表里只有标题和字数，没有正文
 async function openEdit(id) {
   try {
     const r = await getRagDocument(id)
@@ -144,18 +150,22 @@ async function openEdit(id) {
   }
 }
 
+// 选文件只是先记下来，真正的上传要等点提交
 function onFileChange(e) {
   selectedFile.value = e.target.files[0] || null
 }
 
+// 提交分三条路：传文件、改已有文档、手动新建
 async function handleSubmit() {
   submitting.value = true
   try {
     if (inputMode.value === 'upload' && selectedFile.value && !editing.value) {
+      // 文件走表单上传，标题和分类作为附加项一起带过去
       const fd = new FormData()
       fd.append('file', selectedFile.value)
       if (form.title_wsh) fd.append('title', form.title_wsh)
       if (form.category_wsh) fd.append('category', form.category_wsh)
+      // 解析正文、切成小段、写入向量库都是后端做的，前端只负责把文件送到
       const r = await uploadRagDocument(fd)
       if (r.code === 200) {
         appStore.addToast('创建成功', 'success')
@@ -181,6 +191,7 @@ async function handleSubmit() {
   finally { submitting.value = false }
 }
 
+// 删除前先问一句，误删了文档要重新传一遍
 async function handleDelete(id) {
   if (!confirm('确认删除此文档？')) return
   try {

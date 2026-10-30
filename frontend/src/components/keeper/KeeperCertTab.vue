@@ -47,6 +47,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['submit'])
 
+// 只有还没认证的寄养员才会走到这张表单，先挑一个商家才谈得上提交
 const selectedMerchantId = ref('')
 const certForm = reactive({
   name_wsh: '',
@@ -59,6 +60,7 @@ const certForm = reactive({
   qualification_image_wsh: '',
 })
 
+// 为什么选完照片就立刻传？表单提交时只带一个图片地址，图片本身不跟着表单走
 async function uploadQualification(event) {
   const file = event.target.files?.[0]
   if (!file) return
@@ -73,7 +75,7 @@ async function uploadQualification(event) {
 
 function submit() {
   if (!selectedMerchantId.value) return
-  emit('submit', { ...certForm, merchant_id_wsh: Number(selectedMerchantId.value) })
+  emit('submit', { ...certForm, merchant_id_wsh: Number(selectedMerchantId.value) })   // 下拉框给的是字符串，后端要数字
 }
 </script>
 

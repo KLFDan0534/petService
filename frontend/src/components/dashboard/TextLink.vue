@@ -1,4 +1,5 @@
 <template>
+  <!-- 传了 to 就用 router-link 走前端路由，没传就退成普通 button -->
   <component
     :is="to ? 'router-link' : 'button'"
     :to="to"
@@ -12,6 +13,7 @@
 </template>
 
 <script setup>
+// 两个跳转入口二选一：to 走站内路由，href 走外链
 defineProps({
   to: { type: String, default: '' },
   href: { type: String, default: '' },

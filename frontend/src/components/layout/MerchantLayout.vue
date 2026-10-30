@@ -65,6 +65,7 @@ import { useAuthStore } from '@/stores/auth'
 const authStore = useAuthStore()
 const router = useRouter()
 
+// 商家能看到的菜单都列在这儿，路由那边还会再按权限拦一道
 const merchantNavItems = [
   { route: '/merchant/dashboard', label: '控制台', icon: Odometer },
   { route: '/merchant/profile', label: '商家资料', icon: Shop },
@@ -80,6 +81,7 @@ const merchantNavItems = [
   { route: '/merchant/statistics', label: '数据统计', icon: TrendCharts },
 ]
 
+// 客服干的活就这几样，菜单单独列一份，比商家那份短得多
 const supportNavItems = [
   { route: '/merchant/support/dashboard', label: '工作台', icon: DataBoard },
   { route: '/merchant/support/tickets', label: '支持工单', icon: Tickets },
@@ -87,13 +89,16 @@ const supportNavItems = [
   { route: '/merchant/support/chat', label: '实时聊天', icon: ChatDotRound },
 ]
 
+// 为什么三个条件都要判？身上只要还兼着管理员或商家，就不算纯客服，得给完整菜单
 const isSupportOnly = computed(() =>
   authStore.isCs
   && !authStore.isAdmin
   && !authStore.isMerchant
 )
+// 菜单就是上面两份里挑一份，选中哪个页面不用自己算，router-link 的 active-class 会加高亮
 const navItems = computed(() => (isSupportOnly.value ? supportNavItems : merchantNavItems))
 
+// 退出时顺手把登录后动态加的路由清掉，不然换个账号进来还能摸到上一个人的页面
 async function logout() {
   await authStore.logout()
   resetDynamicRoutes()

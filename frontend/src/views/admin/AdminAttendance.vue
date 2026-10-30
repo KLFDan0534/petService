@@ -30,9 +30,11 @@ const attendance = ref([])
 const currentPage = ref(1)
 const size = ref(20)
 const total = ref(0)
+// 筛选条件目前是空的，这两个按钮实际只是把列表重新拉一遍
 const filters = reactive({})
 const pageCount = computed(() => Math.ceil(total.value / size.value) || 1)
 
+// 没有签退时间就是人还在岗，据此给出状态标签；空名字统一显示横杠
 function enrich(a) {
   const onDuty = a.on_duty_wsh === true
   return {

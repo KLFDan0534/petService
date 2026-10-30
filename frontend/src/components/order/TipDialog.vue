@@ -52,6 +52,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import ChipRail from '@/components/ui/ChipRail.vue'
 import FormField from '@/components/ui/FormField.vue'
 
+// 常用打赏档位，默认停在第二档 18 元
 const TIP_PRESETS = [8, 18, 38, 66, 88]
 const MAX_TIP = 2000
 
@@ -70,6 +71,7 @@ const description = computed(() => {
 const orderNo = computed(() => props.order?.order_no_wsh || props.order?.id_wsh)
 
 const presetOptions = computed(() => TIP_PRESETS.map(v => ({ value: v, label: `¥${v}` })))
+// 填了自定义金额就按自定义的算，没填才用选中的档位
 const amount = computed(() => (custom.value ? Number(custom.value) : preset.value || 0))
 
 watch(() => props.visible, (val) => {
@@ -81,6 +83,7 @@ watch(() => props.visible, (val) => {
   }
 })
 
+// 点档位时顺手清掉自定义输入，两个金额只留一个生效
 function onPreset(v) {
   preset.value = v
   custom.value = ''
@@ -88,10 +91,11 @@ function onPreset(v) {
 }
 
 function onCustomInput() {
-  custom.value = custom.value.replace(/[^\d]/g, '')
+  custom.value = custom.value.replace(/[^\d]/g, '')   // 输入框是 text 类型，中文和符号得自己滤掉
   error.value = ''
 }
 
+// 提交前先挡两道：没填金额、超过单笔上限
 function submitTip() {
   const amt = amount.value
   if (!amt) { error.value = '请选择或填写打赏金额'; return }

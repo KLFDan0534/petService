@@ -40,6 +40,7 @@ const showForm = ref(false)
 const editingCategory = ref(null)
 const form = reactive({ name_wsh: '', parent_id_wsh: 0, sort_order_wsh: 0 })
 
+// 只有 parent_id 为 0 的才是一级分类，二级分类不能再当别人的父级
 const topCategories = computed(() => categories.value.filter(c => c.parent_id_wsh === 0))
 
 onMounted(loadCategories)
@@ -61,6 +62,7 @@ function editCategory(cat) {
   showForm.value = true
 }
 
+// 新增和编辑共用一个表单，看 editingCategory 有没有值来决定调哪个接口
 async function saveCategory() {
   try {
     const payload = { name_wsh: form.name_wsh, parent_id_wsh: form.parent_id_wsh, sort_order_wsh: form.sort_order_wsh }

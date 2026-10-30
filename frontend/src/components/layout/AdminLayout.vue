@@ -12,6 +12,7 @@
           <div class="role">{{ (authStore.user?.roles_wsh || []).join(', ') }}</div>
         </div>
       </div>
+      <!-- 菜单都来自下面算出来的 navItems，普通管理员看整张分组表，客服只看三个审核入口 -->
       <nav class="sidebar-nav">
         <template v-for="group in navItems" :key="group.label">
           <div v-if="group.items" class="nav-group">
@@ -20,6 +21,7 @@
               <span class="nav-group-arrow" :class="{ expanded: expandedGroups[group.label] }">▶</span>
             </div>
             <div v-show="expandedGroups[group.label]" class="nav-group-items">
+              <!-- 当前项不用自己算，router-link 地址一对上就自动挂 active 类 -->
               <router-link
                 v-for="item in group.items"
                 :key="item.route"
@@ -73,9 +75,11 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
+// 头像地址和名字首字母，没上传头像就先用首字母顶着
 const avatarUrl = computed(() => authStore.user?.avatar_wsh || '')
 const userInitial = computed(() => (authStore.user?.nickname_wsh || authStore.user?.username_wsh || '?')[0])
 
+// 路由名是英文的，这里翻成中文给顶栏当标题用
 const routeName = computed(() => {
   const names = {
     'AdminDashboard': '控制台',
@@ -115,9 +119,11 @@ const routeName = computed(() => {
     'AdminAttendance': '看护出勤',
     'AdminLeaves': '请假审批',
   }
+  // 表里没登记的路由统一显示控制台，免得标题空着
   return names[route.name] || '控制台'
 })
 
+// 后台菜单全写在这张表里，加页面只改这里，模板不用动
 const navGroups = [
   {
     label: '总览',
@@ -162,6 +168,7 @@ const navGroups = [
     ]
   },
   {
+    // 这个标题和上面那个重名了，展开状态是按标题存的，点一个两组会一起开
     label: '商家与宠物',
     items: [
       { route: '/admin/merchants', label: '商家审核' },
@@ -208,16 +215,19 @@ const navGroups = [
   },
 ]
 
+// 客服碰不到后台数据，只给这三个跟用户打交道的入口
 const csNavItems = [
   { route: '/admin/tickets', label: '工单管理' },
   { route: '/admin/complaints', label: '投诉处理' },
   { route: '/admin/reviews', label: '内容审核' },
 ]
 
+// 按角色挑菜单：是客服又不是管理员，才用精简的那份
 const isAdmin = computed(() => authStore.isAdmin)
 const isCs = computed(() => authStore.isCs)
 const navItems = computed(() => isCs.value && !isAdmin.value ? csNavItems : navGroups)
 
+// 记住每个分组展开没展开，默认都收起来
 const expandedGroups = reactive({
   '总览': false,
   '用户与权限': false,
@@ -229,16 +239,19 @@ const expandedGroups = reactive({
   '系统': false,
 })
 
+// 点分组标题，把这一组收起来或展开
 function toggleGroup(label) {
   expandedGroups[label] = !expandedGroups[label]
 }
 
+// 进后台时再拉一次用户信息，主要是补上刚改过的头像
 onMounted(async () => {
   try {
     const r = await request.get('/users/me')
     if (r.data.code === 200 && r.data.data) {
       const url = r.data.data.avatar_wsh || ''
       if (authStore.user) {
+        // 顺手写回本地，刷新页面时头像不会又变回旧的
         authStore.user = { ...authStore.user, avatar_wsh: url }
         localStorage.setItem('user', JSON.stringify(authStore.user))
       }
@@ -250,6 +263,7 @@ function goProfile() {
   router.push('/profile')
 }
 
+// 退出前先清掉动态加进来的路由，不然换个账号登进来还能点到上一个人的菜单
 async function logout() {
   await authStore.logout()
   resetDynamicRoutes()

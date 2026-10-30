@@ -24,21 +24,27 @@ import { useAuthStore } from '@/stores/auth'
 import { getActiveNotices, getPopupNotices, dismissPopup } from '@/api/notice'
 
 const authStore = useAuthStore()
+// 攒着这一轮要弹的公告，currentIndex 是弹到第几条
 const popups = ref([])
 const currentIndex = ref(0)
+// 切登录状态会连着发两次请求，用这个号把先回来的旧结果丢掉
 let requestId = 0
 
+// 取当前这一条，没了就是 null，模板靠它决定弹不弹
 const currentNotice = computed(() => popups.value[currentIndex.value] || null)
 
+// 只有"类型是公告"且"投放方式带 popup"的才弹窗，其它公告不进这里
 function isPopupNotice(notice) {
   return String(notice?.type_wsh || '').toLowerCase() === 'notice'
     && String(notice?.delivery_type_wsh || '').toLowerCase().includes('popup')
 }
 
+// 没登录的人后端记不了已读，就在浏览器里按公告 id 各记一个标记
 function publicReadKey(id) {
   return `notice_read_public_${id}`
 }
 
+// 登录了就问后端要"我还没读过的"，没登录就拉全部再自己筛
 async function loadPopupNotices() {
   const currentRequestId = ++requestId
   try {
@@ -49,6 +55,7 @@ async function loadPopupNotices() {
     if (currentRequestId !== requestId) return
     const notices = Array.isArray(r.data) ? r.data : []
     if (r.code === 200 && notices.length > 0) {
+      // 登录时后端已经筛过一遍，没登录还得把本地记过已读的去掉
       const items = loggedIn
         ? notices.filter(isPopupNotice)
         : notices.filter(n =>
@@ -64,6 +71,7 @@ async function loadPopupNotices() {
   } catch (e) {}
 }
 
+// 登录状态一变就重新拉一次，immediate 让刚进页面时也跑一遍
 watch(
   () => authStore.isLoggedIn,
   () => {
@@ -72,6 +80,7 @@ watch(
   { immediate: true },
 )
 
+// 关掉一条：登录的把已读报给后端，没登录的写进本地，下次就不弹了
 async function dismiss(idx) {
   const notice = popups.value[idx]
   if (!notice) return

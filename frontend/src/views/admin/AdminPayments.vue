@@ -35,6 +35,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import { getAdminPayments } from '@/api/payment'
 import { PaymentStatus, enrichWithStatus } from '@/constants/statusMaps'
 
+// 支付流水只读，出问题就靠它查，页面不给改也不给删
 const payments = ref([])
 const currentPage = ref(1)
 const size = ref(20)
@@ -47,6 +48,7 @@ function fmtAmount(v) {
   return '¥' + Number(v).toFixed(2)
 }
 
+// 状态码换成中文标签，金额补成 ¥xx.xx
 function enrich(p) {
   const e = enrichWithStatus(p, 'status_wsh', PaymentStatus)
   e.amount_label_wsh = fmtAmount(p.amount_wsh)

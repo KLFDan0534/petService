@@ -1,6 +1,7 @@
 <template>
   <div class="admin-dashboard">
     <div class="stat-grid dashboard-stats">
+      <!-- 卡片是循环出来的，accent 只是让几张重点卡片描边亮一点 -->
       <div v-for="item in summaryCards" :key="item.label" :class="['stat-card', item.accent ? 'accent' : '']">
         <div class="stat-value">{{ item.value }}</div>
         <div class="stat-label">{{ item.label }}</div>
@@ -30,6 +31,7 @@
           <span>完成率 / 待处理</span>
         </div>
         <div class="order-chart">
+          <!-- 圆环画多少由 CSS 变量 --done 决定，把 0~100 的数字直接塞进去就行 -->
           <div class="donut" :style="{ '--done': completedRate + '%' }">
             <strong>{{ completedRate }}%</strong>
             <span>完成率</span>
@@ -62,8 +64,10 @@ import { computed, onMounted, ref } from 'vue'
 import { getAdminStatistics } from '@/api/statistics'
 import { formatNumber } from '@/utils/format'
 
+// 统计接口返回的那一堆数字，下面所有卡片和图表都从这儿取
 const stats = ref({})
 
+// 顶部八张卡片，直接照着 stats 里的数拼出来
 const summaryCards = computed(() => [
   { label: '总用户', value: stats.value.total_users_wsh || 0, accent: true },
   { label: '商家', value: stats.value.total_merchants_wsh || 0 },
@@ -75,6 +79,8 @@ const summaryCards = computed(() => [
   { label: '待处理', value: stats.value.pending_orders_wsh || 0 },
 ])
 
+// 横条长度按四项里最大的那个算百分比，最大的正好占满；
+// 最小也留 4%，不然数字是 0 的时候条会彻底消失，看着像没加载出来
 const scaleBars = computed(() => {
   const rows = [
     { label: '用户', value: Number(stats.value.total_users_wsh || 0) },
@@ -82,16 +88,19 @@ const scaleBars = computed(() => {
     { label: '寄养员', value: Number(stats.value.total_keepers_wsh || 0) },
     { label: '宠物', value: Number(stats.value.total_pets_wsh || 0) },
   ]
+  // 拿最大的那项当分母，其他项按比例缩，条才不会被撑出格子
   const max = Math.max(...rows.map(item => item.value), 1)
   return rows.map(item => ({ ...item, percent: Math.max(4, Math.round((item.value / max) * 100)) }))
 })
 
+// 完成率 = 已完成 ÷ 总订单；总数为 0 时先挡一下，不然会算出 NaN
 const completedRate = computed(() => {
   const total = Number(stats.value.total_orders_wsh || 0)
   if (!total) return 0
   return Math.round((Number(stats.value.completed_orders_wsh || 0) / total) * 100)
 })
 
+// 这条进度条拿单均收入当百分比用，纯粹为了视觉上有长短，不是真的占比
 const revenueMeter = computed(() => {
   const revenue = Number(stats.value.total_revenue_wsh || 0)
   const orders = Math.max(Number(stats.value.total_orders_wsh || 0), 1)
@@ -99,6 +108,7 @@ const revenueMeter = computed(() => {
   return Math.max(8, Math.min(100, Math.round(avg)))
 })
 
+// 单均收入，没有订单就显示 0.00
 const avgOrderRevenue = computed(() => {
   const total = Number(stats.value.total_orders_wsh || 0)
   if (!total) return '0.00'
@@ -107,6 +117,7 @@ const avgOrderRevenue = computed(() => {
 
 onMounted(loadStats)
 
+// 进来拉一次统计；接口挂了就什么都不做，卡片上继续显示 0
 async function loadStats() {
   try {
     const response = await getAdminStatistics()

@@ -43,9 +43,11 @@ const tabs = [
   { key: 'rejected', label: '已拒绝' },
 ]
 
+// 四个标签共用同一份列表，这里只按状态挑出对应的行
 const filteredKeepers = computed(() => {
   if (activeTab.value === 'all') return keepers.value
   if (activeTab.value === 'pending') return keepers.value.filter(k => k.status_wsh === 0)
+  // 3、4 是审核通过之后的后续状态（比如上架、服务中），界面上都算「已通过」
   if (activeTab.value === 'approved') return keepers.value.filter(k => k.status_wsh === 1 || k.status_wsh === 3 || k.status_wsh === 4)
   return keepers.value.filter(k => k.status_wsh === 2)
 })
@@ -60,6 +62,7 @@ function enrichKeeper(k) {
   return k
 }
 
+// 接口有时给 { list: [...] }，有时直接给数组，两种都得认
 async function loadKeepers() {
   try {
     const r = await getKeepers()

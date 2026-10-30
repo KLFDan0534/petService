@@ -100,6 +100,7 @@ const statusMap = {
 
 const visibleOrders = computed(() => props.subTab === 'pending' ? props.pendingOrders : props.activeOrders)
 
+// 父组件每次要关弹窗就把 modalKey 加一，这里跟着把两个弹窗的状态都清干净
 watch(() => props.modalKey, () => {
   receivingOrder.value = null
   startingOrder.value = null
@@ -114,6 +115,7 @@ const startPhotoInput = ref(null)
 const startPhotoFile = ref(null)
 const startPhotoPreview = ref('')
 
+// 离开页面时把预览地址还回去，不然这张图会一直挂在内存里
 onUnmounted(() => {
   revokeStartPhotoPreview()
 })
@@ -128,6 +130,7 @@ function closeReceiveModal() {
   receiveForm.handover_code_wsh = ''
 }
 
+// 交接码必须是 4 位数字，格式不对就直接返回，不发请求
 function submitReceive() {
   if (!receivingOrder.value) return
   if (!/^\d{4}$/.test(receiveForm.handover_code_wsh.trim())) return
@@ -158,6 +161,7 @@ function clearStartPhoto() {
   if (startPhotoInput.value) startPhotoInput.value.value = ''
 }
 
+// 换照片前先把上一张的预览地址还掉，否则每换一次就多留一份
 function revokeStartPhotoPreview() {
   if (startPhotoPreview.value) {
     URL.revokeObjectURL(startPhotoPreview.value)
@@ -170,6 +174,7 @@ function submitStart() {
   emit('start', startingOrder.value.order_no_wsh, startPhotoFile.value)
 }
 
+// 状态对应哪个颜色的标签，没登记的状态统一按蓝色处理
 function statusBadge(status) {
   return {
     pending: 'badge-warning', paid: 'badge-info', confirmed: 'badge-info',
@@ -183,6 +188,7 @@ function formatDateTime(value) {
   return utilFormatDateTime(value, { fallback: '-' })
 }
 
+// 只有待付款、并且付款倒计时还没走完的订单才显示这条提醒
 function showPaymentCountdown(order) {
   return order?.status_wsh === 'pending' && getPaymentTimeoutRemaining(order, props.nowMs) != null
 }

@@ -1,4 +1,5 @@
 <template>
+  <!-- 后端抛 500 时跳这里，文案只说"稍后重试"，具体报错不给用户看 -->
   <div class="error-page">
     <div class="error-card">
       <div class="error-code">500</div>

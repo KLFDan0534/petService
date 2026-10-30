@@ -18,6 +18,8 @@ import { computed } from 'vue'
 import { Moon, Sunny } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 
+// 主题存在 localStorage 的 pet-service-theme 里，切换时改 html 上的 data-theme 和 .dark
 const appStore = useAppStore()
+// 提示语跟着当前主题反过来：暗色时提示切回亮色
 const label = computed(() => appStore.isDarkTheme ? '切换到日间主题' : '切换到夜间主题')
 </script>

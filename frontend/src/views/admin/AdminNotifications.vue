@@ -40,6 +40,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import { getAdminNotifications } from '@/api/notification'
 import { NotificationTypeMap, ReadStatus, enrichWithStatus } from '@/constants/statusMaps'
 
+// 通知是只读的，管理员只能看和筛，改不了内容
 const notifications = ref([])
 const currentPage = ref(1)
 const size = ref(20)
@@ -47,6 +48,7 @@ const total = ref(0)
 const filters = reactive({ type_wsh: '', is_read_wsh: '' })
 const pageCount = computed(() => Math.ceil(total.value / size.value) || 1)
 
+// 后端只给类型编码和 0/1 的已读标记，这里翻成中文，表格列直接显示
 function enrich(n) {
   const e = enrichWithStatus(n, 'type_wsh', NotificationTypeMap, 'type_label_wsh')
   e.read_label_wsh = { label: ReadStatus[e.is_read_wsh]?.label || (e.is_read_wsh ? '已读' : '未读'), badge: ReadStatus[e.is_read_wsh]?.badge || 'badge-info' }

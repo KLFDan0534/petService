@@ -101,14 +101,18 @@ const loading = ref(true)
 const showForm = ref(false)
 const editingCategory = ref(null)
 const form = reactive({ name_wsh: '', code_wsh: '', parent_id_wsh: 0, sort_order_wsh: 0 })
+// 记着哪些父分类是展开的，点一下就往里加或者删
 const expandedIds = ref(new Set())
 
+// 展开 / 收起：Set 必须整个换成一个新对象页面才会跟着变，
+// 直接往原来那个 Set 里加元素是没反应的
 function toggleExpand(id) {
   const s = new Set(expandedIds.value)
   if (s.has(id)) s.delete(id); else s.add(id)
   expandedIds.value = s
 }
 
+// 先按排序号排，排号一样的再按 id 排，保证每次刷新顺序都一样
 function sortByOrder(list = []) {
   return [...list].sort((a, b) => {
     const orderDiff = (a.sort_order_wsh || 0) - (b.sort_order_wsh || 0)
@@ -117,6 +121,8 @@ function sortByOrder(list = []) {
   })
 }
 
+// 后端给的是平铺的一串分类，靠 parent_id 记父子关系。
+// 第一步按父 id 分堆，第二步从 parent_id 为 0 的开始一层层往下接，就拼成了树
 function buildTree(nodes) {
   const childrenMap = new Map()
   nodes.forEach(node => {
@@ -125,6 +131,7 @@ function buildTree(nodes) {
     childrenMap.get(parentId).push(node)
   })
 
+  // 递归找子节点，顺手把层级 level 记下来，下拉框缩进要用
   const buildBranch = (parentId = 0, level = 0) =>
     sortByOrder(childrenMap.get(parentId) || []).map(node => ({
       ...node,
@@ -137,6 +144,7 @@ function buildTree(nodes) {
 
 const treeData = computed(() => buildTree(categories.value))
 
+// 把树按顺序摊平成一维，给“父级分类”下拉框用，父节点排在子节点前面
 const flattenedTreeData = computed(() => {
   const rows = []
   const walk = (nodes) => {
@@ -149,6 +157,8 @@ const flattenedTreeData = computed(() => {
   return rows
 })
 
+// 编辑时不能把自己挂到自己或自己的子孙下面，不然这棵树会绕成死循环。
+// 所以先把这个分类连同它下面所有后代都收进集合，下拉框里这些选项直接禁掉
 const invalidParentIds = computed(() => {
   if (!editingCategory.value) return new Set()
 
@@ -170,6 +180,7 @@ const invalidParentIds = computed(() => {
 
 onMounted(loadCategories)
 
+// 每次拉完列表都把展开状态清掉，避免还留着上次展开的旧 id
 async function loadCategories() {
   loading.value = true
   try {
@@ -183,12 +194,14 @@ async function loadCategories() {
   }
 }
 
+// 新增一级分类：父级固定 0，表单清空
 function addCategory() {
   editingCategory.value = null
   Object.assign(form, { name_wsh: '', code_wsh: '', parent_id_wsh: 0, sort_order_wsh: 0 })
   showForm.value = true
 }
 
+// 新增子分类：父级 id 直接填上，编码先带上父级前缀，人一眼就能看出层级
 function addSubCategory(parent) {
   editingCategory.value = null
   Object.assign(form, {
@@ -200,6 +213,7 @@ function addSubCategory(parent) {
   showForm.value = true
 }
 
+// 编辑：把这一条的值填回表单，parent_id 没值就当成一级分类
 function editCategory(cat) {
   editingCategory.value = cat
   Object.assign(form, {
@@ -211,6 +225,7 @@ function editCategory(cat) {
   showForm.value = true
 }
 
+// 用不换行空格按层级往里缩，下拉框是纯文本，只能靠空格看出谁是谁的子级
 function formatCategoryOption(node) {
   return `${'\u00A0\u00A0'.repeat(node.level)}${node.name_wsh}`
 }
@@ -219,6 +234,8 @@ function isInvalidParent(id) {
   return invalidParentIds.value.has(id)
 }
 
+// 新增和编辑共用这一个表单，靠 editingCategory 有没有值来分两路走；
+// 保存完两边都要刷新：本页的树，和全局那份分类列表（别的页面也在用）
 async function saveCategory() {
   try {
     const payload = {
@@ -247,6 +264,7 @@ async function saveCategory() {
   }
 }
 
+// 删之前先确认；底下还有子分类或者被服务项目引用着，后端会拒绝
 async function deleteCategory(cat) {
   if (!confirm(`确定删除分类“${cat.name_wsh}”吗？如果有子分类或关联服务项目，将无法删除。`)) return
   try {
@@ -263,6 +281,7 @@ async function deleteCategory(cat) {
   }
 }
 
+// 启停只传 status 一个值，别把名称编码一起带上，免得把没改的东西覆盖掉
 async function toggleStatus(cat) {
   const newStatus = cat.status_wsh === 1 ? 0 : 1
   try {

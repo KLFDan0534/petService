@@ -34,7 +34,9 @@ const props = defineProps({
 })
 
 const slots = useSlots()
+// 没数据那行要横跨整张表，有操作列时得多算一列
 const emptyColspan = computed(() => props.columns.length + (slots.default ? 1 : 0))
+// 只认这几个颜色类，别的值一律当普通文字，防止样式被乱写
 const ALLOWED_BADGES = new Set([
   'badge-primary',
   'badge-secondary',
@@ -54,6 +56,7 @@ function isBadgeCell(value) {
   return value && typeof value === 'object' && ALLOWED_BADGES.has(value.badge)
 }
 
+// 空值显示成横杠；对象先看有没有 label，实在没有再整个转成文字
 function formatCell(value) {
   if (value == null || value === '') return '-'
   if (typeof value === 'object') return value.label ?? JSON.stringify(value)

@@ -88,6 +88,7 @@ const props = defineProps({
 })
 
 const appStore = useAppStore()
+// 打卡记录和休假列表各存各的，页面上本来就是两块独立的内容
 const attendanceRecords = ref([])
 const leaves = ref([])
 const loading = ref(false)
@@ -101,13 +102,16 @@ const leaveForm = reactive({
   reason_wsh: '',
 })
 
+// 没有下班时间的，就说明人还在班上
 const activeCount = computed(() => attendanceRecords.value.filter(item => !item.check_out_at_wsh).length)
+// 只有这几种状态的寄养员能被排休，其余状态的选了也没意义
 const availableKeepers = computed(() =>
   props.keepers.filter(item => [1, 3, 4].includes(Number(item.status_wsh)))
 )
 
 onMounted(loadData)
 
+// 打卡和休假两个接口互不依赖，一起发，页面一次就能刷完
 async function loadData() {
   loading.value = true
   try {
@@ -124,8 +128,9 @@ async function loadData() {
   }
 }
 
+// 提交成功后把表单清空，再整页重拉一次，比自己往列表里塞一条省事
 async function submitLeave() {
-  if (submitting.value) return
+  if (submitting.value) return   // 上一次还没回来，这次点击就不管了
   submitting.value = true
   try {
     const res = await createMerchantLeave({
@@ -149,6 +154,7 @@ async function submitLeave() {
   }
 }
 
+// deletingId 记着正在删哪一条，按钮就能单独转圈，也防连点
 async function removeLeave(id) {
   if (deletingId.value) return
   deletingId.value = id
@@ -169,6 +175,7 @@ function formatDateTime(value) {
   return utilFormatDateTime(value, { fallback: '-' })
 }
 
+// 距离取整再加个单位，万一不是数字就显示一根横杠
 function formatMeters(value) {
   const number = Number(value)
   if (!Number.isFinite(number)) return '-'

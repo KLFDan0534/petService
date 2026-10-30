@@ -34,19 +34,23 @@ const props = defineProps({
   fallbackSrc: { type: String, default: '' },
 })
 
-// stage: 0 = 显示 src，1 = 显示 fallbackSrc，2 = 都失败，显示占位块
+// 当前走到第几步：0 = 用主图，1 = 用备用图，2 = 两张都失败，显示占位块
 const stage = ref(0)
 
 const primarySrc = computed(() => normalizeMediaUrl(props.src))
 const backupSrc = computed(() => (props.fallbackSrc ? normalizeMediaUrl(props.fallbackSrc) : ''))
 
+// 现在该显示哪张：第 1 步用备用图，其他情况都用主图
 const displaySrc = computed(() => (stage.value === 1 ? backupSrc.value : primarySrc.value))
+// 什么时候显示占位块：压根没有主图，或者两张图都加载失败了
 const showFallback = computed(() => !primarySrc.value || stage.value === 2)
 
+// 换成新图就把进度清零，重新从主图开始试
 watch(() => props.src, () => {
   stage.value = 0
 })
 
+// 主图挂了就换备用图；备用图也挂了，就显示占位块
 function handleError() {
   if (stage.value === 0 && backupSrc.value) {
     stage.value = 1
@@ -55,6 +59,8 @@ function handleError() {
   stage.value = 2
 }
 
+// 本地开发时图片地址是 http://localhost/minio/xxx，带域名访问会跨域
+// 所以这里只留路径部分，让浏览器按当前域名去取
 function normalizeMediaUrl(value) {
   const rawUrl = String(value || '').trim()
   if (!rawUrl || typeof window === 'undefined') return rawUrl

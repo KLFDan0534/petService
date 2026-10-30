@@ -108,8 +108,10 @@ import { formatNumber } from '@/utils/format'
 
 const appStore = useAppStore()
 const loading = ref(false)
+// 统计接口一次把数全给回来，这里只存一份，所有卡片和图表都从它里面取
 const stats = ref({})
 
+// 这两组名字是写死的清单，用来对着管理端已有页面盘一遍还缺哪些模块
 const coveredModules = [
   '用户管理', '角色管理', '实名审核', '商家审核', '寄养员管理', '资质审核',
   '宠物查看', '宠物品种管理', '服务分类管理', '订单管理', '退款审核',
@@ -118,12 +120,15 @@ const coveredModules = [
   '操作日志', '回收站',
 ]
 
+// 这些是管理端还没做页面的模块，列出来当待办清单看
 const missingModules = [
   '支付记录管理', '打赏记录管理', '文件资源管理', '通知推送管理',
   '收藏数据管理', '地址数据管理', '看护出勤管理', '请假审批管理',
   '服务项目审核', '客服人员审核',
 ]
 
+// 顶部八张卡片，数字都直接取接口返回的值：
+// 用户/商家/寄养员/宠物是各表的总条数，订单按状态拆成总数、已完成、待处理，收入是订单金额加起来
 const summaryCards = computed(() => [
   { label: '总用户', value: stats.value.total_users_wsh || 0, accent: true },
   { label: '商家', value: stats.value.total_merchants_wsh || 0 },
@@ -135,6 +140,8 @@ const summaryCards = computed(() => [
   { label: '总收入', value: `¥${formatNumber(stats.value.total_revenue_wsh || 0)}`, accent: true },
 ])
 
+// 横条长度按四项里最大的那个换算成百分比；
+// 最小值给 4% 是因为 0 值撑不出条，完全看不见会让人以为没数据
 const scaleBars = computed(() => {
   const rows = [
     { label: '用户', value: Number(stats.value.total_users_wsh || 0) },
@@ -146,12 +153,14 @@ const scaleBars = computed(() => {
   return rows.map(item => ({ ...item, percent: Math.max(4, Math.round((item.value / max) * 100)) }))
 })
 
+// 完成率 = 已完成订单数 / 总订单数，总订单是 0 时直接给 0，否则会算出 NaN
 const completedRate = computed(() => {
   const total = Number(stats.value.total_orders_wsh || 0)
   if (!total) return 0
   return Math.round((Number(stats.value.completed_orders_wsh || 0) / total) * 100)
 })
 
+// 收入进度条没有上限可比，就拿单均收入取整当宽度，夹在 8 到 100 之间免得条太短或溢出
 const revenueMeter = computed(() => {
   const revenue = Number(stats.value.total_revenue_wsh || 0)
   const orders = Math.max(Number(stats.value.total_orders_wsh || 0), 1)
@@ -159,6 +168,7 @@ const revenueMeter = computed(() => {
   return Math.max(8, Math.min(100, Math.round(avg)))
 })
 
+// 单均收入 = 总收入 / 总订单，没有订单时给 0.00 避免除零
 const avgOrderRevenue = computed(() => {
   const total = Number(stats.value.total_orders_wsh || 0)
   if (!total) return '0.00'
@@ -167,10 +177,12 @@ const avgOrderRevenue = computed(() => {
 
 onMounted(loadStats)
 
+// 这些数都由后端算好，页面不提供时间范围筛选，拿到什么就显示什么
 async function loadStats() {
   loading.value = true
   try {
     const response = await getAdminStatistics()
+    // 成功才覆盖，失败就留着上一次的数字，页面上不会突然全变成 0
     if (response.code === 200) {
       stats.value = response.data || {}
     }

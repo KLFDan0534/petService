@@ -87,8 +87,12 @@ import { FAVORITE_TARGET_TYPES } from '@/constants/favorite'
 import { unitLabel } from '@/domain/BookingUnit'
 import { coverForService, localFallbackForService } from '@/data/localPhotos'
 import { formatServiceDistance } from '@/composables/useServiceDistance'
+// 服务卡片列表：只负责显示，不筛选、不请求数据
+// 把父组件给的服务画成一张张卡片，别的都不管
 const props = defineProps({
+  // 已经筛好的服务列表
   services: { type: Array, default: () => [] },
+  // 正在加载时显示占位骨架，这时候不显示「没有数据」
   loading: { type: Boolean, default: false },
 })
 
@@ -96,25 +100,33 @@ const router = useRouter()
 const authStore = useAuthStore()
 const categoryStore = useCategoryStore()
 
+// 给每个服务补一个封面图，模板里就不用反复算了
 const normalizedServices = computed(() => props.services.map(service => ({
   ...service,
   firstImage: coverForService(service),
 })))
 
+// 取分类名的顺序：服务自带的 → 本地分类表 → 都查不到就写「宠物服务」
+// 注意：这里最后写的是「宠物服务」，而 Services.vue 那边是「服务」。
+// Services.vue 就是靠「服务」这两个字，把没分类的服务从分类按钮里去掉的
 function categoryLabel(service) {
   return service.category_name_wsh || categoryStore.getCategoryName(service.category_id_wsh) || '宠物服务'
 }
 
+// 金额显示，数字不对就显示 --，不出现 NaN
 function formatMoney(value) {
   const amount = Number(value)
   if (!Number.isFinite(amount)) return '--'
   return amount.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
 }
 
+// 点图片或「查看详情」都走这里，跳到服务详情页
 function goDetail(serviceId) {
   router.push(`/services/${serviceId}`)
 }
 
+// 「立即预约」还是去详情页，只是多带一个 book=1
+// 详情页看到这个参数就会自己把预约窗口打开
 function createOrder(service) {
   if (!service?.id_wsh) return
   router.push({ path: `/services/${service.id_wsh}`, query: { book: '1' } })

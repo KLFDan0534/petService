@@ -1,4 +1,5 @@
 <template>
+  <!-- 服务在维护或者刚重启时用这页，意思就是"过会儿再来" -->
   <div class="error-page">
     <div class="error-card">
       <div class="error-code">503</div>

@@ -55,6 +55,7 @@ const filters = reactive({ keyword: '' })
 const pendingDelete = ref(null)
 const pageCount = computed(() => Math.ceil(total.value / size.value) || 1)
 
+// 把字节数换成 KB / MB，没值就显示横杠
 function fmtSize(bytes) {
   if (bytes == null) return '-'
   if (bytes < 1024) return bytes + ' B'
@@ -62,10 +63,12 @@ function fmtSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(2) + ' MB'
 }
 
+// 给每行补一个现成的大小文本，表格列直接读，不用在模板里再算
 function enrich(f) {
   return { ...f, size_label_wsh: fmtSize(f.file_size_wsh) }
 }
 
+// 拼请求参数：分页固定带上，关键字填了才加
 function buildParams() {
   const params = { page: currentPage.value, size: size.value }
   if (filters.keyword && filters.keyword.trim()) params.keyword = filters.keyword.trim()
@@ -88,6 +91,7 @@ function changePage(page) { currentPage.value = page; load() }
 
 function confirmDelete(row) { pendingDelete.value = row }
 
+// 删成功就关弹窗、重新拉列表，列表里的总数和页码跟着更新
 async function doDelete() {
   try {
     await deleteFile(pendingDelete.value.id_wsh)
