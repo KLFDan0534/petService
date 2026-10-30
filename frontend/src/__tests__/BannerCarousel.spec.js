@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BannerCarousel from '@/components/dashboard/BannerCarousel.vue'
 
+// 第二条的链接是 javascript: 伪协议，专门用来验证组件不会把它渲染成可点的链接
 const banners = [
   {
     id_wsh: 1,
@@ -37,6 +38,7 @@ function mountBanner() {
 }
 
 describe('BannerCarousel.vue', () => {
+  // 组件里有自动轮播的定时器，用假时钟才不会被它带着乱跑
   beforeEach(() => {
     vi.useFakeTimers()
     Object.defineProperty(window, 'matchMedia', {
@@ -49,6 +51,7 @@ describe('BannerCarousel.vue', () => {
     vi.useRealTimers()
   })
 
+  // 正常广告能跳外链，带 javascript: 的那条要退化成纯图片，连 href 都不给
   it('renders active administrator banners and switches slides', async () => {
     const wrapper = mountBanner()
 

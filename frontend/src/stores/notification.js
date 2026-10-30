@@ -9,6 +9,7 @@ export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref([])
   let cleanup = null
 
+  // 没登录就别查了，接口只会返回 401
   async function fetchUnreadCount() {
     const authStore = useAuthStore()
     if (!authStore.isLoggedIn) return
@@ -27,6 +28,7 @@ export const useNotificationStore = defineStore('notification', () => {
     } catch (e) {}
   }
 
+  // 标已读成功后就地改这一条，再减一个未读数，不用重拉整个列表
   async function markAsRead(id) {
     const authStore = useAuthStore()
     try {
@@ -50,6 +52,7 @@ export const useNotificationStore = defineStore('notification', () => {
     } catch (e) {}
   }
 
+  // 定时查一次未读数，同时挂个长连接，有新消息马上刷
   function startPolling(intervalMs = 60000) {
     stopPolling()
     fetchUnreadCount()
@@ -62,6 +65,7 @@ export const useNotificationStore = defineStore('notification', () => {
       fetchUnreadCount()
       fetchNotifications()
     })
+    // 把定时器和订阅一起收掉，不然来回切页面会越积越多
     cleanup = () => {
       clearInterval(timer)
       unsub()

@@ -7,6 +7,7 @@ export function useMerchantDetail(id) {
   const error = ref(null)
   const data = ref(null)
 
+  // 详情接口一次返回很多块，这里拆开给页面各处用
   const merchant = computed(() => data.value?.merchant ?? null)
   const services = computed(() => data.value?.services ?? [])
   const hours = computed(() => data.value?.hours ?? [])
@@ -16,6 +17,7 @@ export function useMerchantDetail(id) {
   const dayLabels = computed(() => data.value?.dayLabels ?? {})
   const avgScore = computed(() => stats.value.avgScore ?? '-')
 
+  // 商家还没加载出来时先给个默认值，免得页面渲染时取到 undefined
   const statusLabel = computed(() => {
     const m = merchant.value
     return m ? getStatusLabel(MerchantStatus, m.status_wsh) : '-'
@@ -26,6 +28,7 @@ export function useMerchantDetail(id) {
     return m ? getStatusBadge(MerchantStatus, m.status_wsh) : 'badge-info'
   })
 
+  // 把商家信息和服务、营业时间、评价一起拿回来
   async function load() {
     if (!id) {
       error.value = '缺少商家ID'

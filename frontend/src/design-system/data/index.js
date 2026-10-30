@@ -1,3 +1,4 @@
+// 设计系统的几份配置都以 JSON 存着，这里统一导出来，页面按名字取
 import productsRaw from './products.json'
 import stylesRaw from './styles.json'
 import colorsRaw from './colors.json'

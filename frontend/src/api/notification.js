@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 
+// 顶部小红点上的数字，页面轮询它来刷新
 export async function getUnreadCount() {
   const res = await request.get('/api/notifications/unread-count')
   return res.data
@@ -15,6 +16,7 @@ export async function markAsRead(id) {
   return res.data
 }
 
+// 一键把消息全标成已读，进消息页时常用
 export async function markAllAsRead() {
   const res = await request.post('/api/notifications/read-all', {})
   return res.data

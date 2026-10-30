@@ -3,6 +3,7 @@ import * as orderService from '@/services/orderService'
 import * as fileService from '@/services/fileService'
 import { getPetReports } from '@/api/ai'
 
+// 宠物这块的业务规则都放这儿：类型怎么显示、年龄怎么算、能不能出报告
 const TYPE_MAP = { dog: '狗', cat: '猫', rabbit: '兔子', bird: '鸟', fish: '鱼', hamster: '仓鼠', other: '其他' }
 const ICON_MAP = { dog: '犬', cat: '猫', rabbit: '兔', bird: '鸟', fish: '鱼', hamster: '鼠', other: '宠' }
 
@@ -27,12 +28,14 @@ export function formatAge(a) {
   return a ? a + '个月' : '-'
 }
 
+// 各页面拿到的返回长得不太一样，统一在这儿拆一层，code 不对就直接抛错
 function extract(res) {
   if (!res) throw new Error('无响应')
   if (res.code !== 200) throw new Error(res.message || '请求失败')
   return res.data ?? res
 }
 
+// 三个请求一起发，谁先回谁先到；报告接口挂了也不影响整页，给个空数组就行
 export async function getFullProfile(id) {
   const [pet, orders, reportsRes] = await Promise.all([
     petService.getById(id),
@@ -46,6 +49,7 @@ export async function getFullProfile(id) {
     pet,
     orders: orders || [],
     reports: reports || [],
+    // 有过已完成的订单才给生成报告
     canGenerateReport: (orders || []).some(o => o.status_wsh === 'completed'),
   }
 }

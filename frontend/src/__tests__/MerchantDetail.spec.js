@@ -17,6 +17,7 @@ import { getFullProfile } from '@/domain/MerchantDomain'
 
 let pinia
 
+// domain 层本来会返回一大包数据，这里只留用例关心的几块，其余的给空值凑数
 function mockProfile({ merchant, services = [], hours = [], ratings = [] }) {
   getFullProfile.mockResolvedValue({
     merchant,
@@ -50,6 +51,7 @@ function merchant({ storeStatus, futureBooking = 1 }) {
   }
 }
 
+// 这几条问的都是同一件事：门店当时开着还是歇着、允不允许提前约，按钮该不该点得动
 describe('MerchantDetail.vue future booking', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -57,6 +59,7 @@ describe('MerchantDetail.vue future booking', () => {
     setActivePinia(pinia)
   })
 
+  // 门店这会儿关着门，但允许提前预约，按钮就得能点，文案上还要写明白"休息中·可预约"
   it('keeps the booking button enabled with closed-store wording when store is closed but future booking is on', async () => {
     mockProfile({
       merchant: merchant({ storeStatus: 0 }),
@@ -86,6 +89,7 @@ describe('MerchantDetail.vue future booking', () => {
     expect(button.attributes('disabled')).toBeUndefined()
   })
 
+  // 不允许提前预约就一律锁死，不管门店当时开着还是关着，开关只看这一个字段
   it('disables the booking button when future booking is off, regardless of store status', async () => {
     mockProfile({
       merchant: merchant({ storeStatus: 1, futureBooking: 0 }),
@@ -99,6 +103,7 @@ describe('MerchantDetail.vue future booking', () => {
     expect(button.attributes('disabled')).toBeDefined()
   })
 
+  // 点预约要去产品详情页并带上 book=1，以前那套直接下单的老地址不能再用
   it('F-NAV-003: booking routes to the product detail /services/{id}?book=1 without legacy order query', async () => {
     mockProfile({
       merchant: merchant({ storeStatus: 1 }),

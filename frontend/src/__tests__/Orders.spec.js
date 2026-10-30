@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import Orders from '@/views/user/Orders.vue'
 import CreateOrderDialog from '@/components/order/CreateOrderDialog.vue'
 
+// 用 hoisted 提前声明，是因为 vi.mock 会被提到文件最上面，普通变量那时候还没赋值
 const state = vi.hoisted(() => ({
   route: { query: {} },
   router: { push: vi.fn(), replace: vi.fn() },
@@ -43,6 +44,7 @@ vi.mock('@/composables/useAmapLocation', () => ({
   getCurrentAddress: vi.fn(),
 }))
 
+// 子组件全打桩，这里只想看页面自己渲染了什么，不关心弹窗里长什么样
 function mountOrders() {
   return mount(Orders, {
     global: {
@@ -62,6 +64,7 @@ describe('Orders page (F-NAV-005)', () => {
     state.route.query = {}
   })
 
+  // 连等两轮：先等订单列表请求回来，列表渲染完可能还会再触发一次请求
   it('renders the order list without a generic 创建订单 button', async () => {
     const wrapper = mountOrders()
     await flushPromises()
@@ -71,6 +74,7 @@ describe('Orders page (F-NAV-005)', () => {
     expect(wrapper.findComponent(CreateOrderDialog).exists()).toBe(false)
   })
 
+  // 老链接里的 ?create=true 已经废弃，页面要能正常打开，但不能自动弹出创建订单框
   it('ignores legacy ?create=true query and never opens the create dialog', async () => {
     state.route.query = { create: 'true', serviceId: '5', serviceName: '寄养' }
     const wrapper = mountOrders()

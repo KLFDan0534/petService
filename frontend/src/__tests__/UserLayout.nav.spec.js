@@ -48,6 +48,7 @@ function mountLayout(roles) {
   })
 }
 
+// 这一组看的是顶部导航的取舍：哪些入口被拿掉了、哪些还留着，以及无障碍有没有落下
 describe('UserLayout 顶部导航栏', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -65,6 +66,7 @@ describe('UserLayout 顶部导航栏', () => {
     expect(wrapper.find('.header-booking').exists()).toBe(false)
   })
 
+  // 退出按钮现在只剩一个图标，光看图标不知道是啥，所以要另外挂 aria-label 和 title 让人能认出来
   it('退出按钮只保留图标,不包含「退出」文字', () => {
     const wrapper = mountLayout()
     const logoutBtn = wrapper.find('.header-logout')
@@ -89,6 +91,7 @@ describe('UserLayout 顶部导航栏', () => {
     expect(texts).toContain('管理后台')
   })
 
+  // 这条其实只确认了外壳元素在不在，真正的三列布局在下面读 CSS 的那组里查
   it('shell 使用三列 grid 布局(grid-template-columns 三列),中间列绝对居中', () => {
     const wrapper = mountLayout()
     const shell = wrapper.get('.user-header-shell')
@@ -119,6 +122,7 @@ describe('UserLayout 顶部导航栏', () => {
   })
 })
 
+// 这组不渲染组件，而是把 .vue 文件里的 <style> 当纯文本读出来，用正则看关键样式有没有被改掉
 describe('UserLayout 导航样式规则(仿 proxyAI 胶囊/玻璃)', () => {
   let css
   beforeAll(() => {
@@ -152,11 +156,13 @@ expect(css).toMatch(/user-header-scrolled \.user-header-shell\) \{[\s\S]*?box-sh
     expect(css).toMatch(/\.user-header-right \{[\s\S]*?grid-column: 3;/)
   })
 
+  // 滚动阈值是写死在脚本里的，没法从渲染结果看出来，所以只能把整个文件读一遍找这行判断
   it('滚动阈值使用 proxyAI 的 80px(scrollY > 80)', () => {
     const script = readFileSync(resolve(__dirname, '../components/layout/UserLayout.vue'), 'utf8')
     expect(script).toMatch(/window\.scrollY > 80/)
   })
 
+  // 窄屏放不下这么多入口，导航和右侧操作区都收起来，交给汉堡按钮，不然会挤成一团
   it('移动端(<1100px)隐藏 nav 与 header-end, 由汉堡切换', () => {
     expect(css).toMatch(/@media \(max-width: 1100px\) \{[\s\S]*?\.user-nav \{[\s\S]*?display: none;/)
     expect(css).toMatch(/@media \(max-width: 1100px\) \{[\s\S]*?\.user-header-end \{[\s\S]*?display: none;/)

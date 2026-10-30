@@ -33,6 +33,7 @@ describe('LoginPromptDialog redirect (F-NAV-006)', () => {
     state.app.loginRedirectPath = ''
   })
 
+  // 登录后要回到用户原本想去的页面，所以先把路径编码再塞进 query
   it('redirects to the stored path encoded in the login query', async () => {
     state.app.loginRedirectPath = '/services/5?book=1'
     const wrapper = mountDialog()
@@ -41,6 +42,7 @@ describe('LoginPromptDialog redirect (F-NAV-006)', () => {
     expect(state.router.push).toHaveBeenCalledWith('/login?redirect=' + encodeURIComponent('/services/5?book=1'))
   })
 
+  // 从来没记录过来源时统一回首页，不要跳到一个空页面
   it('falls back to /dashboard when no redirect is stored', async () => {
     const wrapper = mountDialog()
     await wrapper.find('.app-btn--primary').trigger('click')
@@ -48,6 +50,7 @@ describe('LoginPromptDialog redirect (F-NAV-006)', () => {
     expect(state.router.push).toHaveBeenCalledWith('/login?redirect=' + encodeURIComponent('/dashboard'))
   })
 
+  // 外站地址、// 开头的地址、javascript: 都当成攻击，全部换成首页
   it('rejects non-relative redirect values', async () => {
     for (const evil of ['https://evil.example.com', '//evil.example.com', 'javascript:alert(1)']) {
       state.app.loginRedirectPath = evil

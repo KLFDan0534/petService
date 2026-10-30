@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 
+// 一个订单寄养期间的全部照护记录，用户看"今天喂了几次、遛没遛"就靠它
 export async function getCareRecordsByOrder(orderId) {
   const res = await request.get(`/api/care-records/order/${orderId}`)
   return res.data
@@ -25,6 +26,7 @@ export async function deleteCareRecord(id) {
   return res.data
 }
 
+// 照护照片、视频先走这个上传，拿到文件地址再挂到记录上
 export async function uploadCareRecord(formData) {
   const res = await request.post('/api/care-records/upload', formData)
   return res.data

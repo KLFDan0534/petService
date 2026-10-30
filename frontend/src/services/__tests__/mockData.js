@@ -1,3 +1,4 @@
+// 单测用的假数据，照着后端返回的样子造，改动时注意和真实接口保持一致
 export const mockMerchant = {
   id_wsh: 1,
   name_wsh: 'PetCare宠物生活馆',
@@ -49,6 +50,7 @@ export const mockPet = {
   owner_name_wsh: '李四',
 }
 
+// 两条评价，一条商家回过了、一条没回，用来测回复按钮的显示逻辑
 export const mockRatings = [
   { id_wsh: 1, user_id_wsh: 1001, score_wsh: 5, content_wsh: '非常满意！', reply_wsh: '感谢您的支持', created_at_wsh: '2026-01-10T10:00:00Z' },
   { id_wsh: 2, user_id_wsh: 1002, score_wsh: 4, content_wsh: '服务态度很好', reply_wsh: null, created_at_wsh: '2026-02-15T14:00:00Z' },
@@ -66,6 +68,7 @@ export const mockBusinessHours = [
   { day_of_week_wsh: 7, open_time_wsh: null, close_time_wsh: null, is_closed_wsh: true },
 ]
 
+// 两个不同状态的订单，方便测列表按状态分组
 export const mockOrders = [
   { id_wsh: 1000, pet_id_wsh: 100, service_name_wsh: '日间寄养', start_date_wsh: '2026-06-01', end_date_wsh: '2026-06-05', status_wsh: 'completed' },
   { id_wsh: 1001, pet_id_wsh: 100, service_name_wsh: '宠物美容', start_date_wsh: '2026-06-10', end_date_wsh: '2026-06-10', status_wsh: 'in_progress' },

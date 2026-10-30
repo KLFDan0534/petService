@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import Dashboard from '@/views/user/Dashboard.vue'
 
+// 首页依赖的路由、store 和各个接口都换成假数据，这样不用连后端也能把页面跑起来
 const state = vi.hoisted(() => ({
   router: { push: vi.fn() },
   app: { addToast: vi.fn(), showLoginPrompt: false, loginRedirectPath: '' },
@@ -49,6 +50,7 @@ vi.mock('@/api/service', () => ({
   getPublicServices: vi.fn(() => Promise.resolve(state.services)),
 }))
 
+// 公告接口返回的包装跟别的不一样，这里按 URL 单独给它一份，其余一律回空列表
 vi.mock('@/utils/request', () => ({
   default: {
     get: vi.fn(url => {
@@ -70,6 +72,7 @@ function mountDashboard() {
   })
 }
 
+// 首页那个"立即预约"点了要跳到产品详情并带上 book=1，这组就盯着这一个行为
 describe('Dashboard booking CTA (F-NAV-002)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -77,6 +80,7 @@ describe('Dashboard booking CTA (F-NAV-002)', () => {
 
   it('routes 立即预约 to /services/{id}?book=1 without legacy order query', async () => {
     const wrapper = mountDashboard()
+    // 首页一进来会连着发好几个请求，一次 flush 只够推完第一轮，所以要等两轮才稳
     await flushPromises()
     await flushPromises()
 

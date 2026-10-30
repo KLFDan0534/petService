@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   keeperGetByMerchant: vi.fn(),
 }))
 
+// 路由参数放在外面这个 reactive 对象里，测试中途改一下就能假装"用户从 S1 跳到了 S2"
 vi.mock('vue-router', async () => {
   const { reactive } = await import('vue')
   const route = reactive({ params: { id: routeState.id } })
@@ -89,6 +90,7 @@ function mainImageSrc(wrapper) {
   return img.exists() ? img.attributes('src') : null
 }
 
+// 这一组都在测公开的产品详情页：内容能不能显示出来、图册怎么切、接口挂了怎么提示
 describe('ServiceDetail.vue 公开产品详情页', () => {
   beforeEach(() => {
     routeState.id = 1
@@ -105,6 +107,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     ])
   })
 
+  // 让接口一直不返回，页面就会永远停在加载中，这样才能检查加载提示本身
   it('F-DET-001 加载状态具有可访问标签', () => {
     mocks.getServiceDetail.mockImplementation(() => new Promise(() => {}))
     const wrapper = createWrapper()
@@ -126,6 +129,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(mainImageSrc(wrapper)).toBe('/images/cover.jpg')
   })
 
+  // 鼠标点缩略图、按回车、按空格，三种方式都应该换主图，而且主图那块容器一直存在不会跳
   it('F-DET-003 缩略图点击与键盘操作切换主图且容器不位移', async () => {
     const wrapper = createWrapper()
     await flushPromises()
@@ -140,6 +144,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(mainImageSrc(wrapper)).toBe('/images/second.jpg')
   })
 
+  // 没有图册、或者图片地址本身是坏的，都拿占位块顶上，页面其他部分照常显示
   it('F-DET-004 无图册或畸形URL使用占位且不破坏页面', async () => {
     mocks.getServiceDetail.mockResolvedValue(detailData({ media_wsh: [] }))
     const wrapper = createWrapper()
@@ -159,6 +164,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(broken.find('.gallery-main .media-placeholder').exists()).toBe(true)
   })
 
+  // 图多到十张也不能撑坏，缩略图数量对得上，默认展示的还是第一张
   it('F-DET-005 十张图册保持可用', async () => {
     const media = Array.from({ length: 10 }, (_, i) => ({
       file_id_wsh: i + 1,
@@ -174,6 +180,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(mainImageSrc(wrapper)).toBe('/images/m0.jpg')
   })
 
+  // 接口说找不到或已下架时，要给一句人话提示，并留一个能点回列表的按钮
   it('F-DET-006 404/不可用显示明确操作回到列表', async () => {
     mocks.getServiceDetail.mockResolvedValue({ code: 404, message: '服务产品不存在' })
     const wrapper = createWrapper()
@@ -191,6 +198,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(unavailable.find('.empty-state .btn').text()).toBe('返回服务列表')
   })
 
+  // 评价、商家、看护员三个接口一起报错，产品本身的内容也不能跟着消失
   it('F-DET-007 商家/评价加载失败不抹掉核心产品内容', async () => {
     mocks.getRatings.mockRejectedValue(new Error('评价接口异常'))
     mocks.merchantGetById.mockRejectedValue(new Error('商家接口异常'))
@@ -204,6 +212,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(wrapper.find('.keepers-sub').exists()).toBe(false)
   })
 
+  // 从 S1 切到 S2 时，S1 的请求可能比 S2 还晚回来。这里故意让慢的那个后回来，看会不会把新内容盖掉
   it('F-DET-008 路由参数 S1→S2 切换丢弃过期异步响应', async () => {
     const pending = []
     mocks.getServiceDetail.mockImplementation((id) => new Promise(resolve => {
@@ -223,12 +232,14 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     await flushPromises()
     expect(wrapper.find('h1').text()).toBe('S2 寄养')
 
+    // 现在才把老请求 S1 的结果放出来，它已经过期了，页面上必须还是 S2 的名字和价格
     pending[0].resolve(detailData({ id_wsh: 1, name_wsh: 'S1 寄养' }))
     await flushPromises()
     expect(wrapper.find('h1').text()).toBe('S2 寄养')
     expect(wrapper.find('.service-price').text()).toContain('299.00')
   })
 
+  // 名字、介绍、价格都往夸张了写，靠 text-break 保证不会把布局撑破
   it('F-DET-009 长名称/长介绍/大价格不溢出', async () => {
     const longName = '超长寄养服务名称'.repeat(10)
     const longDesc = '超长介绍'.repeat(200)
@@ -248,6 +259,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(wrapper.find('.service-price').text()).toContain('999999.99')
   })
 
+  // 读屏和键盘用户也要能用：缩略图、商家卡片、看护员卡片都得有能念出来的名字，还得能聚焦
   it('F-DET-010 按钮/缩略图/商家/看护员有可访问名称与可聚焦性', async () => {
     const wrapper = createWrapper()
     await flushPromises()
@@ -265,6 +277,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     expect(wrapper.find('.btn-primary').text()).toBe('立即预约')
   })
 
+  // 门店不能在线预约时，按钮不能变成点不动的死按钮，点下去要说明为什么不能约
   it('不可预约时按钮可点击并提示原因（详情仍完整）', async () => {
     mocks.getServiceDetail.mockResolvedValue(detailData({
       bookable_wsh: false,

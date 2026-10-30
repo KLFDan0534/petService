@@ -29,6 +29,7 @@ describe('Keepers page (F-NAV-004)', () => {
     vi.clearAllMocks()
   })
 
+  // 点“选择服务”要带用户去商家页挑服务，不能直接跳订单页，这是之前修过的导航问题
   it('routes 选择服务 to the keeper merchant page, never to /orders', async () => {
     const wrapper = mountKeepers()
     await flushPromises()
@@ -40,6 +41,7 @@ describe('Keepers page (F-NAV-004)', () => {
     expect(state.router.push.mock.calls.join('|')).not.toContain('/orders')
   })
 
+  // 看保姆主页还是走详情页，别被上面那个改动带偏了
   it('keeps 查看主页 navigation to the keeper detail page', async () => {
     const wrapper = mountKeepers()
     await flushPromises()

@@ -1,3 +1,4 @@
+// 订单状态：从下单付款一路走到完成或取消
 export const OrderStatus = {
   pending: { label: '待付款', badge: 'badge-warning' },
   paid: { label: '已支付', badge: 'badge-info' },
@@ -11,6 +12,7 @@ export const OrderStatus = {
   refunded: { label: '已退款', badge: 'badge-success' },
 }
 
+// 退款单走到哪一步了
 export const RefundStatus = {
   pending: { label: '待审核', badge: 'badge-info' },
   approved: { label: '已通过(待退款)', badge: 'badge-primary' },
@@ -18,6 +20,7 @@ export const RefundStatus = {
   completed: { label: '已完成', badge: 'badge-success' },
 }
 
+// 商家入驻的审核结果；下面两组分别是开关店模式和当前营业状态
 export const MerchantStatus = {
   0: { label: '待审核', badge: 'badge-warning' },
   1: { label: '已通过', badge: 'badge-success' },
@@ -35,6 +38,7 @@ export const MerchantStoreStatus = {
   1: { label: '营业中', badge: 'badge-success' },
 }
 
+// 看护者提交资料后的审核结果；下面一组是他此刻能不能接单
 export const KeeperReviewStatus = {
   0: { label: '待审核', badge: 'badge-warning' },
   1: { label: '已通过', badge: 'badge-success' },
@@ -47,6 +51,7 @@ export const KeeperOnlineStatus = {
   4: { label: '忙碌', badge: 'badge-warning' },
 }
 
+// 用户投诉的处理进度；后面三组是工单的进度、分类和紧急程度
 export const ComplaintStatus = {
   pending: { label: '待处理', badge: 'badge-warning' },
   processing: { label: '受理中', badge: 'badge-info' },
@@ -75,6 +80,7 @@ export const TicketPriority = {
   urgent: { label: '紧急', badge: 'badge-danger' },
 }
 
+// 用户写的评价要不要过审；下面一组是追评的审核结果
 export const ReviewStatus = {
   pending: { label: '待审核', badge: 'badge-warning' },
   approved: { label: '已通过', badge: 'badge-success' },
@@ -87,6 +93,7 @@ export const ReviewSubStatus = {
   rejected: { label: '已驳回', badge: 'badge-error' },
 }
 
+// 轮播图挂不挂；下面两组是实名认证进度和账号有没有被封
 export const BannerStatus = {
   0: { label: '下架', badge: 'badge-secondary' },
   1: { label: '上架', badge: 'badge-success' },
@@ -104,6 +111,7 @@ export const UserStatus = {
   1: { label: '正常', badge: 'badge-success' },
 }
 
+// 一笔交易的结果；下面两组是提现进度和支付结果
 export const TransactionStatus = {
   pending: { label: '待处理', badge: 'badge-warning' },
   success: { label: '成功', badge: 'badge-success' },
@@ -118,6 +126,7 @@ export const WithdrawalStatus = {
   completed: { label: '已完成', badge: 'badge-success' },
 }
 
+// 服务项目有没有在售
 export const ServiceStatus = {
   0: { label: '已下架', badge: 'badge-secondary' },
   1: { label: '上架中', badge: 'badge-success' },
@@ -129,6 +138,7 @@ export const PaymentStatus = {
   failed: { label: '支付失败', badge: 'badge-danger' },
 }
 
+// 消息是哪一类，前端按这个选标签颜色；下面一组是收藏对象的种类
 export const NotificationTypeMap = {
   system: { label: '系统', badge: 'badge-info' },
   order: { label: '订单', badge: 'badge-primary' },
@@ -145,6 +155,7 @@ export const FavoriteTargetTypeMap = {
   service: { label: '服务', badge: 'badge-success' },
 }
 
+// 请假单审批到哪一步；下面两组是消息读没读、后台工单分类
 export const LeaveApprovalStatus = {
   pending: { label: '待审批', badge: 'badge-warning' },
   approved: { label: '已通过', badge: 'badge-success' },
@@ -162,6 +173,7 @@ export const TicketCategoryMap = {
   other: { label: '其他', badge: 'badge-info' },
 }
 
+// 查中文文案；查不到就把原始值原样吐出来，实在没有就显示 -
 export function getStatusLabel(map, key) {
   return map[key]?.label ?? (key ?? '-')
 }
@@ -170,6 +182,7 @@ export function getStatusBadge(map, key) {
   return map[key]?.badge ?? 'badge-info'
 }
 
+// 文案和颜色一次拿齐，省得调用方写两遍
 export function makeStatusBadge(map, key) {
   return {
     label: getStatusLabel(map, key),
@@ -177,6 +190,7 @@ export function makeStatusBadge(map, key) {
   }
 }
 
+// 直接在列表项上挂一个 label 对象，模板里就不用反复算
 export function enrichWithStatus(item, statusField, statusMap, labelField = 'status_label_wsh') {
   if (!item) return item
   item[labelField] = makeStatusBadge(statusMap, item[statusField])

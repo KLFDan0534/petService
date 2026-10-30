@@ -12,6 +12,7 @@ export const FAVORITE_TARGET_TYPE_LABELS = Object.freeze({
 
 export const DEFAULT_FAVORITE_PAGE_SIZE = 12
 
+// 后端只认这三个值，前端传之前统一转小写去空格，免得大小写不一致查不到
 export function normalizeFavoriteTargetType(value) {
   return String(value ?? '').trim().toLowerCase()
 }

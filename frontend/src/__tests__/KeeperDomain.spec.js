@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mockKeeper, mockRatings } from '@/services/__tests__/mockData'
 
+// 三个下游服务全 mock 掉，这里只测拼装逻辑，不碰真实网络
 vi.mock('@/services/keeperService', () => ({
   getById: vi.fn(),
 }))
@@ -35,6 +36,7 @@ describe('KeeperDomain', () => {
       expect(profile.qualifications).toEqual(mockKeeper.qualifications_wsh)
     })
 
+    // 平均分留一位小数并转成字符串，页面直接拿来显示就行
     it('computes avgScore correctly', async () => {
       keeperService.getById.mockResolvedValue(mockKeeper)
       ratingService.getByTarget.mockResolvedValue(mockRatings)
@@ -44,6 +46,7 @@ describe('KeeperDomain', () => {
       expect(profile.stats.ratingCount).toBe(2)
     })
 
+    // 一条评价都没有时显示“-”，不能让页面上出现 NaN
     it('handles empty ratings', async () => {
       keeperService.getById.mockResolvedValue(mockKeeper)
       ratingService.getByTarget.mockResolvedValue([])
@@ -62,6 +65,7 @@ describe('KeeperDomain', () => {
     })
   })
 
+  // 收藏时要把类型一起传过去，后端靠它区分收藏的是保姆还是商家
   describe('toggleFavorite', () => {
     it('calls favoriteService.toggle with keeper type', async () => {
       favoriteService.toggle.mockResolvedValue({})

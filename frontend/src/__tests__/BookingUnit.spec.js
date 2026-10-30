@@ -12,6 +12,7 @@ import {
   billingText,
 } from '@/domain/BookingUnit'
 
+// 计费单位这块最容易出岔子：接口可能传 day、days 或“天”，这里统一收成三种标准单位
 describe('BookingUnit domain', () => {
   it('normalizes canonical + aliases for day/session/hour', () => {
     expect(normalizeUnit('day')).toBe('day')
@@ -25,6 +26,7 @@ describe('BookingUnit domain', () => {
     expect(normalizeUnit('小时')).toBe('hour')
   })
 
+  // 认不出来的单位一律给 null，宁可报错也别猜——把“周”当成“天”会算错钱
   it('rejects unknown or blank units', () => {
     expect(normalizeUnit('week')).toBeNull()
     expect(normalizeUnit('')).toBeNull()
@@ -40,6 +42,7 @@ describe('BookingUnit domain', () => {
     expect(unitLabel('hour')).toBe('小时')
   })
 
+  // 后端没给 booking_mode 时按单位推断：按天走日期区间，按次和按小时走时段选择
   it('derives booking mode from unit when absent', () => {
     expect(bookingMode(null, 'day')).toBe('date_range')
     expect(bookingMode(null, 'session')).toBe('slot')
@@ -74,6 +77,7 @@ describe('BookingUnit domain', () => {
     expect(billingText({ billing_unit_wsh: 'hour', quantity_wsh: 4, duration_minutes_wsh: 60 })).toBe('4 小时（1 小时）')
   })
 
+  // 老订单只存了 days_wsh，新字段是后来加的，展示时还得能读出“2 天”
   it('billing text: legacy day projection when new fields missing', () => {
     expect(billingText({ days_wsh: 2 })).toBe('2 天')
     expect(billingText({})).toBe('')

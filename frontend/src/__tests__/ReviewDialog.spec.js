@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import ReviewDialog from '@/components/order/ReviewDialog.vue'
 
+// 一条订单可以分别给商家、看护人、服务打分，这组测的就是三个页签怎么切、怎么提交
 describe('ReviewDialog.vue 三维评价', () => {
   const order = {
     id_wsh: 100,
@@ -40,6 +41,7 @@ describe('ReviewDialog.vue 三维评价', () => {
     }
   })
 
+  // 商家已经评过了，打开弹窗就该自动落到下一个还没评的"看护人"，省得用户自己去找
   it('defaults to the first undone dimension and emits reviewed with dimension payload', async () => {
     const wrapper = mountDialog({ doneTypes: ['merchant'] })
     await flushPromises()
@@ -63,6 +65,7 @@ describe('ReviewDialog.vue 三维评价', () => {
     })
   })
 
+  // 三个维度都评过了，页签上要打标记，提交按钮也得锁住，免得同一单被重复评价
   it('marks already-rated dimensions and blocks resubmission', async () => {
     const wrapper = mountDialog({ doneTypes: ['merchant', 'keeper', 'service'] })
     await flushPromises()
@@ -74,6 +77,7 @@ describe('ReviewDialog.vue 三维评价', () => {
     expect(wrapper.text()).toContain('该维度已评价')
   })
 
+  // 订单里没带服务 id，这一项就没法评，得说清楚原因并把提交按钮关掉
   it('disables submit when active dimension has no target id', async () => {
     const wrapper = mount(ReviewDialog, {
       props: {

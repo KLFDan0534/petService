@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { safeRedirect } from '@/utils/safeRedirect'
 
+// 这个函数只放行站内相对路径，别的都返回 null，调用方拿到 null 自己决定去哪
 describe('safeRedirect', () => {
   it('accepts internal absolute paths', () => {
     expect(safeRedirect('/dashboard')).toBe('/dashboard')
@@ -20,6 +21,7 @@ describe('safeRedirect', () => {
     expect(safeRedirect('mailto:attacker@example.com')).toBeNull()
   })
 
+  // %0A、%00 这类编码过的换行和空字符能骗过地址解析，必须在进来时就挡掉
   it('rejects encoded-control targets', () => {
     expect(safeRedirect('/services/1?book=1%0Aevil')).toBeNull()
     expect(safeRedirect('/services/1%0A%00')).toBeNull()
@@ -33,6 +35,7 @@ describe('safeRedirect', () => {
     expect(safeRedirect('/services/1%23section')).toBeNull()
   })
 
+  // 地址里再套一层 redirect 参数，等于绕一圈就能跳到外站，所以直接拒绝
   it('rejects nested redirect targets', () => {
     expect(safeRedirect('/orders?redirect=/dashboard')).toBeNull()
     expect(safeRedirect('/login?redirect=%2Fdashboard')).toBeNull()
@@ -48,6 +51,7 @@ describe('safeRedirect', () => {
     expect(safeRedirect('/dashboard '.repeat(500))).toBeNull()
   })
 
+  // 路径第一段里藏 javascript: 也算协议走私，%6a 就是编码过的 j
   it('rejects scheme smuggling inside the first path segment', () => {
     expect(safeRedirect('/javascript:alert(1)')).toBeNull()
     expect(safeRedirect('/%6aavascript:alert(1)')).toBeNull()

@@ -6,6 +6,7 @@ function extract(res) {
   return res.data ?? res
 }
 
+// 评价挂在商家或陪护人身上，靠 targetType 区分，查的时候两个参数都要带
 export async function getByTarget(targetId, targetType) {
   return extract(await api.getRatings({ targetId, targetType }))
 }

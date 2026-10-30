@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import KeeperDetail from '@/views/user/KeeperDetail.vue'
 
+// 路由、store、接口都先换成假对象，页面不用连后端也能跑起来
 const state = vi.hoisted(() => ({
   route: { params: { id: '1' } },
   router: { push: vi.fn() },
@@ -79,11 +80,13 @@ function mountDetail() {
   })
 }
 
+// 看护员页面只负责把人介绍清楚，真下单要去他所在的商家页，这组就是在守这条线
 describe('KeeperDetail page (F-NAV-004)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  // 页面上所有"选择服务"按钮都该跳到这位看护员所在的商家，一个都不能漏到下单页去
   it('routes 选择服务 buttons to the keeper merchant page, never to /orders', async () => {
     const wrapper = mountDetail()
     await flushPromises()
@@ -109,6 +112,7 @@ describe('KeeperDetail page (F-NAV-004)', () => {
     expect(state.router.push).toHaveBeenCalledWith('/merchants/2')
   })
 
+  // 页面上不该冒出"联系"这类私下沟通的入口，不然用户就绕过平台直接找人下单了
   it('does not offer a direct contact action that creates orders', async () => {
     const wrapper = mountDetail()
     await flushPromises()

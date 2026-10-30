@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { haversineMeters, formatDistanceMeters } from '@/utils/geo'
 
 describe('geo utils', () => {
+  // 0.01 度纬度大约 1.1 公里，给个区间就够了，不卡死具体数字
   it('haversineMeters: 纬度每 0.01 度约为 1.1 公里', () => {
     const meters = haversineMeters(31.23, 121.47, 31.24, 121.47)
     expect(meters).toBeGreaterThan(1000)
@@ -12,6 +13,7 @@ describe('geo utils', () => {
     expect(haversineMeters(31.23, 121.47, 31.23, 121.47)).toBe(0)
   })
 
+  // 一公里内用米看着更直观，超了就换成公里并保留一位小数
   it('formatDistanceMeters: 1 公里内显示米，以上显示公里', () => {
     expect(formatDistanceMeters(850)).toBe('850 米')
     expect(formatDistanceMeters(999)).toBe('999 米')

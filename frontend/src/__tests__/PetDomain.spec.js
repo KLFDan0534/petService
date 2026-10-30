@@ -25,11 +25,13 @@ import * as orderService from '@/services/orderService'
 import * as fileService from '@/services/fileService'
 import { getPetReports } from '@/api/ai'
 
+// PetDomain 是夹在页面和接口中间的一层，负责把宠物、订单、报告拼成一份完整档案
 describe('PetDomain', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  // 一次把宠物资料、订单、报告都拉回来，再顺手算一下够不够条件生成报告
   describe('getFullProfile', () => {
     it('merges pet, orders, and reports into single profile', async () => {
       petService.getById.mockResolvedValue(mockPet)
@@ -43,6 +45,7 @@ describe('PetDomain', () => {
       expect(profile.reports).toEqual(mockReports)
     })
 
+    // 只要有一单是已完成的就能生成报告，这里用的 mockOrders 里正好有完成单
     it('detects canGenerateReport when any order is completed', async () => {
       petService.getById.mockResolvedValue(mockPet)
       orderService.getByPetId.mockResolvedValue(mockOrders)
@@ -62,6 +65,7 @@ describe('PetDomain', () => {
       expect(profile.canGenerateReport).toBe(false)
     })
 
+    // 报告接口挂了不该把整个页面一起拖垮，给个空数组让页面照常显示
     it('handles reports API failure gracefully', async () => {
       petService.getById.mockResolvedValue(mockPet)
       orderService.getByPetId.mockResolvedValue([])
@@ -72,6 +76,7 @@ describe('PetDomain', () => {
     })
   })
 
+  // 换头像分两步走：先把文件传上去拿到地址，再把地址写回宠物资料
   describe('updateAvatar', () => {
     it('uploads file then updates pet avatar url', async () => {
       const mockFile = new File([''], 'pet.jpg', { type: 'image/jpeg' })

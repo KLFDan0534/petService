@@ -51,10 +51,12 @@ function createAuthenticatedPinia() {
   return pinia
 }
 
+// 优惠券和会员这类入口不往全局导航里塞，只放在个人中心，这组就是在确认它们待的位置对不对
 describe('优惠券和会员入口', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.clearAllMocks()
+    // 个人中心一进来会同时拉好几个接口，这里按 URL 各回一份固定数据，省得每个用例都重写一遍
     mocks.requestGet.mockImplementation((url) => {
       const responses = {
         '/users/me': {
@@ -72,6 +74,7 @@ describe('优惠券和会员入口', () => {
     mocks.getCustomerServiceApplications.mockResolvedValue({ code: 200, data: [] })
   })
 
+  // 顶部导航谁都看得见，权益入口放进去太吵，所以这里断言它压根不出现
   it('不在全局用户导航中展示入口', () => {
     const pinia = createAuthenticatedPinia()
     const wrapper = mount(UserLayout, {
@@ -108,6 +111,7 @@ describe('优惠券和会员入口', () => {
 
     await flushPromises()
 
+    // 名字上说的是两个入口，实际个人中心里排了四个：优惠券、会员、工单、投诉，顺序也得照这个来
     const benefitLinks = wrapper.findAll('.benefit-entry')
     expect(benefitLinks.map(link => link.text())).toEqual([
       expect.stringContaining('我的优惠券'),

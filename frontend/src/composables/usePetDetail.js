@@ -8,11 +8,13 @@ export function usePetDetail(id) {
   const error = ref(null)
   const data = ref(null)
 
+  // 把一坨详情数据拆成几个小块，模板里用起来方便
   const pet = computed(() => data.value?.pet ?? null)
   const orders = computed(() => data.value?.orders ?? [])
   const reports = computed(() => data.value?.reports ?? [])
   const canGenerate = computed(() => data.value?.canGenerateReport ?? false)
 
+  // 下面这几个都只是转手调用 domain，真正的规则写在 domain 里
   function formatAge(a) {
     return PetDomain.formatAge(a)
   }
@@ -29,6 +31,7 @@ export function usePetDetail(id) {
     return getStatusBadge(OrderStatus, status)
   }
 
+  // 一次性把宠物、订单、报告全拉回来；没 id 就别发请求了
   async function load() {
     if (!id) {
       error.value = '缺少宠物ID'
@@ -51,6 +54,7 @@ export function usePetDetail(id) {
     await load()
   }
 
+  // 上传完直接改内存里的头像地址，省一次重新请求
   async function handleUpdateAvatar(file) {
     if (!pet.value) return
     const avatarUrl = await PetDomain.updateAvatar(pet.value.id_wsh, file)

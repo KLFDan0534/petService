@@ -6,6 +6,7 @@ function extract(res) {
   return res.data ?? res
 }
 
+// 上传要传 FormData，不能直接传 File 对象，浏览器才认这个格式
 export async function upload(file) {
   const formData = new FormData()
   formData.append('file', file)

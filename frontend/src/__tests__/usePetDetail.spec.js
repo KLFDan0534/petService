@@ -18,6 +18,7 @@ vi.mock('@/constants/statusMaps', () => ({
 import { usePetDetail } from '@/composables/usePetDetail'
 import * as PetDomain from '@/domain/PetDomain'
 
+// 这个组合式函数管宠物详情的加载、改名、换头像，还要让页面上的数据跟着一起变
 describe('usePetDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -41,6 +42,7 @@ describe('usePetDetail', () => {
     expect(composable.canGenerate.value).toBe(true)
   })
 
+  // 请求挂了要留下错误话术，同时把宠物数据清空，别让页面拿着半截数据硬渲染
   it('sets error on failure', async () => {
     PetDomain.getFullProfile.mockRejectedValue(new Error('加载失败'))
 
@@ -51,6 +53,7 @@ describe('usePetDetail', () => {
     expect(composable.pet.value).toBe(null)
   })
 
+  // 换完头像页面上的数据得自己更新，不能让用户手动刷新才看到新图
   it('updateAvatar updates pet state reactively', async () => {
     PetDomain.getFullProfile.mockResolvedValue({
       pet: { ...mockPet, avatar_wsh: null },
@@ -80,6 +83,7 @@ describe('usePetDetail', () => {
     expect(composable.pet.value.name_wsh).toBe('旺财改名')
   })
 
+  // 第一次故意让它失败，第二次成功，看重点重试能不能把错误清掉、把数据补回来
   it('retry re-fetches after error', async () => {
     PetDomain.getFullProfile
       .mockRejectedValueOnce(new Error('网络错误'))

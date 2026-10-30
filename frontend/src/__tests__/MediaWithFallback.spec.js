@@ -18,12 +18,14 @@ function mountMedia(props = {}) {
 }
 
 describe('MediaWithFallback.vue', () => {
+  // 后端给的是 127.0.0.1:9000 的直连地址，别的机器访问不到，要换成前端代理路径
   it('normalizes local MinIO URLs through the frontend proxy', () => {
     const wrapper = mountMedia({ src: 'http://127.0.0.1:9000/minio/pets/photo.jpg?size=large' })
 
     expect(wrapper.get('img').attributes('src')).toBe('/minio/pets/photo.jpg?size=large')
   })
 
+  // 图片加载失败先显示占位文案，等 src 换成新地址要自动再试一次
   it('shows a fallback after an image error and retries when src changes', async () => {
     const wrapper = mountMedia({ src: '/images/first.jpg' })
 

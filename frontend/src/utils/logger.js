@@ -1,3 +1,4 @@
+// 开发环境打 debug，线上把 debug 换成空函数，省得控制台被刷满
 const isDev = import.meta.env.MODE === 'development'
 
 const noop = () => {}

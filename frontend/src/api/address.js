@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 
+// 只返回当前登录用户自己的收货地址，不用传用户 id
 export async function getAddresses() {
   const res = await request.get('/api/addresses')
   return res.data
@@ -25,6 +26,7 @@ export async function deleteAddress(id) {
   return res.data
 }
 
+// 设成默认收货地址，后端会把其它地址上的默认标记清掉
 export async function setDefaultAddress(id) {
   const res = await request.post(`/api/addresses/${id}/default`, {})
   return res.data

@@ -8,6 +8,7 @@ const amapMocks = vi.hoisted(() => ({
 
 vi.mock('@/composables/useAmapLocation', () => amapMocks)
 
+// 距离显示分两档：不到 1 公里按米说，够 1 公里就换成公里并留一位小数
 describe('formatServiceDistance', () => {
   it('小于 1km 显示米，只保留数字', () => {
     expect(formatServiceDistance(850)).toBe('850m')
@@ -49,11 +50,13 @@ describe('formatDistanceKm', () => {
   })
 })
 
+// 这组干的事是给服务列表补上"离我多远"：先定位自己，再按商家地址查坐标，最后算直线距离
 describe('useServiceDistance attachDistances', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  // 用户不给定位权限就先不算了，跳过就好，不能因为定位失败把整个列表搞挂
   it('定位失败时静默跳过，不调用高德地理编码、不写距离', async () => {
     amapMocks.getCurrentAddress.mockRejectedValue(new Error('denied'))
     const services = [{ id_wsh: 1, merchant_id_wsh: 10 }]
@@ -77,6 +80,7 @@ describe('useServiceDistance attachDistances', () => {
     expect(meters).toBeLessThan(2000)
   })
 
+  // 商家地址空着、或者地址查不出坐标，这两条服务就先不给距离，但不该拖累别的服务
   it('商家无地址或解析不到坐标时跳过该服务', async () => {
     amapMocks.searchAmapAddress.mockResolvedValue([])
     const services = [

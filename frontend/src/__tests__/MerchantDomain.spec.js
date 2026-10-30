@@ -20,11 +20,13 @@ import * as merchantService from '@/services/merchantService'
 import * as ratingService from '@/services/ratingService'
 import * as favoriteService from '@/services/favoriteService'
 
+// MerchantDomain 把商家本身、服务、营业时间、评价四个接口的结果攒成一份，页面只跟它打交道
 describe('MerchantDomain', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
+  // 四个接口一起发出去，都回来之后再拼成一份，拼的时候顺手算个平均分和评价条数
   describe('getFullProfile', () => {
     it('merges merchant, services, hours, ratings into single profile', async () => {
       merchantService.getById.mockResolvedValue(mockMerchant)
@@ -52,6 +54,7 @@ describe('MerchantDomain', () => {
       expect(profile.stats.ratingCount).toBe(2)
     })
 
+    // 一条评价都没有的时候不能算成 0 分，页面上要显示一个横杠才不吓人
     it('returns "-" for avgScore when no ratings exist', async () => {
       merchantService.getById.mockResolvedValue(mockMerchant)
       merchantService.getServices.mockResolvedValue([])
@@ -86,6 +89,7 @@ describe('MerchantDomain', () => {
     })
   })
 
+  // 收藏就是把商家 id 连同类型一起丢给收藏接口，类型写错了收藏列表里就翻不到这一条
   describe('toggleFavorite', () => {
     it('calls favoriteService.toggle with correct params', async () => {
       favoriteService.toggle.mockResolvedValue({})
