@@ -20,10 +20,12 @@
         <select
           class="form-control order-status-select"
           :value="row.status_wsh"
-          @change="changeStatus(row, $event.target.value)"
+          :disabled="allowedStatuses(row.status_wsh).length <= 1"
+          :title="allowedStatuses(row.status_wsh).length <= 1 ? '该状态只能通过支付、取消、退款、完成等专用入口变更' : ''"
+          @change="changeStatus(row, $event)"
         >
           <option
-            v-for="status in statuses"
+            v-for="status in allowedStatuses(row.status_wsh)"
             :key="status"
             :value="status"
             :disabled="status === row.status_wsh"
@@ -139,13 +141,22 @@ const tabs = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '待付款' },
   { key: 'paid', label: '已支付' },
-  { key: 'confirmed', label: '待送达' },
+  { key: 'confirmed', label: '待接收' },
   { key: 'in_progress', label: '服务中' },
   { key: 'completed', label: '已完成' },
   { key: 'cancelled', label: '已取消' },
 ]
 
-// 状态下拉的可选项直接从 OrderStatus 里取，以后后端加状态这里自动多一项
+// 状态下拉只列「当前状态 + 允许的下一个状态」。
+// 这张表必须与后端 OrderStatus.MANUAL_TRANSITIONS 保持一致：
+// 手动修正只能沿履约链向前一步，跳步会绕过交接码/开始照片，资金态必须走专用接口。
+const MANUAL_TRANSITIONS = {
+  confirmed: ['received'],
+  received: ['in_progress'],
+}
+function allowedStatuses(current) {
+  return [current, ...(MANUAL_TRANSITIONS[current] || [])]
+}
 const statuses = Object.keys(OrderStatus)
 const statusLabels = Object.fromEntries(statuses.map(status => [status, getStatusLabel(OrderStatus, status)]))
 
@@ -180,10 +191,10 @@ async function loadOrders() {
 
 onMounted(loadOrders)
 
-// 管理员可以直接把订单改成任意状态。正常走向是：
-// 待付款 → 已支付 → 待送达 → 已送达 → 已接收 → 服务中 → 已完成，中途可以取消或走退款。
-// 下拉里所有状态都摆着，后端也不校验顺序，所以改错了只能再手动改回来。
-async function changeStatus(order, newStatus) {
+// 管理员手动修正状态：只能沿履约链向前一步（与后端转移表一致）。
+// 待付款 → 已支付 → 待接收 → 已接收 → 服务中 → 已完成；取消与退款走各自的专用接口。
+async function changeStatus(order, event) {
+  const newStatus = event.target.value
   try {
     const response = await updateOrderStatus(order.id_wsh, { status_wsh: newStatus })
     if (response.code === 200) {
@@ -191,9 +202,13 @@ async function changeStatus(order, newStatus) {
       order.status_wsh = newStatus
       order.status_label_wsh = makeStatusBadge(OrderStatus, newStatus)
       appStore.addToast(`状态已变更为 ${statusLabels[newStatus] || newStatus}`, 'success')
+    } else {
+      // 后端拒绝时把下拉恢复成原值，否则界面会显示一个并不存在的状态
+      event.target.value = order.status_wsh
     }
-  } catch (_) {
-    appStore.addToast('操作失败', 'error')
+  } catch (e) {
+    appStore.addToast(e?.message || '操作失败', 'error')
+    event.target.value = order.status_wsh
   }
 }
 

@@ -88,7 +88,7 @@
       </div>
     </div>
 
-    <!-- 底部按钮全看订单状态：待付款给取消+付款，已支付只能等门店，待送达确认收货，服务中看动态，已完成评价打赏，取消退款类只能重约 -->
+    <!-- 底部按钮全看订单状态：待付款给取消+付款，已支付只能等门店，待接收提示告知交接码，服务中看动态，已完成评价打赏，取消退款类只能重约 -->
     <footer class="oc-actions">
       <template v-if="order.status_wsh === 'pending'">
         <button class="oc-btn oc-btn-danger" type="button" :disabled="processing" @click="$emit('cancel', order)">取消订单</button>
@@ -100,10 +100,10 @@
         <button class="oc-btn" type="button" @click="$emit('viewDetail', order)">订单详情</button>
       </template>
 
-      <!-- 门店已经接单，这一步轮到家长点"确认已送达" -->
+      <!-- 门店已接单，等待看护者凭交接码接收 -->
       <template v-else-if="order.status_wsh === 'confirmed'">
         <button class="oc-btn" type="button" @click="$emit('viewDetail', order)">订单详情</button>
-        <button class="oc-btn oc-btn-primary" type="button" :disabled="processing" @click="$emit('deliver', order)">确认已送达</button>
+        <span class="oc-note">把交接码告知看护者，由对方确认接收</span>
       </template>
 
       <template v-else-if="isActive">
@@ -140,7 +140,7 @@ const props = defineProps({
   nowMs: { type: Number, default: () => Date.now() },
   processing: { type: Boolean, default: false },
 })
-defineEmits(['cancel', 'pay', 'deliver', 'review', 'tip', 'viewDetail'])
+defineEmits(['cancel', 'pay', 'review', 'tip', 'viewDetail'])
 
 const router = useRouter()
 
@@ -149,8 +149,7 @@ const router = useRouter()
 const STATUS_META = {
   pending: { label: '待付款', tone: 'action' },
   paid: { label: '已支付', tone: 'queued' },
-  confirmed: { label: '待送达', tone: 'queued' },
-  delivered: { label: '已送达', tone: 'active' },
+  confirmed: { label: '待接收', tone: 'queued' },
   received: { label: '已接收', tone: 'active' },
   in_progress: { label: '服务中', tone: 'active' },
   completed: { label: '已完成', tone: 'done' },
@@ -159,18 +158,18 @@ const STATUS_META = {
   refunded: { label: '已退款', tone: 'closed' },
 }
 // 状态换算成进度条上的位置，-1 表示这单不该显示进度条；下面四步各取订单上的一个时间字段
-const PHASE_INDEX = { pending: 0, paid: 1, confirmed: 1, delivered: 2, received: 2, in_progress: 2, completed: 3, cancelled: -1, refunding: -1, refunded: -1 }
+const PHASE_INDEX = { pending: 0, paid: 1, confirmed: 1, received: 2, in_progress: 2, completed: 3, cancelled: -1, refunding: -1, refunded: -1 }
 const PHASES = [
   { key: 'placed', label: '已下单', timeField: 'created_at_wsh' },
   { key: 'paid', label: '已支付', timeField: 'delivery_time_wsh' },
-  { key: 'staying', label: '寄养中', timeField: 'delivered_at_wsh' },
-  { key: 'done', label: '已完成', timeField: 'received_at_wsh' },
+  { key: 'staying', label: '寄养中', timeField: 'received_at_wsh' },
+  { key: 'done', label: '已完成', timeField: 'completed_at_wsh' },
 ]
 
 const status = computed(() => props.order.status_wsh || '')
 const meta = computed(() => STATUS_META[status.value] || { label: status.value || '未知状态', tone: 'closed' })
 const phaseIndex = computed(() => PHASE_INDEX[status.value] ?? -1)
-const isActive = computed(() => ['delivered', 'received', 'in_progress'].includes(status.value))   // 服务中的三个状态按钮和样式完全一样，归成一类
+const isActive = computed(() => ['received', 'in_progress'].includes(status.value))   // 服务中的状态按钮和样式一致，归成一类
 const isCompleted = computed(() => status.value === 'completed')
 
 function statusToneClass(tone) {

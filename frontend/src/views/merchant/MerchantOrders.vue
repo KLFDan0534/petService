@@ -16,7 +16,7 @@
         <strong>{{ orders.length }}</strong>
       </div>
       <div class="summary-item">
-        <span>待接单</span>
+        <span>已支付待处理</span>
         <strong>{{ countByStatus('paid') }}</strong>
       </div>
       <div class="summary-item">
@@ -81,7 +81,7 @@
           </div>
           <div>
             <dt>看护人</dt>
-            <dd>{{ order.keeper_name_wsh || `#${order.keeper_id_wsh || '-'}` }}</dd>
+            <dd>{{ order.keeper_name_wsh || (order.keeper_id_wsh ? `#${order.keeper_id_wsh}` : '待分配') }}</dd>
           </div>
           <div>
             <dt>服务日期</dt>
@@ -105,8 +105,22 @@
 
         <p v-if="order.remark_wsh" class="remark">{{ order.remark_wsh }}</p>
 
-        <!-- 商家在这一页只有查看入口，接单、送达、完结都得进详情页做 -->
+        <!-- 待分配订单可以就地指派；其余动作仍进详情页做 -->
         <footer class="order-actions">
+          <template v-if="isUnassigned(order)">
+            <select v-model="assignSelection[assignKey(order)]" class="assign-select">
+              <option value="">选择看护人</option>
+              <option v-for="keeper in assignableKeepers" :key="keeper.id_wsh" :value="String(keeper.id_wsh)">
+                {{ keeper.name_wsh }}（在住 {{ keeper.current_pets_wsh || 0 }}/{{ keeper.max_pets_wsh || '-' }}）
+              </option>
+            </select>
+            <button
+              class="btn btn-sm btn-primary"
+              type="button"
+              :disabled="assigningOrderNo === order.order_no_wsh || !assignSelection[assignKey(order)]"
+              @click="handleAssign(order)"
+            >{{ assigningOrderNo === order.order_no_wsh ? '指派中...' : '指派' }}</button>
+          </template>
           <button class="btn btn-sm btn-outline" type="button" @click="goDetail(order)">
             查看详情
           </button>
@@ -117,10 +131,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
-import { getMerchantOrders } from '@/api/order'
+import { assignOrder, getMerchantOrders } from '@/api/order'
+import { getKeepersByMerchant } from '@/api/keeper'
 import { OrderStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
 import { formatDate, formatDateTime, formatMoney as money } from '@/utils/format'
 import { billingText } from '@/domain/BookingUnit'
@@ -140,6 +155,10 @@ const loading = ref(false)
 const error = ref('')
 const activeTab = ref('all')
 const nowMs = ref(Date.now())   // 当前时间，倒计时靠它走
+// 待分配订单的指派选择：order_no -> keeperId
+const assignSelection = reactive({})
+const assignableKeepers = ref([])
+const assigningOrderNo = ref('')
 let countdownTimer = null
 let nextPaymentTimeoutRefreshAt = 0   // 下次允许重新拉列表的时间点
 
@@ -147,6 +166,7 @@ let nextPaymentTimeoutRefreshAt = 0   // 下次允许重新拉列表的时间点
 const tabs = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '待支付' },
+  { key: 'unassigned', label: '待分配' },
   { key: 'paid', label: '待接单' },
   { key: 'active', label: '服务中' },
   { key: 'completed', label: '已完成' },
@@ -158,7 +178,7 @@ const tabs = [
 const tabStatusMap = {
   pending: ['pending'],
   paid: ['paid'],
-  active: ['confirmed', 'delivered', 'received', 'in_progress'],
+  active: ['confirmed', 'received', 'in_progress'],
   completed: ['completed'],
   cancelled: ['cancelled'],
   refund: ['refunding', 'refunded'],
@@ -167,13 +187,20 @@ const tabStatusMap = {
 // 按当前页签挑订单，"全部"就直接把原列表给出去
 const filteredOrders = computed(() => {
   if (activeTab.value === 'all') return orders.value
+  if (activeTab.value === 'unassigned') {
+    return orders.value.filter(order => orderStatus(order) === 'paid' && !order.keeper_id_wsh)
+  }
+  if (activeTab.value === 'paid') {
+    // 「待接单」只列已指派的单；没有负责人的在「待分配」里，避免两处重复
+    return orders.value.filter(order => orderStatus(order) === 'paid' && Boolean(order.keeper_id_wsh))
+  }
   const statuses = tabStatusMap[activeTab.value] || [activeTab.value]
   return orders.value.filter(order => statuses.includes(orderStatus(order)))
 })
 
 // 概览里的"服务中"是这四种状态加起来的总数
 const activeCount = computed(() =>
-  ['confirmed', 'delivered', 'received', 'in_progress'].reduce((sum, status) => sum + countByStatus(status), 0)
+  ['confirmed', 'received', 'in_progress'].reduce((sum, status) => sum + countByStatus(status), 0)
 )
 
 // 每秒把当前时间往前推一格，支付倒计时才会走字，顺便看看有没有订单超时要刷新
@@ -203,6 +230,10 @@ async function loadOrders() {
       ...order,
       status_wsh: orderStatus(order),
     }))
+    // 指派下拉需要本商家的在职看护人；没有待分配订单时不必查
+    if (orders.value.some(isUnassigned)) {
+      await loadAssignableKeepers()
+    }
   } catch (err) {
     error.value = err?.message || '无法获取商家订单'
     appStore.addToast(error.value, 'error')
@@ -233,11 +264,65 @@ function countByStatus(status) {
 // 页签上的小数字，跟筛选用的是同一套状态分组，不会出现数字和列表对不上
 function countByTab(key) {
   if (key === 'all') return orders.value.length
+  // 「待分配 / 待接单」按负责人有无拆开，计数必须和 filteredOrders 同一口径
+  if (key === 'unassigned') {
+    return orders.value.filter(order => orderStatus(order) === 'paid' && !order.keeper_id_wsh).length
+  }
+  if (key === 'paid') {
+    return orders.value.filter(order => orderStatus(order) === 'paid' && Boolean(order.keeper_id_wsh)).length
+  }
   const statuses = tabStatusMap[key] || [key]
   return orders.value.filter(order => statuses.includes(orderStatus(order))).length
 }
 
 // 后端有时给英文有时给中文，这里统一翻成英文小写，后面判断就不用管来源了
+/** 指派选择器的 key：优先用订单ID，避免订单号缺失时多张卡片共用同一个 key */
+function assignKey(order) {
+  return String(order.id_wsh || order.order_no_wsh || '')
+}
+
+/** 已支付但还没有负责人：需要商家指派或等待看护者抢单 */
+function isUnassigned(order) {
+  return orderStatus(order) === 'paid' && !order.keeper_id_wsh
+}
+
+/** 加载本商家的在职看护人，供指派下拉使用 */
+async function loadAssignableKeepers() {
+  const merchantId = orders.value.find(order => order.merchant_id_wsh)?.merchant_id_wsh
+  if (!merchantId) return
+  try {
+    const res = await getKeepersByMerchant(merchantId)
+    const list = res.code === 200 && Array.isArray(res.data) ? res.data : []
+    assignableKeepers.value = list
+  } catch (e) {
+    assignableKeepers.value = []
+  }
+}
+
+async function handleAssign(order) {
+  const key = assignKey(order)
+  const keeperId = Number(assignSelection[key])
+  if (!keeperId) {
+    appStore.addToast('请先选择看护人', 'warning')
+    return
+  }
+  assigningOrderNo.value = order.order_no_wsh
+  try {
+    const res = await assignOrder({ order_no_wsh: order.order_no_wsh, keeper_id_wsh: keeperId })
+    if (res.code === 200) {
+      appStore.addToast('指派成功', 'success')
+      delete assignSelection[key]
+      await loadOrders()
+      return
+    }
+    appStore.addToast(res.message || '指派失败', 'error')
+  } catch (e) {
+    appStore.addToast(e?.response?.data?.message || e?.message || '指派失败', 'error')
+  } finally {
+    assigningOrderNo.value = ''
+  }
+}
+
 function orderStatus(order) {
   const raw = String(order?.status_wsh ?? order?.status ?? '').trim()
   const normalized = raw.toLowerCase()
@@ -247,8 +332,7 @@ function orderStatus(order) {
     '已支付': 'paid',
     '待接单': 'paid',
     '已确认': 'confirmed',
-    '待送达': 'confirmed',
-    '已送达': 'delivered',
+    '待接收': 'confirmed',
     '已接收': 'received',
     '服务中': 'in_progress',
     '进行中': 'in_progress',
@@ -517,10 +601,25 @@ function goDetail(order) {
 
 .order-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--color-border);
+}
+
+.assign-select {
+  min-width: 150px;
+  max-width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  /* 不写死背景色：跟随主题，避免暗色下浅字压白底 */
+  background: var(--color-card, transparent);
+  color: inherit;
+  font-size: 13px;
 }
 
 @media (max-width: 760px) {

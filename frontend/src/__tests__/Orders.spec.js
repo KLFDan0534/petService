@@ -23,7 +23,6 @@ vi.mock('@/stores/app', () => ({
 vi.mock('@/api/order', () => ({
   getOrders: vi.fn(() => Promise.resolve(state.orders)),
   cancelOrder: vi.fn(),
-  confirmDelivered: vi.fn(),
 }))
 
 vi.mock('@/api/payment', () => ({

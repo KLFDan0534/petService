@@ -72,8 +72,8 @@ const emit = defineEmits(['update:orderId', 'upload-timeline', 'refresh'])
 
 // 状态和动态类型的中文名都写死在前端，接口只给英文 key
 const statusMap = {
-  pending: '待付款', paid: '已支付', confirmed: '待送达',
-  delivered: '已送达', received: '已接收', in_progress: '培养中',
+  pending: '待付款', paid: '已支付', confirmed: '待接收',
+  received: '已接收', in_progress: '培养中',
   completed: '已完成', cancelled: '已取消',
 }
 

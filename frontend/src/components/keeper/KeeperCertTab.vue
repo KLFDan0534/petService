@@ -4,7 +4,7 @@
 
     <div v-if="keeperInfo" class="profile-summary">
       <strong>{{ keeperInfo.name_wsh }}</strong>
-      <span>从业 {{ keeperInfo.experience_years_wsh || 0 }} 年 · ¥{{ keeperInfo.price_per_day_wsh || 0 }}/天 · 容量 {{ keeperInfo.current_pets_wsh || 0 }}/{{ keeperInfo.max_pets_wsh || '-' }}</span>
+      <span>从业 {{ keeperInfo.experience_years_wsh || 0 }} 年 · 容量 {{ keeperInfo.current_pets_wsh || 0 }}/{{ keeperInfo.max_pets_wsh || '-' }}</span>
       <div class="qualification-list">
         <span v-if="!(keeperInfo.qualifications_wsh || []).length" class="hint">暂无资质记录</span>
         <span v-for="q in keeperInfo.qualifications_wsh || []" :key="q.id_wsh" class="badge badge-info">
@@ -24,7 +24,6 @@
       <label>姓名<input v-model="certForm.name_wsh" class="form-control"></label>
       <label>手机<input v-model="certForm.phone_wsh" class="form-control"></label>
       <label>从业年限<input v-model.number="certForm.experience_years_wsh" type="number" class="form-control"></label>
-      <label>日收费<input v-model.number="certForm.price_per_day_wsh" type="number" class="form-control"></label>
       <label>最大接单数<input v-model.number="certForm.max_pets_wsh" type="number" class="form-control"></label>
       <label class="form-grid__wide">
         资质照片
@@ -54,7 +53,6 @@ const certForm = reactive({
   phone_wsh: '',
   avatar_wsh: '',
   experience_years_wsh: 3,
-  price_per_day_wsh: 100,
   max_pets_wsh: 3,
   bio_wsh: '',
   qualification_image_wsh: '',

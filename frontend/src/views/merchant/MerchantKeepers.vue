@@ -33,10 +33,6 @@
               <span class="detail-value">{{ k.experience_years_wsh || 0 }} 年</span>
             </div>
             <div class="detail-row">
-              <span class="detail-label">每日费用</span>
-              <span class="detail-value">¥{{ k.price_per_day_wsh || 0 }}</span>
-            </div>
-            <div class="detail-row">
               <span class="detail-label">最大接待</span>
               <span class="detail-value">{{ k.max_pets_wsh || 0 }} 只</span>
             </div>
