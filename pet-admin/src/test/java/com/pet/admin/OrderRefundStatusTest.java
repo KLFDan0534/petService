@@ -33,7 +33,7 @@ class OrderRefundStatusTest {
     @Test
     void createRefundAcceptsConfirmedOrderAndStoresPreviousStatus() {
         PetOrder order = order(OrderStatus.CONFIRMED);
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(orderMapper.selectByOrderNoForUpdate("ORD_REFUND")).thenReturn(order);
         when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         Refund refund = service().createRefund(7L, "ORD_REFUND", "change plan");

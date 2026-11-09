@@ -1,6 +1,5 @@
 package com.pet.order.service.impl;
 
-import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.entity.ServiceItem;
 import com.pet.common.BookingErrorCode;
 import com.pet.common.BusinessException;
@@ -33,15 +32,9 @@ class ServiceDrivenOrderTest {
         return s;
     }
 
-    private Keeper keeper() {
-        Keeper k = new Keeper();
-        k.setPrice_per_day_wsh(new BigDecimal("100.00"));
-        return k;
-    }
-
     @Test
     void allCanonicalUnitsAccepted() {
-        assertDoesNotThrow(() -> OrderServiceImpl.assertServiceUnitSupported(service("day", "120.00", null)));
+        assertDoesNotThrow(() -> OrderServiceImpl.assertServiceUnitSupported(service("night", "120.00", null)));
         assertDoesNotThrow(() -> OrderServiceImpl.assertServiceUnitSupported(service("session", "120.00", null)));
         assertDoesNotThrow(() -> OrderServiceImpl.assertServiceUnitSupported(service("hour", "120.00", null)));
     }
@@ -78,18 +71,21 @@ class ServiceDrivenOrderTest {
     }
 
     @Test
-    void servicePricingUsedWhenServiceProvided() {
+    void servicePricingIsTheOnlySource() {
         ServiceItem s = service("day", "120.00", null);
-        assertEquals(0, new BigDecimal("120.00").compareTo(OrderServiceImpl.resolvePricePerDay(s, keeper())));
+        assertEquals(0, new BigDecimal("120.00").compareTo(OrderServiceImpl.resolveUnitPrice(s)));
     }
 
     @Test
-    void legacyKeeperPricingWhenNoService() {
-        assertEquals(0, new BigDecimal("100.00").compareTo(OrderServiceImpl.resolvePricePerDay(null, keeper())));
+    void missingServicePriceIsRejectedInsteadOfFallingBack() {
+        // 看护者个人定价已下线：服务没有价格时必须报错，不能静默用某个人的价顶上
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> OrderServiceImpl.resolveUnitPrice(null));
+        assertEquals(400, ex.getCode());
     }
 
     @Test
-    void legacyDayOrderReadDerivesNewFields() {
+    void legacyOrderReadDerivesNightFields() {
         PetOrder legacy = new PetOrder();
         legacy.setId_wsh(1L);
         legacy.setDays_wsh(3);
@@ -101,7 +97,7 @@ class ServiceDrivenOrderTest {
         OrderDTO dto = new OrderDTO();
         OrderServiceImpl.applyBillingReadCompat(dto, legacy);
 
-        assertEquals("day", dto.getBilling_unit_wsh());
+        assertEquals("night", dto.getBilling_unit_wsh());
         assertEquals(3, dto.getQuantity_wsh());
         assertEquals(0, dto.getUnit_price_wsh().compareTo(new BigDecimal("120.00")));
         assertEquals(1440, dto.getDuration_minutes_wsh());
@@ -151,8 +147,8 @@ class ServiceDrivenOrderTest {
     }
 
     @Test
-    void discountDaysIsQuantityOnlyForDayUnit() {
-        assertEquals(3, OrderServiceImpl.resolveDiscountDays("day", 3));
+    void discountDaysIsQuantityOnlyForNightUnit() {
+        assertEquals(3, OrderServiceImpl.resolveDiscountDays("night", 3));
         assertEquals(1, OrderServiceImpl.resolveDiscountDays("session", 1));
         assertEquals(1, OrderServiceImpl.resolveDiscountDays("hour", 5));
         assertEquals(1, OrderServiceImpl.resolveDiscountDays("hour", 12));

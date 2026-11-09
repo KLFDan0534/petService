@@ -7,6 +7,7 @@ import com.pet.order.dto.OrderCreateRequestDTO;
 import com.pet.order.dto.OrderSnapshotDTO;
 import com.pet.order.entity.OrderSnapshot;
 import com.pet.order.entity.PetOrder;
+import com.pet.order.pricing.NightPricingRule;
 import com.pet.pet.entity.Pet;
 import com.pet.system.entity.User;
 
@@ -69,20 +70,6 @@ public interface OrderSnapshotService {
                                  OrderCreateRequestDTO request);
 
     /**
-     * 【查询订单快照】
-     *
-     * 业务作用：
-     * 根据订单ID查询快照DTO，用于展示订单历史快照信息。
-     *
-     * 调用场景：
-     * 订单详情页查询快照数据。
-     *
-     * @param orderId 订单ID
-     * @return 订单快照DTO，不存在时返回null
-     */
-    OrderSnapshotDTO getByOrderId(Long orderId);
-
-    /**
      * 【批量查询订单快照】
      *
      * 业务作用：
@@ -98,4 +85,36 @@ public interface OrderSnapshotService {
      * @return 订单ID到快照DTO的映射，无匹配时返回空Map
      */
     Map<Long, OrderSnapshotDTO> findDTOMapByOrderIds(Set<Long> orderIds);
+
+    /**
+     * 【回填看护者快照】
+     *
+     * 业务作用：
+     * 下单时负责人可能为空（待分配），分配成功后把看护者身份写回快照，
+     * 否则新流程的订单快照里永远没有负责人，纠纷与结算取证链断裂。
+     *
+     * 调用场景：
+     * OrderServiceImpl.assignTo 抢单/指派/超时自动分配成功后。
+     *
+     * 数据处理：
+     * 只更新 keeper_snapshot_wsh 一列，其余快照字段不动。
+     *
+     * @param orderId 订单ID
+     * @param keeper  分配到的看护者
+     */
+    void refreshKeeperSnapshot(Long orderId, Keeper keeper);
+
+    /**
+     * 【读取并校验按夜计价快照】
+     *
+     * 业务作用：
+     * 接走确认时按订单读取冻结的夜价、预订夜数与离店/免费锚点，用于计算实际晚接费。
+     * 快照缺失、版本不符或字段格式错误时明确失败——绝不回读当前服务价兜底，
+     * 否则商家改价会篡改历史订单（AE17）。
+     *
+     * @param orderId 订单ID
+     * @return 冻结的按夜计价规则
+     * @throws com.pet.common.BusinessException 快照缺失或格式错误
+     */
+    NightPricingRule requireNightPricingRule(Long orderId);
 }

@@ -136,6 +136,20 @@ export const useOrderDetailStore = defineStore('orderDetail', () => {
     return { success: false, message: payRes.message }
   }
 
+  /**
+   * 晚接补费支付：直接用后端已生成的补费单号支付，不再走 createPayment。
+   * 补费单由 keeper 确认接走时创建，金额与冻结时刻都由服务端决定。
+   */
+  async function payOvertime(id, payNo) {
+    if (!payNo) return { success: false, message: '未找到补费单，请刷新后重试' }
+    const payRes = await executePayment({ pay_no_wsh: payNo })
+    if (payRes.code === 200) {
+      await fetchOrderDetail(id)
+      return { success: true }
+    }
+    return { success: false, message: payRes.message }
+  }
+
   async function cancel(id) {
     const response = await cancelOrderApi({ order_id_wsh: id })
     if (response.code === 200) {
@@ -180,6 +194,7 @@ export const useOrderDetailStore = defineStore('orderDetail', () => {
     fetchReports,
     regenerate,
     pay,
+    payOvertime,
     cancel,
     $reset
   }

@@ -1,8 +1,12 @@
 package com.pet.order.service;
 
+import com.pet.order.dto.OrderBatchCreateRequestDTO;
+import com.pet.order.dto.OrderCheckoutDTO;
+import com.pet.order.dto.OrderCompleteRequestDTO;
 import com.pet.order.dto.OrderCreateRequestDTO;
-import com.pet.order.dto.OrderDeliveredRequestDTO;
 import com.pet.order.dto.OrderDTO;
+import com.pet.order.dto.OrderPreviewRequestDTO;
+import com.pet.order.dto.OrderQuoteDTO;
 import com.pet.order.dto.OrderReceivedRequestDTO;
 import com.pet.order.dto.OrderBatchCreateRequestDTO;
 import com.pet.order.entity.PetOrder;
@@ -135,36 +139,6 @@ public interface OrderService {
      * @return 该看护者的活跃订单DTO列表
      */
     List<OrderDTO> listByKeeper(Long keeperId);
-
-    /**
-     * 【查询看护者的待处理订单列表】
-     *
-     * 业务作用：
-     * 查询看护者需要处理的待接单/待确认订单（PENDING或PAID状态），用于看护者端接单入口。
-     *
-     * 调用场景：
-     * 看护者查看"待处理订单"，决定接受或拒绝。
-     *
-     * 调用链：
-     * 看护者端/Controller
-     * ↓
-     * listPendingByKeeper(keeperId)
-     * ↓
-     * orderMapper.selectList() + toDTOEnrichedList()
-     *
-     * 数据处理：
-     * 按看护者ID过滤，仅返回PENDING或PAID状态的订单，按创建时间降序排列。
-     *
-     * 业务规则：
-     * PENDING表示未支付，PAID表示已支付等待确认。
-     *
-     * 状态影响：
-     * 只读操作。
-     *
-     * @param keeperId 看护者ID
-     * @return 该看护者的待处理订单DTO列表
-     */
-    List<OrderDTO> listPendingByKeeper(Long keeperId);
     /**
      * 【根据订单号查询订单实体】
      *
@@ -364,73 +338,75 @@ public interface OrderService {
     @Deprecated
     void cancelOrder(Long ownerId, String orderNo);
     /**
-     * 【完成订单】
+     * 【确认接走（完成订单）】
      *
      * 业务作用：
-     * 看护者或商家在服务完成后标记订单完成，触发商家结算、AI报告生成和看护者容量刷新。
-     *
-     * 调用场景：
-     * 看护者/商家在服务完成后点击"完成订单"。
-     *
-     * 调用链：
-     * 看护者端/商家端/Controller
-     * ↓
-     * completeOrder(userId, orderNo)
-     * ↓
-     * 校验权限/状态 → 乐观锁更新COMPLETED → 结算到商家 → 发布OrderCompletedEvent → 刷新容量
-     *
-     * 数据处理：
-     * 更新订单状态和完成时间，触发settleOrderToMerchant转账结算。
+     * keeper 输入独立接走码后固定实际接走时刻，按冻结快照计算晚接费：
+     * 0 费直接完成并释放容量；有费则创建唯一补费单，等主人余额支付成功后完成。
+     * 重复提交同一接走码返回原冻结结果（不重新计时、不生成第二笔补费单）。
      *
      * 业务规则：
-     * 1. 仅看护者或商家可操作
-     * 2. 看护者必须在岗
-     * 3. 仅IN_PROGRESS状态可完成
-     * 4. 完成时自动触发结算和AI报告生成
+     * 1. 仅看护者或商家可操作，且必须在岗（已确认的重复请求不要求在岗）
+     * 2. 仅 IN_PROGRESS 状态可确认接走
+     * 3. 接走码必须为 4 位数字且与本单接走码一致；送达码不能用于完成订单
+     * 4. 实际接走时刻与金额全部由服务端计算，不接受前端提供
      *
      * 状态影响：
-     * IN_PROGRESS → COMPLETED
-     *
-     * 异常情况：
-     * 权限不足抛403；看护者不在岗抛400；状态不对抛400。
+     * IN_PROGRESS → COMPLETED（0 费），或保持 IN_PROGRESS 并生成待补费单
      *
      * @param userId  用户ID（必须是订单的看护者或商家）
-     * @param orderNo 订单编号
+     * @param request 订单号 + 独立接走码
+     * @return 接走结果（冻结时间、晚接小时、补费金额、补费单号、是否已完成）
      */
-    void completeOrder(Long userId, String orderNo);
+    OrderCheckoutDTO completeOrder(Long userId, OrderCompleteRequestDTO request);
 
     /**
-     * 【接受订单（接单）】
+     * 【晚接补费支付成功回调（受控内部方法）】
      *
      * 业务作用：
-     * 看护者接受已支付的订单，确认履约。验证资质、容量和请假状态后推进到CONFIRMED状态。
+     * 补费支付成功后把补费金额一次性累计进订单金额并完成订单。
+     * 仅供支付模块在补费支付成功后调用，不暴露为 HTTP 接口。
      *
-     * 调用场景：
-     * 看护者在"待处理订单"中点击"接单"。
+     * @param orderId   订单ID
+     * @param paymentId 补费支付单ID
+     */
+    void applyOvertimePayment(Long orderId, Long paymentId);
+
+    /**
+     * 【待分配订单池（看护者视角）】
      *
-     * 调用链：
-     * 看护者端/Controller
-     * ↓
-     * acceptOrder(userId, orderNo)
-     * ↓
-     * 校验权限/状态/资质/容量/请假 → 乐观锁更新CONFIRMED → 刷新容量 → 广播
+     * 业务作用：列出当前看护者所属商家名下、已支付但尚未分配负责人的订单，供其抢单。
      *
-     * 业务规则：
-     * 1. 仅分配的看护者可接单
-     * 2. 仅PAID状态可接单
-     * 3. 需要看护者资质审核通过
-     * 4. 需要看护者有足够容量且不在请假中
+     * @param userId 当前登录用户ID
+     * @return 可抢订单列表；未绑定商家时返回空列表
+     */
+    List<OrderDTO> listAssignableForKeeper(Long userId);
+
+    /**
+     * 【看护者抢单】
      *
-     * 状态影响：
-     * PAID → CONFIRMED
+     * 业务作用：看护者主动领取本商家名下待分配订单，成功后订单进入 CONFIRMED。
      *
-     * 异常情况：
-     * 非指定看护者抛403；状态非PAID抛400；容量不足/资质未通过/请假中抛400。
+     * 业务规则：仅该商家名下看护者可抢；仅 PAID 且 keeper_id 为空的订单可抢；
+     * 抢单前重新校验资质、休假与容量；CAS 更新保证同一订单只被一人抢到。
      *
-     * @param userId  用户ID（必须为看护者对应的用户账号）
+     * @param userId  看护者对应的用户账号ID
      * @param orderNo 订单编号
      */
-    void acceptOrder(Long userId, String orderNo);
+    void claimOrder(Long userId, String orderNo);
+
+    /**
+     * 【商家指派负责人】
+     *
+     * 业务作用：商家管理员把待分配订单指派给名下看护者，成功后订单进入 CONFIRMED。
+     *
+     * 业务规则：仅订单所属商家的管理员可指派；指派前重新校验资质、休假与容量。
+     *
+     * @param userId  商家管理员用户ID
+     * @param orderNo 订单编号
+     * @param keeperId 目标看护者ID
+     */
+    void assignOrder(Long userId, String orderNo, Long keeperId);
 
     /**
      * 【拒绝订单（拒单）】
@@ -595,127 +571,30 @@ public interface OrderService {
      */
     int cancelPaymentTimeoutOrders();
     /**
-     * 【标记订单已送达（宠物已送到）】
-     *
-     * 业务作用：
-     * 宠物主人将宠物送到看护者/商家处时，标记订单为已送达状态。记录送达时间。
-     *
-     * 调用场景：
-     * 宠物主人在交接宠物时点击"已送达"。
-     *
-     * 调用链：
-     * 主人端/Controller
-     * ↓
-     * markDelivered(userId, orderNo)
-     * ↓
-     * 构建空request → 委托markDelivered(userId, request)
-     *
-     * 业务规则：
-     * 1. 仅宠物主人可操作
-     * 2. 仅CONFIRMED状态可送达
-     *
-     * 状态影响：
-     * CONFIRMED → DELIVERED
-     *
-     * 异常情况：
-     * 非主人抛403；状态非CONFIRMED抛400。
-     *
-     * @param userId  宠物主人用户ID
-     * @param orderNo 订单编号
-     */
-    void markDelivered(Long userId, String orderNo);
-
-    /**
-     * 【标记订单已送达（含详细地址信息）】
-     *
-     * 业务作用：
-     * 宠物主人标记送达时同时提供详细的送达地址、GPS坐标和精度信息。
-     *
-     * 调用场景：
-     * 宠物主人填写送达地址和位置后点击"已送达"。
-     *
-     * 调用链：
-     * 主人端/Controller
-     * ↓
-     * markDelivered(userId, request)
-     * ↓
-     * 校验权限/状态 → 乐观锁更新DELIVERED + 位置信息 → 广播
-     *
-     * 数据处理：
-     * 保存送达地址、经纬度、精度到订单记录。
-     *
-     * 业务规则：
-     * 同无参重载方法。
-     *
-     * 状态影响：
-     * CONFIRMED → DELIVERED
-     *
-     * 异常情况：
-     * 请求为空抛400；非主人抛403；状态非CONFIRMED抛400。
-     *
-     * @param userId  宠物主人用户ID
-     * @param request 送达详细信息（地址、坐标）
-     */
-    void markDelivered(Long userId, OrderDeliveredRequestDTO request);
-
-    /**
      * 【标记订单已接收（看护者接宠）】
      *
      * 业务作用：
-     * 看护者或商家接收宠物时验证交接码和GPS距离（在配置的交接半径内），确保交接安全。
-     *
-     * 调用场景：
-     * 看护者/商家在接收到宠物时输入交接码并点击"已接收"。
-     *
-     * 调用链：
-     * 看护者端/商家端/Controller
-     * ↓
-     * markReceived(userId, orderNo, handoverCode)
-     * ↓
-     * 构建request → 委托markReceived(userId, request)
-     *
-     * 业务规则：
-     * 1. 仅看护者或商家可操作，且必须在岗
-     * 2. 仅DELIVERED状态可接收
-     * 3. 交接码必须与订单的一致
-     * 4. 送达坐标与接收坐标距离必须在配置范围内（默认500米）
-     *
-     * 状态影响：
-     * DELIVERED → RECEIVED
-     *
-     * 异常情况：
-     * 交接码不匹配抛400；距离超出范围抛400；状态不对抛400。
-     *
-     * @param userId       用户ID（必须是看护者或商家）
-     * @param orderNo      订单编号
-     * @param handoverCode 4位数字交接码
-     */
-    void markReceived(Long userId, String orderNo, String handoverCode);
-
-    /**
-     * 【标记订单已接收（含详细位置信息）】
-     *
-     * 业务作用：
-     * 看护者或商家接收宠物时同时提供详细的接收位置信息。重载方法接收DTO结构。
-     *
-     * 调用场景：
-     * 看护者/商家填写接收位置后点击"已接收"。
+     * 看护者接收宠物时校验交接码与在岗状态，把订单推进到 RECEIVED。
+     * 不校验 GPS 距离：寄养场景下宠物由主人送到看护者处，下单地址与
+     * 实际交接地点可能不同（例如帮他人下单），距离无法作为有效凭证。
      *
      * 调用链：
-     * 看护者端/商家端/Controller
+     * 看护者端/Controller
      * ↓
      * markReceived(userId, request)
      * ↓
-     * 校验权限/状态/交接码/距离 → 乐观锁更新RECEIVED + 位置 → 广播
+     * 校验权限/在岗/交接码 → 乐观锁更新 RECEIVED → 广播
      *
      * 业务规则：
-     * 同无参重载方法。
+     * 1. 仅看护者或商家可操作，且必须在岗
+     * 2. 仅 CONFIRMED 状态可接收
+     * 3. 交接码必须与订单的一致
      *
      * 状态影响：
-     * DELIVERED → RECEIVED
+     * CONFIRMED → RECEIVED
      *
      * @param userId  用户ID（必须是看护者或商家）
-     * @param request 接收详细信息（交接码、位置）
+     * @param request 接收请求（交接码、接收地址文本）
      */
     void markReceived(Long userId, OrderReceivedRequestDTO request);
     /**
@@ -786,7 +665,7 @@ public interface OrderService {
      *
      * 业务作用：
      * 提供通用的订单状态修正接口，带有安全防护：禁止直接操作涉及资金的状态（PAID/COMPLETED/CANCELLED等），
-     * 仅允许在履约流程内修正（CONFIRMED→DELIVERED→RECEIVED→IN_PROGRESS→COMPLETED）。
+     * 仅允许在履约流程内修正（CONFIRMED→RECEIVED→IN_PROGRESS→COMPLETED）。
      *
      * 调用场景：
      * 管理后台或运营人员手动修正异常状态的订单。
@@ -796,10 +675,11 @@ public interface OrderService {
      * ↓
      * updateOrderStatus(orderNo, status)
      * ↓
-     * 校验状态合法性 → guardManualStatusUpdate() → 冲突/容量检查 → 乐观锁更新 → 结算/发券/广播
+     * 校验状态合法性 → 同状态直接返回 → 查 MANUAL_TRANSITIONS 转移表 → 冲突/容量检查
+     * → 乐观锁更新 → 刷新看护者容量 → 广播
      *
      * 数据处理：
-     * 根据目标状态自动记录对应的时间戳（送达/接收/开始/完成时间）。
+     * 根据目标状态自动记录对应的时间戳（接收/开始时间）。
      *
      * 业务规则：
      * 1. 禁止手动操作会计敏感状态（PAID/COMPLETED/CANCELLED/REFUNDING/REFUNDED）
@@ -861,37 +741,6 @@ public interface OrderService {
     OrderDTO toDTOEnriched(PetOrder entity);
 
     /**
-     * 【根据订单ID获取增强DTO】
-     *
-     * 业务作用：
-     * 根据主键ID查询订单并以增强DTO形式返回，含关联信息。
-     *
-     * 调用场景：
-     * Controller层调用，返回前端展示。
-     *
-     * 数据处理：
-     * getById() + toDTOEnriched() 组合调用。
-     *
-     * @param id 订单ID
-     * @return 增强订单DTO
-     */
-    OrderDTO getDTOById(Long id);
-
-    /**
-     * 【根据订单号获取增强DTO】
-     *
-     * 业务作用：
-     * 根据订单编号查询订单并以增强DTO形式返回，含关联信息。
-     *
-     * 调用场景：
-     * Controller层调用，返回前端展示。
-     *
-     * @param orderNo 订单编号
-     * @return 增强订单DTO
-     */
-    OrderDTO getDTOByOrderNo(String orderNo);
-
-    /**
      * 【删除订单（逻辑删除）】
      *
      * 业务作用：
@@ -913,5 +762,26 @@ public interface OrderService {
      * @param id 订单ID
      */
     void delete(Long id);
+    /**
+     * 【价格预览】
+     *
+     * 业务作用：
+     * 在不创建订单的前提下，返回与真实下单完全一致的金额明细与服务时间语义。
+     *
+     * 调用场景：
+     * 用户在下单弹窗中选择宠物、时间、优惠券时实时询价（POST /api/orders/preview）。
+     *
+     * 业务规则：
+     * 与 createOrder 共用同一套校验与计价代码，因此参数非法/时间冲突/价格变更会抛同样的业务异常。
+     *
+     * 数据处理：
+     * 只读，不产生任何写副作用（不建单、不锁券、不排超时、不发广播）。
+     *
+     * @param ownerId 当前登录用户ID
+     * @param request 预览请求
+     * @return 金额明细与规范化后的服务时间
+     */
+    OrderQuoteDTO previewOrder(Long ownerId, OrderPreviewRequestDTO request);
+
 }
 

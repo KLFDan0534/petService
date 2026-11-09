@@ -32,7 +32,7 @@ public class ServiceAvailabilityVO {
     /** 服务计费单位（规范化） */
     private String unit_wsh;
 
-    /** 预约模式：date_range（按日期区间）/ slot（按时长槽位） */
+    /** 预约模式：interval（按夜连续区间）/ slot（按时长槽位） */
     private String booking_mode_wsh;
 
     /** 单次服务时长（分钟） */
@@ -58,4 +58,21 @@ public class ServiceAvailabilityVO {
 
     /** 按天拆分的可预约性 */
     private List<DayAvailabilityVO> days_wsh;
+
+    // ==================== 按夜计价规则描述（仅 night 返回） ====================
+
+    /** 入住锚点时刻（night 固定 14:00） */
+    private String checkin_anchor_time_wsh;
+
+    /** 免费接走宽限分钟数（night 固定 30） */
+    private Integer checkout_grace_minutes_wsh;
+
+    /** 提前送达按小时计费的门槛分钟数（night 固定 180） */
+    private Integer early_limit_minutes_wsh;
+
+    /** 派生小时价 = 夜价 ÷ 24（仅展示，前端不得用于自行计算） */
+    private java.math.BigDecimal hourly_price_wsh;
+
+    /** 晚接费派生模式（night 固定 night_div_24） */
+    private String overtime_price_mode_wsh;
 }

@@ -24,6 +24,8 @@ public class PaymentDTO {
     private BigDecimal amount_wsh;
     @Schema(description = "支付方式")
     private String method_wsh;
+    @Schema(description = "支付用途：order=预付；night_overtime=晚接补费")
+    private String purpose_wsh;
     @Schema(description = "支付状态")
     private String status_wsh;
     @Schema(description = "支付时间")

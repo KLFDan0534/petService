@@ -31,7 +31,7 @@ public class ServiceItemDTO {
     private String unit_wsh;
     @Schema(description = "单次服务时长（分钟）")
     private Integer duration_minutes_wsh;
-    @Schema(description = "预约模式（date_range/slot）")
+    @Schema(description = "预约模式（interval/slot）")
     private String booking_mode_wsh;
     @Schema(description = "图片")
     private String images_wsh;

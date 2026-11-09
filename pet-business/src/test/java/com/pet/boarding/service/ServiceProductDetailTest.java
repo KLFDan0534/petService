@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * U2-4: 服务公开详情契约 —— 白名单投影、可信图册、评分聚合单次查询、
- * 可预约性标记（未来预约 + day/天 单位）、上架/商家/分类三层可见性校验。
+ * 可预约性标记（未来预约 + night/夜 单位）、上架/商家/分类三层可见性校验。
  */
 @ExtendWith(MockitoExtension.class)
 class ServiceProductDetailTest {
@@ -77,7 +77,7 @@ class ServiceProductDetailTest {
         item.setType_wsh("boarding");
         item.setDescription_wsh("含每日遛狗");
         item.setPrice_wsh(new BigDecimal("128.00"));
-        item.setUnit_wsh("day");
+        item.setUnit_wsh("night");
         item.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         item.setUpdated_at_wsh(LocalDateTime.of(2026, 8, 11, 13, 45, 20));
         return item;
@@ -142,7 +142,7 @@ class ServiceProductDetailTest {
         assertEquals("寄养", vo.getCategory_name_wsh());
         assertEquals("含每日遛狗", vo.getDescription_wsh());
         assertEquals(new BigDecimal("128.00"), vo.getPrice_wsh());
-        assertEquals("day", vo.getUnit_wsh());
+        assertEquals("night", vo.getUnit_wsh());
         assertEquals("2026-08-11T13:45:20", vo.getService_version_wsh());
         assertEquals(new BigDecimal("4.8"), vo.getService_rating_wsh());
         assertEquals(7L, vo.getService_rating_count_wsh());

@@ -47,7 +47,7 @@ const listServices = [
     name_wsh: 'VIP寄养',
     category_id_wsh: 2,
     price_wsh: 299,
-    unit_wsh: '天',
+    unit_wsh: '夜',
     status_wsh: 1,
     description_wsh: '豪华单间',
     images_wsh: 'http://minio/service/legacy-a.png',
@@ -60,9 +60,9 @@ const detail = {
     name_wsh: 'VIP寄养',
     category_id_wsh: 2,
     price_wsh: 299,
-    unit_wsh: '天',
+    unit_wsh: '夜',
     duration_minutes_wsh: 1440,
-    booking_mode_wsh: 'date_range',
+    booking_mode_wsh: 'interval',
     status_wsh: 1,
     description_wsh: '豪华单间',
     images_wsh: 'http://minio/service/u1.png,http://minio/service/u2.png',
@@ -326,19 +326,20 @@ describe('MerchantServices 服务产品编辑器', () => {
 
   // ---- A2 多计费单位契约：红灯测试 ----
 
-  it('F-MGT-011 单位受控选择仅提供 day/session/hour 三个规范单位', async () => {
+  it('F-MGT-011 单位受控选择提供 night/session/hour 三个规范单位', async () => {
     const { wrapper } = createWrapper()
     await openCreateModal(wrapper)
     const unitSelect = wrapper.find('[data-testid="unit-select"]')
     expect(unitSelect.exists()).toBe(true)
     const options = unitSelect.findAll('option').map(o => o.attributes('value'))
-    expect(options).toEqual(['day', 'session', 'hour'])
+    // 过夜寄养统一按夜：day/boarding 两套旧口径已下线
+    expect(options).toEqual(['night', 'session', 'hour'])
   })
 
-  it('F-MGT-012 day 单位时长自动锁定为 1440 分钟', async () => {
+  it('F-MGT-012 night 单位时长自动锁定为 1440 分钟', async () => {
     const { wrapper } = createWrapper()
     await openCreateModal(wrapper)
-    await wrapper.find('[data-testid="unit-select"]').setValue('day')
+    await wrapper.find('[data-testid="unit-select"]').setValue('night')
     const durationInput = wrapper.find('[data-testid="duration-input"]')
     expect(durationInput.exists()).toBe(true)
     expect(Number(durationInput.element.value)).toBe(1440)
@@ -412,13 +413,13 @@ describe('MerchantServices 服务产品编辑器', () => {
     expect(Number(wrapper.find('[data-testid="duration-input"]').element.value)).toBe(90)
   })
 
-  it('F-MGT-016 编辑按天服务回显时长 1440 并随单位切换重算', async () => {
+  it('F-MGT-016 编辑按夜服务回显时长 1440 并随单位切换重算', async () => {
     const { wrapper } = createWrapper()
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '编辑').trigger('click')
     await flushPromises()
-    // detail.unit_wsh='天' 应规范化为 day
-    expect(wrapper.find('[data-testid="unit-select"]').element.value).toBe('day')
+    // detail.unit_wsh='夜' 应规范化为 night
+    expect(wrapper.find('[data-testid="unit-select"]').element.value).toBe('night')
     expect(Number(wrapper.find('[data-testid="duration-input"]').element.value)).toBe(1440)
   })
 

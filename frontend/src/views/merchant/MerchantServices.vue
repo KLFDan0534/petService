@@ -85,7 +85,7 @@
 
           <div class="form-group">
             <label>服务分类</label>
-            <select v-model.number="form.category_id_wsh" required>
+            <select v-model.number="form.category_id_wsh" required @change="onCategoryChange">
               <option :value="null" disabled>请选择服务分类</option>
               <option v-for="cat in categoryOptions" :key="cat.id_wsh" :value="cat.id_wsh">
                 {{ cat.label }}
@@ -99,12 +99,13 @@
               <input v-model.number="form.price_wsh" required type="number" min="0" step="0.01" placeholder="0.00">
             </div>
             <div class="form-group">
-              <label>计价单位</label>
-              <select data-testid="unit-select" :value="form.unit_wsh" @change="onUnitChange">
-                <option value="day">天</option>
-                <option value="session">次</option>
-                <option value="hour">小时</option>
+              <label>计价方式</label>
+              <select data-testid="unit-select" :value="form.unit_wsh" :disabled="Boolean(forcedUnit)" @change="onUnitChange">
+                <option value="night">按夜（每夜一个价，14:00 入住/离店）</option>
+                <option value="session">按次（每次一个价）</option>
+                <option value="hour">按小时（每小时一个价）</option>
               </select>
+              <span v-if="forcedUnit" class="field-hint">{{ forcedUnitHint }}</span>
             </div>
           </div>
 
@@ -117,7 +118,7 @@
               min="15"
               max="1440"
               step="15"
-              :disabled="form.unit_wsh === 'day'"
+              :disabled="form.unit_wsh === 'night'"
             >
             <span v-if="durationError" data-testid="duration-error" class="field-error">{{ durationError }}</span>
             <span v-else class="field-hint">{{ durationHint }}</span>
@@ -220,10 +221,41 @@ const form = reactive({
   category_id_wsh: null,
   description_wsh: '',
   price_wsh: null,
-  unit_wsh: 'day',
+  unit_wsh: 'night',
   duration_minutes_wsh: 1440,
   status_wsh: 1,
 })
+
+/**
+ * 寄养类服务（根分类 BOARDING）的计价方式由分类决定：
+ * - 过夜寄养 → 必须按夜（night），提前送达只加收费用、不顺延离店
+ * - 日间寄养（BOARDING_DAYCARE）→ 必须按次（session），时长沿用商家配置
+ */
+const forcedUnit = computed(() => {
+  const leaf = categories.value.find(c => c.id_wsh === form.category_id_wsh)
+  if (!leaf) return ''
+  const root = leaf.parent_id_wsh
+    ? (categories.value.find(c => c.id_wsh === leaf.parent_id_wsh) || leaf)
+    : leaf
+  if (String(root.code_wsh || '').toUpperCase() !== 'BOARDING') return ''
+  if (String(leaf.code_wsh || '').toUpperCase() === 'BOARDING_DAYCARE') return 'session'
+  return 'night'
+})
+
+const forcedUnitHint = computed(() => {
+  if (forcedUnit.value === 'night') return '过夜寄养固定按夜计价：一夜 24 小时，14:00 入住、离店日 14:00 标准离店'
+  if (forcedUnit.value === 'session') return '日间寄养按次计价，时长沿用你配置的营业时长'
+  return ''
+})
+
+function onCategoryChange() {
+  if (!forcedUnit.value) return
+  form.unit_wsh = forcedUnit.value
+  // 日间寄养保留商家自己的时长配置，不强制成 60 分钟
+  form.duration_minutes_wsh = forcedUnit.value === 'session'
+    ? (Number(form.duration_minutes_wsh) || 480)
+    : defaultDurationMinutes(forcedUnit.value)
+}
 
 // 换计价单位时把时长重置成这个单位该有的值，不然会留着上一单位填的数字
 function onUnitChange(event) {
@@ -240,12 +272,13 @@ const durationError = computed(() => {
   if (minutes < 15) return '时长不能少于 15 分钟'
   if (minutes > 1440) return '时长不能超过 1440 分钟'
   if (unit === 'hour' && minutes % 60 !== 0) return '按小时服务时长必须是 60 的整数倍'
+  if (unit === 'night' && minutes !== 1440) return '按夜服务的计费基数固定为 1440 分钟（一夜）'
   return ''
 })
 
 const durationHint = computed(() => {
   const unit = form.unit_wsh
-  if (unit === 'day') return '按天服务时长固定为 1440 分钟（1 天）'
+  if (unit === 'night') return '一夜 24 小时为计费基数；实际住不满也按预订夜数收，晚接另计'
   if (unit === 'hour') return '必须是 60 的整数倍，范围 60..1440 分钟'
   return '范围 15..1440 分钟'
 })
@@ -315,7 +348,7 @@ function resetForm() {
     category_id_wsh: null,
     description_wsh: '',
     price_wsh: null,
-    unit_wsh: 'day',
+    unit_wsh: 'night',
     duration_minutes_wsh: 1440,
     status_wsh: 1,
   })
@@ -401,7 +434,7 @@ async function openEdit(service) {
       return
     }
     const detail = res.data
-    const rawUnit = normalizeUnit(detail.service_wsh?.unit_wsh) || 'day'
+    const rawUnit = normalizeUnit(detail.service_wsh?.unit_wsh) || 'night'
     Object.assign(form, {
       name_wsh: detail.service_wsh?.name_wsh || '',
       category_id_wsh: detail.service_wsh?.category_id_wsh ?? null,
@@ -561,7 +594,7 @@ function buildPayload() {
     category_id_wsh: form.category_id_wsh,
     description_wsh: form.description_wsh,
     price_wsh: form.price_wsh,
-    unit_wsh: form.unit_wsh || 'day',
+    unit_wsh: form.unit_wsh || 'night',
     duration_minutes_wsh: Number(form.duration_minutes_wsh),
     media_wsh: mediaItems.value.map((item, index) => ({
       file_id_wsh: item.file_id_wsh,

@@ -63,6 +63,30 @@
           </button>
         </div>
 
+        <!-- 交接码：仅主人可见（后端对非主人已置 null） -->
+        <div v-if="order.handover_code_wsh" class="od-handover">
+          <span class="od-handover-label">交接码</span>
+          <span class="od-handover-code">{{ order.handover_code_wsh }}</span>
+          <p class="od-handover-hint">宠物送达时，请把这 4 位数字告知看护者，用于确认接收。</p>
+        </div>
+
+        <!-- 接走码：与交接码是两套独立凭证，只在服务中且尚未确认接走时下发 -->
+        <div v-if="order.pickup_code_wsh" class="od-handover" data-testid="pickup-code-block">
+          <span class="od-handover-label">接走码</span>
+          <span class="od-handover-code" data-testid="pickup-code">{{ order.pickup_code_wsh }}</span>
+          <p class="od-handover-hint">接走宠物时把这 4 位数字告知看护者，由对方输入确认；送达码不能用于接走。</p>
+        </div>
+
+        <!-- 接走结算：时刻由服务端冻结，金额由后端计算，前端只展示 -->
+        <div v-if="order.checkout_confirmed_at_wsh" class="od-handover" data-testid="overtime-summary">
+          <span class="od-handover-label">接走结算</span>
+          <span class="od-handover-code">¥{{ overtimeAmount }}</span>
+          <p class="od-handover-hint">
+            接走时间 {{ dateTime(order.checkout_confirmed_at_wsh) }}；晚接 {{ order.overtime_hours_wsh || 0 }} 小时，补费 ¥{{ overtimeAmount }}
+            <template v-if="overtimePending">（待支付，支付后订单完成）</template>
+          </p>
+        </div>
+
         <!-- 01 订单进度 -->
         <section class="od-section">
           <div class="od-sec-head"><h2 class="od-sec-title">订单进度 <span class="od-sec-en">进度</span></h2></div>
@@ -91,7 +115,7 @@
                 <dd class="od-tabular">
                   {{ dateTime(order.delivery_time_wsh) || '—' }}
                   <span class="od-sep">/</span>
-                  <span :class="order.delivered_at_wsh ? 'od-ink' : 'od-muted'">{{ dateTime(order.delivered_at_wsh) || '待送达' }}</span>
+                  <span :class="order.received_at_wsh ? 'od-ink' : 'od-muted'">{{ dateTime(order.received_at_wsh) || '待接收' }}</span>
                 </dd>
               </div>
               <div class="od-fact">
@@ -99,7 +123,7 @@
                 <dd class="od-tabular">
                   {{ dateTime(order.pickup_time_wsh) || '—' }}
                   <span class="od-sep">/</span>
-                  <span :class="order.received_at_wsh ? 'od-ink' : 'od-muted'">{{ dateTime(order.received_at_wsh) || '待接回' }}</span>
+                  <span :class="order.completed_at_wsh ? 'od-ink' : 'od-muted'">{{ dateTime(order.completed_at_wsh) || '待接回' }}</span>
                 </dd>
               </div>
               <div class="od-fact">
@@ -205,17 +229,31 @@
                 <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'cancel'" @click="cancelOpen = true">取消订单</button>
               </template>
               <template v-else-if="order.status_wsh === 'confirmed'">
-                <button class="od-btn od-btn-primary" type="button" :disabled="busy === 'deliver'" @click="deliverOpen = true">
-                  {{ busy === 'deliver' ? '确认中…' : '确认送达' }}
-                </button>
+                <span class="od-wait-note">已接单 · 把交接码告知看护者，由对方确认接收</span>
               </template>
               <template v-else-if="order.status_wsh === 'paid'">
-                <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'cancel'" @click="cancelOpen = true">申请取消</button>
+                <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'refund'" @click="refundOpen = true">申请退款</button>
+              </template>
+              <template v-else-if="order.status_wsh === 'in_progress'">
+                <!-- 补费只能由主人余额支付：金额与支付单号都来自后端 -->
+                <button
+                  v-if="overtimePending"
+                  class="od-btn od-btn-primary"
+                  data-testid="pay-overtime"
+                  type="button"
+                  :disabled="busy === 'overtime'"
+                  @click="doPayOvertime"
+                >{{ busy === 'overtime' ? '处理中…' : `支付晚接补费 ¥${overtimeAmount}` }}</button>
+                <span v-else-if="order.checkout_confirmed_at_wsh" class="od-wait-note">接走已确认，补费已结清，正在完成订单</span>
+                <span v-else class="od-wait-note">服务中 · 接走时由看护者输入接走码，实际晚接费用当场结算</span>
               </template>
               <template v-else-if="order.status_wsh === 'completed' && !order.has_feedback_wsh">
                 <router-link to="/orders" class="od-btn od-btn-outline">去评价与打赏</router-link>
               </template>
 
+              <button class="od-btn od-btn-quiet" type="button" @click="refreshOrder">
+                <span class="od-act-shield" aria-hidden="true">↻</span>刷新订单
+              </button>
               <router-link to="/chat" class="od-btn od-btn-outline">联系客服</router-link>
               <router-link to="/ai" class="od-btn od-btn-outline">查看照护报告</router-link>
               <button class="od-btn od-btn-quiet" type="button" @click="openComplaint">
@@ -264,20 +302,21 @@
       </div>
     </div>
 
-    <!-- 确认送达 -->
-    <div v-if="deliverOpen" class="od-modal" role="dialog" aria-modal="true" aria-label="确认送达">
-      <div class="od-modal-mask" @click="deliverOpen = false" />
+    <!-- 申请退款：已支付订单不能直接取消，只能走退款 -->
+    <div v-if="refundOpen" class="od-modal" role="dialog" aria-modal="true" aria-label="申请退款">
+      <div class="od-modal-mask" @click="refundOpen = false" />
       <div class="od-modal-box od-modal-box-sm">
-        <h3 class="od-modal-title">确认宠物已送达？</h3>
-        <p class="od-modal-desc">确认后订单进入照护阶段，寄养师将开始记录服务动态。</p>
-        <p v-if="order?.delivery_address_wsh" class="od-modal-detail">送达地址：{{ order.delivery_address_wsh }}</p>
+        <h3 class="od-modal-title">申请退款？</h3>
+        <p class="od-modal-desc">已支付订单需走退款流程，提交后进入审核，通过后金额原路退回。</p>
+        <p v-if="order?.order_no_wsh" class="od-modal-detail"><span class="od-tabular">{{ order.order_no_wsh }}</span></p>
         <div class="od-modal-btns">
-          <button class="od-btn" type="button" @click="deliverOpen = false">再想想</button>
-          <button class="od-btn od-btn-primary" type="button" :disabled="busy === 'deliver'" @click="doDeliver">{{ busy === 'deliver' ? '确认中…' : '确认送达' }}</button>
+          <button class="od-btn" type="button" @click="refundOpen = false">再想想</button>
+          <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'refund'" @click="doRefund">{{ busy === 'refund' ? '提交中…' : '提交退款申请' }}</button>
         </div>
-        <button class="od-modal-close" type="button" aria-label="关闭" @click="deliverOpen = false">✕</button>
+        <button class="od-modal-close" type="button" aria-label="关闭" @click="refundOpen = false">✕</button>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -286,8 +325,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useOrderDetailStore } from '@/stores/orderDetail'
-import { confirmDelivered } from '@/api/order'
-import { getCurrentAddress } from '@/composables/useAmapLocation'
+import { createRefund } from '@/api/refund'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { unitLabel } from '@/domain/BookingUnit'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, isPaymentTimeoutExpired } from '@/utils/orderPaymentTimeout'
@@ -307,7 +345,7 @@ const store = useOrderDetailStore()
 const orderId = ref(Number(route.params.id))
 const payOpen = ref(false)
 const cancelOpen = ref(false)
-const deliverOpen = ref(false)
+const refundOpen = ref(false)
 const copied = ref(false)
 const busy = ref('')
 let timeoutTimer = null
@@ -315,12 +353,16 @@ let nextRefreshAt = 0
 
 const order = computed(() => store.order)
 
+/** 晚接补费是否待支付（由后端返回的补费单状态派生，不新增主订单状态） */
+const overtimePending = computed(() => Boolean(order.value?.overtime_pay_no_wsh)
+  && order.value?.overtime_payment_status_wsh === 'pending')
+const overtimeAmount = computed(() => Math.max(0, Number(order.value?.overtime_amount_wsh || 0)).toFixed(2))
+
 /* ── 状态 ╱ 进度 ── */
 const STATUS_META = {
   pending: { label: '待付款', tone: 'action' },
   paid: { label: '已支付', tone: 'queued' },
-  confirmed: { label: '待送达', tone: 'queued' },
-  delivered: { label: '已送达', tone: 'active' },
+  confirmed: { label: '待接收', tone: 'queued' },
   received: { label: '已接收', tone: 'active' },
   in_progress: { label: '服务中', tone: 'active' },
   completed: { label: '已完成', tone: 'done' },
@@ -328,12 +370,12 @@ const STATUS_META = {
   refunding: { label: '退款中', tone: 'action' },
   refunded: { label: '已退款', tone: 'closed' },
 }
-const PHASE_INDEX = { pending: 0, paid: 1, confirmed: 1, delivered: 2, received: 2, in_progress: 2, completed: 3, cancelled: -1, refunding: -1, refunded: -1 }
+const PHASE_INDEX = { pending: 0, paid: 1, confirmed: 1, received: 2, in_progress: 2, completed: 3, cancelled: -1, refunding: -1, refunded: -1 }
 const PHASES = [
   { key: 'placed', label: '已下单', timeField: 'created_at_wsh' },
   { key: 'paid', label: '已支付', timeField: 'delivery_time_wsh' },
-  { key: 'staying', label: '寄养中', timeField: 'delivered_at_wsh' },
-  { key: 'done', label: '已完成', timeField: 'received_at_wsh' },
+  { key: 'staying', label: '寄养中', timeField: 'received_at_wsh' },
+  { key: 'done', label: '已完成', timeField: 'completed_at_wsh' },
 ]
 
 const meta = computed(() => STATUS_META[order.value?.status_wsh] || { label: order.value?.status_wsh || '未知状态', tone: 'closed' })
@@ -369,9 +411,12 @@ onMounted(() => {
       void store.fetchOrderDetail(orderId.value)
     }
   }, 1000)
+  // keeper 端确认接走后，主人切回页面即能看到补费入口（不新增轮询/SSE 框架）
+  window.addEventListener('focus', refreshOrder)
 })
 onUnmounted(() => {
   if (timeoutTimer) window.clearInterval(timeoutTimer)
+  window.removeEventListener('focus', refreshOrder)
   store.$reset()
 })
 watch(() => route.params.id, (nextId) => {
@@ -429,25 +474,42 @@ async function doCancel() {
   }
 }
 
-async function doDeliver() {
+async function doPayOvertime() {
   if (busy.value) return
-  busy.value = 'deliver'
-  let location
+  const payNo = order.value?.overtime_pay_no_wsh
+  busy.value = 'overtime'
   try {
-    location = await getCurrentAddress()
+    // 补费单已由 keeper 确认接走时创建：直接支付，不再 createPayment
+    const result = await store.payOvertime(orderId.value, payNo)
+    appStore.addToast(
+      result.success ? '补费支付成功，订单已完成' : (result.message || '支付失败，请充值后重试'),
+      result.success ? 'success' : 'error'
+    )
   } catch (error) {
-    appStore.addToast(error?.message || '请允许定位后再确认送达', 'warning')
+    const message = error?.response?.data?.message || error?.message || '支付失败，请充值后重试'
+    appStore.addToast(message, 'error')
+  } finally {
     busy.value = ''
-    return
   }
+}
+
+/** 手动/自动刷新：本端支付成功后与窗口重新获得焦点时都重查订单 */
+async function refreshOrder() {
+  await store.fetchOrderDetail(orderId.value)
+}
+
+async function doRefund() {
+  if (busy.value) return
+  busy.value = 'refund'
   try {
-    const res = await confirmDelivered({ order_no_wsh: order.value?.order_no_wsh, delivered_address_wsh: location.address_wsh })
-    if (res.code === 200) appStore.addToast('已确认送达', 'success')
-    else appStore.addToast(res.message || '确认送达失败', 'error')
-    deliverOpen.value = false
+    const res = await createRefund({ order_id_wsh: orderId.value, reason_wsh: '用户主动申请退款' })
+    if (res?.code === 200) {
+      appStore.addToast('退款申请已提交', 'success')
+      refundOpen.value = false
+    }
     await store.fetchOrderDetail(orderId.value)
   } catch (error) {
-    appStore.addToast(error?.message || '确认送达失败', 'error')
+    appStore.addToast(error?.message || '提交失败', 'error')
   } finally {
     busy.value = ''
   }
@@ -546,6 +608,15 @@ function dateTime(value) {
 .od-copy { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--ref-line); background: var(--ref-surface); color: var(--ref-ink-soft); border-radius: var(--radius-pill); padding: 3px 10px; font-size: 12px; cursor: pointer; transition: border-color 150ms ease, background 150ms ease, color 150ms ease; }
 .od-copy:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 25%, transparent); color: var(--ref-ink); }
 .od-copy-glyph { font-size: 11px; }
+
+/* 交接码：主人侧展示，看护者侧由后端置 null 后整块不渲染 */
+.od-handover { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; margin-top: 12px; padding: 14px 16px; border: 1px dashed var(--ref-line); border-radius: var(--radius-card, 10px); background: var(--ref-surface); }
+.od-handover-label { font-size: 12px; color: var(--ref-muted); }
+.od-handover-code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 22px; font-weight: 600; letter-spacing: .28em; color: var(--ref-ink); }
+.od-handover-hint { flex: 1 1 100%; margin: 0; font-size: 12px; line-height: 1.5; color: var(--ref-muted); }
+
+/* 已接单但看护者尚未接收时的说明文字 */
+.od-wait-note { font-size: 13px; line-height: 1.6; color: var(--ref-muted); }
 
 /* Section */
 .od-section { margin-top: 26px; }

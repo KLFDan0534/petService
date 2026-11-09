@@ -10,7 +10,7 @@ import com.pet.ai.dto.AgentPlanResult;
  * 1. plan：LLM 结构化提取需求 → 匹配宠物/商家/看护人 → 生成推荐方案（不落库）→ 返回方案 token
  * 2. confirm：凭方案 token 创建订单/支付（可选自动支付）
  * <p>
- * 当前仅支持日间寄养（day 计费、date_range 预约）。
+ * 当前仅支持按夜寄养（night 计费、interval 预约）。
  */
 public interface AgentService {
 

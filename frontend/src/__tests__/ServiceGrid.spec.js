@@ -20,7 +20,7 @@ vi.mock('@/stores/category', () => ({
 }))
 
 const services = [
-  { id_wsh: 5, name_wsh: '寄养服务', price_wsh: 88, unit_wsh: '天', images_wsh: 'http://x/1.jpg' },
+  { id_wsh: 5, name_wsh: '寄养服务', price_wsh: 88, unit_wsh: '夜', images_wsh: 'http://x/1.jpg' },
 ]
 
 function mountGrid() {
@@ -83,7 +83,7 @@ describe('ServiceGrid navigation (F-NAV-001/F-NAV-006)', () => {
 
   it('renders the distance chip with km/m formatting when distance is present', async () => {
     const withDistance = [
-      { id_wsh: 7, name_wsh: '寄养服务', price_wsh: 88, unit_wsh: 'day', images_wsh: 'http://x/2.jpg', merchant_name_wsh: '优品宠物服务中心', distance_m_wsh: 2460 },
+      { id_wsh: 7, name_wsh: '寄养服务', price_wsh: 88, unit_wsh: 'night', images_wsh: 'http://x/2.jpg', merchant_name_wsh: '优品宠物服务中心', distance_m_wsh: 2460 },
       { id_wsh: 8, name_wsh: '遛宠服务', price_wsh: 30, unit_wsh: 'session', images_wsh: 'http://x/3.jpg', distance_m_wsh: 850 },
     ]
     const wrapper = mount(ServiceGrid, {
@@ -104,7 +104,7 @@ describe('ServiceGrid navigation (F-NAV-001/F-NAV-006)', () => {
     const chips = wrapper.findAll('.service-distance').map(node => node.text())
     expect(chips).toEqual(['2.5km', '850m'])
     // 单位显示为中文
-    expect(wrapper.findAll('.service-price span')[0].text()).toBe('/ 天')
+    expect(wrapper.findAll('.service-price span')[0].text()).toBe('/ 夜')
     expect(wrapper.findAll('.service-price span')[1].text()).toBe('/ 次')
   })
 

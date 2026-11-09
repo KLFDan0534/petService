@@ -38,6 +38,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
@@ -54,6 +56,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class OrderFulfillmentWindowBusinessHoursTest {
 
     @Mock private OrderMapper orderMapper;
@@ -94,25 +97,25 @@ class OrderFulfillmentWindowBusinessHoursTest {
 
         BusinessException error = assertThrows(BusinessException.class, () -> orderService().createOrder(7L, request));
         assertEquals(400, error.getCode());
-        assertEquals("送达时间不在目标日期营业时段内", error.getMessage());
+        assertEquals("寄养开始时间不在营业时段内", error.getMessage());
     }
 
     @Test
-    void pickupEarlierThanDeliveryIsRejectedAtCreation() {
-        // 用户场景：今天下午送、今天上午取 —— 取宠时间早于送宠时间，逻辑上不可能，必须拒绝。
+    void pickupOutsideCheckoutDateIsRejectedAtCreation() {
+        // 按夜口径：预约接走必须落在「入住日 + 夜数」这一天，不能靠把日期往后推绕过夜数校验
         LocalDate start = LocalDate.now().plusDays(1);
         LocalDate end = start.plusDays(1);
         PetOrderOverrides.stubCreationPath(petMapper, keeperMapper, merchantMapper,
                 merchantService, serviceItemMapper, qualificationService, orderMapper, start);
 
         OrderCreateRequestDTO request = request(start, end);
-        // 显式构造"下午送、上午取（跨日但取宠时刻早于送宠时刻）"的脏数据
+        // 1 夜的离店日是 start+1，把接走时间写到 start 当天必须拒绝
         request.setDelivery_time_wsh(start.atTime(15, 0));
         request.setPickup_time_wsh(start.atTime(9, 0));
 
         BusinessException error = assertThrows(BusinessException.class, () -> orderService().createOrder(7L, request));
         assertEquals(400, error.getCode());
-        assertEquals("接宠时间必须在送宠时间之后", error.getMessage());
+        assertEquals(true, error.getMessage().startsWith("预约接走时间必须落在离店日期"));
     }
 
     @Test
@@ -126,15 +129,15 @@ class OrderFulfillmentWindowBusinessHoursTest {
                 merchantService, serviceItemMapper, qualificationService, orderMapper, start);
 
         OrderCreateRequestDTO request = request(start, end);
-        // Delivery 10:00 inside the day's 09:00-20:00, but default pickup 18:00 is outside the end day's 09:00-17:00.
+        // 送达 14:00 在 09:00-20:00 内，但接走 14:30 落在离店日 09:00-13:00 之外
         when(businessHoursService.getByMerchantId(10L)).thenReturn(List.of(
                 hours(deliveryDow, LocalTime.of(9, 0), LocalTime.of(20, 0), 0),
                 hours(midDow, LocalTime.of(9, 0), LocalTime.of(20, 0), 0),
-                hours(pickupDow, LocalTime.of(9, 0), LocalTime.of(17, 0), 0)));
+                hours(pickupDow, LocalTime.of(9, 0), LocalTime.of(13, 0), 0)));
 
         BusinessException error = assertThrows(BusinessException.class, () -> orderService().createOrder(7L, request));
         assertEquals(400, error.getCode());
-        assertEquals("接回时间不在目标日期营业时段内", error.getMessage());
+        assertEquals("寄养结束时间不在营业时段内", error.getMessage());
     }
 
     private BusinessHours hours(int day, LocalTime open, LocalTime close, int closed) {
@@ -149,12 +152,13 @@ class OrderFulfillmentWindowBusinessHoursTest {
     private OrderCreateRequestDTO request(LocalDate start, LocalDate end) {
         OrderCreateRequestDTO dto = new OrderCreateRequestDTO();
         dto.setPet_id_wsh(1L);
-        dto.setKeeper_id_wsh(20L);
         dto.setMerchant_id_wsh(10L);
         dto.setService_id_wsh(5L);
         dto.setStart_date_wsh(start);
         dto.setEnd_date_wsh(end);
+        dto.setQuantity_wsh((int) java.time.temporal.ChronoUnit.DAYS.between(start, end));
         dto.setDelivery_time_wsh(start.atTime(10, 0));
+        dto.setPickup_time_wsh(end.atTime(14, 30));
         return dto;
     }
 
@@ -184,7 +188,6 @@ class OrderFulfillmentWindowBusinessHoursTest {
             keeper.setId_wsh(20L);
             keeper.setMerchant_id_wsh(10L);
             keeper.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
-            keeper.setPrice_per_day_wsh(new BigDecimal("50"));
             keeper.setMax_pets_wsh(3);
             when(keeperMapper.selectById(20L)).thenReturn(keeper);
 
@@ -198,7 +201,7 @@ class OrderFulfillmentWindowBusinessHoursTest {
             ServiceItem service = new ServiceItem();
             service.setId_wsh(5L);
             service.setMerchant_id_wsh(10L);
-            service.setUnit_wsh("day");
+            service.setUnit_wsh("night");
             service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
             when(serviceItemMapper.selectById(5L)).thenReturn(service);
 

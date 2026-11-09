@@ -99,6 +99,18 @@ public class OrderDTO {
     private OrderSnapshotDTO snapshot_wsh;
     @Schema(description = "交接码")
     private String handover_code_wsh;
+    @Schema(description = "接走码（仅订单主人/管理员在服务中且未确认接走时返回）")
+    private String pickup_code_wsh;
+    @Schema(description = "首次合法接走确认的服务端时间（冻结值）")
+    private LocalDateTime checkout_confirmed_at_wsh;
+    @Schema(description = "实际晚接小时数")
+    private Integer overtime_hours_wsh;
+    @Schema(description = "晚接补费金额")
+    private BigDecimal overtime_amount_wsh;
+    @Schema(description = "晚接补费支付单号（无补费时为 null）")
+    private String overtime_pay_no_wsh;
+    @Schema(description = "晚接补费支付状态（pending/success，无补费时为 null）")
+    private String overtime_payment_status_wsh;
     @Schema(description = "配送地址")
     private String delivery_address_wsh;
     @Schema(description = "配送纬度")

@@ -61,7 +61,7 @@ public class ServiceItem {
     private Integer duration_minutes_wsh;
 
     @TableField(value = "booking_mode_wsh")
-    @Schema(description = "预约模式：date_range（按日期区间）/ slot（按时长槽位）")
+    @Schema(description = "预约模式：interval（按夜连续区间）/ slot（按时长槽位）")
     private String booking_mode_wsh;
 
     @TableField(value = "images_wsh")

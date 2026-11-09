@@ -3,6 +3,7 @@ package com.pet.order.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.pet.order.entity.PetOrder;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -36,4 +37,33 @@ public interface OrderMapper extends BaseMapper<PetOrder> {
             GROUP BY owner_id_wsh
             """)
     List<Map<String, Object>> selectCouponGrantOrderStats();
+
+    /**
+     * 按主键加行锁读取订单（SELECT ... FOR UPDATE）。
+     * <p>
+     * 用于接走确认、补费支付、退款申请、确认接收等必须串行化同一订单资金/状态变更的路径。
+     * 锁顺序约定：订单行锁 → 支付单 → 钱包；keeper 容量锁排在订单锁之后。
+     *
+     * @param id 订单主键
+     * @return 订单实体（不存在或已逻辑删除时为 null）
+     */
+    @Select("""
+            SELECT * FROM pet_order_wsh
+            WHERE id_wsh = #{id} AND deleted_wsh = 0
+            FOR UPDATE
+            """)
+    PetOrder selectByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * 按订单号加行锁读取订单（SELECT ... FOR UPDATE）。
+     *
+     * @param orderNo 订单号
+     * @return 订单实体（不存在或已逻辑删除时为 null）
+     */
+    @Select("""
+            SELECT * FROM pet_order_wsh
+            WHERE order_no_wsh = #{orderNo} AND deleted_wsh = 0
+            FOR UPDATE
+            """)
+    PetOrder selectByOrderNoForUpdate(@Param("orderNo") String orderNo);
 }

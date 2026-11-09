@@ -68,7 +68,7 @@ class AgentPaymentAuthorizationTest {
 
     /** LLM 结构化提取返回的预置 JSON（宠物团团 / 金毛 / 寄养 3 天） */
     private static final String LLM_JSON = """
-            {"pet_name":"团团","pet_type":"金毛","service_type":"BOARDING","start_date":null,"days":3,"merchant_keyword":null,"max_price_per_day":null,"unit":"day"}""";
+            {"pet_name":"团团","pet_type":"金毛","service_type":"BOARDING","start_date":null,"nights":3,"merchant_keyword":null,"max_price_per_night":null,"unit":"night"}""";
 
     @Mock private PetMapper petMapper;
     @Mock private MerchantMapper merchantMapper;
@@ -123,10 +123,10 @@ class AgentPaymentAuthorizationTest {
         verify(orderService).createOrder(eq(USER_ID), orderCaptor.capture());
         OrderCreateRequestDTO req = orderCaptor.getValue();
         assertEquals(PET_ID, req.getPet_id_wsh());
-        assertEquals(KEEPER_ID, req.getKeeper_id_wsh());
+        // 下单请求已无负责人字段：AI 的推荐只体现在方案快照里，订单进待分配池由抢单/指派产生负责人
         assertEquals(MERCHANT_ID, req.getMerchant_id_wsh());
         assertEquals(SERVICE_ID, req.getService_id_wsh());
-        assertEquals("day", req.getBilling_unit_wsh());
+        assertEquals("night", req.getBilling_unit_wsh());
         assertEquals(new BigDecimal("100"), req.getExpected_unit_price_wsh());
         verify(paymentService).createPayment(USER_ID, ORDER_NO, "balance");
         verify(paymentService, never()).pay(any(), any());
@@ -222,10 +222,10 @@ class AgentPaymentAuthorizationTest {
         assertEquals(MERCHANT_ID, plan.getMerchant_id_wsh());
         assertEquals(KEEPER_ID, plan.getKeeper_id_wsh());
         assertEquals(SERVICE_ID, plan.getService_id_wsh());
-        assertEquals("day", plan.getUnit_wsh());
+        assertEquals("night", plan.getUnit_wsh());
         assertEquals(Integer.valueOf(3), plan.getDays_wsh());
         assertEquals(new BigDecimal("100"), plan.getUnit_price_wsh());
-        assertEquals(new BigDecimal("300"), plan.getTotal_price_wsh());
+        assertEquals(new BigDecimal("300.00"), plan.getTotal_price_wsh());
         return plan;
     }
 
@@ -236,6 +236,18 @@ class AgentPaymentAuthorizationTest {
         when(keeperService.searchNearby(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(keeper()));
         when(serviceItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(serviceItem()));
         when(aiChatService.chat(anyList())).thenReturn(LLM_JSON);
+        // 金额由后端报价决定：AI 不再自己用「单价 × 天数」
+        when(orderService.previewOrder(eq(USER_ID), any())).thenReturn(nightQuote());
+    }
+
+    private com.pet.order.dto.OrderQuoteDTO nightQuote() {
+        com.pet.order.dto.OrderQuoteDTO quote = new com.pet.order.dto.OrderQuoteDTO();
+        quote.setBilling_unit_wsh("night");
+        quote.setQuantity_wsh(3);
+        quote.setUnit_price_wsh(new BigDecimal("100"));
+        quote.setTotal_amount_wsh(new BigDecimal("300.00"));
+        quote.setFinal_amount_wsh(new BigDecimal("300.00"));
+        return quote;
     }
 
     /** confirm 成功路径的依赖：用户资料 / 创建订单 / 创建支付。 */
@@ -282,7 +294,6 @@ class AgentPaymentAuthorizationTest {
         keeper.setMerchant_id_wsh(MERCHANT_ID);
         keeper.setMerchant_name_wsh("安心寄养");
         keeper.setRating_wsh(BigDecimal.valueOf(4.9));
-        keeper.setPrice_per_day_wsh(BigDecimal.valueOf(80));
         keeper.setDistance_wsh(1.2);
         keeper.setExperience_years_wsh(5);
         keeper.setCompletion_rate_wsh(BigDecimal.valueOf(98));
@@ -298,7 +309,7 @@ class AgentPaymentAuthorizationTest {
         service.setMerchant_id_wsh(MERCHANT_ID);
         service.setName_wsh("标准寄养");
         service.setType_wsh("BOARDING_STANDARD");
-        service.setUnit_wsh("day");
+        service.setUnit_wsh("night");
         service.setPrice_wsh(new BigDecimal("100"));
         service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         return service;

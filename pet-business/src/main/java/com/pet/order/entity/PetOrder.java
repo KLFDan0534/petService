@@ -136,6 +136,26 @@ public class PetOrder {
     @Schema(description = "交接码")
     private String handover_code_wsh;
 
+    @TableField(value = "pickup_code_wsh")
+    @Schema(description = "独立接走码（4 位数字，字符串保留前导 0，与送达码不同）")
+    private String pickup_code_wsh;
+
+    @TableField(value = "checkout_confirmed_at_wsh")
+    @Schema(description = "首次合法接走确认的服务端时间 T，冻结后不再修改")
+    private LocalDateTime checkout_confirmed_at_wsh;
+
+    @TableField(value = "overtime_hours_wsh")
+    @Schema(description = "实际晚接小时数 H（非预订夜数、非预约估算）")
+    private Integer overtime_hours_wsh;
+
+    @TableField(value = "overtime_amount_wsh")
+    @Schema(description = "冻结的晚接补费金额")
+    private BigDecimal overtime_amount_wsh;
+
+    @TableField(value = "overtime_payment_id_wsh")
+    @Schema(description = "唯一一笔晚接补费支付记录 ID；0 费时为 NULL")
+    private Long overtime_payment_id_wsh;
+
     @TableField(value = "delivery_address_wsh")
     @Schema(description = "配送地址")
     private String delivery_address_wsh;
@@ -255,46 +275,6 @@ public class PetOrder {
     @TableField(value = "remark_wsh")
     @Schema(description = "备注")
     private String remark_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "服务名称")
-    private String service_name_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "宠物主姓名")
-    private String owner_name_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "宠物名称")
-    private String pet_name_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "看护者姓名")
-    private String keeper_name_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "看护者电话")
-    private String keeper_phone_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "看护者头像")
-    private String keeper_avatar_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "商家名称")
-    private String merchant_name_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "商家电话")
-    private String merchant_phone_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "商家地址")
-    private String merchant_address_wsh;
-
-    @TableField(exist = false)
-    @Schema(description = "服务描述")
-    private String service_description_wsh;
 
     @JsonIgnore
     @TableLogic

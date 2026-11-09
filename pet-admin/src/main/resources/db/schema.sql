@@ -111,7 +111,6 @@ CREATE TABLE IF NOT EXISTS `keeper_wsh` (
     `rating_wsh` DECIMAL(3, 2) DEFAULT 5.00,
     `completion_rate_wsh` DECIMAL(5, 2) DEFAULT 100.00,
     `complaint_rate_wsh` DECIMAL(5, 2) DEFAULT 0.00,
-    `price_per_day_wsh` DECIMAL(10, 2) NOT NULL,
     `max_pets_wsh` INT DEFAULT 5,
     `current_pets_wsh` INT DEFAULT 0,
     `status_wsh` TINYINT DEFAULT 1 COMMENT '0-offline 1-online',
@@ -147,7 +146,7 @@ CREATE TABLE IF NOT EXISTS `pet_service_wsh` (
     `price_wsh` DECIMAL(10, 2) NOT NULL,
     `unit_wsh` VARCHAR(20) DEFAULT 'day' COMMENT '计费单位 day/session/hour',
     `duration_minutes_wsh` INT COMMENT 'session/hour 单次时长(分钟)，day 为 1440',
-    `booking_mode_wsh` VARCHAR(20) DEFAULT 'date_range' COMMENT 'date_range(day)/slot(session, hour)',
+    `booking_mode_wsh` VARCHAR(20) DEFAULT 'date_range' COMMENT 'date_range(day)/slot(session,hour)/interval(boarding)',
     `images_wsh` TEXT,
     `status_wsh` TINYINT DEFAULT 1 COMMENT '0-offline 1-online',
     `deleted_wsh` TINYINT DEFAULT 0,
@@ -163,14 +162,14 @@ CREATE TABLE IF NOT EXISTS `pet_order_wsh` (
     `order_no_wsh` VARCHAR(50) NOT NULL UNIQUE,
     `owner_id_wsh` BIGINT NOT NULL,
     `pet_id_wsh` BIGINT NOT NULL,
-    `keeper_id_wsh` BIGINT NOT NULL,
+    `keeper_id_wsh` BIGINT NULL COMMENT '负责人；NULL 表示待分配（抢单/指派/超时自动分配）',
     `merchant_id_wsh` BIGINT NOT NULL,
     `service_id_wsh` BIGINT,
     `start_date_wsh` DATE NOT NULL,
-    `end_date_wsh` DATE NOT NULL,
-    `days_wsh` INT NOT NULL COMMENT '按天显示数量：day=计费数量，session/hour=1',
+    `end_date_wsh` DATE NOT NULL COMMENT '最后一个服务日期（含离店日，非排他边界）',
+    `days_wsh` INT NOT NULL COMMENT '按天显示数量：day=计费数量（含离店日），session/hour=1',
     `price_per_day_wsh` DECIMAL(10, 2) NOT NULL COMMENT '兼容投影，= unit_price_wsh',
-    `billing_unit_wsh` VARCHAR(20) DEFAULT 'day' COMMENT '计费单位快照 day/session/hour',
+    `billing_unit_wsh` VARCHAR(20) DEFAULT 'day' COMMENT '计费单位快照 day/session/hour/boarding',
     `quantity_wsh` INT DEFAULT 1 COMMENT '计费数量：day=天数，session/hour=槽位数',
     `unit_price_wsh` DECIMAL(10, 2) COMMENT '单价快照(每个计费单位)',
     `duration_minutes_wsh` INT COMMENT '下单时单个单位时长快照(分钟)',
@@ -187,8 +186,13 @@ CREATE TABLE IF NOT EXISTS `pet_order_wsh` (
     `settlement_amount_wsh` DECIMAL(10, 2),
     `promotion_snapshot_wsh` TEXT,
     `final_amount_wsh` DECIMAL(10, 2) NOT NULL,
-    `status_wsh` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/paid/confirmed/delivered/received/in_progress/completed/cancelled/refunding/refunded',
+    `status_wsh` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/paid/confirmed/received/in_progress/completed/cancelled/refunding/refunded',
     `handover_code_wsh` VARCHAR(4) COMMENT 'handover verification code',
+    `pickup_code_wsh` VARCHAR(4) COMMENT '独立接走交接码，与送达码不同，字符串保留前导0',
+    `checkout_confirmed_at_wsh` DATETIME NULL COMMENT '首次合法接走确认的服务端时间T，冻结后不修改',
+    `overtime_hours_wsh` INT NOT NULL DEFAULT 0 COMMENT '实际晚接小时数H（非预订夜数、非预约估算）',
+    `overtime_amount_wsh` DECIMAL(10, 2) NOT NULL DEFAULT 0 COMMENT '冻结的晚接补费金额',
+    `overtime_payment_id_wsh` BIGINT NULL COMMENT '唯一一笔晚接补费支付记录ID；0费时为NULL',
     `delivery_address_wsh` VARCHAR(500) COMMENT 'pet delivery/dropoff address',
     `delivery_latitude_wsh` DECIMAL(10, 7) COMMENT 'delivery latitude snapshot',
     `delivery_longitude_wsh` DECIMAL(10, 7) COMMENT 'delivery longitude snapshot',
@@ -310,6 +314,7 @@ CREATE TABLE IF NOT EXISTS `payment_wsh` (
     `pay_no_wsh` VARCHAR(100),
     `amount_wsh` DECIMAL(10, 2) NOT NULL,
     `method_wsh` VARCHAR(20) DEFAULT 'wechat' COMMENT 'wechat/alipay/balance',
+    `purpose_wsh` VARCHAR(32) NOT NULL DEFAULT 'order' COMMENT 'order=原预付；night_overtime=晚接补费',
     `status_wsh` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/success/failed',
     `paid_at_wsh` DATETIME,
     `deleted_wsh` TINYINT DEFAULT 0,
@@ -827,7 +832,7 @@ ALTER TABLE wallet_transaction_wsh ADD COLUMN `status_wsh` VARCHAR(20) DEFAULT '
 ALTER TABLE wallet_transaction_wsh ADD COLUMN `business_type_wsh` VARCHAR(50) COMMENT 'Business type' AFTER `status_wsh`;
 ALTER TABLE wallet_transaction_wsh ADD COLUMN `business_id_wsh` VARCHAR(100) COMMENT 'Business id' AFTER `business_type_wsh`;
 ALTER TABLE wallet_transaction_wsh ADD COLUMN `request_id_wsh` VARCHAR(120) COMMENT 'Idempotency request id' AFTER `business_id_wsh`;
-ALTER TABLE refund_wsh ADD COLUMN `order_status_before_refund_wsh` VARCHAR(30) COMMENT 'Order status before refund' AFTER `status_wsh`;
+-- refund_wsh.order_status_before_refund_wsh 已在建表语句中定义，这里不再重复 ADD（重复会中断空库初始化）
 
 ALTER TABLE wallet_transaction_wsh ADD UNIQUE INDEX `uk_wallet_tx_request` (`request_id_wsh`);
 ALTER TABLE wallet_transaction_wsh ADD INDEX `idx_wallet_tx_user` (`user_id_wsh`);

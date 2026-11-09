@@ -143,6 +143,104 @@ class OrderSnapshotServiceImplTest {
         assertEquals(0, new BigDecimal(String.valueOf(price.get("total_amount_wsh"))).compareTo(new BigDecimal("88.00")));
     }
 
+    /** 按夜订单必须冻结 night-v1 全部计费键，供接走补费只读快照（AE17）。 */
+    @Test
+    void nightOrderFreezesPricingRuleSnapshot() throws Exception {
+        ServiceItem serviceItem = new ServiceItem();
+        serviceItem.setId_wsh(11L);
+        serviceItem.setName_wsh("标准寄养");
+        serviceItem.setPrice_wsh(new BigDecimal("150.00"));
+        serviceItem.setUnit_wsh("night");
+
+        PetOrder order = new PetOrder();
+        order.setId_wsh(4L);
+        order.setOrder_no_wsh("ORD-NIGHT-4");
+        order.setBilling_unit_wsh("night");
+        order.setQuantity_wsh(3);
+        order.setUnit_price_wsh(new BigDecimal("150.00"));
+        order.setDuration_minutes_wsh(1440);
+        order.setDays_wsh(3);
+        order.setPrice_per_day_wsh(new BigDecimal("150.00"));
+        order.setStart_date_wsh(java.time.LocalDate.of(2026, 6, 1));
+        order.setEnd_date_wsh(java.time.LocalDate.of(2026, 6, 4));
+        order.setDelivery_time_wsh(LocalDateTime.of(2026, 6, 1, 11, 0));
+        order.setPickup_time_wsh(LocalDateTime.of(2026, 6, 4, 14, 30));
+        order.setTotal_amount_wsh(new BigDecimal("468.75"));
+        order.setFinal_amount_wsh(new BigDecimal("468.75"));
+        order.setSettlement_amount_wsh(new BigDecimal("468.75"));
+
+        service.createForOrder(order, null, null, null, null, serviceItem, new OrderCreateRequestDTO());
+
+        ArgumentCaptor<OrderSnapshot> captor = ArgumentCaptor.forClass(OrderSnapshot.class);
+        verify(orderSnapshotMapper).insert(captor.capture());
+        Map<String, Object> price = TEST_MAPPER.readValue(
+                captor.getValue().getPrice_snapshot_wsh(), MAP_TYPE);
+
+        assertEquals("night-v1", price.get("pricing_rule_version"));
+        assertEquals(3, ((Number) price.get("booked_nights")).intValue());
+        assertEquals(0, new BigDecimal(String.valueOf(price.get("night_price")))
+                .compareTo(new BigDecimal("150.00")));
+        assertEquals("14:00", price.get("checkin_anchor_time"));
+        assertEquals(30, ((Number) price.get("checkout_grace_minutes")).intValue());
+        assertEquals(180, ((Number) price.get("early_limit_minutes")).intValue());
+        assertEquals("night_div_24", price.get("overtime_price_mode"));
+        assertEquals(0, ((Number) price.get("early_extra_nights")).intValue());
+        assertEquals(3, ((Number) price.get("early_extra_hours")).intValue());
+        assertEquals(0, new BigDecimal(String.valueOf(price.get("early_amount")))
+                .compareTo(new BigDecimal("18.75")));
+        assertEquals("2026-06-04T14:00", price.get("standard_checkout_at"));
+        assertEquals("2026-06-04T14:30", price.get("free_checkout_until"));
+        assertEquals(0, new BigDecimal(String.valueOf(price.get("initial_total_amount")))
+                .compareTo(new BigDecimal("468.75")));
+        assertEquals(0, new BigDecimal(String.valueOf(price.get("initial_final_amount")))
+                .compareTo(new BigDecimal("468.75")));
+        assertEquals(0, new BigDecimal(String.valueOf(price.get("initial_settlement_amount")))
+                .compareTo(new BigDecimal("468.75")));
+        // 快照绝不包含任何交接码
+        String raw = captor.getValue().getPrice_snapshot_wsh();
+        assertEquals(false, raw.contains("handover_code"));
+        assertEquals(false, raw.contains("pickup_code"));
+    }
+
+    @Test
+    void requireNightPricingRuleReadsFrozenValues() throws Exception {
+        PetOrder order = new PetOrder();
+        order.setId_wsh(5L);
+        order.setBilling_unit_wsh("night");
+        order.setQuantity_wsh(3);
+        order.setUnit_price_wsh(new BigDecimal("150.00"));
+        order.setStart_date_wsh(java.time.LocalDate.of(2026, 6, 1));
+        order.setEnd_date_wsh(java.time.LocalDate.of(2026, 6, 4));
+        order.setDelivery_time_wsh(LocalDateTime.of(2026, 6, 1, 14, 0));
+        order.setPickup_time_wsh(LocalDateTime.of(2026, 6, 4, 14, 30));
+        order.setTotal_amount_wsh(new BigDecimal("450.00"));
+        order.setFinal_amount_wsh(new BigDecimal("450.00"));
+        order.setSettlement_amount_wsh(new BigDecimal("450.00"));
+
+        service.createForOrder(order, null, null, null, null, null, new OrderCreateRequestDTO());
+        ArgumentCaptor<OrderSnapshot> captor = ArgumentCaptor.forClass(OrderSnapshot.class);
+        verify(orderSnapshotMapper).insert(captor.capture());
+        org.mockito.Mockito.lenient()
+                .when(orderSnapshotMapper.selectOne(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(captor.getValue());
+
+        var rule = service.requireNightPricingRule(5L);
+        assertEquals(0, rule.nightPrice().compareTo(new BigDecimal("150.00")));
+        assertEquals(3, rule.bookedNights());
+        assertEquals(LocalDateTime.of(2026, 6, 4, 14, 0), rule.standardCheckoutAt());
+        assertEquals(LocalDateTime.of(2026, 6, 4, 14, 30), rule.freeCheckoutUntil());
+    }
+
+    @Test
+    void requireNightPricingRuleFailsWhenSnapshotMissing() {
+        org.mockito.Mockito.lenient()
+                .when(orderSnapshotMapper.selectOne(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(null);
+        var ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.pet.common.BusinessException.class, () -> service.requireNightPricingRule(6L));
+        assertEquals(500, ex.getCode());
+    }
+
     @SuppressWarnings("unused")
     private void unusedRefs() {
         Keeper.class.getName();

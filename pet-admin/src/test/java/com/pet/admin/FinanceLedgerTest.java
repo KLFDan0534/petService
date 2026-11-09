@@ -24,6 +24,7 @@ import com.pet.finance.service.WalletService;
 import com.pet.marketing.service.CouponService;
 import com.pet.membership.service.MembershipBenefitService;
 import com.pet.mq.MessageSender;
+import com.pet.order.dto.OrderCompleteRequestDTO;
 import com.pet.order.entity.Payment;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.entity.Refund;
@@ -202,16 +203,16 @@ class FinanceLedgerTest {
     }
 
     @Test
-    void refundCanBeCreatedForUnsettledFulfillmentStatesAndRejectRestoresOriginalStatus() {
-        PetOrder order = order(OrderStatus.RECEIVED);
+    void refundCanBeCreatedForConfirmedOrderAndRejectRestoresOriginalStatus() {
+        PetOrder order = order(OrderStatus.CONFIRMED);
         Refund refund = new Refund();
         refund.setId_wsh(88L);
         refund.setOrder_id_wsh(order.getId_wsh());
         refund.setOrder_no_wsh(order.getOrder_no_wsh());
         refund.setStatus_wsh(RefundStatus.PENDING);
-        refund.setOrder_status_before_refund_wsh(OrderStatus.RECEIVED);
+        refund.setOrder_status_before_refund_wsh(OrderStatus.CONFIRMED);
 
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(orderMapper.selectByOrderNoForUpdate(ORDER_NO)).thenReturn(order);
         when(refundMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
         when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
         doAnswer(invocation -> {
@@ -222,7 +223,7 @@ class FinanceLedgerTest {
 
         Refund created = refundService.createRefund(OWNER_ID, ORDER_NO, "change plan");
 
-        assertEquals(OrderStatus.RECEIVED, created.getOrder_status_before_refund_wsh());
+        assertEquals(OrderStatus.CONFIRMED, created.getOrder_status_before_refund_wsh());
         assertEquals(OrderStatus.REFUNDING, order.getStatus_wsh());
 
         when(refundMapper.selectById(refund.getId_wsh())).thenReturn(refund);
@@ -232,13 +233,13 @@ class FinanceLedgerTest {
         refundService.rejectRefund(refund.getId_wsh());
 
         assertEquals(RefundStatus.REJECTED, refund.getStatus_wsh());
-        assertEquals(OrderStatus.RECEIVED, order.getStatus_wsh());
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
     }
 
     @Test
     void refundCreationFailsIfOrderStatusChangedBeforeRefunding() {
-        PetOrder order = order(OrderStatus.RECEIVED);
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        PetOrder order = order(OrderStatus.CONFIRMED);
+        when(orderMapper.selectByOrderNoForUpdate(ORDER_NO)).thenReturn(order);
         when(refundMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
         when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(0);
 
@@ -247,9 +248,22 @@ class FinanceLedgerTest {
         verify(refundMapper, never()).insert(any(Refund.class));
     }
 
+    /** 宠物已接收/服务中不再允许全额退款（本期简化：避免没有合法交接流程的退款）。 */
+    @Test
+    void refundCreationRejectsOrdersAlreadyInStore() {
+        for (String status : new String[]{OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS}) {
+            PetOrder order = order(status);
+            when(orderMapper.selectByOrderNoForUpdate(ORDER_NO)).thenReturn(order);
+
+            assertThrows(BusinessException.class,
+                    () -> refundService.createRefund(OWNER_ID, ORDER_NO, "in store"));
+        }
+        verify(refundMapper, never()).insert(any(Refund.class));
+    }
+
     @Test
     void refundCreationRejectsCompletedOrdersBecauseTheyMayAlreadyBeSettled() {
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order(OrderStatus.COMPLETED));
+        when(orderMapper.selectByOrderNoForUpdate(ORDER_NO)).thenReturn(order(OrderStatus.COMPLETED));
 
         assertThrows(BusinessException.class, () -> refundService.createRefund(OWNER_ID, ORDER_NO, "too late"));
 
@@ -258,15 +272,31 @@ class FinanceLedgerTest {
     }
 
     @Test
+    void refundCreationRejectsOrdersWhosePetWasAlreadyReceived() {
+        PetOrder received = order(OrderStatus.CONFIRMED);
+        received.setReceived_at_wsh(LocalDateTime.now().minusHours(1));
+        when(orderMapper.selectByOrderNoForUpdate(ORDER_NO)).thenReturn(received);
+
+        assertThrows(BusinessException.class, () -> refundService.createRefund(OWNER_ID, ORDER_NO, "in store"));
+
+        verify(refundMapper, never()).insert(any(Refund.class));
+    }
+
+    @Test
     void completeOrderDoesNotSettleIfOrderStatusChangedBeforeCompletion() {
         PetOrder order = order(OrderStatus.IN_PROGRESS);
+        order.setPickup_code_wsh("0042");
         Keeper keeper = new Keeper();
         keeper.setId_wsh(order.getKeeper_id_wsh());
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(orderMapper.selectByIdForUpdate(ORDER_ID)).thenReturn(order);
         when(keeperMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(keeper));
         when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(0);
 
-        assertThrows(BusinessException.class, () -> orderStatusService.completeOrder(999L, ORDER_NO));
+        OrderCompleteRequestDTO request = new OrderCompleteRequestDTO();
+        request.setOrder_no_wsh(ORDER_NO);
+        request.setPickup_code_wsh("0042");
+        assertThrows(BusinessException.class, () -> orderStatusService.completeOrder(999L, request));
 
         verify(accountingService, never()).transfer(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
@@ -282,7 +312,8 @@ class FinanceLedgerTest {
                 eq("wallet_admin"),
                 eq(String.valueOf(OWNER_ID)),
                 eq("front-adjust-001"),
-                eq("manual credit"))).thenReturn(wallet);
+                eq("manual credit"),
+                eq(1L))).thenReturn(wallet);
         when(walletService.toDTO(wallet)).thenReturn(null);
 
         WalletAdjustRequestDTO request = new WalletAdjustRequestDTO();
@@ -303,7 +334,8 @@ class FinanceLedgerTest {
                 eq("wallet_admin"),
                 eq(String.valueOf(OWNER_ID)),
                 eq("front-adjust-001"),
-                eq("manual credit"));
+                eq("manual credit"),
+                eq(1L));
     }
 
     @Test

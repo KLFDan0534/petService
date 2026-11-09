@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import CreateOrderDialog from '@/components/order/CreateOrderDialog.vue'
 import { getPets } from '@/api/pet'
-import { createOrder } from '@/api/order'
+import { createOrder, previewOrder } from '@/api/order'
 import { getMerchants } from '@/api/merchant'
 import { getKeepersByMerchant } from '@/api/keeper'
 import { getServiceDetail, getServiceAvailability } from '@/api/service'
@@ -23,7 +23,11 @@ vi.mock('@/api/pet', () => ({ getPets: vi.fn() }))
 vi.mock('@/api/merchant', () => ({ getMerchants: vi.fn() }))
 vi.mock('@/api/keeper', () => ({ getKeepersByMerchant: vi.fn() }))
 vi.mock('@/api/service', () => ({ getServiceDetail: vi.fn(), getServiceAvailability: vi.fn() }))
-vi.mock('@/api/order', () => ({ createOrder: vi.fn() }))
+vi.mock('@/api/order', () => ({
+  createOrder: vi.fn(),
+  createOrdersBatch: vi.fn(),
+  previewOrder: vi.fn(),
+}))
 vi.mock('@/api/coupon', () => ({
   getAvailableCoupons: vi.fn(),
   quoteCoupon: vi.fn(),
@@ -42,6 +46,31 @@ describe('CreateOrderDialog.vue', () => {
     getServiceDetail.mockResolvedValue({ code: 200, data: null })
     getServiceAvailability.mockResolvedValue({ code: 200, data: { days_wsh: [] } })
     getAvailableCoupons.mockResolvedValue({ code: 200, data: [] })
+    // 价格由后端算：默认按「数量 × 30 元」返回，供展示断言使用
+    previewOrder.mockImplementation(async (payload) => {
+      const quantity = Number(payload?.quantity_wsh || 1)
+      const total = (quantity * 30).toFixed(2)
+      return {
+        code: 200,
+        data: {
+          billing_unit_wsh: payload?.billing_unit_wsh || 'day',
+          quantity_wsh: quantity,
+          days_wsh: quantity,
+          unit_price_wsh: 30,
+          total_amount_wsh: total,
+          long_stay_discount_wsh: '0.00',
+          coupon_discount_wsh: '0.00',
+          membership_discount_wsh: '0.00',
+          platform_subsidy_wsh: '0.00',
+          discount_wsh: '0.00',
+          final_amount_wsh: total,
+          start_date_wsh: payload?.start_date_wsh || null,
+          end_date_wsh: payload?.end_date_wsh || null,
+          delivery_time_wsh: payload?.delivery_time_wsh || payload?.start_time_wsh || null,
+          pickup_time_wsh: payload?.pickup_time_wsh || null,
+        },
+      }
+    })
     quoteCoupon.mockResolvedValue({ code: 200, data: null })
     quoteMembershipOrderDiscount.mockResolvedValue({ code: 200, data: null })
   })
@@ -232,7 +261,6 @@ describe('CreateOrderDialog.vue', () => {
 
     const wrapper = mountDialog({ initialServiceId: '7' })
     await flushPromises()
-    await findSelectByText(wrapper, '看护人').setValue(11)
     await flushPromises()
 
     expect(wrapper.text()).toContain('仅展示可预约日期（1 天可约）')
@@ -245,56 +273,6 @@ describe('CreateOrderDialog.vue', () => {
     await dateInput.setValue(restDay)
     await flushPromises()
     expect(findSelectByText(wrapper, '该日暂无可约时间').text()).toContain('该日暂无可约时间')
-  })
-
-  it('refetches availability and clears chosen times when keeper changes', async () => {
-    mockMerchants([merchant(1, '服务商家')])
-    getServiceDetail.mockResolvedValue({
-      code: 200,
-      data: {
-        id_wsh: 7,
-        name_wsh: '上门寄养',
-        price_wsh: 199,
-        merchant_id_wsh: 1,
-        service_version_wsh: '2026-08-11T10:00:00',
-      },
-    })
-    getKeepersByMerchant.mockResolvedValue({
-      code: 200,
-      data: [
-        keeper(11, { status: 1, qualificationStatus: 'approved' }),
-        keeper(22, { status: 1, qualificationStatus: 'approved' }),
-      ],
-    })
-    const tomorrow = toDateOnly(new Date(Date.now() + 86400000))
-    getServiceAvailability.mockResolvedValue({
-      code: 200,
-      data: {
-        days_wsh: [
-          { date_wsh: tomorrow, bookable_wsh: true, windows_wsh: [{ slots_wsh: [makeSlot(new Date(Date.now() + 86400000))] }] },
-        ],
-      },
-    })
-
-    const wrapper = mountDialog({ initialServiceId: '7' })
-    await flushPromises()
-    const keeperSelect = findSelectByText(wrapper, '看护人')
-    await keeperSelect.setValue(11)
-    await flushPromises()
-    const dateInput = wrapper.findAll('input').filter(i => i.attributes('type') === 'date').at(0)
-    await dateInput.setValue(tomorrow)
-    await flushPromises()
-    await findSelectWithOption(wrapper, makeSlot(new Date(Date.now() + 86400000))).setValue(makeSlot(new Date(Date.now() + 86400000)))
-    await flushPromises()
-    expect(dateInput.element.value).toBe(tomorrow)
-
-    await keeperSelect.setValue(22)
-    await flushPromises()
-
-    const lastCall = getServiceAvailability.mock.calls.at(-1)
-    expect(lastCall[3]).toBe(22)
-    expect(dateInput.element.value).toBe('')
-    expect(findSelectByText(wrapper, '请先选择送达日期').element.value).toBe('')
   })
 
   it('blocks submission when pickup has no available slot on the chosen date', async () => {
@@ -328,7 +306,6 @@ describe('CreateOrderDialog.vue', () => {
     const wrapper = mountDialog({ initialServiceId: '7' })
     await flushPromises()
     await findSelectByText(wrapper, '小白').setValue(1)
-    await findSelectByText(wrapper, '看护人').setValue(11)
     await flushPromises()
     const dateInputs = wrapper.findAll('input').filter(i => i.attributes('type') === 'date')
     await dateInputs.at(0).setValue(tomorrow)
@@ -438,7 +415,7 @@ describe('CreateOrderDialog.vue', () => {
     expect(payload.start_time_wsh).toBeTruthy()
   })
 
-  it('F-BKG-UNIT-003 day 服务继续使用日期区间模式且 payload 包含 billing_unit=day', async () => {
+  it('F-BKG-UNIT-003 night 服务使用连续区间模式且 payload 包含 billing_unit=night', async () => {
     mockMerchants([merchant(1, '服务商家')])
     getServiceDetail.mockResolvedValue({
       code: 200,
@@ -448,8 +425,8 @@ describe('CreateOrderDialog.vue', () => {
         price_wsh: 199,
         merchant_id_wsh: 1,
         service_version_wsh: 'v1',
-        unit_wsh: 'day',
-        booking_mode_wsh: 'date_range',
+        unit_wsh: 'night',
+        booking_mode_wsh: 'interval',
         duration_minutes_wsh: 1440,
       },
     })
@@ -476,7 +453,7 @@ describe('CreateOrderDialog.vue', () => {
 
     expect(createOrder).toHaveBeenCalledTimes(1)
     const payload = createOrder.mock.calls[0][0]
-    expect(payload.billing_unit_wsh).toBe('day')
+    expect(payload.billing_unit_wsh).toBe('night')
     expect(payload.quantity_wsh).toBeGreaterThanOrEqual(1)
     expect(Number(payload.expected_unit_price_wsh)).toBe(199)
   })
@@ -527,7 +504,7 @@ describe('CreateOrderDialog.vue', () => {
     expect(toast.message).not.toContain('按天')
   })
 
-  it('pickup slot options exclude slots not later than the same-day delivery slot', async () => {
+  it('night 订单的接回日期由入住日 + 夜数推导，接回槽位取该日窗口', async () => {
     mockMerchants([merchant(1, '服务商家')])
     getServiceDetail.mockResolvedValue({
       code: 200,
@@ -537,8 +514,8 @@ describe('CreateOrderDialog.vue', () => {
         price_wsh: 199,
         merchant_id_wsh: 1,
         service_version_wsh: 'v1',
-        unit_wsh: 'day',
-        booking_mode_wsh: 'date_range',
+        unit_wsh: 'night',
+        booking_mode_wsh: 'interval',
         duration_minutes_wsh: 1440,
       },
     })
@@ -547,14 +524,15 @@ describe('CreateOrderDialog.vue', () => {
       data: [keeper(11, { status: 1, qualificationStatus: 'approved' })],
     })
     const tomorrow = toDateOnly(new Date(Date.now() + 86400000))
-    const earlySlot = tomorrow + 'T09:00:00'
-    const midSlot = tomorrow + 'T12:00:00'
-    const lateSlot = tomorrow + 'T17:00:00'
+    const dayAfter = toDateOnly(new Date(Date.now() + 2 * 86400000))
+    const deliverySlot = tomorrow + 'T14:00:00'
+    const pickupSlot = dayAfter + 'T14:00:00'
     getServiceAvailability.mockResolvedValue({
       code: 200,
       data: {
         days_wsh: [
-          { date_wsh: tomorrow, bookable_wsh: true, windows_wsh: [{ slots_wsh: [earlySlot, midSlot, lateSlot] }] },
+          { date_wsh: tomorrow, bookable_wsh: true, windows_wsh: [{ slots_wsh: [deliverySlot] }] },
+          { date_wsh: dayAfter, bookable_wsh: true, windows_wsh: [{ slots_wsh: [pickupSlot] }] },
         ],
       },
     })
@@ -562,35 +540,26 @@ describe('CreateOrderDialog.vue', () => {
     const wrapper = mountDialog({ initialServiceId: '7' })
     await flushPromises()
 
-    // 批量行 UI：先选宠物与看护人，再选送达日期，送达时间选「中间槽位」
     const petSelect = findSelectByText(wrapper, '小白')
     await petSelect.setValue(1)
-    await flushPromises()
-    await findSelectByText(wrapper, '看护人').setValue(11)
     await flushPromises()
 
     const dates = wrapper.findAll('input').filter(i => i.attributes('type') === 'date')
     await dates.at(0).setValue(tomorrow)
     await flushPromises()
-    await findSelectWithOption(wrapper, midSlot).setValue(midSlot)
+    await findSelectWithOption(wrapper, deliverySlot).setValue(deliverySlot)
     await flushPromises()
 
-    // 接回日期选在同一天，接回时间下拉应只剩晚于送达的槽位
-    await dates.at(1).setValue(tomorrow)
-    await flushPromises()
-
-    // 批量行 UI select 顺序：宠物、看护人、送达时间、接回时间
-    // 送达下拉含 [early, mid, late]，接回下拉过滤后仅剩 [late]
-    const allSelects = wrapper.findAll('select')
-    const withLate = allSelects.filter(s => Array.from(s.element.options).some(o => o.value === lateSlot))
-    const deliverySelect = withLate[0]
-    const pickupSelect = withLate[1]
-    expect(deliverySelect).toBeTruthy()
-    expect(pickupSelect).toBeTruthy()
-    const pickupSlotOptions = Array.from(pickupSelect.element.options).map(o => o.value).filter(Boolean)
-    expect(pickupSlotOptions).toContain(lateSlot)
-    expect(pickupSlotOptions).not.toContain(earlySlot)
-    expect(pickupSlotOptions).not.toContain(midSlot)
+    // 离店日期是只读推导值：入住日 + 1 夜 = 后天
+    expect(dates.at(1).element.value).toBe(dayAfter)
+    expect(dates.at(1).attributes('disabled')).toBeDefined()
+    // 接回槽位来自离店日当天窗口
+    const pickupSelects = wrapper.findAll('select')
+      .filter(s => Array.from(s.element.options).some(o => o.value === pickupSlot))
+    expect(pickupSelects.length).toBeGreaterThan(0)
+    const pickupOptions = Array.from(pickupSelects.at(-1).element.options).map(o => o.value).filter(Boolean)
+    expect(pickupOptions).toContain(pickupSlot)
+    expect(pickupOptions).not.toContain(deliverySlot)
   })
 })
 
@@ -619,22 +588,15 @@ function mockMerchants(data) {
 async function submitValidForm(wrapper) {
   const isServiceMode = wrapper.find('.readonly-field').exists()
   const selects = wrapper.findAll('select')
-  // 批量（day 服务）模式下看护人 select 位于宠物行之前，按选项文本定位宠物下拉
   const petSelect = findSelectByText(wrapper, '小白')
   await petSelect.setValue(1)
   await flushPromises()
 
-  let keeperSelect
-  if (isServiceMode) {
-    keeperSelect = findSelectByText(wrapper, '看护人')
-  } else {
-    const merchantSelect = selects.at(1)
-    await merchantSelect.setValue(1)
+  // 负责人由系统分配，不再有看护人下拉；非服务模式仍需选商家
+  if (!isServiceMode) {
+    await selects.at(1).setValue(1)
     await flushPromises()
-    keeperSelect = selects.at(2)
   }
-  await keeperSelect.setValue(11)
-  await flushPromises()
 
   const inputs = wrapper.findAll('input')
   const datetime = inputs.filter(i => i.attributes('type') === 'datetime-local')
@@ -677,18 +639,14 @@ async function submitSlotForm(wrapper, options = {}) {
   await selects.at(0).setValue(1)
   await flushPromises()
 
-  let keeperIdx
-  if (isServiceMode) {
-    keeperIdx = 1
-  } else {
+  // 负责人由系统分配，不再有看护人下拉
+  let slotIdx = 1
+  if (!isServiceMode) {
     await selects.at(1).setValue(1)
     await flushPromises()
-    keeperIdx = 2
+    slotIdx = 2
   }
-  await selects.at(keeperIdx).setValue(11)
-  await flushPromises()
 
-  const slotIdx = keeperIdx + 1
   const tomorrow = toDateOnly(new Date(Date.now() + 86400000))
   const dateInput = wrapper.findAll('input').filter(i => i.attributes('type') === 'date').at(0)
   await dateInput.setValue(tomorrow)

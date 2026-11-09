@@ -34,17 +34,39 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RefundServiceImpl implements RefundService {
 
+    /**
+     * 可申请全额退款的状态：只允许「已支付/已确认」且尚未接收宠物。
+     * <p>
+     * 宠物一旦被接收（RECEIVED/IN_PROGRESS）就存在实际交接与照护，全额退款需要
+     * 另一套交接/结算流程，本期不实现，因此直接拒绝而不是留下无合法结单路径的订单。
+     */
     private static final Set<String> REFUNDABLE_ORDER_STATUSES = Set.of(
             OrderStatus.PAID,
-            OrderStatus.CONFIRMED,
-            OrderStatus.DELIVERED,
-            OrderStatus.RECEIVED,
-            OrderStatus.IN_PROGRESS);
+            OrderStatus.CONFIRMED);
 
     private final RefundMapper refundMapper;
     private final OrderMapper orderMapper;
     private final AccountingService accountingService;
 
+    /**
+     * 【退款服务实现的构造注入】
+     *
+     * 业务作用：注入退款、订单 Mapper 与记账服务。
+     *
+     * 调用场景：Spring 容器创建 RefundServiceImpl 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 3 个 final 成员。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public RefundServiceImpl(RefundMapper refundMapper, OrderMapper orderMapper, AccountingService accountingService) {
         this.refundMapper = refundMapper;
         this.orderMapper = orderMapper;
@@ -82,6 +104,7 @@ public class RefundServiceImpl implements RefundService {
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getOwner_id_wsh, ownerId)
                         .select(PetOrder::getId_wsh));
+        // 该用户没有订单，无需再查退款
         if (orders.isEmpty()) return List.of();
         List<Long> orderIds = orders.stream().map(PetOrder::getId_wsh).collect(Collectors.toList());
         return refundMapper.selectList(
@@ -126,15 +149,23 @@ public class RefundServiceImpl implements RefundService {
     @Override
     public Refund createRefund(Long ownerId, String orderNo, String reason) {
         log.info("为订单创建退款: {}", orderNo);
-        PetOrder order = orderMapper.selectOne(
-                new LambdaQueryWrapper<PetOrder>()
-                        .eq(PetOrder::getOrder_no_wsh, orderNo)
-                        .eq(PetOrder::getOwner_id_wsh, ownerId));
-        if (order == null) throw new BusinessException(404, "订单不存在");
+        // 先加订单行锁再重读状态：与「确认接收」并发时只能一方进入
+        PetOrder order = orderMapper.selectByOrderNoForUpdate(orderNo);
+        if (order == null || !ownerId.equals(order.getOwner_id_wsh())) {
+            throw new BusinessException(404, "订单不存在");
+        }
         String statusBeforeRefund = order.getStatus_wsh();
+        // 仅支付后、接收前的订单允许全额退款
         if (!REFUNDABLE_ORDER_STATUSES.contains(statusBeforeRefund)) {
             throw new BusinessException(400, "当前订单状态不可退款");
         }
+        if (order.getReceived_at_wsh() != null) {
+            throw new BusinessException(400, "宠物已接收，不支持全额退款");
+        }
+        if (order.getCheckout_confirmed_at_wsh() != null) {
+            throw new BusinessException(400, "接走已确认，不支持全额退款");
+        }
+        // 已有待处理或已通过的退款时拒绝重复申请
         Refund existing = refundMapper.selectOne(
                 new LambdaQueryWrapper<Refund>()
                         .eq(Refund::getOrder_no_wsh, orderNo)
@@ -144,6 +175,7 @@ public class RefundServiceImpl implements RefundService {
 
         PetOrder update = new PetOrder();
         update.setStatus_wsh(OrderStatus.REFUNDING);
+        // 带状态条件更新，避免并发重复置为退款中
         int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
                 .eq(PetOrder::getId_wsh, order.getId_wsh())
                 .eq(PetOrder::getStatus_wsh, statusBeforeRefund));
@@ -190,6 +222,7 @@ public class RefundServiceImpl implements RefundService {
         }
         Refund update = new Refund();
         update.setStatus_wsh(RefundStatus.APPROVED);
+        // 乐观锁更新，状态已被改动则拒绝
         int updated = refundMapper.update(update, new LambdaUpdateWrapper<Refund>()
                 .eq(Refund::getId_wsh, refund.getId_wsh())
                 .eq(Refund::getStatus_wsh, RefundStatus.PENDING));
@@ -224,6 +257,7 @@ public class RefundServiceImpl implements RefundService {
         }
         PetOrder order = orderMapper.selectById(refund.getOrder_id_wsh());
         if (order == null) throw new BusinessException(404, "订单不存在");
+        // 订单已完成结算，不再走退款
         if (OrderStatus.COMPLETED.equals(order.getStatus_wsh())) {
             throw new BusinessException(400, "订单已完成结算，暂不支持退款");
         }
@@ -233,6 +267,7 @@ public class RefundServiceImpl implements RefundService {
         }
 
         BigDecimal refundAmount = defaultMoney(refund.getAmount_wsh());
+        // 金额大于零才真正执行转账
         if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
             accountingService.transfer(accountingService.systemUserId(), order.getOwner_id_wsh(),
                     refundAmount, "refund", order.getId_wsh(),
@@ -242,6 +277,7 @@ public class RefundServiceImpl implements RefundService {
         }
 
         BigDecimal subsidy = defaultMoney(order.getPlatform_subsidy_wsh());
+        // 有平台补贴时同步回冲给系统账户
         if (subsidy.compareTo(BigDecimal.ZERO) > 0) {
             accountingService.debit(accountingService.systemUserId(), subsidy, "coupon_subsidy_refund", order.getId_wsh(),
                     "coupon", String.valueOf(order.getCoupon_id_wsh()),
@@ -301,6 +337,7 @@ public class RefundServiceImpl implements RefundService {
         refund.setStatus_wsh(RefundStatus.REJECTED);
 
         PetOrder order = orderMapper.selectById(refund.getOrder_id_wsh());
+        // 订单仍存在时恢复退款前的状态
         if (order != null) {
             String restoredStatus = resolveStatusBeforeRefund(refund);
             PetOrder orderUpdate = new PetOrder();
@@ -362,6 +399,25 @@ public class RefundServiceImpl implements RefundService {
         return REFUNDABLE_ORDER_STATUSES.contains(status) ? status : OrderStatus.PAID;
     }
 
+    /**
+     * 【金额空值兜底】
+     *
+     * 业务作用：把可能为 null 的金额统一按 0 处理，避免空指针与比较异常。
+     *
+     * 调用场景：completeRefund() 处理退款金额与平台补贴金额时。
+     *
+     * 调用链：completeRefund() → defaultMoney() → BigDecimal 比较。
+     *
+     * 数据处理：amount 为 null 返回 BigDecimal.ZERO，否则原样返回。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：仅做 null 兜底，不做精度与正负校验。
+     */
     private BigDecimal defaultMoney(BigDecimal amount) {
         return amount == null ? BigDecimal.ZERO : amount;
     }

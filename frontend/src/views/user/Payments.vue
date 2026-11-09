@@ -131,6 +131,7 @@
               <p class="pm-row-title">
                 <template v-if="p.order_no_wsh">订单 <span class="tabular">{{ p.order_no_wsh }}</span></template>
                 <template v-else>{{ payMethodMap[p.method_wsh] || p.method_wsh }}</template>
+                <span class="badge" data-testid="payment-purpose">{{ purposeText(p.purpose_wsh) }}</span>
               </p>
               <p class="pm-row-meta">
                 <span>{{ payMethodMap[p.method_wsh] || p.method_wsh }}</span>
@@ -176,6 +177,16 @@ const payMethodMap = {
   balance: '余额支付',
   wechat: '微信支付',
   alipay: '支付宝',
+}
+
+// 同一订单可能有两笔支付：下单预付与晚接补费，页面必须标明用途
+const PAYMENT_PURPOSE = {
+  order: '预付',
+  night_overtime: '晚接补费',
+}
+
+function purposeText(purpose) {
+  return PAYMENT_PURPOSE[purpose] || PAYMENT_PURPOSE.order
 }
 
 onMounted(loadPayments)

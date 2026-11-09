@@ -28,7 +28,11 @@ public class AgentPromptResult {
     @JsonProperty("start_date")
     private String startDate;
 
-    /** 寄养天数，未提及为 null */
+    /** 寄养夜数（正整数），未提及为 null */
+    @JsonProperty("nights")
+    private Integer nights;
+
+    /** 旧字段：寄养天数。仅为兼容旧提示词保留，读取时优先使用 nights */
     @JsonProperty("days")
     private Integer days;
 
@@ -36,11 +40,15 @@ public class AgentPromptResult {
     @JsonProperty("merchant_keyword")
     private String merchantKeyword;
 
-    /** 每日价格上限（预算），未提及为 null */
+    /** 每夜价格上限（预算），未提及为 null */
+    @JsonProperty("max_price_per_night")
+    private BigDecimal maxPricePerNight;
+
+    /** 旧字段：每日价格上限。仅为兼容旧提示词保留 */
     @JsonProperty("max_price_per_day")
     private BigDecimal maxPricePerDay;
 
-    /** 计费单位：day / session / hour，未明确为 null（服务端默认按 day 处理） */
+    /** 计费单位：night / session / hour，未明确为 null（服务端默认按 night 处理） */
     @JsonProperty("unit")
     private String unit;
 }

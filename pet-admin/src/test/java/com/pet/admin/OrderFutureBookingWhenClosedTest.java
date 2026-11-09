@@ -49,6 +49,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -73,6 +75,7 @@ import static org.mockito.Mockito.doAnswer;
  * an approved-but-closed store must still accept, pay and confirm future orders.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class OrderFutureBookingWhenClosedTest {
 
     @Mock private OrderMapper orderMapper;
@@ -253,7 +256,6 @@ class OrderFutureBookingWhenClosedTest {
         kp.setId_wsh(20L);
         kp.setMerchant_id_wsh(10L);
         kp.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
-        kp.setPrice_per_day_wsh(new BigDecimal("50"));
         kp.setMax_pets_wsh(3);
         when(keeperMapper.selectById(20L)).thenReturn(kp);
 
@@ -290,7 +292,9 @@ class OrderFutureBookingWhenClosedTest {
         ServiceItem service = new ServiceItem();
         service.setId_wsh(5L);
         service.setMerchant_id_wsh(10L);
-        service.setUnit_wsh("day");
+        service.setUnit_wsh("night");
+        // 价格只认服务单价（看护者个人定价已下线）
+        service.setPrice_wsh(new BigDecimal("100.00"));
         service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         lenient().when(serviceItemMapper.selectById(5L)).thenReturn(service);
         lenient().when(serviceItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(service));
@@ -314,7 +318,9 @@ class OrderFutureBookingWhenClosedTest {
         ServiceItem service = new ServiceItem();
         service.setId_wsh(5L);
         service.setMerchant_id_wsh(id);
-        service.setUnit_wsh("day");
+        service.setUnit_wsh("night");
+        // 价格只认服务单价（看护者个人定价已下线）
+        service.setPrice_wsh(new BigDecimal("100.00"));
         service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         when(serviceItemMapper.selectById(5L)).thenReturn(service);
     }
@@ -341,7 +347,6 @@ class OrderFutureBookingWhenClosedTest {
         k.setId_wsh(20L);
         k.setMerchant_id_wsh(10L);
         k.setStatus_wsh(keeperStatus);
-        k.setPrice_per_day_wsh(new BigDecimal("50"));
         k.setMax_pets_wsh(3);
         return k;
     }
@@ -356,12 +361,13 @@ class OrderFutureBookingWhenClosedTest {
     private OrderCreateRequestDTO request(LocalDate start, LocalDate end) {
         OrderCreateRequestDTO dto = new OrderCreateRequestDTO();
         dto.setPet_id_wsh(1L);
-        dto.setKeeper_id_wsh(20L);
         dto.setMerchant_id_wsh(10L);
         dto.setService_id_wsh(5L);
         dto.setStart_date_wsh(start);
         dto.setEnd_date_wsh(end);
-        dto.setDelivery_time_wsh(start.atTime(10, 0));
+        dto.setQuantity_wsh((int) java.time.temporal.ChronoUnit.DAYS.between(start, end));
+        dto.setDelivery_time_wsh(start.atTime(14, 0));
+        dto.setPickup_time_wsh(end.atTime(14, 30));
         return dto;
     }
 

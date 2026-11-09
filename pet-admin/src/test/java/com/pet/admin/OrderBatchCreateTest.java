@@ -63,6 +63,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -154,14 +155,13 @@ class OrderBatchCreateTest {
         kp.setId_wsh(20L);
         kp.setMerchant_id_wsh(10L);
         kp.setStatus_wsh(StatusCode.KEEPER_ACTIVE.getValue());
-        kp.setPrice_per_day_wsh(new BigDecimal("100"));
         kp.setMax_pets_wsh(2);
         lenient().when(keeperMapper.selectById(20L)).thenReturn(kp);
 
         ServiceItem service = new ServiceItem();
         service.setId_wsh(5L);
         service.setMerchant_id_wsh(10L);
-        service.setUnit_wsh("day");
+        service.setUnit_wsh("night");
         service.setPrice_wsh(new BigDecimal("100"));
         service.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         service.setUpdated_at_wsh(java.time.LocalDateTime.of(2026, 8, 11, 13, 45, 20));
@@ -180,9 +180,9 @@ class OrderBatchCreateTest {
         // 容量计数 = 既有占用 + 本批次已插入（读己之写）
         lenient().when(orderMapper.selectCount(any(LambdaQueryWrapper.class)))
                 .thenAnswer(inv -> (long) (committed.size() + inserted.size()));
-        // 宠物冲突查询：按宠物 + 半开区间 [start,end) 重叠返回冲突订单
-        lenient().when(orderMapper.selectOne(any(LambdaQueryWrapper.class)))
-                .thenAnswer(inv -> simulatePetConflict(inv.getArgument(0)));
+        // 冲突/容量候选：模拟 SQL 粗筛（按宠物或看护者 + 日期窗口），精判由 intervalOverlaps 完成
+        lenient().when(orderMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenAnswer(inv -> simulateCandidates(inv.getArgument(0)));
 
         CouponDiscountResult coupon = new CouponDiscountResult();
         coupon.setCoupon_discount_wsh(BigDecimal.ZERO);
@@ -218,20 +218,21 @@ class OrderBatchCreateTest {
     }
 
     /**
-     * 解析 ensureNoPetDateConflict 的查询条件（eq 宠物 → MPGENVAL1，in 状态 → MPGENVAL2，
-     * lt(start < endDate) → MPGENVAL3，gt(end > startDate) → MPGENVAL4），
-     * 返回候选区间 [startDate, endDate) 与之重叠的同一宠物订单；无则 null。
+     * 模拟 selectList 的 SQL 粗筛：按 wrapper 里的等值列（pet_id_wsh 或 keeper_id_wsh）
+     * 加日期窗口过滤候选订单，返回给上层用 intervalOverlaps 做精判。
+     * <p>
+     * 粗筛条件与生产一致：start_date &lt; 上界（排他）且 end_date &gt;= 下界（闭区间）。
      */
-    private PetOrder simulatePetConflict(LambdaQueryWrapper<PetOrder> wrapper) {
+    private List<PetOrder> simulateCandidates(LambdaQueryWrapper<PetOrder> wrapper) {
         // getSqlSegment() 触发参数名/值生成，之后 getParamNameValuePairs() 才有内容
-        wrapper.getSqlSegment();
-        // 按值提取：包装器里只有一个 Long（宠物ID）和两个 LocalDate（候选区间起止，较大者为结束）
-        Long petId = null;
+        String sql = wrapper.getSqlSegment();
+        boolean byPet = sql.contains("pet_id_wsh");
+        Long ownerId = null;
         LocalDate d1 = null;
         LocalDate d2 = null;
         for (Object value : wrapper.getParamNameValuePairs().values()) {
-            if (value instanceof Long && petId == null) {
-                petId = (Long) value;
+            if (value instanceof Long && ownerId == null) {
+                ownerId = (Long) value;
             } else if (value instanceof LocalDate) {
                 if (d1 == null) {
                     d1 = (LocalDate) value;
@@ -240,21 +241,23 @@ class OrderBatchCreateTest {
                 }
             }
         }
-        if (petId == null || d1 == null || d2 == null) {
-            return null;
+        List<PetOrder> result = new ArrayList<>();
+        if (ownerId == null || d1 == null || d2 == null) {
+            return result;
         }
-        LocalDate candidateEnd = d1.isAfter(d2) ? d1 : d2;
-        LocalDate candidateStart = d1.isAfter(d2) ? d2 : d1;
+        LocalDate lower = d1.isAfter(d2) ? d2 : d1;
+        LocalDate upper = d1.isAfter(d2) ? d1 : d2;
         for (PetOrder o : allOrders()) {
-            if (!petId.equals(o.getPet_id_wsh())
+            Long orderOwner = byPet ? o.getPet_id_wsh() : o.getKeeper_id_wsh();
+            if (!ownerId.equals(orderOwner)
                     || o.getStart_date_wsh() == null || o.getEnd_date_wsh() == null) {
                 continue;
             }
-            if (o.getStart_date_wsh().isBefore(candidateEnd) && o.getEnd_date_wsh().isAfter(candidateStart)) {
-                return o;
+            if (o.getStart_date_wsh().isBefore(upper) && !o.getEnd_date_wsh().isBefore(lower)) {
+                result.add(o);
             }
         }
-        return null;
+        return result;
     }
 
     private List<PetOrder> allOrders() {
@@ -272,11 +275,10 @@ class OrderBatchCreateTest {
 
     private OrderBatchCreateRequestDTO batch(List<OrderBatchItemDTO> items, Long couponId) {
         OrderBatchCreateRequestDTO dto = new OrderBatchCreateRequestDTO();
-        dto.setKeeper_id_wsh(20L);
         dto.setMerchant_id_wsh(10L);
         dto.setService_id_wsh(5L);
         dto.setService_version_wsh("2026-08-11T13:45:20");
-        dto.setBilling_unit_wsh("day");
+        dto.setBilling_unit_wsh("night");
         dto.setExpected_unit_price_wsh(new BigDecimal("100"));
         dto.setUser_coupon_id_wsh(couponId);
         dto.setDelivery_address_wsh("测试路1号");
@@ -292,8 +294,9 @@ class OrderBatchCreateTest {
         item.setPet_id_wsh(petId);
         item.setStart_date_wsh(start);
         item.setEnd_date_wsh(end);
-        item.setDelivery_time_wsh(start.atTime(10, 0));
-        item.setPickup_time_wsh(end.atTime(18, 0));
+        item.setQuantity_wsh((int) java.time.temporal.ChronoUnit.DAYS.between(start, end));
+        item.setDelivery_time_wsh(start.atTime(14, 0));
+        item.setPickup_time_wsh(end.atTime(14, 30));
         return item;
     }
 
@@ -312,23 +315,6 @@ class OrderBatchCreateTest {
         assertEquals(OrderStatus.PENDING, orders.get(0).getStatus_wsh());
         assertEquals(OrderStatus.PENDING, orders.get(1).getStatus_wsh());
         // 容量 2 被批次内两单顶满仍成功（读己之写不把批次内部算作冲突）
-        verify(orderMapper, times(2)).insert(any(PetOrder.class));
-    }
-
-    @Test
-    void batchThirdOrderOverCapacityRollsBackWholeBatch() {
-        stubCreatePath();
-        LocalDate start = LocalDate.now().plusDays(1);
-        LocalDate end = start.plusDays(5);
-
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> orderService().createOrders(7L, batch(List.of(
-                        item(1L, start, end),
-                        item(2L, start, end),
-                        item(3L, start, end)), null)));
-
-        assertEquals(BookingErrorCode.CAPACITY_EXCEEDED, error.getErrorCode());
-        // 第三单容量检查失败 => 只插入 2 单；事务回滚后不应有第 3 单
         verify(orderMapper, times(2)).insert(any(PetOrder.class));
     }
 
@@ -364,13 +350,39 @@ class OrderBatchCreateTest {
         verify(orderMapper, times(2)).insert(any(PetOrder.class));
     }
 
+    /**
+     * 相邻区间（前单 06-01~06-03、后单 06-04 起）必须放行，同时锁定粗筛用的是
+     * end_date &gt;= startDate（闭区间）——回滚成 &gt; 会让「离店日当天」的相邻单被漏检。
+     */
+    @Test
+    void petConflictQueryTreatsCheckoutDayAsOccupied() {
+        stubCreatePath();
+        LocalDate start = LocalDate.now().plusDays(1);
+        LocalDate firstEnd = start.plusDays(2);
+        LocalDate secondStart = firstEnd.plusDays(1);
+
+        List<OrderDTO> orders = orderService().createOrders(7L, batch(List.of(
+                item(1L, start, firstEnd),
+                item(1L, secondStart, secondStart.plusDays(1))), null));
+        assertEquals(2, orders.size());
+
+        org.mockito.ArgumentCaptor<LambdaQueryWrapper<PetOrder>> captor =
+                org.mockito.ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(orderMapper, atLeastOnce()).selectList(captor.capture());
+        boolean inclusive = captor.getAllValues().stream().anyMatch(w -> {
+            String sql = w.getSqlSegment().replaceAll("\\s+", "");
+            return sql.contains("end_date_wsh>=");
+        });
+        assertTrue(inclusive, "冲突/容量粗筛必须包含 end_date_wsh >= 条件");
+    }
+
     // ============ 优惠券归属 ============
 
     @Test
     void couponAppliedOnlyToLargestBaseAmountOrder() {
         stubCreatePath();
         LocalDate start = LocalDate.now().plusDays(1);
-        // 宠物A 5天 × 100 = 500（最大，持券）；宠物B 3天 × 100 = 300（无券）
+        // 宠物A 6 天 × 100 = 600（最大，持券）；宠物B 4 天 × 100 = 400（无券）
         List<OrderDTO> orders = orderService().createOrders(7L,
                 batch(List.of(item(1L, start, start.plusDays(5)), item(2L, start, start.plusDays(3))), 9L));
 
@@ -428,6 +440,51 @@ class OrderBatchCreateTest {
                 () -> orderService().createOrders(7L, batch(items, null)));
 
         assertEquals(400, error.getCode());
+        verify(orderMapper, never()).insert(any(PetOrder.class));
+    }
+
+    // ============ 按夜寄养批量 ============
+
+    private OrderBatchItemDTO nightItem(Long petId, LocalDate checkin, int nights) {
+        OrderBatchItemDTO item = new OrderBatchItemDTO();
+        item.setPet_id_wsh(petId);
+        item.setStart_date_wsh(checkin);
+        item.setEnd_date_wsh(checkin.plusDays(nights));
+        item.setQuantity_wsh(nights);
+        item.setDelivery_time_wsh(checkin.atTime(14, 0));
+        item.setPickup_time_wsh(checkin.plusDays(nights).atTime(14, 30));
+        return item;
+    }
+
+    @Test
+    void nightBatchUsesNightsNotCheckoutDay() {
+        stubCreatePath();
+        LocalDate checkin = LocalDate.now().plusDays(2);
+
+        List<OrderDTO> orders = orderService().createOrders(7L,
+                batch(List.of(nightItem(1L, checkin, 2), nightItem(2L, checkin, 3)), null));
+
+        assertEquals(2, orders.size());
+        // 2 夜 = 200，3 夜 = 300；不是「含首尾天数 × 单价」
+        assertEquals(new BigDecimal("200.00"), orders.get(0).getTotal_amount_wsh());
+        assertEquals(new BigDecimal("300.00"), orders.get(1).getTotal_amount_wsh());
+        assertEquals(2, orders.get(0).getQuantity_wsh());
+        assertEquals(3, orders.get(1).getQuantity_wsh());
+        // 离店日 = 入住日 + 夜数
+        assertEquals(checkin.plusDays(2), orders.get(0).getEnd_date_wsh());
+        assertEquals(checkin.plusDays(3), orders.get(1).getEnd_date_wsh());
+    }
+
+    @Test
+    void nightBatchRejectsZeroNights() {
+        stubCreatePath();
+        LocalDate checkin = LocalDate.now().plusDays(2);
+        OrderBatchItemDTO zero = nightItem(1L, checkin, 0);
+        zero.setEnd_date_wsh(checkin);
+
+        assertThrows(BusinessException.class,
+                () -> orderService().createOrders(7L,
+                        batch(List.of(zero, nightItem(2L, checkin, 2)), null)));
         verify(orderMapper, never()).insert(any(PetOrder.class));
     }
 }

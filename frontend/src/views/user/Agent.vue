@@ -152,7 +152,7 @@
             </div>
             <div class="ag-plan-cell">
               <dt>日期</dt>
-              <dd class="tabular">{{ plan.start_date_wsh }} ~ {{ plan.end_date_wsh }}（{{ plan.days_wsh }} 天）</dd>
+              <dd class="tabular">{{ plan.start_date_wsh }} ~ {{ plan.end_date_wsh }}（{{ plan.days_wsh }} 夜）</dd>
             </div>
             <div class="ag-plan-cell">
               <dt>距离</dt>
@@ -160,7 +160,7 @@
             </div>
             <div class="ag-plan-cell">
               <dt>单价</dt>
-              <dd class="tabular">¥{{ money(plan.unit_price_wsh) }}/天</dd>
+              <dd class="tabular">¥{{ money(plan.unit_price_wsh) }}/夜</dd>
             </div>
             <div class="ag-plan-cell">
               <dt>总价（预估）</dt>
@@ -314,8 +314,8 @@ import { useAppStore } from '@/stores/app'
 
 const examples = [
   '帮布丁订 9 月 15 日到 18 日的标准寄养，优先衡山路门店',
-  '下周二开始给芋圆订 3 天寄养，价格不超过 150 一天',
-  '帮我订一只金毛的寄养，5 天，本周五开始',
+  '下周二开始给芋圆订 3 晚寄养，价格不超过 150 一晚',
+  '帮我订一只金毛的寄养，5 晚，本周五开始',
 ]
 
 const steps = [
@@ -478,10 +478,10 @@ function nextActionText(action) {
     ask_requirement: '请补充下单需求。',
     ask_pet_type: '请补充宠物类型或品种。',
     ask_pet_identity: '请补充宠物昵称，便于精确匹配档案。',
-    ask_days: '请补充寄养天数。',
+    ask_days: '请补充预订夜数。',
     ask_location: '请提供或授权位置信息。',
     ask_payment_password: '请补充支付密码，或关闭自动支付授权后只创建待支付订单。',
-    unsupported_service_type: '智能下单目前仅支持寄养类日间服务，请到服务列表手动下单。',
+    unsupported_service_type: '智能下单目前仅支持按夜寄养，请到服务列表手动下单。',
     plan_expired: '该方案已过期或无效，请重新生成方案后再试。',
     plan_busy: '该方案正在处理或已提交，请勿重复点击。',
     complete_profile: '请先完善个人资料。',

@@ -9,7 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * RED: 多计费单位注册表契约 —— 规范化别名、未知/空白/超长拒绝、时长边界、booking mode 推导。
+ * 多计费单位注册表契约：只允许 night / session / hour。
+ * <p>
+ * 旧的 day / boarding 已下线：必须返回 null（调用方据此返回 400），不得静默归一成别的单位。
  */
 class BookingUnitTest {
 
@@ -17,9 +19,9 @@ class BookingUnitTest {
 
     @Test
     void aliasesNormalizeToCanonicalUnits() {
-        assertEquals(BookingUnit.DAY, BookingUnit.normalize("天"));
-        assertEquals(BookingUnit.DAY, BookingUnit.normalize("days"));
-        assertEquals(BookingUnit.DAY, BookingUnit.normalize("day"));
+        assertEquals(BookingUnit.NIGHT, BookingUnit.normalize("晚"));
+        assertEquals(BookingUnit.NIGHT, BookingUnit.normalize("nights"));
+        assertEquals(BookingUnit.NIGHT, BookingUnit.normalize("night"));
         assertEquals(BookingUnit.SESSION, BookingUnit.normalize("次"));
         assertEquals(BookingUnit.SESSION, BookingUnit.normalize("sessions"));
         assertEquals(BookingUnit.SESSION, BookingUnit.normalize("session"));
@@ -30,9 +32,32 @@ class BookingUnitTest {
 
     @Test
     void normalizationTrimsAndLowercases() {
-        assertEquals(BookingUnit.DAY, BookingUnit.normalize(" 天 "));
-        assertEquals(BookingUnit.DAY, BookingUnit.normalize("  Days  "));
+        assertEquals(BookingUnit.NIGHT, BookingUnit.normalize(" 夜 "));
+        assertEquals(BookingUnit.NIGHT, BookingUnit.normalize("  Nights  "));
         assertEquals(BookingUnit.HOUR, BookingUnit.normalize("HOUR"));
+    }
+
+    @Test
+    void lessonUnitMapsToSession() {
+        // 「课时」= 课程节次，按次收费（一次订单 = 一节课），不是连续小时
+        assertEquals(BookingUnit.SESSION, BookingUnit.normalize("课时"));
+        assertEquals(BookingUnit.SESSION, BookingUnit.normalize("节"));
+        assertEquals(BookingUnit.SESSION, BookingUnit.normalize(" 课时 "));
+        assertEquals(BookingUnit.MODE_SLOT, BookingUnit.bookingMode(BookingUnit.normalize("课时")));
+        assertEquals(60, BookingUnit.resolveDurationMinutes(BookingUnit.normalize("课时"), null));
+    }
+
+    @Test
+    void legacyUnitsAreRejected() {
+        // 旧口径彻底下线：day / boarding 返回 null，由调用方返回明确的 400
+        assertNull(BookingUnit.normalize("day"));
+        assertNull(BookingUnit.normalize("days"));
+        assertNull(BookingUnit.normalize("天"));
+        assertNull(BookingUnit.normalize("boarding"));
+        assertNull(BookingUnit.normalize("寄养"));
+        assertNull(BookingUnit.normalize("24小时"));
+        assertFalse(BookingUnit.isSupported("day"));
+        assertFalse(BookingUnit.isSupported("boarding"));
     }
 
     @Test
@@ -46,7 +71,7 @@ class BookingUnitTest {
 
     @Test
     void canonicalUnitsAreSupported() {
-        assertTrue(BookingUnit.isSupported(BookingUnit.DAY));
+        assertTrue(BookingUnit.isSupported(BookingUnit.NIGHT));
         assertTrue(BookingUnit.isSupported(BookingUnit.SESSION));
         assertTrue(BookingUnit.isSupported(BookingUnit.HOUR));
         assertFalse(BookingUnit.isSupported("week"));
@@ -57,21 +82,20 @@ class BookingUnitTest {
 
     @Test
     void bookingModeDerivedFromUnit() {
-        assertEquals(BookingUnit.MODE_DATE_RANGE, BookingUnit.bookingMode(BookingUnit.DAY));
+        assertEquals(BookingUnit.MODE_INTERVAL, BookingUnit.bookingMode(BookingUnit.NIGHT));
         assertEquals(BookingUnit.MODE_SLOT, BookingUnit.bookingMode(BookingUnit.SESSION));
         assertEquals(BookingUnit.MODE_SLOT, BookingUnit.bookingMode(BookingUnit.HOUR));
+        assertNull(BookingUnit.bookingMode("day"));
     }
 
     // ============ duration 边界 ============
 
     @Test
-    void dayDurationFixedAt1440() {
-        assertEquals(1440, BookingUnit.resolveDurationMinutes(BookingUnit.DAY, null));
-        assertEquals(1440, BookingUnit.resolveDurationMinutes(BookingUnit.DAY, 1440));
+    void nightDurationFixedAtOneDayMetadata() {
+        assertEquals(1440, BookingUnit.resolveDurationMinutes(BookingUnit.NIGHT, null));
+        assertEquals(1440, BookingUnit.resolveDurationMinutes(BookingUnit.NIGHT, 1440));
         assertThrows(BusinessException.class,
-                () -> BookingUnit.resolveDurationMinutes(BookingUnit.DAY, 60));
-        assertThrows(BusinessException.class,
-                () -> BookingUnit.resolveDurationMinutes(BookingUnit.DAY, 120));
+                () -> BookingUnit.resolveDurationMinutes(BookingUnit.NIGHT, 60));
     }
 
     @Test
@@ -88,15 +112,19 @@ class BookingUnitTest {
     }
 
     @Test
-    void hourDurationMustBePositiveMultipleOf60() {
+    void hourDurationMustBePositiveMultipleOfGranularity() {
+        // 默认粒度 60 分钟
         assertEquals(60, BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, null));
         assertEquals(60, BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 60));
         assertEquals(120, BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 120));
         assertEquals(1440, BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 1440));
+        // 支持 30 分钟粒度：一个计费单位就是半小时
+        assertEquals(30, BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 30));
+        assertEquals(90, BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 90));
+        assertEquals(BookingUnit.HOUR_GRANULARITY_STEP_MINUTES, 30);
+        // 非 30 的整数倍一律拒绝（15/10 分钟无法用半小时粒度表达）
         assertThrows(BusinessException.class,
                 () -> BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 15));
-        assertThrows(BusinessException.class,
-                () -> BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 90));
         assertThrows(BusinessException.class,
                 () -> BookingUnit.resolveDurationMinutes(BookingUnit.HOUR, 10));
         assertThrows(BusinessException.class,

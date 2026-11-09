@@ -62,11 +62,35 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     private static final BigDecimal MAX_PRICE = new BigDecimal("1000000");
 
     private final ServiceItemMapper serviceItemMapper;
+    /** 寄养类服务的根分类代码 */
+    private static final String CATEGORY_CODE_BOARDING = "BOARDING";
+    /** 日间寄养：允许按天计费 */
+    private static final String CATEGORY_CODE_DAYCARE = "BOARDING_DAYCARE";
+
     private final ServiceCategoryMapper categoryMapper;
     private final MerchantMapper merchantMapper;
     private final RatingMapper ratingMapper;
     private final ServiceMediaService serviceMediaService;
 
+    /**
+     * 【构造服务项目服务】
+     *
+     * 业务作用：注入服务项、服务分类、商家、评价四个 Mapper 与服务媒体服务。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值各 Mapper / serviceMediaService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖均为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类含 @Cacheable / @CacheEvict 注解，构造器注入的依赖必须保持单例语义。
+     */
     public ServiceItemServiceImpl(ServiceItemMapper serviceItemMapper,
                                   ServiceCategoryMapper categoryMapper,
                                   MerchantMapper merchantMapper,
@@ -164,6 +188,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         item.setDescription_wsh(dto.getDescription_wsh());
         item.setPrice_wsh(dto.getPrice_wsh());
         applyUnitContract(item, dto.getUnit_wsh(), dto.getDuration_minutes_wsh());
+        assertUnitMatchesCategory(cat, item.getUnit_wsh());
         item.setImages_wsh(dto.getImages_wsh());
         item.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         serviceItemMapper.insert(item);
@@ -211,7 +236,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             existing.setPrice_wsh(dto.getPrice_wsh());
         }
         if (dto.getUnit_wsh() != null || dto.getDuration_minutes_wsh() != null) {
+            String previousUnit = existing.getUnit_wsh();
             applyUnitContract(existing, dto.getUnit_wsh(), dto.getDuration_minutes_wsh());
+            // 只在单位真的被改动时校验：历史上有分类与单位不匹配的存量服务，
+            // 若无条件校验会让商家连改价格都保存不了
+            if (dto.getUnit_wsh() != null && !dto.getUnit_wsh().equalsIgnoreCase(previousUnit)) {
+                assertUnitMatchesCategory(
+                        categoryMapper.selectById(existing.getCategory_id_wsh()),
+                        existing.getUnit_wsh());
+            }
         }
         if (dto.getImages_wsh() != null) {
             existing.setImages_wsh(dto.getImages_wsh());
@@ -359,15 +392,15 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         boolean hasCoords = lat != null || lng != null;
         // 经纬度必须成对提供，不能只提供其中一个
         if (hasCoords && (lat == null || lng == null)) {
-            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "latitude and longitude must be provided together");
+            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "经度和纬度必须同时提供");
         }
         // 坐标范围校验：纬度 [-90, 90]，经度 [-180, 180]
         if (hasCoords && (lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
-            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "coordinate out of range");
+            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "坐标超出范围");
         }
         // 距离排序必须提供经纬度参数
         if ("distance_asc".equals(sort) && !hasCoords) {
-            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "distance sort requires coordinates");
+            throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "距离排序需要提供坐标");
         }
 
         // ========== 构建数据库查询条件 ==========
@@ -421,9 +454,9 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         Set<Long> serviceIds = visible.stream().map(ServiceItem::getId_wsh).collect(Collectors.toSet());
         // 图册批量解析：单次媒体查询 + 单次文件记录查询，列表只展示媒体行可信 URL
         Map<Long, List<ServiceMediaDTO>> mediaByService = serviceMediaService.listMediaByServiceIds(serviceIds);
-        // 聚合服务评分统计
+        // 聚合服务评分统计 目标id 评论数量和平均分
         Map<Long, RatingStats> serviceStats = aggregate(serviceIds, "service");
-        // 聚合商家评分统计
+        // 聚合商家评分统计 目标id 评论数量和平均分
         Set<Long> merchantIds = visible.stream().map(ServiceItem::getMerchant_id_wsh)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, RatingStats> merchantStats = aggregate(merchantIds, "merchant");
@@ -505,6 +538,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     private Map<Long, RatingStats> aggregate(Set<Long> targetIds, String targetType) {
         if (targetIds.isEmpty()) return Map.of();
         Map<Long, RatingStats> stats = new HashMap<>();
+        // 遍历结果集并构建统计结果
         for (Map<String, Object> row : ratingMapper.aggregateByTargets(targetType, targetIds)) {
             Object targetId = row.get("targetId");
             if (targetId == null) continue;
@@ -602,7 +636,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         vo.setUnit_wsh(service.getUnit_wsh());
         String detailUnit = BookingUnit.normalize(service.getUnit_wsh());
         if (detailUnit == null) {
-            detailUnit = BookingUnit.DAY;
+            // 历史空单位按按夜兜底（迁移后唯一的长区间单位）
+            detailUnit = BookingUnit.NIGHT;
         }
         vo.setDuration_minutes_wsh(service.getDuration_minutes_wsh() != null
                 ? service.getDuration_minutes_wsh()
@@ -773,6 +808,44 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /** 获取已启用的分类（不存在或禁用时抛异常） */
+    /**
+     * 寄养类服务的计价方式约束。
+     * <p>
+     * 根分类为「寄养服务」(BOARDING) 时，过夜寄养必须按夜计费（night）：
+     * 夜数是用户明确选择的预订事实，提前送达只加收费用、不改离店日期。
+     * 唯一例外是叶子分类「日间寄养」(BOARDING_DAYCARE)：宠物夜间回家，按一次日托
+     * （session）计费，时长沿用商家配置，不能被默认成 60 分钟。
+     *
+     * @param leaf 服务所选分类（叶子）
+     * @param unit 规范化后的计价单位
+     */
+    private void assertUnitMatchesCategory(ServiceCategory leaf, String unit) {
+        if (leaf == null || unit == null) {
+            return;
+        }
+        ServiceCategory root = leaf;
+        if (leaf.getParent_id_wsh() != null) {
+            ServiceCategory parent = categoryMapper.selectById(leaf.getParent_id_wsh());
+            if (parent != null) {
+                root = parent;
+            }
+        }
+        if (!CATEGORY_CODE_BOARDING.equalsIgnoreCase(root.getCode_wsh())) {
+            return;
+        }
+        if (CATEGORY_CODE_DAYCARE.equalsIgnoreCase(leaf.getCode_wsh())) {
+            if (!BookingUnit.SESSION.equals(unit)) {
+                throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
+                        "日间寄养必须按次计费（session），时长沿用商家配置");
+            }
+            return;
+        }
+        if (!BookingUnit.NIGHT.equals(unit)) {
+            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
+                    "过夜寄养必须按夜计费（night）");
+        }
+    }
+
     private ServiceCategory requireEnabledCategory(Long categoryId) {
         if (categoryId == null) {
             throw new BusinessException(400, BookingErrorCode.CATEGORY_NOT_FOUND, "服务分类不能为空");

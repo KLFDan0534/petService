@@ -36,7 +36,7 @@ public class ServiceProductDetailVO {
     private String unit_wsh;
     @Schema(description = "单次服务时长（分钟）")
     private Integer duration_minutes_wsh;
-    @Schema(description = "预约模式：date_range（按日期区间）/ slot（按时长槽位）")
+    @Schema(description = "预约模式：interval（按夜连续区间）/ slot（按时长槽位）")
     private String booking_mode_wsh;
     @Schema(description = "服务版本（由更新时间生成，供下单校验）")
     private String service_version_wsh;

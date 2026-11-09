@@ -3,7 +3,7 @@
     <template #header>
       <div class="order-modal__header">
         <h2>创建订单</h2>
-        <p class="order-modal__subtitle">先选好宠物与看护人，再安排送达、接回时间</p>
+        <p class="order-modal__subtitle">先选好宠物，再安排送达、接回时间（看护人由商家自动分配）</p>
       </div>
     </template>
 
@@ -23,24 +23,9 @@
         <!-- ============ 第一步：宠物与看护人 ============ -->
         <div class="form-section-title form-grid__wide">
           <span class="form-step">1</span>
-          <span>宠物与看护人</span>
+          <span>宠物与负责人</span>
         </div>
 
-        <!-- 批量模式：看护人优先选择（解锁后续日期），宠物在每行内选择 -->
-        <label v-if="isBatchMode">
-          看护人
-          <select
-            v-model="form.keeper_id_wsh"
-            class="form-control"
-            :disabled="!form.merchant_id_wsh || keeperLoading || keepers.length === 0"
-          >
-            <option value="">{{ keeperSelectPlaceholder }}</option>
-            <option v-for="keeper in keepers" :key="keeper.id_wsh" :value="keeper.id_wsh">
-              {{ keeperOptionLabel(keeper) }}
-            </option>
-          </select>
-          <span class="field-hint">{{ keeperHint }}</span>
-        </label>
         <!-- 单宠物模式：宠物 -->
         <label v-if="!isBatchMode">
           宠物
@@ -77,21 +62,14 @@
           <span class="field-hint">{{ merchantHint }}</span>
         </label>
 
-        <!-- 单宠物模式：看护人 -->
-        <label v-if="!isBatchMode">
-          看护人
-          <select
-            v-model="form.keeper_id_wsh"
-            class="form-control"
-            :disabled="!form.merchant_id_wsh || keeperLoading || keepers.length === 0"
-          >
-            <option value="">{{ keeperSelectPlaceholder }}</option>
-            <option v-for="keeper in keepers" :key="keeper.id_wsh" :value="keeper.id_wsh">
-              {{ keeperOptionLabel(keeper) }}
-            </option>
-          </select>
-          <span class="field-hint">{{ keeperHint }}</span>
-        </label>
+        <!-- 负责人：不再由用户指定，支付后由看护者抢单 / 商家指派 / 超时自动分配 -->
+        <div v-if="!isBatchMode && serviceId" class="readonly-field">
+          <span class="readonly-label">看护人</span>
+          <div class="readonly-value-row">
+            <span class="readonly-value">由商家自动分配</span>
+            <span class="readonly-badge">支付后 30 分钟内确定</span>
+          </div>
+        </div>
 
         <!-- ============ 第二步：预约时间 ============ -->
         <div class="form-section-title form-grid__wide">
@@ -128,7 +106,11 @@
             </label>
             <label>
               接回日期
-              <input v-model="row.pickup_date_wsh" type="date" class="form-control" :min="row.delivery_date_wsh || minDate()" :max="maxDate()" :disabled="!row.delivery_date_wsh || availabilityLoading || bookableDates.length === 0" @change="onRowPickupDateChange(row)">
+              <input :value="rowCheckoutDate(row)" type="date" class="form-control" disabled>
+            </label>
+            <label v-if="isNightUnit">
+              夜数
+              <input v-model.number="row.nights_wsh" type="number" class="form-control" min="1" :max="MAX_NIGHTS">
             </label>
             <label>
               接回时间
@@ -160,16 +142,26 @@
             </select>
           </label>
           <label v-if="isHourUnit">
-            服务数量（小时）
-            <input data-testid="quantity-input" v-model.number="slotQuantity" type="number" class="form-control" min="1" max="24">
-            <span class="field-hint">连续服务时长 = 数量 × 60 分钟</span>
+            {{ slotQuantityLabel }}
+            <input data-testid="quantity-input" v-model.number="slotQuantity" type="number" class="form-control" min="1" :max="slotMaxQuantity">
+            <span class="field-hint">{{ slotQuantityHint }}</span>
           </label>
           <label v-if="slotMode && !isHourUnit">
             服务数量
             <input class="form-control" :value="1" disabled>
             <span class="field-hint">每次服务一个连续时段</span>
           </label>
-          <label v-if="!slotMode">
+          <label v-if="isNightUnit">
+            预订夜数
+            <input data-testid="nights-input" v-model.number="form.nights_wsh" type="number" class="form-control" min="1" :max="MAX_NIGHTS">
+            <span class="field-hint">￥{{ price || '--' }} / 夜；夜价 ÷ 24 按小时计费</span>
+          </label>
+          <label v-if="isNightUnit">
+            离店日期（自动推导）
+            <input class="form-control" :value="nightCheckoutDate || '--'" disabled data-testid="checkout-date">
+            <span class="field-hint">离店日 14:00 标准离店，14:30 前免费；提前送达只加收费用、不顺延离店</span>
+          </label>
+          <label v-if="!slotMode && !isNightUnit">
             接回日期
             <input v-model="form.pickup_date_wsh" type="date" class="form-control" :min="form.delivery_date_wsh || minDate()" :max="maxDate()" :disabled="!form.delivery_date_wsh || availabilityLoading || bookableDates.length === 0" @change="onPickupDateChange">
             <span class="field-hint">接回日期不早于送达日期</span>
@@ -247,19 +239,34 @@
           <textarea v-model="form.remark_wsh" class="form-control" rows="3" placeholder="饮食、过敏、用药、性格等注意事项"></textarea>
         </label>
       </div>
-      <div class="estimate" v-if="estimatedAmount.total">
-        预计金额：￥{{ estimatedAmount.total }}
-        <span v-if="Number(estimatedAmount.discount) > 0" style="color:var(--color-danger);font-weight:400;font-size:13px;margin-left:8px">优惠 ￥{{ estimatedAmount.discount }}</span>
-        <span v-if="Number(estimatedAmount.couponDiscount) > 0" style="color:var(--color-danger);font-weight:400;font-size:13px;margin-left:8px">券减 ￥{{ estimatedAmount.couponDiscount }}</span>
-        <span v-if="Number(estimatedAmount.membershipDiscount) > 0" style="color:var(--color-danger);font-weight:400;font-size:13px;margin-left:8px">会员减 ￥{{ estimatedAmount.membershipDiscount }}</span>
-        <div style="font-weight:400;font-size:14px;margin-top:4px">实付：￥{{ estimatedAmount.final }}</div>
+      <div class="estimate estimate--error" v-if="quoteState.error">
+        价格计算失败：{{ quoteState.error }}
+      </div>
+      <div class="estimate" v-else-if="quoteState.loading">
+        正在计算价格...
+      </div>
+      <div class="estimate" v-else>
+        <template v-if="estimatedAmount.total && estimatedAmount.total !== '0.00'">
+        <div>本次预付：￥{{ estimatedAmount.final }}</div>
+        <div style="font-weight:400;font-size:13px;margin-top:4px">
+          原价 ￥{{ estimatedAmount.total }}
+          <span v-if="Number(estimatedAmount.discount) > 0" style="color:var(--color-danger);margin-left:8px">优惠 ￥{{ estimatedAmount.discount }}</span>
+          <span v-if="Number(estimatedAmount.couponDiscount) > 0" style="color:var(--color-danger);margin-left:8px">券减 ￥{{ estimatedAmount.couponDiscount }}</span>
+          <span v-if="Number(estimatedAmount.membershipDiscount) > 0" style="color:var(--color-danger);margin-left:8px">会员减 ￥{{ estimatedAmount.membershipDiscount }}</span>
+        </div>
+        <div v-if="isNightUnit" class="estimate-note" data-testid="overtime-estimate">
+          预计晚接费：￥{{ estimatedAmount.overtime }}（{{ estimatedAmount.overtimeHours }} 小时）
+          —— 仅预估，实际接走时按真实时间结算，不在本次预付内
+        </div>
         <div v-if="Number(estimatedAmount.platformSubsidy) > 0" class="estimate-note">
           优惠券由平台补贴，商家结算不受影响
         </div>
+        </template>
+        <template v-else>选择宠物与服务时间后显示价格</template>
       </div>
       <template #footer>
       <button class="btn btn-secondary btn-sm" type="button" @click="handleClose">取消</button>
-      <button class="btn btn-primary btn-sm" type="button" :disabled="submitting || merchantLoading || keeperLoading" @click="submitOrder">
+      <button class="btn btn-primary btn-sm" type="button" :disabled="submitting || merchantLoading || keeperLoading || quoteState.loading || Boolean(quoteState.error)" @click="submitOrder">
         {{ submitting ? '提交中...' : '确认下单' }}
       </button>
     </template>
@@ -281,10 +288,9 @@ import { getPets } from '@/api/pet'
 import { getMerchants } from '@/api/merchant'
 import { getKeepersByMerchant } from '@/api/keeper'
 import { getServiceDetail, getServiceAvailability } from '@/api/service'
-import { createOrder, createOrdersBatch } from '@/api/order'
-import { getAvailableCoupons, quoteCoupon } from '@/api/coupon'
-import { quoteMembershipOrderDiscount } from '@/api/membership'
-import { normalizeUnit } from '@/domain/BookingUnit'
+import { createOrder, createOrdersBatch, previewOrder as fetchOrderQuote } from '@/api/order'
+import { getAvailableCoupons } from '@/api/coupon'
+import { normalizeUnit, standardCheckoutDate } from '@/domain/BookingUnit'
 import { AVAILABILITY_REQUEST_WINDOW_DAYS, BATCH_MAX_PETS } from '@/domain/BookingWindow'
 
 // 创建订单参数对象
@@ -294,7 +300,6 @@ const props = defineProps({
   initialServiceId: { type: String, default: '' },
   initialPrice: { type: String, default: '' },
   initialMerchantId: { type: String, default: '' },
-  initialKeeperId: { type: String, default: '' },
 })
 
 // 订单状态
@@ -317,14 +322,21 @@ const serviceVersion = ref('')
 const price = ref('')
 const nowTick = ref(Date.now())
 const availableCoupons = ref([])
-const couponQuote = ref(null)
 const couponLoading = ref(false)
 // 用户是否手动操作过优惠券：true 后不再自动覆盖选择
 const couponTouched = ref(false)
-let couponQuoteSeq = 0
-const membershipQuote = ref(null)
-const membershipLoading = ref(false)
-let membershipQuoteSeq = 0
+let couponSeq = 0
+// 券列表是按哪个金额基数拉取的：金额没变就不重复拉，避免「报价→拉券→改券→再报价」循环
+let couponLoadedAmount = null
+/**
+ * 服务端报价 —— 全前端唯一的价格来源。
+ * 金额、天数、计费小时全部由 POST /api/orders/preview 返回，前端不再做任何乘除，
+ * 与真实下单共用同一段后端代码，杜绝「显示一个价、扣款另一个价」。
+ */
+const quoteState = reactive({ loading: false, error: '', single: null, rows: [] })
+let quoteSeq = 0
+// PRICE_CHANGED 自动重载的防重入标记：重载后若仍失败，就停在错误态等用户关掉弹窗
+let quoteReloading = false
 
 const availabilityLoading = ref(false)
 // 送达地址到用户当前位置的距离（米）；null = 未计算
@@ -351,13 +363,14 @@ function createPetRow() {
     delivery_slot_wsh: '',
     pickup_date_wsh: '',
     pickup_slot_wsh: '',
+    // 按夜寄养：每行独立选择预订夜数
+    nights_wsh: 1,
   }
 }
 
 const form = reactive({
   pet_id_wsh: '',
   merchant_id_wsh: '',
-  keeper_id_wsh: '',
   delivery_address_wsh: '',
   delivery_location_source_wsh: '',
   delivery_latitude_wsh: null,
@@ -368,6 +381,8 @@ const form = reactive({
   delivery_slot_wsh: '',
   pickup_date_wsh: '',
   pickup_slot_wsh: '',
+  // 按夜寄养：用户明确选择的预订夜数；离店日期由它推导，不能直接编辑
+  nights_wsh: 1,
   emergency_contact_name_wsh: '',
   emergency_contact_phone_wsh: '',
   user_coupon_id_wsh: '',
@@ -379,6 +394,33 @@ const pickupMinDateTime = computed(() => {
   if (!form.delivery_time_wsh) return minDateTime.value
   return toLocalDateTimeInput(new Date(new Date(form.delivery_time_wsh).getTime() + 600000))
 })
+
+/** 预订夜数上限（与后端 booking.max-order-days 默认 365 一致） */
+const MAX_NIGHTS = 365
+
+/**
+ * 按夜寄养的离店日期 = 入住日 + 夜数。
+ * 只用于表单推导与展示，金额一律由后端 preview 返回。
+ */
+const nightCheckoutDate = computed(() => standardCheckoutDate(form.delivery_date_wsh, form.nights_wsh))
+
+// 夜数变化后同步离店日期，接回时间仍由用户在该日窗口内选择
+watch([() => form.nights_wsh, () => form.delivery_date_wsh], () => {
+  if (isNightUnit.value && form.delivery_date_wsh) {
+    form.pickup_date_wsh = nightCheckoutDate.value
+  }
+})
+
+// 批量行同理：任何一行的入住日期或夜数变化都要把该行离店日期同步过去
+watch(petRows, () => {
+  if (!isNightUnit.value) return
+  petRows.forEach(row => {
+    const derived = rowCheckoutDate(row)
+    if (derived && row.pickup_date_wsh !== derived) {
+      row.pickup_date_wsh = derived
+    }
+  })
+}, { deep: true })
 
 const availabilityEnabled = computed(() => Boolean(serviceId.value))
 const deliveryDistanceVisible = computed(() => {
@@ -392,9 +434,9 @@ const deliveryDistanceText = computed(() => {
   if (deliveryDistanceMeters.value != null) return `距您约 ${formatDistanceMeters(deliveryDistanceMeters.value)}`
   return '正在获取您的位置...'
 })
-// 批量模式：服务驱动 + 按天计费（date_range）；session/hour 保持单笔
+// 批量模式：服务驱动 + 连续区间（night）；session/hour 保持单笔
 const isBatchMode = computed(() => availabilityEnabled.value && !slotMode.value)
-const normalizedUnit = computed(() => normalizeUnit(serviceUnit.value) || 'day')
+const normalizedUnit = computed(() => normalizeUnit(serviceUnit.value) || 'night')
 const merchantDisplayName = computed(() => {
   const m = selectedMerchant.value
   if (m) return m.name_wsh
@@ -404,8 +446,10 @@ const unitLabel = computed(() => {
   const unit = normalizedUnit.value
   if (unit === 'hour') return '小时'
   if (unit === 'session') return '次'
-  return '天'
+  if (unit === 'night') return '夜'
+  return '夜'
 })
+const isNightUnit = computed(() => normalizedUnit.value === 'night')
 const slotMode = computed(() => {
   if (!availabilityEnabled.value) return false
   const mode = serviceBookingMode.value
@@ -414,6 +458,23 @@ const slotMode = computed(() => {
   return unit === 'session' || unit === 'hour'
 })
 const isHourUnit = computed(() => normalizedUnit.value === 'hour')
+// 计费粒度（分钟）：服务可配 30 / 60 / 90…，缺省 60
+const slotGranularityMinutes = computed(() => {
+  const value = Number(serviceDurationMinutes.value)
+  return Number.isFinite(value) && value > 0 ? value : 60
+})
+const slotUnitCount = computed(() => Math.max(1, Number(slotQuantity.value) || 1))
+const slotTotalMinutes = computed(() => slotUnitCount.value * slotGranularityMinutes.value)
+const slotMaxQuantity = computed(() => Math.max(1, Math.floor(1440 / slotGranularityMinutes.value)))
+const slotQuantityLabel = computed(() => slotGranularityMinutes.value === 60
+  ? '服务数量（小时）'
+  : `服务数量（每单位 ${slotGranularityMinutes.value} 分钟）`)
+const slotQuantityHint = computed(() => {
+  const total = slotTotalMinutes.value
+  // 保留两位再去掉尾零：1.5 小时 / 0.75 小时都显示正确
+  const hours = Number((total / 60).toFixed(2)).toString()
+  return `连续服务时长 = ${slotUnitCount.value} × ${slotGranularityMinutes.value} 分钟 = ${total} 分钟（${hours} 小时）`
+})
 const bookableDates = computed(() =>
   availabilityDays.value
     .filter(day => day.bookable_wsh)
@@ -436,160 +497,196 @@ const pickupSlotOptions = computed(() => {
   return slots
 })
 
-const estimatedAmount = computed(() => {
-  if (isBatchMode.value) return batchEstimatedAmount()
-  const estimate = baseEstimate()
-  const quote = couponQuote.value
-  let current = estimate
-  if (quote && Number(quote.total_amount_wsh || 0).toFixed(2) === estimate.total) {
-    const couponDiscount = Number(quote.coupon_discount_wsh || 0)
-    const longStayDiscount = Number(quote.long_stay_discount_wsh || estimate.discount)
-    current = {
-      total: estimate.total,
-      discount: longStayDiscount.toFixed(2),
-      couponDiscount: couponDiscount.toFixed(2),
-      membershipDiscount: '0.00',
-      platformSubsidy: Number(quote.platform_subsidy_wsh || 0).toFixed(2),
-      final: Number(quote.final_amount_wsh || 0).toFixed(2),
-    }
-  }
-  const member = membershipQuote.value
-  if (member && Number(member.base_amount_wsh || 0).toFixed(2) === current.final) {
-    const memberDiscount = Number(member.membership_discount_wsh || 0)
-    return {
-      ...current,
-      membershipDiscount: memberDiscount.toFixed(2),
-      platformSubsidy: (Number(current.platformSubsidy || 0) + memberDiscount).toFixed(2),
-      final: Number(member.final_amount_wsh || 0).toFixed(2),
-    }
-  }
-  return current
-})
+const ZERO_ESTIMATE = {
+  total: '0.00', discount: '0.00', couponDiscount: '0.00',
+  membershipDiscount: '0.00', platformSubsidy: '0.00', final: '0.00',
+  overtime: '0.00', overtimeHours: 0,
+}
 
 function fmtAmount(value) {
   return Math.max(0, Number(value || 0)).toFixed(2)
 }
 
-function sumAmounts(rows, key) {
-  return rows.reduce((sum, item) => sum + Number(item[key] || 0), 0)
-}
-
-/** 单只宠物按天计费的估算（含长住折扣），供单笔与批量行共用 */
-function dayEstimate(deliveryTime, pickupTime, dayPrice) {
-  const ZERO = { total: '0.00', discount: '0.00', couponDiscount: '0.00', membershipDiscount: '0.00', platformSubsidy: '0.00', final: '0.00' }
-  if (!deliveryTime || !pickupTime) return ZERO
-  const start = new Date(deliveryTime)
-  const end = new Date(pickupTime)
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return ZERO
-  const serviceDates = buildServiceDates(start, end)
-  const days = Math.max(0, diffDays(serviceDates.startDate, serviceDates.endDate))
-  const total = days * Number(dayPrice || 0)
-  let discount = 0
-  if (days >= 30) discount = total * 0.1
-  else if (days >= 7) discount = total * 0.05
+/** 展示用金额：直接取服务端报价，前端不参与任何计算 */
+const estimatedAmount = computed(() => {
+  const rows = isBatchMode.value
+    ? quoteState.rows
+    : (quoteState.single ? [quoteState.single] : [])
+  if (rows.length === 0) return ZERO_ESTIMATE
+  const sum = key => rows.reduce((total, row) => total + Number(row[key] || 0), 0)
   return {
-    total: total.toFixed(2),
-    discount: discount.toFixed(2),
-    couponDiscount: '0.00',
-    membershipDiscount: '0.00',
-    platformSubsidy: '0.00',
-    final: Math.max(0, total - discount).toFixed(2),
+    total: fmtAmount(sum('total_amount_wsh')),
+    discount: fmtAmount(sum('long_stay_discount_wsh')),
+    couponDiscount: fmtAmount(sum('coupon_discount_wsh')),
+    membershipDiscount: fmtAmount(sum('membership_discount_wsh')),
+    platformSubsidy: fmtAmount(sum('platform_subsidy_wsh')),
+    final: fmtAmount(sum('final_amount_wsh')),
+    // 预计晚接费：只是预估展示，不参与本次预付
+    overtime: fmtAmount(sum('estimated_overtime_amount_wsh')),
+    overtimeHours: rows.reduce((total, row) => total + Number(row.estimated_overtime_hours_wsh || 0), 0),
   }
-}
+})
 
-function baseEstimate() {
-  if (isBatchMode.value) return batchBaseEstimate()
-  const ZERO = { total: '0.00', discount: '0.00', couponDiscount: '0.00', membershipDiscount: '0.00', platformSubsidy: '0.00', final: '0.00' }
-  if (slotMode.value) {
-    const startDt = slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh)
-    if (!startDt) return ZERO
-    const unitPrice = Number(price.value || 0)
-    const unit = normalizedUnit.value
-    const quantity = unit === 'hour' ? Math.max(1, Number(slotQuantity.value) || 1) : 1
-    const total = quantity * unitPrice
-    return {
-      total: total.toFixed(2),
-      discount: '0.00',
-      couponDiscount: '0.00',
-      membershipDiscount: '0.00',
-      platformSubsidy: '0.00',
-      final: total.toFixed(2),
-    }
+/**
+ * 组装预览请求。字段与提交 payload 完全一致 —— 预览什么、提交什么。
+ * 返回 null 表示信息还不完整，此时不发起请求。
+ */
+function buildQuotePayload(row) {
+  const petId = row ? row.pet_id_wsh : form.pet_id_wsh
+  if (!serviceId.value || !petId) return null
+  const payload = {
+    service_id_wsh: Number(serviceId.value),
+    pet_id_wsh: Number(petId),
   }
+  if (form.merchant_id_wsh) payload.merchant_id_wsh = Number(form.merchant_id_wsh)
+  if (form.user_coupon_id_wsh) payload.user_coupon_id_wsh = Number(form.user_coupon_id_wsh)
+  // 与提交 payload 同源：让「商家改价 / 服务版本变更 / 单位不一致」在询价阶段就暴露，
+  // 而不是等到点提交才报 PRICE_CHANGED
+  if (serviceVersion.value) payload.service_version_wsh = serviceVersion.value
+  if (normalizedUnit.value) payload.billing_unit_wsh = normalizedUnit.value
+  if (price.value !== '' && price.value !== null && price.value !== undefined) {
+    payload.expected_unit_price_wsh = Number(price.value)
+  }
+
+  if (slotMode.value) {
+    const start = slotToDateTime(
+      row ? row.delivery_date_wsh : form.delivery_date_wsh,
+      row ? row.delivery_slot_wsh : form.delivery_slot_wsh,
+    )
+    if (!start) return null
+    payload.start_time_wsh = toApiDateTime(start)
+    payload.quantity_wsh = normalizedUnit.value === 'hour' ? Math.max(1, Number(slotQuantity.value) || 1) : 1
+    return payload
+  }
+
   const deliveryTime = availabilityEnabled.value
-    ? slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh)
+    ? slotToDateTime(row ? row.delivery_date_wsh : form.delivery_date_wsh,
+                     row ? row.delivery_slot_wsh : form.delivery_slot_wsh)
     : form.delivery_time_wsh
   const pickupTime = availabilityEnabled.value
-    ? slotToDateTime(form.pickup_date_wsh, form.pickup_slot_wsh)
+    ? slotToDateTime(row ? row.pickup_date_wsh : form.pickup_date_wsh,
+                     row ? row.pickup_slot_wsh : form.pickup_slot_wsh)
     : form.pickup_time_wsh
-  const keeper = keepers.value.find(item => Number(item.id_wsh) === Number(form.keeper_id_wsh))
-  const dayPrice = availabilityEnabled.value
-    ? Number(price.value || 0)
-    : Number(keeper?.price_per_day_wsh || price.value || 0)
-  return dayEstimate(deliveryTime, pickupTime, dayPrice)
+  if (!deliveryTime || !pickupTime) return null
+  const start = new Date(deliveryTime)
+  const end = new Date(pickupTime)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null
+
+  payload.delivery_time_wsh = toApiDateTime(deliveryTime)
+  payload.pickup_time_wsh = toApiDateTime(pickupTime)
+  if (isNightUnit.value) {
+    // 按夜寄养：quantity = 预订夜数 N，start_date = 入住日，end_date = 离店日（D+N）
+    const nights = Math.max(1, Number(row ? row.nights_wsh : form.nights_wsh) || 1)
+    payload.quantity_wsh = nights
+    payload.start_date_wsh = toDateOnly(start)
+    payload.end_date_wsh = standardCheckoutDate(payload.start_date_wsh, nights)
+    return payload
+  }
+  const serviceDates = buildServiceDates(start, end)
+  payload.start_date_wsh = serviceDates.startDate
+  payload.end_date_wsh = serviceDates.endDate
+  return payload
 }
 
-function rowEstimate(row) {
-  return dayEstimate(
-    slotToDateTime(row.delivery_date_wsh, row.delivery_slot_wsh),
-    slotToDateTime(row.pickup_date_wsh, row.pickup_slot_wsh),
-    Number(price.value || 0),
-  )
+function clearQuote() {
+  quoteState.single = null
+  quoteState.rows = []
+  quoteState.error = ''
+  quoteState.loading = false
 }
 
-function batchBase() {
-  return petRows.map(rowEstimate).filter(item => Number(item.total) > 0)
+/**
+ * 批量预览：优惠券只作用于基础价最大的一单（与后端券归属规则一致），
+ * 先不带券算一遍定位最大单，再单独给那一单带上券重算。
+ */
+async function fetchQuotes(payloads) {
+  if (payloads.length === 1) {
+    const res = await fetchOrderQuote(payloads[0])
+    return [res.data ?? res]
+  }
+  const stripCoupon = payloads.map(({ user_coupon_id_wsh, ...rest }) => rest)
+  const rows = await Promise.all(stripCoupon.map(item => fetchOrderQuote(item).then(res => res.data ?? res)))
+  if (!form.user_coupon_id_wsh) return rows
+  let largest = 0
+  rows.forEach((row, index) => {
+    if (Number(row.total_amount_wsh || 0) > Number(rows[largest].total_amount_wsh || 0)) largest = index
+  })
+  const withCoupon = { ...stripCoupon[largest], user_coupon_id_wsh: Number(form.user_coupon_id_wsh) }
+  rows[largest] = await fetchOrderQuote(withCoupon).then(res => res.data ?? res)
+  return rows
 }
 
-function batchBaseEstimate() {
-  const rows = batchBase()
-  const total = sumAmounts(rows, 'total')
-  const discount = sumAmounts(rows, 'discount')
-  return {
-    total: fmtAmount(total),
-    discount: fmtAmount(discount),
-    couponDiscount: '0.00',
-    membershipDiscount: '0.00',
-    platformSubsidy: '0.00',
-    final: fmtAmount(total - discount),
+/** 报价：全前端唯一的金额来源。失败时清空金额并记录错误，绝不回退到前端自算。 */
+async function refreshQuote() {
+  const seq = ++quoteSeq
+  const payloads = isBatchMode.value
+    ? petRows.map(row => buildQuotePayload(row))
+    : [buildQuotePayload(null)]
+  if (payloads.some(item => !item)) {
+    if (seq === quoteSeq) clearQuote()
+    return
+  }
+  quoteState.loading = true
+  quoteState.error = ''
+  try {
+    const rows = await fetchQuotes(payloads)
+    if (seq !== quoteSeq) return
+    if (isBatchMode.value) {
+      quoteState.rows = rows
+      quoteState.single = null
+    } else {
+      quoteState.single = rows[0]
+      quoteState.rows = []
+    }
+    refreshCoupons()
+  } catch (e) {
+    if (seq !== quoteSeq) return
+    quoteState.single = null
+    quoteState.rows = []
+    const data = e?.response?.data
+    const code = data?.errorCode || data?.error_code_wsh
+    if (code === 'PRICE_CHANGED' && !quoteReloading) {
+      // 商家改价/服务版本变化：自动重载服务信息再用新版本重新询价，
+      // 否则按钮会永久 disabled（错误文案让用户「刷新」，但弹窗里没有刷新入口）
+      quoteReloading = true
+      reloadServiceState().finally(() => { quoteReloading = false })
+      return
+    }
+    quoteState.error = data?.message || e?.message || '价格计算失败'
+  } finally {
+    if (seq === quoteSeq) quoteState.loading = false
   }
 }
 
-/** 优惠券报价基准：批量 = 金额最大的单（与后端券归属规则一致）；单笔 = 整单 */
-function couponQuoteBase() {
-  if (isBatchMode.value) {
-    const rows = batchBase()
-    if (rows.length === 0) return { total: 0, discount: 0 }
-    const largest = rows.reduce((a, b) => (Number(a.total) >= Number(b.total) ? a : b))
-    return { total: Number(largest.total), discount: Number(largest.discount) }
-  }
-  return { total: Number(baseEstimate().total), discount: Number(baseEstimate().discount) }
+/**
+ * 触发一次询价。日期/槽位选择都是离散事件，不做防抖：
+ * 少一次定时器就少一处「用户已改时间但金额还是旧的」的窗口。
+ * 并发由 refreshQuote 内部的 seq 守卫保证只有最后一次结果生效。
+ */
+function scheduleQuote() {
+  refreshQuote()
 }
 
-function batchEstimatedAmount() {
-  const estimate = batchBaseEstimate()
-  const total = Number(estimate.total)
-  const discount = Number(estimate.discount)
-  const base = couponQuoteBase()
-  let couponDiscount = 0
-  const quote = couponQuote.value
-  if (quote && Number(quote.total_amount_wsh || 0).toFixed(2) === base.total.toFixed(2)) {
-    couponDiscount = Number(quote.coupon_discount_wsh || 0)
+// 数量手输可能超过单笔上限（如 30 分钟粒度最多 48 个单位），超了就钳回上限
+watch([slotQuantity, slotMaxQuantity], () => {
+  const max = slotMaxQuantity.value
+  const current = Number(slotQuantity.value)
+  if (!Number.isFinite(current) || current < 1) {
+    slotQuantity.value = 1
+  } else if (current > max) {
+    slotQuantity.value = max
   }
-  const afterCoupon = Math.max(0, total - discount - couponDiscount)
-  let memberDiscount = 0
-  const member = membershipQuote.value
-  if (member && Number(member.base_amount_wsh || 0).toFixed(2) === afterCoupon.toFixed(2)) {
-    memberDiscount = Number(member.membership_discount_wsh || 0)
-  }
-  return {
-    total: fmtAmount(total),
-    discount: fmtAmount(discount),
-    couponDiscount: fmtAmount(couponDiscount),
-    membershipDiscount: fmtAmount(memberDiscount),
-    platformSubsidy: fmtAmount(Number(quote?.platform_subsidy_wsh || 0) + memberDiscount),
-    final: fmtAmount(afterCoupon - memberDiscount),
-  }
+})
+
+/** 优惠券门槛基数：券作用于「基础价 − 长住折扣」，批量取金额最大的那一单 */
+function couponBaseAmount() {
+  const rows = isBatchMode.value
+    ? quoteState.rows
+    : (quoteState.single ? [quoteState.single] : [])
+  if (rows.length === 0) return 0
+  const largest = rows.reduce((a, b) =>
+    (Number(a.total_amount_wsh || 0) >= Number(b.total_amount_wsh || 0) ? a : b))
+  return Math.max(0, Number(largest.total_amount_wsh || 0) - Number(largest.long_stay_discount_wsh || 0))
 }
 
 const selectedMerchant = computed(() =>
@@ -599,31 +696,10 @@ const merchantSelectPlaceholder = computed(() => {
   if (merchants.value.length === 0) return '暂无可接单商家'
   return '请选择商家'
 })
-const keeperSelectPlaceholder = computed(() => {
-  if (!form.merchant_id_wsh) return '请先选择商家'
-  if (keeperLoading.value) return '正在加载看护人...'
-  if (keepers.value.length === 0) return '暂无可接单看护人'
-  return '请选择看护人'
-})
-const keeperOptionLabel = (keeper) => {
-  // 服务驱动下单：展示服务价格口径（price/次|小时|天），避免与看护人个人价混淆
-  const inServiceMode = availabilityEnabled.value
-  const unitPrice = inServiceMode ? Number(price.value || 0) : Number(keeper?.price_per_day_wsh || 0)
-  const unitSuffix = inServiceMode ? `/${unitLabel.value}` : '/天'
-  const priceText = unitPrice > 0 ? ` ￥${unitPrice}${unitSuffix}` : ''
-  const capacity = `当前 ${keeper.current_pets_wsh || 0}/${keeper.max_pets_wsh || '-'}`
-  return `${keeper.name_wsh}${priceText} · ${capacity}`
-}
 const merchantHint = computed(() => {
   if (merchantLoading.value) return '正在校验商家是否有资质通过的在职看护人'
   if (merchants.value.length === 0) return '当前没有满足接单条件的商家，请稍后再试'
   return '仅展示有合格看护人的商家'
-})
-const keeperHint = computed(() => {
-  if (!form.merchant_id_wsh) return '选择商家后再选择看护人'
-  if (keeperLoading.value) return '正在同步该商家的可接单看护人'
-  if (keepers.value.length === 0) return '该商家暂无可接单看护人'
-  return '仅展示资质通过且在职的看护人（休息中也接受未来预约）'
 })
 
 watch(
@@ -637,11 +713,9 @@ watch(
     serviceVersion.value = ''
     price.value = props.initialPrice
     form.merchant_id_wsh = props.initialMerchantId || ''
-    form.keeper_id_wsh = props.initialKeeperId || ''
     await Promise.all([loadPets(), loadMerchants()])
     if (form.merchant_id_wsh && !hasLoadedMerchant(form.merchant_id_wsh)) {
       form.merchant_id_wsh = ''
-      form.keeper_id_wsh = ''
     }
     if (serviceId.value) {
       try {
@@ -666,10 +740,6 @@ watch(
             fillDeliveryFromMerchant()
             // 强制重新加载看护人（绕过缓存，因为 loadMerchants 可能缓存了空数组）
             await loadKeepers(merchant.id_wsh, true)
-            if (props.initialKeeperId) {
-              const exists = keepers.value.some(item => Number(item.id_wsh) === Number(props.initialKeeperId))
-              form.keeper_id_wsh = exists ? props.initialKeeperId : ''
-            }
             await refreshCoupons()
           }
         }
@@ -684,10 +754,6 @@ watch(
     } else if (form.merchant_id_wsh) {
       fillDeliveryFromMerchant()
       await loadKeepers(form.merchant_id_wsh)
-      if (props.initialKeeperId) {
-        const exists = keepers.value.some(item => Number(item.id_wsh) === Number(props.initialKeeperId))
-        form.keeper_id_wsh = exists ? props.initialKeeperId : ''
-      }
       await refreshCoupons()
     }
   },
@@ -697,12 +763,12 @@ watch(
 watch(
   () => [
     form.merchant_id_wsh,
-    form.keeper_id_wsh,
     keepers.value.length,
   ],
   async () => {
-    refreshCoupons()
-    if (availabilityEnabled.value && form.keeper_id_wsh) {
+    // 商家变化会换掉可用的券，必须强制重拉
+    refreshCoupons(true)
+    if (availabilityEnabled.value) {
       await loadAvailability()
     }
   }
@@ -710,6 +776,7 @@ watch(
 
 watch(
   () => [
+    form.pet_id_wsh,
     form.delivery_time_wsh,
     form.pickup_time_wsh,
     form.delivery_date_wsh,
@@ -718,9 +785,11 @@ watch(
     form.pickup_slot_wsh,
     slotQuantity.value,
     form.user_coupon_id_wsh,
+    serviceId.value,
   ],
   () => {
-    refreshCoupons()
+    // 输入变化 → 重新向服务端询价（金额只由后端算）
+    scheduleQuote()
   }
 )
 
@@ -729,7 +798,7 @@ watch(
   () => petRows.map(row =>
     [row.pet_id_wsh, row.delivery_date_wsh, row.delivery_slot_wsh, row.pickup_date_wsh, row.pickup_slot_wsh].join('|')).join(';'),
   () => {
-    refreshCoupons()
+    scheduleQuote()
   }
 )
 
@@ -826,15 +895,10 @@ function hasLoadedMerchant(merchantId) {
   return merchants.value.some(item => Number(item.id_wsh) === Number(merchantId))
 }
 
-function hasLoadedKeeper(keeperId) {
-  return keepers.value.some(item => Number(item.id_wsh) === Number(keeperId))
-}
-
 function resetForm() {
   Object.assign(form, {
     pet_id_wsh: '',
     merchant_id_wsh: '',
-    keeper_id_wsh: '',
     delivery_address_wsh: '',
     delivery_location_source_wsh: '',
     delivery_latitude_wsh: null,
@@ -867,24 +931,22 @@ function resetForm() {
   slotQuantity.value = 1
   merchantNameFromService.value = ''
   availableCoupons.value = []
-  couponQuote.value = null
-  membershipQuote.value = null
   couponLoading.value = false
-  membershipLoading.value = false
   couponTouched.value = false
   merchantLoading.value = false
   keeperLoading.value = false
-  couponQuoteSeq += 1
-  membershipQuoteSeq += 1
+  couponLoadedAmount = null
+  couponSeq += 1
+  quoteSeq += 1
+  clearQuote()
 }
 
 function onMerchantChange() {
   if (serviceId.value) return
-  form.keeper_id_wsh = ''
   keepers.value = []
   if (form.merchant_id_wsh) {
     fillDeliveryFromMerchant()
-    loadKeepers(form.merchant_id_wsh).then(refreshCoupons)
+    loadKeepers(form.merchant_id_wsh).then(() => refreshCoupons(true))
   } else {
     clearDeliveryLocation()
   }
@@ -922,11 +984,7 @@ function displaySlot(slot) {
 const availabilityHint = computed(() => {
   if (availabilityLoading.value) return '正在查询可预约日期...'
   if (availabilityError.value) return '可预约日期查询失败，请刷新重试'
-  // 服务驱动下单必须先选择可接单看护人，才会查询并解锁日期/时间选择；
-  // 商家无合格看护人时明确提示，避免用户误以为日期控件损坏。
-  if (availabilityEnabled.value && !form.keeper_id_wsh) {
-    return keepers.value.length === 0 ? '该商家暂无可接单看护人，暂无法选择日期' : '请先选择看护人，再选择送达/接回日期'
-  }
+  // 负责人由系统分配，日期可约性只看商家营业时间与整体容量，不再依赖具体看护人
   if (bookableDates.value.length === 0) {
     return maxBookingDays.value > 0 ? `近 ${maxBookingDays.value} 天暂无可预约日期` : '暂无可预约日期'
   }
@@ -943,9 +1001,11 @@ function rowSlots(dateValue) {
 }
 
 function rowPickupSlotOptions(row) {
-  const slots = rowSlots(row.pickup_date_wsh)
+  // 按夜寄养的接回日期恒为「入住日 + 夜数」，与是否手动改过无关
+  const pickupDate = isNightUnit.value ? rowCheckoutDate(row) : row.pickup_date_wsh
+  const slots = rowSlots(pickupDate)
   // 接回时间必须晚于送达时间；跨天接回不在此过滤
-  if (String(row.pickup_date_wsh) === String(row.delivery_date_wsh) && row.delivery_slot_wsh) {
+  if (String(pickupDate) === String(row.delivery_date_wsh) && row.delivery_slot_wsh) {
     return slots.filter(slot => slot > row.delivery_slot_wsh)
   }
   return slots
@@ -958,8 +1018,22 @@ function rowSlotPlaceholder(dateValue) {
   return '请选择送达时间'
 }
 
+/** 按夜寄养：某行的离店日期 = 该行送达日期 + 夜数 */
+function rowCheckoutDate(row) {
+  return standardCheckoutDate(row.delivery_date_wsh, row.nights_wsh)
+}
+
+function syncRowPickupDate(row) {
+  if (!isNightUnit.value) return
+  row.pickup_date_wsh = rowCheckoutDate(row)
+}
+
 function onRowDeliveryDateChange(row) {
   row.delivery_slot_wsh = ''
+  if (isNightUnit.value) {
+    syncRowPickupDate(row)
+    return
+  }
   if (row.pickup_date_wsh && row.pickup_date_wsh < row.delivery_date_wsh) {
     row.pickup_date_wsh = ''
     row.pickup_slot_wsh = ''
@@ -967,6 +1041,10 @@ function onRowDeliveryDateChange(row) {
 }
 
 function onRowDeliverySlotChange(row) {
+  if (isNightUnit.value) {
+    syncRowPickupDate(row)
+    return
+  }
   row.pickup_date_wsh = ''
   row.pickup_slot_wsh = ''
 }
@@ -1004,6 +1082,11 @@ function onDeliveryDateChange() {
   if (!form.delivery_date_wsh) {
     form.pickup_date_wsh = ''
     form.pickup_slot_wsh = ''
+    return
+  }
+  if (isNightUnit.value) {
+    form.pickup_date_wsh = nightCheckoutDate.value
+    return
   }
   if (form.pickup_date_wsh && form.pickup_date_wsh < form.delivery_date_wsh) {
     form.pickup_date_wsh = ''
@@ -1012,6 +1095,10 @@ function onDeliveryDateChange() {
 }
 
 function onDeliverySlotChange() {
+  if (isNightUnit.value) {
+    form.pickup_date_wsh = nightCheckoutDate.value
+    return
+  }
   form.pickup_date_wsh = ''
   form.pickup_slot_wsh = ''
 }
@@ -1021,7 +1108,7 @@ function onPickupDateChange() {
 }
 
 async function loadAvailability() {
-  if (!serviceId.value || !form.keeper_id_wsh) return
+  if (!serviceId.value) return
   const seq = ++availabilitySeq
   availabilityLoading.value = true
   availabilityError.value = false
@@ -1037,7 +1124,7 @@ async function loadAvailability() {
     row.pickup_slot_wsh = ''
   })
   try {
-    const res = await getServiceAvailability(serviceId.value, minDate(), maxDate(), form.keeper_id_wsh)
+    const res = await getServiceAvailability(serviceId.value, minDate(), maxDate())
     if (seq !== availabilitySeq) return
     if (res.code === 200 && res.data?.days_wsh) {
       availabilityDays.value = res.data.days_wsh
@@ -1059,11 +1146,21 @@ async function loadAvailability() {
 
 async function submitOrder() {
   if (submitting.value) return
-  nowTick.value = Date.now()
+  nowTick.value = Date.now() //时间戳
   const profileOk = await ensureProfileRequirement(PROFILE_ACTIONS.CREATE_ORDER, { authStore, appStore, router })
   if (!profileOk) return
   if (merchantLoading.value || keeperLoading.value || availabilityLoading.value) {
     appStore.addToast('接单信息正在加载，请稍后再提交', 'warning')
+    return
+  }
+  // 价格必须由服务端算完才允许提交：否则用户可能在「正在计算价格」或报价失败时下单，
+  // 提交用的时间就会退回前端本地推算，「预览什么、提交什么」当场失效。
+  if (quoteState.loading) {
+    appStore.addToast('价格正在计算，请稍后再提交', 'warning')
+    return
+  }
+  if (quoteState.error) {
+    appStore.addToast(quoteState.error, 'error')
     return
   }
   // ============ 批量模式（多宠物连续下单） ============
@@ -1075,8 +1172,9 @@ async function submitOrder() {
         return
       }
     }
-    const items = []
-    for (const row of petRows) {
+    const items = [] //
+    for (let rowIndex = 0; rowIndex < petRows.length; rowIndex++) { // 遍历所有宠物行
+      const row = petRows[rowIndex]
       if (!row.pet_id_wsh || !row.delivery_date_wsh || !row.delivery_slot_wsh
         || !row.pickup_date_wsh || !row.pickup_slot_wsh) {
         appStore.addToast('请为每只宠物补全送达/接回日期与时间', 'warning')
@@ -1100,30 +1198,39 @@ async function submitOrder() {
         appStore.addToast('接回时间必须晚于送达时间', 'warning')
         return
       }
-      const serviceDates = buildServiceDates(deliveryTime, pickupTime)
+      // 直接使用服务端预览返回的规范化时间与数量：
+      // 预览与下单的输入完全相同，金额才可能完全相同（不依赖前端本地推算与后端口径恰好一致）
+      const quote = quoteState.rows[rowIndex]
+      if (!quote?.start_date_wsh) {
+        appStore.addToast('价格尚未计算完成，请稍后重试', 'warning')
+        return
+      }
       items.push({
         pet_id_wsh: Number(row.pet_id_wsh),
-        start_date_wsh: serviceDates.startDate,
-        end_date_wsh: serviceDates.endDate,
-        delivery_time_wsh: toApiDateTime(slotToDateTime(row.delivery_date_wsh, row.delivery_slot_wsh)),
-        pickup_time_wsh: toApiDateTime(slotToDateTime(row.pickup_date_wsh, row.pickup_slot_wsh)),
+        quantity_wsh: quote.quantity_wsh,
+        start_date_wsh: quote.start_date_wsh,
+        end_date_wsh: quote.end_date_wsh,
+        delivery_time_wsh: quote.delivery_time_wsh,
+        pickup_time_wsh: quote.pickup_time_wsh,
       })
     }
     const shared = {
-      keeper_id_wsh: Number(form.keeper_id_wsh),
-      merchant_id_wsh: Number(form.merchant_id_wsh),
-      service_id_wsh: Number(serviceId.value),
-      service_version_wsh: serviceVersion.value || null,
-      billing_unit_wsh: normalizedUnit.value,
-      expected_unit_price_wsh: Number(price.value || 0),
-      user_coupon_id_wsh: form.user_coupon_id_wsh ? Number(form.user_coupon_id_wsh) : null,
-      delivery_address_wsh: form.delivery_address_wsh,
-      delivery_location_source_wsh: form.delivery_location_source_wsh || 'amap',
-      pickup_address_wsh: form.delivery_address_wsh,
-      pickup_location_source_wsh: form.delivery_location_source_wsh || 'amap',
-      emergency_contact_name_wsh: form.emergency_contact_name_wsh,
-      emergency_contact_phone_wsh: form.emergency_contact_phone_wsh,
-      remark_wsh: form.remark_wsh,
+      merchant_id_wsh: Number(form.merchant_id_wsh), // 商家id
+      service_id_wsh: Number(serviceId.value),  // 服务id
+      service_version_wsh: serviceVersion.value || null, // 服务版本
+      billing_unit_wsh: normalizedUnit.value, // 计费单位
+      expected_unit_price_wsh: Number(price.value || 0), // 预期单价
+      user_coupon_id_wsh: form.user_coupon_id_wsh ? Number(form.user_coupon_id_wsh) : null, // 用户优惠券id
+      delivery_address_wsh: form.delivery_address_wsh, // 送达地址
+      delivery_location_source_wsh: form.delivery_location_source_wsh || 'amap', // 送达位置来源
+      // 交接距离校验要用这两个坐标：不提交的话看护者「确认接收」会直接 400
+      delivery_latitude_wsh: form.delivery_latitude_wsh, // 送达纬度
+      delivery_longitude_wsh: form.delivery_longitude_wsh, // 送达经度
+      pickup_address_wsh: form.delivery_address_wsh, // 接回地址
+      pickup_location_source_wsh: form.delivery_location_source_wsh || 'amap', // 接回位置来源
+      emergency_contact_name_wsh: form.emergency_contact_name_wsh, // 紧急联系人
+      emergency_contact_phone_wsh: form.emergency_contact_phone_wsh, // 紧急联系电话
+      remark_wsh: form.remark_wsh, // 备注
     }
     try {
       // 单只宠物：走单笔接口（与旧路径完全一致）；多只：批量接口
@@ -1132,7 +1239,7 @@ async function submitOrder() {
         const payload = {
           ...shared,
           pet_id_wsh: item.pet_id_wsh,
-          quantity_wsh: Math.max(0, diffDays(item.start_date_wsh, item.end_date_wsh)),
+          quantity_wsh: item.quantity_wsh,
           start_date_wsh: item.start_date_wsh,
           end_date_wsh: item.end_date_wsh,
           delivery_time_wsh: item.delivery_time_wsh,
@@ -1184,8 +1291,8 @@ async function submitOrder() {
       : new Date(form.pickup_time_wsh))
   const deliveryValid = !Number.isNaN(deliveryTime.getTime())
   const pickupValid = isSlot || !Number.isNaN(pickupTime.getTime())
-  if (!form.pet_id_wsh || !form.merchant_id_wsh || !form.keeper_id_wsh || !deliveryValid || !pickupValid) {
-    appStore.addToast(isSlot ? '请补全宠物、商家、看护人和开始时间' : '请补全宠物、商家、看护人、送达时间和接回时间', 'warning')
+  if (!form.pet_id_wsh || !form.merchant_id_wsh || !deliveryValid || !pickupValid) {
+    appStore.addToast(isSlot ? '请补全宠物、商家和开始时间' : '请补全宠物、商家、送达时间和接回时间', 'warning')
     return
   }
   if (availabilityEnabled.value) {
@@ -1196,8 +1303,8 @@ async function submitOrder() {
       return
     }
   }
-  if (!hasLoadedMerchant(form.merchant_id_wsh) || !hasLoadedKeeper(form.keeper_id_wsh)) {
-    appStore.addToast('请选择可接单商家和看护人', 'warning')
+  if (!hasLoadedMerchant(form.merchant_id_wsh)) {
+    appStore.addToast('请选择可接单商家', 'warning')
     return
   }
   if (!form.emergency_contact_name_wsh || !form.emergency_contact_phone_wsh) {
@@ -1231,7 +1338,6 @@ async function submitOrder() {
     const payload = {
       pet_id_wsh: Number(form.pet_id_wsh),
       merchant_id_wsh: Number(form.merchant_id_wsh),
-      keeper_id_wsh: Number(form.keeper_id_wsh),
       service_id_wsh: serviceId.value ? Number(serviceId.value) : null,
       service_version_wsh: serviceVersion.value || null,
       user_coupon_id_wsh: form.user_coupon_id_wsh ? Number(form.user_coupon_id_wsh) : null,
@@ -1239,6 +1345,9 @@ async function submitOrder() {
       expected_unit_price_wsh: unitPrice,
       delivery_address_wsh: form.delivery_address_wsh,
       delivery_location_source_wsh: form.delivery_location_source_wsh || 'amap',
+      // 交接距离校验要用这两个坐标：不提交的话看护者「确认接收」会直接 400
+      delivery_latitude_wsh: form.delivery_latitude_wsh,
+      delivery_longitude_wsh: form.delivery_longitude_wsh,
       pickup_address_wsh: form.delivery_address_wsh,
       pickup_location_source_wsh: form.delivery_location_source_wsh || 'amap',
       emergency_contact_name_wsh: form.emergency_contact_name_wsh,
@@ -1251,17 +1360,34 @@ async function submitOrder() {
       payload.start_time_wsh = toApiDateTime(slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh))
       payload.start_date_wsh = form.delivery_date_wsh
     } else {
-      const serviceDates = buildServiceDates(deliveryTime, pickupTime)
-      const days = Math.max(0, diffDays(serviceDates.startDate, serviceDates.endDate))
-      payload.quantity_wsh = days
-      payload.start_date_wsh = serviceDates.startDate
-      payload.end_date_wsh = serviceDates.endDate
-      payload.delivery_time_wsh = toApiDateTime(availabilityEnabled.value
-        ? slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh)
-        : form.delivery_time_wsh)
-      payload.pickup_time_wsh = toApiDateTime(availabilityEnabled.value
-        ? slotToDateTime(form.pickup_date_wsh, form.pickup_slot_wsh)
-        : form.pickup_time_wsh)
+      // 优先提交预览返回的规范化时间：预览与下单输入完全相同，金额才可能完全相同
+      const quote = quoteState.single
+      if (quote?.start_date_wsh) {
+        payload.quantity_wsh = quote.quantity_wsh
+        payload.start_date_wsh = quote.start_date_wsh
+        payload.end_date_wsh = quote.end_date_wsh
+        payload.delivery_time_wsh = quote.delivery_time_wsh
+        payload.pickup_time_wsh = quote.pickup_time_wsh
+      } else if (isNightUnit.value) {
+        // 兜底（正常走 quote 分支）：夜数 + 推导离店日，不再用「含首尾天数」
+        const nights = Math.max(1, Number(form.nights_wsh) || 1)
+        payload.quantity_wsh = nights
+        payload.start_date_wsh = form.delivery_date_wsh
+        payload.end_date_wsh = nightCheckoutDate.value
+        payload.delivery_time_wsh = toApiDateTime(slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh))
+        payload.pickup_time_wsh = toApiDateTime(slotToDateTime(form.pickup_date_wsh, form.pickup_slot_wsh))
+      } else {
+        const serviceDates = buildServiceDates(deliveryTime, pickupTime)
+        payload.quantity_wsh = Math.max(1, diffDays(serviceDates.startDate, serviceDates.endDate) + 1)
+        payload.start_date_wsh = serviceDates.startDate
+        payload.end_date_wsh = serviceDates.endDate
+        payload.delivery_time_wsh = toApiDateTime(availabilityEnabled.value
+          ? slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh)
+          : form.delivery_time_wsh)
+        payload.pickup_time_wsh = toApiDateTime(availabilityEnabled.value
+          ? slotToDateTime(form.pickup_date_wsh, form.pickup_slot_wsh)
+          : form.pickup_time_wsh)
+      }
     }
     const res = await createOrder(payload)
     if (res.code === 200) {
@@ -1345,12 +1471,12 @@ async function reloadServiceState() {
   availabilityDays.value = []
   availabilityError.value = false
   availableCoupons.value = []
-  couponQuote.value = null
-  membershipQuote.value = null
-  if (availabilityEnabled.value && form.keeper_id_wsh) {
+  clearQuote()
+  couponLoadedAmount = null
+  if (availabilityEnabled.value) {
     await loadAvailability()
   }
-  await refreshCoupons()
+  scheduleQuote()
 }
 
 function hasDeliveryLocation() {
@@ -1428,105 +1554,58 @@ function retryDeliveryDistance() {
   updateDeliveryDistance()
 }
 
+/**
+ * 服务日期区间：end_date 是「最后一个服务日」（含离店日），
+ * 与后端 OrderPricing.dayCount（DAYS.between + 1）保持同一口径。
+ */
 function buildServiceDates(deliveryTime, pickupTime) {
   return {
     startDate: toDateOnly(deliveryTime),
-    endDate: toDateOnly(addDays(pickupTime, isSameDate(deliveryTime, pickupTime) ? 1 : 0)),
+    endDate: toDateOnly(pickupTime),
   }
 }
 
-async function refreshCoupons() {
-  const seq = ++couponQuoteSeq
-  const memberSeq = ++membershipQuoteSeq
-  const estimate = baseEstimate()
-  couponQuote.value = null
-  membershipQuote.value = null
-  if (!form.merchant_id_wsh || Number(estimate.total) <= 0) {
+/**
+ * 拉取可用券并按最优惠自动勾选。
+ * 金额门槛取服务端报价，前端不再估算；金额没变则不重复拉取，避免报价与拉券互相触发。
+ */
+async function refreshCoupons(force = false) {
+  const baseAmount = couponBaseAmount()
+  if (!force && baseAmount === couponLoadedAmount) return
+  const seq = ++couponSeq
+  if (!form.merchant_id_wsh || baseAmount <= 0) {
+    couponLoadedAmount = baseAmount
     availableCoupons.value = []
     form.user_coupon_id_wsh = ''
     couponLoading.value = false
-    membershipLoading.value = false
     return
   }
   couponLoading.value = true
   try {
-    // 批量：券只作用于金额最大的单（与后端归属规则一致），按该单金额筛选/报价
-    const quoteBase = couponQuoteBase()
-    const couponListingAmount = isBatchMode.value ? quoteBase.total : Number(estimate.final)
-    const params = {
+    const res = await getAvailableCoupons({
       merchant_id_wsh: Number(form.merchant_id_wsh),
-      order_amount_wsh: couponListingAmount,
-    }
-    const res = await getAvailableCoupons(params)
-    if (seq !== couponQuoteSeq) return
-    const coupons = res.code === 200 && Array.isArray(res.data) ? res.data : []
+      order_amount_wsh: baseAmount,
+    })
+    if (seq !== couponSeq) return
+    const loaded = res.code === 200 && Array.isArray(res.data)
+    const coupons = loaded ? res.data : []
+    // 只有真正拿到列表才记住「这个金额已加载过」，业务失败也要允许下次重试
+    couponLoadedAmount = loaded ? baseAmount : null
     availableCoupons.value = coupons
     if (form.user_coupon_id_wsh && !coupons.some(item => Number(item.id_wsh) === Number(form.user_coupon_id_wsh))) {
       form.user_coupon_id_wsh = ''
     }
-    // 用户未手动选择过时，自动勾选当前订单金额下最优惠的一张券
     if (!couponTouched.value && !form.user_coupon_id_wsh && coupons.length > 0) {
-      const best = pickBestCoupon(coupons, couponListingAmount)
+      const best = pickBestCoupon(coupons, baseAmount)
       if (best) form.user_coupon_id_wsh = String(best.id_wsh)
     }
-    if (form.user_coupon_id_wsh) {
-      await refreshCouponQuote(seq, quoteBase)
-    }
-    if (seq !== couponQuoteSeq) return
-    // 会员报价基数：批量按批次合计（券后），单笔沿用券报价结果
-    const memberBaseAmount = isBatchMode.value
-      ? Number(estimate.final)
-      : (couponQuote.value?.final_amount_wsh ?? estimate.final)
-    await refreshMembershipQuote(memberSeq, memberBaseAmount)
   } catch (e) {
-    if (seq !== couponQuoteSeq) return
+    if (seq !== couponSeq) return
     availableCoupons.value = []
     form.user_coupon_id_wsh = ''
-    couponQuote.value = null
-    membershipQuote.value = null
+    couponLoadedAmount = null
   } finally {
-    if (seq === couponQuoteSeq) couponLoading.value = false
-  }
-}
-
-async function refreshCouponQuote(seq, quoteBase) {
-  try {
-    const res = await quoteCoupon({
-      user_coupon_id_wsh: Number(form.user_coupon_id_wsh),
-      total_amount_wsh: quoteBase.total,
-      long_stay_discount_wsh: quoteBase.discount,
-      merchant_id_wsh: Number(form.merchant_id_wsh),
-      service_id_wsh: serviceId.value ? Number(serviceId.value) : null,
-    })
-    if (seq === couponQuoteSeq && res.code === 200) {
-      couponQuote.value = res.data
-    }
-  } catch (e) {
-    if (seq === couponQuoteSeq) {
-      couponQuote.value = null
-    }
-  }
-}
-
-async function refreshMembershipQuote(seq, amount) {
-  const value = Number(amount || 0)
-  membershipQuote.value = null
-  if (value <= 0) {
-    membershipLoading.value = false
-    return
-  }
-  membershipLoading.value = true
-  try {
-    const res = await quoteMembershipOrderDiscount(value)
-    if (seq === membershipQuoteSeq && res.code === 200) {
-      membershipQuote.value = res.data
-    }
-  } catch (e) {
-    if (seq === membershipQuoteSeq) {
-      membershipQuote.value = null
-    }
-  } finally {
-    if (seq === membershipQuoteSeq) membershipLoading.value = false
+    if (seq === couponSeq) couponLoading.value = false
   }
 }
 
@@ -1601,16 +1680,6 @@ function toDateOnly(date) {
 
 function diffDays(startDate, endDate) {
   return Math.ceil((new Date(endDate) - new Date(startDate)) / 86400000)
-}
-
-function addDays(date, days) {
-  const result = new Date(date)
-  result.setDate(result.getDate() + days)
-  return result
-}
-
-function isSameDate(first, second) {
-  return toDateOnly(first) === toDateOnly(second)
 }
 </script>
 

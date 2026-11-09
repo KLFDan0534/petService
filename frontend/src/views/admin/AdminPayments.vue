@@ -15,6 +15,7 @@
       {label:'ID',key:'id_wsh'},
       {label:'订单号',key:'order_no_wsh'},
       {label:'支付编号',key:'pay_no_wsh'},
+      {label:'用途',key:'purpose_label_wsh'},
       {label:'金额',key:'amount_label_wsh'},
       {label:'支付方式',key:'method_wsh'},
       {label:'状态',key:'status_label_wsh'},
@@ -48,10 +49,11 @@ function fmtAmount(v) {
   return '¥' + Number(v).toFixed(2)
 }
 
-// 状态码换成中文标签，金额补成 ¥xx.xx
+// 状态码换成中文标签，金额补成 ¥xx.xx，并标出预付/晚接补费
 function enrich(p) {
   const e = enrichWithStatus(p, 'status_wsh', PaymentStatus)
   e.amount_label_wsh = fmtAmount(p.amount_wsh)
+  e.purpose_label_wsh = p.purpose_wsh === 'night_overtime' ? '晚接补费' : '预付'
   return e
 }
 

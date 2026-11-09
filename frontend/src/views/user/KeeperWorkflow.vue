@@ -18,6 +18,15 @@
             <span>寄养工作台</span>
           </div>
           <h1 class="kw-title">照护师工作台</h1>
+          <router-link
+            v-if="keeperInfo && keeperInfo.merchant_id_wsh"
+            class="kw-merchant-link"
+            :to="`/merchants/${keeperInfo.merchant_id_wsh}`"
+          >
+            <AppIcon><Shop /></AppIcon>
+            <span>{{ keeperInfo.merchant_name_wsh || '所属门店' }}</span>
+            <span class="kw-merchant-arrow" aria-hidden="true">→</span>
+          </router-link>
           <p class="kw-sub">
             {{ keeperInfo
               ? `${keeperInfo.merchant_name_wsh || '门店'} · ${keeperInfo.name_wsh || '照护师'}。接单状态与打卡会影响派单，请保持真实。`
@@ -26,8 +35,8 @@
         </div>
         <dl v-if="keeperInfo" class="kw-facts" aria-label="工作台概览">
           <div>
-            <dd class="tabular">{{ pendingOrders.length }}</dd>
-            <dt>待接单</dt>
+            <dd class="tabular">{{ poolOrders.length }}</dd>
+            <dt>待抢单</dt>
           </div>
           <div>
             <dd class="tabular">{{ keeperInfo.current_pets_wsh ?? 0 }} / {{ keeperInfo.max_pets_wsh ?? 0 }}</dd>
@@ -113,7 +122,7 @@
 
           <KeeperOrdersTab
             v-if="activeTab === 'orders'"
-            :pendingOrders="pendingOrders"
+            :poolOrders="poolOrders"
             :activeOrders="myOrders"
             :loading="orderLoading"
             :completingId="completingId"
@@ -124,11 +133,11 @@
             :modalKey="orderModalKey"
             :now-ms="nowMs"
             @update:subTab="orderSubTab = $event"
-            @accept="acceptOrder"
+            @claim="claimOrder"
             @reject="rejectOrder"
             @receive="handleReceive"
             @start="handleStart"
-            @complete="completeService"
+            @checkout="handleCheckout"
             @select-order="selectOrder"
           />
 
@@ -190,7 +199,7 @@
 <script setup>
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { User } from '@element-plus/icons-vue'
+import { User, Shop } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { KeeperOnlineStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
@@ -199,9 +208,7 @@ import KeeperCertTab from '@/components/keeper/KeeperCertTab.vue'
 import KeeperAttendancePanel from '@/components/keeper/KeeperAttendancePanel.vue'
 import KeeperOrdersTab from '@/components/keeper/KeeperOrdersTab.vue'
 import KeeperDailyTab from '@/components/keeper/KeeperDailyTab.vue'
-import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
-import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, hasExpiredPaymentTimeout } from '@/utils/orderPaymentTimeout'
 import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 
 const router = useRouter()
@@ -209,9 +216,13 @@ const authStore = useAuthStore()
 const appStore = useAppStore()
 
 const activeTab = ref('cert')
-const orderSubTab = ref('pending')
+const orderSubTab = ref('pool')
 const orderLoading = ref(false)
-const pendingOrders = ref([])
+// 待分配订单池：已支付但还没有负责人的订单，看护者可主动抢
+const poolOrders = ref([])
+// 待分配池的 SSE 连接：新单入池 / 被接走时实时刷新，不用手动刷新页面
+let orderEventSource = null
+let poolRefreshTimer = null
 const myOrders = ref([])
 const keeperInfo = ref(null)
 const merchants = ref([])
@@ -231,7 +242,6 @@ const orderModalKey = ref(0)
 const recordSubmitKey = ref(0)
 const nowMs = ref(Date.now())
 let countdownTimer = null
-let nextPaymentTimeoutRefreshAt = 0
 
 const profile = reactive({ nickname_wsh: '', avatar_wsh: '' })
 
@@ -246,13 +256,19 @@ const tabs = [
 onMounted(async () => {
   countdownTimer = window.setInterval(() => {
     nowMs.value = Date.now()
-    refreshExpiredPaymentOrders()
   }, 1000)
-  await Promise.all([loadProfile(), loadKeeperInfo(), loadMerchants(), loadPendingOrders(), loadMyOrders()])
+  // 待抢单池必须首屏就加载：否则新看护者进来看不到任何可抢订单，也没有任何操作能触发刷新
+  await Promise.all([loadProfile(), loadKeeperInfo(), loadMerchants(), loadMyOrders(), loadPoolOrders()])
+  connectOrderEvents()
 })
 
 onUnmounted(() => {
   if (countdownTimer) window.clearInterval(countdownTimer)
+  if (poolRefreshTimer) clearTimeout(poolRefreshTimer)
+  if (orderEventSource) {
+    orderEventSource.close()
+    orderEventSource = null
+  }
 })
 
 async function loadProfile() {
@@ -295,13 +311,44 @@ async function submitCertification(form) {
   }
 }
 
-async function loadPendingOrders() {
-  orderLoading.value = true
+/**
+ * 订阅订单事件流。
+ * 后端在「订单支付且无负责人」时推 pool-new，在「被抢/被指派/无人可分配取消」时推 pool-removed。
+ * 只做刷新与提示，不改业务数据；断线由 EventSource 自己重连。
+ */
+function connectOrderEvents() {
+  if (orderEventSource || !authStore.token) return
   try {
-    const res = await authStore.apiGet('/api/orders/pending')
-    if (res.code === 200) pendingOrders.value = res.data || []
-  } finally {
-    orderLoading.value = false
+    orderEventSource = new EventSource(
+      `/api/order-events/stream?token=${encodeURIComponent(authStore.token)}`)
+  } catch (e) {
+    orderEventSource = null
+    return
+  }
+  orderEventSource.addEventListener('pool-new', () => {
+    schedulePoolRefresh()
+    appStore.addToast('有新的待抢订单', 'info')
+  })
+  orderEventSource.addEventListener('pool-removed', () => {
+    schedulePoolRefresh()
+  })
+}
+
+/** 合并短时间内的多次事件，避免连续弹单时打出十几个请求 */
+function schedulePoolRefresh() {
+  if (poolRefreshTimer) clearTimeout(poolRefreshTimer)
+  poolRefreshTimer = setTimeout(() => {
+    poolRefreshTimer = null
+    loadPoolOrders()
+  }, 300)
+}
+
+async function loadPoolOrders() {
+  try {
+    const res = await authStore.apiGet('/api/orders/pool')
+    if (res.code === 200) poolOrders.value = res.data || []
+  } catch (e) {
+    poolOrders.value = []
   }
 }
 
@@ -311,35 +358,29 @@ async function loadMyOrders() {
 }
 
 async function refreshOrders() {
-  await Promise.all([loadPendingOrders(), loadMyOrders()])
+  await Promise.all([loadMyOrders(), loadPoolOrders()])
 }
 
-function refreshExpiredPaymentOrders() {
-  if (
-    orderLoading.value
-    || nowMs.value < nextPaymentTimeoutRefreshAt
-    || !hasExpiredPaymentTimeout(pendingOrders.value, nowMs.value)
-  ) {
-    return
-  }
-  nextPaymentTimeoutRefreshAt = nowMs.value + PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS
-  void refreshOrders()
-}
-
-async function acceptOrder(order) {
+/**
+ * 抢单：把待分配订单接到自己名下。
+ * 并发下可能被别的看护者抢先，失败时刷新列表让用户看到最新池子。
+ */
+async function claimOrder(order) {
   if (!order?.order_no_wsh || processingOrderNo.value) return
   processingOrderNo.value = order.order_no_wsh
   try {
-    const res = await authStore.apiPost('/api/orders/accept', { order_no_wsh: order.order_no_wsh })
+    const res = await authStore.apiPost('/api/orders/claim', { order_no_wsh: order.order_no_wsh })
     if (res.code === 200) {
-      appStore.addToast('接单成功', 'success')
-      await refreshOrders()
-    } else {
-      appStore.addToast(res.message || '接单失败', 'error')
-      await refreshOrders()
+      appStore.addToast('抢单成功', 'success')
+      // 抢到后切到「我的订单」，否则用户还停在空的待抢单页，以为没成功
+      orderSubTab.value = 'active'
     }
+    // 失败时不再额外 toast：request 拦截器已经统一提示，重复弹会出现两条一样的错误
+    await refreshOrders()
   } catch (e) {
-    appStore.addToast(e?.message || '接单失败', 'error')
+    // 400 的响应体里带着具体原因（排班已满 / 在休假 / 资质未过 / 已被接走），
+    // 直接用 e.message 只会显示「Request failed with status code 400」，用户看不出为什么失败
+    appStore.addToast(e?.response?.data?.message || e?.message || '抢单失败，请稍后重试', 'error')
     await refreshOrders()
   } finally {
     processingOrderNo.value = ''
@@ -366,22 +407,17 @@ async function rejectOrder(order) {
   }
 }
 
-async function handleReceive(orderNo, handoverCode) {
+async function handleReceive(payload) {
   receiving.value = true
   try {
-    const location = await getCurrentAddress()
-    const res = await authStore.apiPost('/api/orders/received', {
-      order_no_wsh: orderNo,
-      handover_code_wsh: handoverCode,
-      received_address_wsh: location.address_wsh,
-    })
+    const res = await authStore.apiPost('/api/orders/received', payload)
     if (res.code === 200) {
       appStore.addToast('已确认收宠', 'success')
       orderModalKey.value++
       await refreshOrders()
     }
   } catch (error) {
-    appStore.addToast(error.message || '请先定位后再确认收宠', 'warning')
+    appStore.addToast(error.message || '确认收宠失败', 'error')
   } finally {
     receiving.value = false
   }
@@ -406,17 +442,31 @@ async function handleStart(orderNo, file) {
   }
 }
 
-async function completeService(order) {
-  if (!order?.order_no_wsh || processingOrderNo.value) return
-  processingOrderNo.value = order.order_no_wsh
-  completingId.value = order.id_wsh
+/**
+ * 确认接走：提交独立接走码，服务端固定接走时刻并结算晚接费。
+ * 0 费直接完成；有费返回补费单号，订单保持服务中，等主人余额支付后自动完成。
+ */
+async function handleCheckout(payload) {
+  if (!payload?.order_no_wsh || processingOrderNo.value) return
+  processingOrderNo.value = payload.order_no_wsh
+  completingId.value = payload.order_no_wsh
   try {
-    const res = await authStore.apiPost('/api/orders/complete', { order_no_wsh: order.order_no_wsh })
-    if (res.code === 200) appStore.addToast('订单已完成，AI 报告将自动生成', 'success')
-    else appStore.addToast(res.message || '操作失败', 'error')
-    await refreshOrders()
+    const res = await authStore.apiPost('/api/orders/complete', payload)
+    if (res.code === 200) {
+      const data = res.data || {}
+      if (data.completed_wsh) {
+        appStore.addToast('已确认接走，订单已完成', 'success')
+      } else {
+        const amount = Number(data.overtime_amount_wsh || 0)
+        appStore.addToast(`已确认接走，待主人补费 ¥${amount.toFixed(2)}`, 'warning')
+      }
+      orderModalKey.value++
+      await refreshOrders()
+    } else {
+      appStore.addToast(res.message || '确认接走失败', 'error')
+    }
   } catch (e) {
-    appStore.addToast('操作失败', 'error')
+    appStore.addToast(e?.response?.data?.message || e?.message || '确认接走失败', 'error')
   } finally {
     completingId.value = null
     processingOrderNo.value = ''
@@ -561,6 +611,26 @@ function goKeeperProfile() {
 .kw-facts dt { margin: 8px 0 0; font-size: 11px; letter-spacing: 0.14em; color: var(--ref-muted); }
 
 /* ═══ Sections ═══ */
+.kw-merchant-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--ref-ink, inherit);
+  text-decoration: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.kw-merchant-link:hover,
+.kw-merchant-link:focus-visible {
+  border-color: var(--color-primary, #1D9E75);
+  background: var(--color-secondary, rgba(29,158,117,.06));
+}
+.kw-merchant-arrow { color: var(--color-muted-foreground); }
+
 .kw-section { margin-top: 48px; }
 .kw-sec-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
 .kw-idx { font-variant-numeric: tabular-nums; }

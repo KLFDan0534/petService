@@ -34,9 +34,12 @@ import com.pet.membership.dto.MembershipDiscountDTO;
 import com.pet.membership.service.MembershipBenefitService;
 import com.pet.order.dto.OrderBatchCreateRequestDTO;
 import com.pet.order.dto.OrderBatchItemDTO;
+import com.pet.order.dto.OrderCheckoutDTO;
+import com.pet.order.dto.OrderCompleteRequestDTO;
 import com.pet.order.dto.OrderCreateRequestDTO;
-import com.pet.order.dto.OrderDeliveredRequestDTO;
 import com.pet.order.dto.OrderDTO;
+import com.pet.order.dto.OrderPreviewRequestDTO;
+import com.pet.order.dto.OrderQuoteDTO;
 import com.pet.order.dto.OrderReceivedRequestDTO;
 import com.pet.order.service.OrderStatusBroadcaster;
 import com.pet.order.entity.Payment;
@@ -44,6 +47,10 @@ import com.pet.order.entity.PetOrder;
 import com.pet.order.event.OrderCompletedEvent;
 import com.pet.order.mapper.OrderMapper;
 import com.pet.order.mapper.PaymentMapper;
+import com.pet.order.occupancy.OrderOccupancy;
+import com.pet.order.pricing.NightPricingRule;
+import com.pet.order.pricing.OrderPricing;
+import com.pet.order.pricing.PaymentPurpose;
 import com.pet.order.service.OrderService;
 import com.pet.order.service.OrderSnapshotService;
 import com.pet.mq.MessageSender;
@@ -66,8 +73,8 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -91,40 +98,57 @@ public class OrderServiceImpl implements OrderService {
     // 订单状态
     private static final Set<String> VALID_STATUSES = Set.of(
             OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.CONFIRMED,
-            OrderStatus.DELIVERED, OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS,
+            OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS,
             OrderStatus.COMPLETED, OrderStatus.CANCELLED,
             OrderStatus.REFUNDING, OrderStatus.REFUNDED);
 
     // 订单状态
     private static final Set<String> BOOKING_STATUSES = Set.of(
             OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.CONFIRMED,
-            OrderStatus.DELIVERED, OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS,
+            OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS,
             OrderStatus.REFUNDING);
 
+    /**
+     * 在养状态：宠物已经在看护者处、尚未完成。
+     * <p>
+     * CONFIRMED 只是预约（还没接收），不能算作「当前在养」。
+     */
     private static final Set<String> CURRENT_PET_STATUSES = Set.of(
-            OrderStatus.CONFIRMED, OrderStatus.DELIVERED, OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS);
+            OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS);
 
-    private static final Set<String> ACCOUNTING_MANAGED_STATUSES = Set.of(
-            OrderStatus.PAID, OrderStatus.COMPLETED, OrderStatus.CANCELLED,
-            OrderStatus.REFUNDING, OrderStatus.REFUNDED);
-
-    private static final Set<String> PAID_FLOW_STATUSES = Set.of(
-            OrderStatus.CONFIRMED, OrderStatus.DELIVERED, OrderStatus.RECEIVED, OrderStatus.IN_PROGRESS);
+    /** 占用候选订单的加载上限：超限时明确失败，不允许静默截断后得出「有空位」。 */
+    private static final int OCCUPANCY_CANDIDATE_LIMIT = 200;
 
     private static final int RECEIVER_WINDOW_MINUTES = 10;
     private static final Duration PAYMENT_TIMEOUT = Duration.ofMillis(RabbitMQConfig.ORDER_PAYMENT_TIMEOUT_TTL_MS);
     private static final int PAYMENT_TIMEOUT_SCAN_LIMIT = 100;
     private static final Duration ACCEPT_TIMEOUT = Duration.ofMillis(RabbitMQConfig.ORDER_ACCEPT_TIMEOUT_TTL_MS);
     private static final int ACCEPT_TIMEOUT_SCAN_LIMIT = 100;
+
+    /** 待分配池单次返回上限：避免一次拉全库订单，也避免前端渲染上千张卡片。 */
+    private static final int ASSIGNABLE_POOL_LIMIT = 100;
+
+    /** 可接单的看护者状态：在职 / 休息 / 忙碌（与 requireFutureBookableKeeper 同一口径）。 */
+    private static final List<Integer> BOOKABLE_KEEPER_STATUSES = List.of(
+            StatusCode.KEEPER_ACTIVE.getValue(),
+            StatusCode.KEEPER_OFFLINE.getValue(),
+            StatusCode.KEEPER_BUSY.getValue());
     private static final Random HANDOVER_CODE_RANDOM = new Random();
     private static final Object CREATE_ORDER_LOCK = new Object();
 
+    @Value("${booking.max-order-days:365}")
+    private int maxOrderDays = 365;
+
+    /** 交接距离允许范围（米），与 GeoController 暴露给前端的配置同源 */
     @Value("${gao.map.handover-radius-meters:500}")
     private int handoverRadiusMeters;
 
-    /** 单笔订单最大天数（booking.max-order-days，默认 365） */
-    @Value("${booking.max-order-days:365}")
-    private int maxOrderDays = 365;
+    /**
+     * 调试开关：是否允许前端通过 skip_distance_check_wsh 跳过距离校验。
+     * 默认关闭；验证阶段可在 application.yml 打开，上线前务必关掉。
+     */
+    @Value("${order.handover.allow-debug-skip:false}")
+    private boolean allowDebugSkipDistance;
 
     private final OrderMapper orderMapper;
     private final PaymentMapper paymentMapper;
@@ -313,30 +337,39 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 【查询看护者待处理订单（实现）】
+     * 【待分配订单池（看护者视角）】
      *
      * 业务作用：
-     * 查询看护者待接单/待处理的订单（PENDING或PAID），用于看护者端接单入口。
+     * 列出当前看护者所属商家名下、已支付但尚未分配负责人的订单，供其抢单。
      *
-     * 调用链：
-     * OrderService.listPendingByKeeper()
-     * ↓
-     * orderMapper.selectList(keeperId + in(PENDING,PAID) + 时间降序) → toDTOEnrichedList()
-     *
-     * 状态影响：
-     * 只读操作。
-     *
-     * @param keeperId 看护者ID
-     * @return 待处理订单DTO列表
+     * @param userId 当前登录用户ID
+     * @return 可抢订单列表；看护者未绑定商家时返回空列表
      */
-    @Override
     @Transactional(readOnly = true)
-    public List<OrderDTO> listPendingByKeeper(Long keeperId) {
+    @Override
+    public List<OrderDTO> listAssignableForKeeper(Long userId) {
+        // 只有「当前可接单」的看护者才应该看到池子：离职/待审/被拒的人不应看到客户信息
+        List<Keeper> keepers = keeperMapper.selectList(
+                new LambdaQueryWrapper<Keeper>()
+                        .eq(Keeper::getUser_id_wsh, userId)
+                        .in(Keeper::getStatus_wsh, BOOKABLE_KEEPER_STATUSES));
+        List<Long> merchantIds = keepers.stream()
+                .map(Keeper::getMerchant_id_wsh)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (merchantIds.isEmpty()) {
+            return List.of();
+        }
         List<PetOrder> orders = orderMapper.selectList(
                 new LambdaQueryWrapper<PetOrder>()
-                        .eq(PetOrder::getKeeper_id_wsh, keeperId)
-                        .in(PetOrder::getStatus_wsh, List.of(OrderStatus.PENDING, OrderStatus.PAID))
-                        .orderByDesc(PetOrder::getCreated_at_wsh));
+                        .in(PetOrder::getMerchant_id_wsh, merchantIds)
+                        .eq(PetOrder::getStatus_wsh, OrderStatus.PAID)
+                        .isNull(PetOrder::getKeeper_id_wsh)
+                        // 服务已经开始的不该再出现在可抢池里（自动分配失败的历史残留）
+                        .ge(PetOrder::getEnd_date_wsh, LocalDate.now())
+                        .orderByAsc(PetOrder::getCreated_at_wsh)
+                        .last("LIMIT " + ASSIGNABLE_POOL_LIMIT));
         return toDTOEnrichedList(orders);
     }
 
@@ -357,6 +390,10 @@ public class OrderServiceImpl implements OrderService {
         if (entity == null) return null;
         OrderDTO dto = new OrderDTO();
         BeanUtils.copyProperties(entity, dto);
+        // 交接码/接走码属于防伪凭证，默认不外泄：所有列表接口都不会带出。
+        // 仅订单详情接口在确认当前用户是主人或管理员后再显式回填。
+        dto.setHandover_code_wsh(null);
+        dto.setPickup_code_wsh(null);
         applyBillingReadCompat(dto, entity);
         return dto;
     }
@@ -366,7 +403,7 @@ public class OrderServiceImpl implements OrderService {
      *
      * 业务作用：
      * 旧订单缺失 billing_unit_wsh/quantity_wsh/unit_price_wsh/duration_minutes_wsh
-     * 新字段时，按旧字段（days_wsh/price_per_day_wsh）推导为 day 语义，保证历史订单
+     * 新字段时，按旧字段（days_wsh/price_per_day_wsh）推导为按夜语义，保证历史订单
      * 读取不出现 null 计价字段；新订单已存储新字段的原样保留，不覆盖。
      */
     static void applyBillingReadCompat(OrderDTO dto, PetOrder entity) {
@@ -374,10 +411,11 @@ public class OrderServiceImpl implements OrderService {
             return;
         }
         if (entity.getBilling_unit_wsh() == null || entity.getBilling_unit_wsh().isBlank()) {
-            dto.setBilling_unit_wsh(BookingUnit.DAY);
+            // 迁移后唯一的长区间单位是按夜；历史行由迁移脚本补齐，这里只做只读兜底展示
+            dto.setBilling_unit_wsh(BookingUnit.NIGHT);
             dto.setQuantity_wsh(entity.getDays_wsh());
             dto.setUnit_price_wsh(entity.getPrice_per_day_wsh());
-            dto.setDuration_minutes_wsh(BookingUnit.resolveDurationMinutes(BookingUnit.DAY, null));
+            dto.setDuration_minutes_wsh(BookingUnit.resolveDurationMinutes(BookingUnit.NIGHT, null));
         }
     }
 
@@ -397,36 +435,6 @@ public class OrderServiceImpl implements OrderService {
     public OrderDTO toDTOEnriched(PetOrder entity) {
         if (entity == null) return null;
         return toDTOEnrichedList(List.of(entity)).get(0);
-    }
-
-    /**
-     * 【根据ID查询增强DTO（实现）】
-     *
-     * 业务作用：
-     * getById() + toDTOEnriched()组合，先查实体再增强。
-     *
-     * @param id 订单ID
-     * @return 增强DTO
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public OrderDTO getDTOById(Long id) {
-        return toDTOEnriched(getById(id));
-    }
-
-    /**
-     * 【根据订单号查询增强DTO（实现）】
-     *
-     * 业务作用：
-     * getByOrderNo() + toDTOEnriched()组合。
-     *
-     * @param orderNo 订单编号
-     * @return 增强DTO
-     */
-    @Override
-    @Transactional(readOnly = true)
-    public OrderDTO getDTOByOrderNo(String orderNo) {
-        return toDTOEnriched(getByOrderNo(orderNo));
     }
 
     /**
@@ -510,10 +518,8 @@ public class OrderServiceImpl implements OrderService {
      * 调用链：
      * OrderService.createOrder()
      * ↓
-     * [synchronized] requirePet() → requireFutureBookableKeeper() → requireFutureBookingEligibleMerchant()
-     * → validateKeeperMerchant() → validateKeeperQualification() → validateService()
-     * → validateDateRange() → validateFulfillmentWindow()
-     * → ensureNoPetDateConflict() → ensureKeeperCapacity() → keeperLeaveService.requireKeeperAvailable()
+     * [synchronized] requirePet() → requireFutureBookingEligibleMerchant()
+     * → quoteOrder()（单位/夜数/日期一致性/占用区间校验 + 计价）
      * → 计算金额(discount + coupon + member) → orderMapper.insert()
      * → couponService.lockForOrder() → membershipBenefitService.lockForOrder()
      * → orderSnapshotService.createForOrder() → refreshKeeperCurrentPets()
@@ -580,17 +586,15 @@ public class OrderServiceImpl implements OrderService {
         }
         synchronized (CREATE_ORDER_LOCK) {
             // 共享契约只校验一次（与单笔一致的口径）
-            Keeper keeper = requireFutureBookableKeeper(request.getKeeper_id_wsh());
+            // 下单不再支持指定负责人：订单一律先进待分配池，由看护者抢单 / 商家指派 / 超时自动分配。
             ServiceItem service = loadBookableService(request.getService_id_wsh());
             String unit = assertServiceUnitSupported(service);
-            if (!BookingUnit.DAY.equals(unit)) {
+            if (!BookingUnit.NIGHT.equals(unit)) {
                 throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
-                        "批量下单仅支持按天计费服务");
+                        "批量下单仅支持按夜寄养服务");
             }
             Merchant merchant = requireFutureBookingEligibleMerchant(service.getMerchant_id_wsh());
             assertMerchantPayloadCompatible(request.getMerchant_id_wsh(), merchant.getId_wsh());
-            validateKeeperMerchant(keeper, merchant);
-            validateKeeperQualification(keeper.getId_wsh());
             assertServiceVersionMatches(service, request.getService_version_wsh());
             assertBillingUnitCompatible(request.getBilling_unit_wsh(), unit);
             assertExpectedUnitPrice(service, request.getExpected_unit_price_wsh());
@@ -603,8 +607,8 @@ public class OrderServiceImpl implements OrderService {
             for (int i = 0; i < items.size(); i++) {
                 OrderCreateRequestDTO single = toSingleRequest(request, items.get(i));
                 singles.add(single);
-                int days = validateDateRange(single.getStart_date_wsh(), single.getEnd_date_wsh());
-                BigDecimal base = resolveBaseAmount(resolvePricePerDay(service, keeper), days);
+                // 券归属基准与实际计价同源：直接用按夜初始原价函数
+                BigDecimal base = nightBatchBase(service, single);
                 if (base.compareTo(maxBase) > 0) {
                     maxBase = base;
                     couponTarget = i;
@@ -636,30 +640,144 @@ public class OrderServiceImpl implements OrderService {
         return single;
     }
 
+    /** 批量按夜寄养的券目标基准价：与单笔 quoteOrder 使用同一个 night 纯函数。 */
+    private static BigDecimal nightBatchBase(ServiceItem service, OrderCreateRequestDTO single) {
+        LocalDate checkinDate = single.getStart_date_wsh();
+        if (checkinDate == null) {
+            throw new BusinessException(400, "按夜寄养每行必须提供入住日期");
+        }
+        int nights = single.getQuantity_wsh() == null ? 0 : single.getQuantity_wsh();
+        if (nights < 1) {
+            throw new BusinessException(400, "预订夜数必须为正整数");
+        }
+        LocalDateTime delivery = single.getDelivery_time_wsh() != null
+                ? single.getDelivery_time_wsh()
+                : OrderPricing.checkinAnchor(checkinDate);
+        Duration early = OrderPricing.earlyDuration(OrderPricing.checkinAnchor(checkinDate), delivery);
+        return OrderPricing.nightInitialAmount(resolveUnitPrice(service), nights, early);
+    }
+
     /**
      * 单笔订单创建实现（供单笔与批量共用）。调用方必须持有 CREATE_ORDER_LOCK。
      */
     private OrderDTO doCreateOrder(Long ownerId, OrderCreateRequestDTO request) {
-        // 获取到当前用户的下单宠物
-        Pet pet = requirePet(ownerId, request.getPet_id_wsh());
-        // 获取到当前用户的下单宠物的keeper
-        Keeper keeper = requireFutureBookableKeeper(request.getKeeper_id_wsh());
-        // 先加载可下单服务（产品预订必须指定服务），商家与价格均由服务端根据服务派生
-        ServiceItem service = loadBookableService(request.getService_id_wsh());
-        String unit = assertServiceUnitSupported(service);
-        Merchant merchant = requireFutureBookingEligibleMerchant(service.getMerchant_id_wsh());
-        assertMerchantPayloadCompatible(request.getMerchant_id_wsh(), merchant.getId_wsh());
+        Quote q = quoteOrder(ownerId, request);
+        Pet pet = q.pet();
+        ServiceItem service = q.service();
+        Merchant merchant = q.merchant();
+        Keeper keeper = q.keeper();
+        String unit = q.unit();
+        int quantity = q.quantity();
+        int durationMinutes = q.durationMinutes();
+        LocalDate startDate = q.startDate();
+        LocalDate endDate = q.endDate();
+        LocalDateTime deliveryTime = q.deliveryTime();
+        LocalDateTime receiverStart = q.receiverStart();
+        LocalDateTime receiverEnd = q.receiverEnd();
+        LocalDateTime pickupTime = q.pickupTime();
+        BigDecimal unitPrice = q.unitPrice();
+        BigDecimal totalAmount = q.totalAmount();
+        BigDecimal discount = q.discount();
+        CouponDiscountResult couponDiscount = q.coupon();
+        MembershipDiscountDTO membershipDiscount = q.membership();
+        BigDecimal memberDiscount = q.memberDiscount();
 
-        // 服务判断
-        validateKeeperMerchant(keeper, merchant);
-        validateKeeperQualification(keeper.getId_wsh());
-        assertServiceVersionMatches(service, request.getService_version_wsh());
-        assertBillingUnitCompatible(request.getBilling_unit_wsh(), unit);
-        assertExpectedUnitPrice(service, request.getExpected_unit_price_wsh());
+        PetOrder order = new PetOrder();
+
+        BeanUtils.copyProperties(request, order);
+
+        order.setOrder_no_wsh(generateOrderNo());                       // 订单号
+        order.setOwner_id_wsh(ownerId);                                 //  下单用户
+
+        order.setPet_id_wsh(pet.getId_wsh());                           //  下单宠物
+        order.setMerchant_id_wsh(merchant.getId_wsh());                 //  下单商户
+        order.setKeeper_id_wsh(keeper == null ? null : keeper.getId_wsh());  // 下单keeper（可空=待分配）
+
+        // 服务端权威下单字段：单位/数量/单价/时长快照（客户端不可伪造）
+        order.setBilling_unit_wsh(unit);                                //  计费单位快照
+        order.setQuantity_wsh(quantity);                                //  计费数量
+        order.setUnit_price_wsh(unitPrice);                             //  单单位单价快照（计价权威）
+        order.setDuration_minutes_wsh(durationMinutes);                 //  单单位时长快照
+        order.setStart_date_wsh(startDate);                             //  服务开始日期
+        order.setEnd_date_wsh(endDate);                                 //  服务结束日期
+        // 兼容投影：day 令 days_wsh=quantity；boarding 按计费小时折算天数；session/hour 令 days_wsh=1
+        order.setDays_wsh(q.daysDisplay());
+        order.setPrice_per_day_wsh(unitPrice);                          //  每日单价（兼容投影=单单位单价）
+        order.setDiscount_wsh(discount);                                //  优惠
+        order.setTotal_amount_wsh(totalAmount);                         //  总价
+        order.setCoupon_id_wsh(couponDiscount.getUser_coupon_id_wsh());
+        order.setCoupon_template_id_wsh(couponDiscount.getTemplate_id_wsh());
+        order.setCoupon_discount_wsh(q.couponDiscount());
+        order.setMembership_id_wsh(membershipDiscount.getMembership_id_wsh());
+        order.setMembership_plan_id_wsh(membershipDiscount.getPlan_id_wsh());
+        order.setMembership_discount_wsh(memberDiscount);
+        order.setMembership_snapshot_wsh(membershipDiscount.getSnapshot_wsh());
+        order.setPlatform_subsidy_wsh(q.platformSubsidy());
+        order.setSettlement_amount_wsh(defaultMoney(couponDiscount.getSettlement_amount_wsh()));
+        order.setPromotion_snapshot_wsh(toPromotionSnapshot(couponDiscount, membershipDiscount));
+        order.setFinal_amount_wsh(q.finalAmount());      //  实付
+        order.setStatus_wsh(OrderStatus.PENDING);                       //  订单状态
+
+        order.setHandover_code_wsh(generateHandoverCode());             //  交接码
+        // 独立接走码：与送达码不同，仅订单主人/管理员在服务中且未确认接走时可读
+        order.setPickup_code_wsh(generatePickupCode(order.getHandover_code_wsh()));
+        order.setOvertime_hours_wsh(0);
+        order.setOvertime_amount_wsh(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+
+        order.setDelivery_time_wsh(deliveryTime);                       //  宠物取送时间/服务开始
+        order.setReceiver_available_start_wsh(receiverStart);           //  接收者接收宠物的时间
+        order.setReceiver_available_end_wsh(receiverEnd);               //  接收者接收宠物的结束时间
+        order.setPickup_time_wsh(pickupTime);                           //  宠物取回时间/服务结束
+        order.setFinal_report_generated_wsh(0);                         //  是否生成了 boarding report
+        orderMapper.insert(order);
+        couponService.lockForOrder(ownerId, request.getUser_coupon_id_wsh(), order.getId_wsh(),
+                order.getOrder_no_wsh(), order.getCoupon_discount_wsh());
+        membershipBenefitService.lockForOrder(ownerId, membershipDiscount, order.getId_wsh(), order.getOrder_no_wsh());
+        User owner = userMapper.selectById(ownerId);
+        orderSnapshotService.createForOrder(order, owner, pet, merchant, keeper, service, request);
+
+        refreshKeeperCurrentPets(order.getKeeper_id_wsh());
+        broadcastOrderChange(order);
+        schedulePaymentTimeoutCheck(order);
+        return toDTOEnriched(order);
+    }
+
+    /**
+     * 【报价内核：下单与预览共用】
+     *
+     * 业务作用：
+     * 执行「能不能约 + 该收多少」的全部判定，返回一个不可变的报价结果，**不产生任何写副作用**
+     * （不插订单、不锁券、不锁会员权益、不发广播、不排定时器）。
+     *
+     * 为什么必须共用：
+     * 价格预览接口与真实下单如果各写一份，两边一定会在某次改动后分叉。这里把两者收敛到
+     * 同一个方法，预览金额与扣款金额的一致性由「调用同一个方法」保证，而不是靠人工比对。
+     *
+     * 调用链：
+     * OrderServiceImpl.doCreateOrder（下单）→ quoteOrder
+     * OrderServiceImpl.previewOrder（预览）→ quoteOrder
+     *
+     * 注意：本方法内的冲突/容量/休假校验会读库，但都是只读；写操作全部留在 doCreateOrder。
+     */
+    private Quote quoteOrder(Long ownerId, OrderCreateRequestDTO request) {
+        // 获取到当前用户的下单宠物
+        Pet pet = requirePet(ownerId, request.getPet_id_wsh()); // 验证宠物存在且属于当前用户
+        // 下单不产生负责人：订单一律进「待分配」池，
+        // 由看护者抢单 / 商家指派 / 超时自动分配产生负责人（见 assignTo）。
+        Keeper keeper = null;
+        // 先加载可下单服务（产品预订必须指定服务），商家与价格均由服务端根据服务派生
+        ServiceItem service = loadBookableService(request.getService_id_wsh()); // 确保服务存在,未被下架
+        String unit = assertServiceUnitSupported(service);  // 验证服务单位
+        Merchant merchant = requireFutureBookingEligibleMerchant(service.getMerchant_id_wsh()); // 验证商家可预约
+        assertMerchantPayloadCompatible(request.getMerchant_id_wsh(), merchant.getId_wsh()); // 验证服务归属
+        assertServiceVersionMatches(service, request.getService_version_wsh()); // 验证服务版本,避免商家改价,但是用户没有刷新
+        assertBillingUnitCompatible(request.getBilling_unit_wsh(), unit); // 验证计费单位,确保客户端提交的计费单位与服务单位一致
+        assertExpectedUnitPrice(service, request.getExpected_unit_price_wsh()); // 验证期望单价,确保客户端提交的单价与服务单价一致
 
         // 下单时间/数量/时长（半开区间 [start, end)）
         int quantity;
         int durationMinutes;
+        Duration early = Duration.ZERO;
         LocalDate startDate;
         LocalDate endDate;
         LocalDateTime deliveryTime;
@@ -667,24 +785,51 @@ public class OrderServiceImpl implements OrderService {
         LocalDateTime receiverEnd;
         LocalDateTime pickupTime;
 
-        if (BookingUnit.DAY.equals(unit)) {
-            // day：沿用日期区间语义，服务占用整日 [start_date 00:00, end_date 00:00)
-            int days = validateDateRange(request.getStart_date_wsh(), request.getEnd_date_wsh());
-            quantity = days;
-            durationMinutes = BookingUnit.DAY_DURATION_MINUTES;
-            startDate = request.getStart_date_wsh();
-            endDate = request.getEnd_date_wsh();
-            deliveryTime = defaultDeliveryTime(request);
-            receiverStart = defaultReceiverStart(deliveryTime);
-            receiverEnd = defaultReceiverEnd(deliveryTime);
-            pickupTime = defaultPickupTime(request);
-            validateFulfillmentWindow(startDate, endDate,
-                    deliveryTime, receiverStart, receiverEnd, pickupTime,
-                    merchant.getId_wsh());
-            ensureNoPetDateConflict(pet.getId_wsh(), startDate, endDate, null);
-            ensureKeeperCapacity(keeper.getId_wsh(), startDate, endDate,
-                    null, keeper.getMax_pets_wsh());
-            keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), startDate, endDate);
+        if (BookingUnit.NIGHT.equals(unit)) {
+            // night：用户明确选择入住日 D 与预订夜数 N；A=预约送达、B=预约接走。
+            // 标准离店锚点只依赖 N，提前送达只加钱、不顺延离店日期。
+            int nights = resolveNightCount(request);
+            LocalDate checkinDate = request.getStart_date_wsh();
+            if (checkinDate == null) {
+                throw new BusinessException(400, "按夜寄养必须提供入住日期");
+            }
+            LocalDateTime anchor = OrderPricing.checkinAnchor(checkinDate);
+            LocalDateTime delivery = request.getDelivery_time_wsh() != null
+                    ? request.getDelivery_time_wsh() : anchor;
+            LocalDateTime pickup = request.getPickup_time_wsh() != null
+                    ? request.getPickup_time_wsh() : OrderPricing.freeCheckoutUntil(checkinDate, nights);
+            if (!delivery.toLocalDate().equals(checkinDate)) {
+                throw new BusinessException(400, "送达时间必须落在入住日期当天");
+            }
+            if (!delivery.isAfter(LocalDateTime.now())) {
+                throw new BusinessException(400, "送达时间必须晚于当前时间");
+            }
+            LocalDate checkoutDate = checkinDate.plusDays(nights);
+            if (!pickup.toLocalDate().equals(checkoutDate)) {
+                throw new BusinessException(400,
+                        "预约接走时间必须落在离店日期 " + checkoutDate + "；如需多住请增加夜数");
+            }
+            if (!pickup.isAfter(delivery)) {
+                throw new BusinessException(400, "预约接走时间必须晚于送达时间");
+            }
+            if (request.getEnd_date_wsh() != null && !request.getEnd_date_wsh().equals(checkoutDate)) {
+                throw new BusinessException(400, "结束日期与服务端按夜数推导的离店日期不一致");
+            }
+            assertClientEndTimeConsistent(request.getEnd_time_wsh(), pickup);
+            // 送达与预约接走都要落在营业窗口内；实际接走确认不再要求仍在营业时段
+            validateBoardingBusinessHours(merchant.getId_wsh(), delivery, pickup);
+            // 预约占用终点 = max(预约接走 B, 免费截止 G)：宽限期仍占容量
+            LocalDateTime occupancyEndAt = maxInstant(pickup, OrderPricing.freeCheckoutUntil(checkinDate, nights));
+            ensureNoPetIntervalConflict(pet.getId_wsh(), delivery, occupancyEndAt, null);
+            early = OrderPricing.earlyDuration(anchor, delivery);
+            startDate = checkinDate;
+            endDate = checkoutDate;
+            deliveryTime = delivery;
+            receiverStart = delivery;
+            receiverEnd = delivery.plusMinutes(RECEIVER_WINDOW_MINUTES);
+            pickupTime = pickup;
+            durationMinutes = BookingUnit.NIGHT_DURATION_MINUTES;   // 单位元数据：一夜 24 小时
+            quantity = nights;                                     // 预订夜数 N
         } else {
             // session/hour：从可用性槽位选择开始时间，服务端按时长/数量计算结束时间
             LocalDateTime slotStart = requireSlotStart(request);
@@ -697,9 +842,6 @@ public class OrderServiceImpl implements OrderService {
                 endDate = startDate.plusDays(1);
                 serviceWindowCheck(merchant.getId_wsh(), slotStart, computedEnd);
                 ensureNoPetIntervalConflict(pet.getId_wsh(), slotStart, computedEnd, null);
-                ensureKeeperIntervalCapacity(keeper.getId_wsh(), slotStart, computedEnd,
-                        null, keeper.getMax_pets_wsh());
-                keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), startDate, endDate);
                 deliveryTime = slotStart;
                 receiverStart = slotStart;
                 receiverEnd = slotStart.plusMinutes(RECEIVER_WINDOW_MINUTES);
@@ -709,9 +851,22 @@ public class OrderServiceImpl implements OrderService {
             }
         }
 
-        BigDecimal unitPrice = resolvePricePerDay(service, keeper);
-        BigDecimal totalAmount = resolveBaseAmount(unitPrice, quantity);
-        int discountDays = resolveDiscountDays(unit, quantity);
+        BigDecimal unitPrice = resolveUnitPrice(service);
+        BigDecimal totalAmount;
+        int discountDays;
+        if (BookingUnit.NIGHT.equals(unit)) {
+            // 预付原价 = 夜费 P×N + 提前费；晚接费不预收，实际接走时单独结算
+            totalAmount = OrderPricing.nightInitialAmount(unitPrice, quantity, early);
+            // 长住档位只看预订夜数 N，提前加收的一夜不参与档位
+            discountDays = quantity;
+        } else if (BookingUnit.HOUR.equals(unit)) {
+            // 按实际分钟折算：数量 × 单位分钟数 ÷ 60，避免半小时粒度被当成整小时收费
+            totalAmount = OrderPricing.hourBase(unitPrice, quantity, durationMinutes);
+            discountDays = resolveDiscountDays(unit, quantity);
+        } else {
+            totalAmount = resolveBaseAmount(unitPrice, quantity);
+            discountDays = resolveDiscountDays(unit, quantity);
+        }
         BigDecimal longStayDiscount = calculateDiscount(totalAmount, discountDays);
         CouponDiscountResult couponDiscount = couponService.previewForOrder(
                 ownerId,
@@ -727,60 +882,10 @@ public class OrderServiceImpl implements OrderService {
                 .add(defaultMoney(couponDiscount.getCoupon_discount_wsh()))
                 .add(memberDiscount);
 
-        PetOrder order = new PetOrder();
-
-        BeanUtils.copyProperties(request, order);
-
-        order.setOrder_no_wsh(generateOrderNo());                       // 订单号
-        order.setOwner_id_wsh(ownerId);                                 //  下单用户
-
-        order.setPet_id_wsh(pet.getId_wsh());                           //  下单宠物
-        order.setMerchant_id_wsh(merchant.getId_wsh());                 //  下单商户
-        order.setKeeper_id_wsh(keeper.getId_wsh());                     //  下单keeper
-
-        // 服务端权威下单字段：单位/数量/单价/时长快照（客户端不可伪造）
-        order.setBilling_unit_wsh(unit);                                //  计费单位快照
-        order.setQuantity_wsh(quantity);                                //  计费数量
-        order.setUnit_price_wsh(unitPrice);                             //  单单位单价快照（计价权威）
-        order.setDuration_minutes_wsh(durationMinutes);                 //  单单位时长快照
-        order.setStart_date_wsh(startDate);                             //  服务开始日期
-        order.setEnd_date_wsh(endDate);                                 //  服务结束日期
-        // 兼容投影：day 令 days_wsh=quantity；session/hour 令 days_wsh=1 供旧页面/旧履约接口使用
-        order.setDays_wsh(BookingUnit.DAY.equals(unit) ? quantity : 1);
-        order.setPrice_per_day_wsh(unitPrice);                          //  每日单价（兼容投影=单单位单价）
-        order.setDiscount_wsh(discount);                                //  优惠
-        order.setTotal_amount_wsh(totalAmount);                         //  总价
-        order.setCoupon_id_wsh(couponDiscount.getUser_coupon_id_wsh());
-        order.setCoupon_template_id_wsh(couponDiscount.getTemplate_id_wsh());
-        order.setCoupon_discount_wsh(defaultMoney(couponDiscount.getCoupon_discount_wsh()));
-        order.setMembership_id_wsh(membershipDiscount.getMembership_id_wsh());
-        order.setMembership_plan_id_wsh(membershipDiscount.getPlan_id_wsh());
-        order.setMembership_discount_wsh(memberDiscount);
-        order.setMembership_snapshot_wsh(membershipDiscount.getSnapshot_wsh());
-        order.setPlatform_subsidy_wsh(defaultMoney(couponDiscount.getPlatform_subsidy_wsh()).add(memberDiscount));
-        order.setSettlement_amount_wsh(defaultMoney(couponDiscount.getSettlement_amount_wsh()));
-        order.setPromotion_snapshot_wsh(toPromotionSnapshot(couponDiscount, membershipDiscount));
-        order.setFinal_amount_wsh(defaultMoney(membershipDiscount.getFinal_amount_wsh()));      //  实付
-        order.setStatus_wsh(OrderStatus.PENDING);                       //  订单状态
-
-        order.setHandover_code_wsh(generateHandoverCode());             //  交接码
-
-        order.setDelivery_time_wsh(deliveryTime);                       //  宠物取送时间/服务开始
-        order.setReceiver_available_start_wsh(receiverStart);           //  接收者接收宠物的时间
-        order.setReceiver_available_end_wsh(receiverEnd);               //  接收者接收宠物的结束时间
-        order.setPickup_time_wsh(pickupTime);                           //  宠物取回时间/服务结束
-        order.setFinal_report_generated_wsh(0);                         //  是否生成了 boarding report
-        orderMapper.insert(order);
-        couponService.lockForOrder(ownerId, request.getUser_coupon_id_wsh(), order.getId_wsh(),
-                order.getOrder_no_wsh(), order.getCoupon_discount_wsh());
-        membershipBenefitService.lockForOrder(ownerId, membershipDiscount, order.getId_wsh(), order.getOrder_no_wsh());
-        User owner = userMapper.selectById(ownerId);
-        orderSnapshotService.createForOrder(order, owner, pet, merchant, keeper, service, request);
-
-        refreshKeeperCurrentPets(keeper.getId_wsh());
-        broadcastOrderChange(order);
-        schedulePaymentTimeoutCheck(order);
-        return toDTOEnriched(order);
+        return new Quote(pet, service, merchant, keeper, unit, quantity, durationMinutes,
+                early, startDate, endDate, deliveryTime, receiverStart, receiverEnd, pickupTime,
+                unitPrice, totalAmount, longStayDiscount, couponDiscount, memberDiscount, discount,
+                membershipDiscount);
     }
 
     /**
@@ -843,65 +948,229 @@ public class OrderServiceImpl implements OrderService {
         cancelOrderById(ownerId, order.getId_wsh());
     }
 
+    // ==================== 负责人分配（抢单 / 指派 / 超时自动分配） ====================
+
     /**
-     * 【接受订单（实现）】
+     * 【看护者抢单】
      *
      * 业务作用：
-     * 看护者接单，校验资质、容量、请假状态后推进到CONFIRMED。
+     * 已支付且尚未分配负责人的订单，由订单所属商家名下的看护者主动领取；
+     * 抢单成功即进入 confirmed，不再需要额外一次接单确认。
      *
-     * 调用链：
-     * OrderService.acceptOrder()
-     * ↓
-     * getByOrderNo() → requireFutureBookableKeeper() → requireAssignedKeeperOrderAccess()
-     * → validateKeeperQualification() → ensureKeeperCapacity() → requireKeeperAvailable()
-     * → 乐观锁更新CONFIRMED → refreshKeeperCurrentPets() → broadcastOrderChange()
-     *
-     * @param userId 用户ID
-     * @param orderNo 订单编号
+     * 并发控制：
+     * CAS 更新（WHERE status='paid' AND keeper_id IS NULL），同一订单只会被一人抢到。
      */
     @Transactional
     @Override
-    public void acceptOrder(Long userId, String orderNo) {
+    public void claimOrder(Long userId, String orderNo) {
         PetOrder order = getByOrderNo(orderNo);
-        Keeper keeper = requireFutureBookableKeeper(order.getKeeper_id_wsh());
-        requireAssignedKeeperOrderAccess(order, keeper, userId);
         if (!OrderStatus.PAID.equals(order.getStatus_wsh())) {
-            throw new BusinessException(400, "订单状态为 " + order.getStatus_wsh() + "，未支付订单不能接单");
+            throw new BusinessException(400, "当前订单状态无法接单");
         }
+        if (order.getKeeper_id_wsh() != null) {
+            throw new BusinessException(400, "订单已有负责人，无法抢单");
+        }
+        Keeper keeper = keeperMapper.selectOne(new LambdaQueryWrapper<Keeper>()
+                .eq(Keeper::getUser_id_wsh, userId)
+                .eq(Keeper::getMerchant_id_wsh, order.getMerchant_id_wsh())
+                .in(Keeper::getStatus_wsh, BOOKABLE_KEEPER_STATUSES)
+                .last("LIMIT 1"));
+        if (keeper == null) {
+            throw new BusinessException(403, "只有该商家名下在职的看护者可以抢单");
+        }
+        if (!assignTo(order, keeper)) {
+            throw new BusinessException(400, "订单已被其他看护者接单");
+        }
+        log.info("看护者[{}]抢单成功, 订单编号: {}", keeper.getId_wsh(), order.getOrder_no_wsh());
+    }
+
+    /**
+     * 【商家指派负责人】
+     *
+     * 业务作用：
+     * 商家管理员把待分配订单指派给名下某个看护者，指派成功即 confirmed。
+     * 指派前重新执行资质、休假、容量校验——与抢单、自动分配共用同一条校验链。
+     */
+    @Transactional
+    @Override
+    public void assignOrder(Long userId, String orderNo, Long keeperId) {
+        PetOrder order = getByOrderNo(orderNo);
+        if (!OrderStatus.PAID.equals(order.getStatus_wsh())) {
+            throw new BusinessException(400, "当前订单状态无法指派");
+        }
+        if (!merchantService.isOwner(order.getMerchant_id_wsh(), userId)) {
+            throw new BusinessException(403, "只有订单所属商家的管理员可以指派");
+        }
+        Keeper keeper = requireFutureBookableKeeper(keeperId);
+        Merchant assignMerchant = merchantMapper.selectById(order.getMerchant_id_wsh());
+        if (assignMerchant == null) {
+            throw new BusinessException(400, "订单所属商家不存在，无法指派");
+        }
+        validateKeeperMerchant(keeper, assignMerchant);
+        if (!assignTo(order, keeper)) {
+            throw new BusinessException(400, "订单状态已变化，无法指派");
+        }
+        log.info("订单[{}]被指派给看护者[{}]", order.getOrder_no_wsh(), keeper.getId_wsh());
+    }
+
+    /**
+     * 把已支付订单分配给指定看护者并置为 confirmed。
+     *
+     * @return true 表示本次分配成功；false 表示订单已被他人抢先分配或状态已变化
+     */
+    private boolean assignTo(PetOrder order, Keeper keeper) {
+        validateKeeperQualification(keeper.getId_wsh());
+        OrderOccupancy.Interval interval = OrderOccupancy.intervalOf(order);
+        if (interval == null) {
+            throw new BusinessException(400, "订单服务时间缺失，无法分配负责人");
+        }
+        ensureKeeperIntervalCapacity(keeper.getId_wsh(), interval.start(), interval.endExclusive(),
+                order.getId_wsh(), keeper.getMax_pets_wsh(), true);
+        requireKeeperAvailableForKeeper(keeper.getId_wsh(), order);
+
+        PetOrder update = new PetOrder();
+        update.setKeeper_id_wsh(keeper.getId_wsh());
+        update.setStatus_wsh(OrderStatus.CONFIRMED);
+        int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
+                .eq(PetOrder::getId_wsh, order.getId_wsh())
+                .eq(PetOrder::getStatus_wsh, OrderStatus.PAID)
+                .isNull(PetOrder::getKeeper_id_wsh));
+        if (updated == 0) {
+            return false;
+        }
+        order.setKeeper_id_wsh(keeper.getId_wsh());
+        order.setStatus_wsh(OrderStatus.CONFIRMED);
+        // 下单时负责人为空，快照里也就没有看护者；分配成功后补上，避免对账链断裂。
+        // 快照是审计辅助数据，写失败不能让「分配」这个主操作回滚。
+        try {
+            orderSnapshotService.refreshKeeperSnapshot(order.getId_wsh(), keeper);
+        } catch (Exception e) {
+            log.warn("回填看护者快照失败, 订单={}, keeper={}", order.getId_wsh(), keeper.getId_wsh(), e);
+        }
+        refreshKeeperCurrentPets(keeper.getId_wsh());
+        broadcastOrderChange(order);
+        // 已被接走：通知同商家其它看护者把这一单从「待抢单」移除
+        orderStatusBroadcaster.broadcastPoolChange(order, "pool-removed");
+        return true;
+    }
+
+    /**
+     * 确认已带负责人的历史订单（兼容路径）。
+     * <p>
+     * 新下单流程不再指定负责人，订单一律进待分配池；但历史订单（含早期 AI 智能下单）
+     * 可能以 paid + keeper 的状态存在，超时扫描仍需能把这批订单正常确认，
+     * 否则它们会被当成「无人可分配」而取消退款。
+     */
+    private boolean confirmPaidOrder(PetOrder order) {
         requireFutureBookingEligibleMerchant(order.getMerchant_id_wsh());
+        Keeper keeper = requireFutureBookableKeeper(order.getKeeper_id_wsh());
         validateKeeperQualification(keeper.getId_wsh());
         ensureKeeperCapacityForOrder(order, keeper.getMax_pets_wsh());
-        keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh());
+        requireKeeperAvailableForOrder(order);
+
         PetOrder update = new PetOrder();
         update.setStatus_wsh(OrderStatus.CONFIRMED);
         int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
                 .eq(PetOrder::getId_wsh, order.getId_wsh())
                 .eq(PetOrder::getStatus_wsh, OrderStatus.PAID));
         if (updated == 0) {
-            throw new BusinessException(400, "订单状态已变化，无法接单");
+            return false;
         }
         order.setStatus_wsh(OrderStatus.CONFIRMED);
         refreshKeeperCurrentPets(order.getKeeper_id_wsh());
         broadcastOrderChange(order);
+        return true;
     }
 
     /**
-     * 【拒绝订单（实现）】
-     *
-     * 业务作用：
-     * 看护者或商家拒单，触发全额退款、回冲平台补贴、释放优惠券/会员权益。
-     *
-     * 调用链：
-     * OrderService.rejectOrder()
-     * ↓
-     * getByOrderNo() → checkMerchantOrKeeperOrderAccess()
-     * → 乐观锁更新CANCELLED → accountingService.transfer(全额退款) → accountingService.debit(回冲补贴)
-     * → couponService.releaseForOrder() → membershipBenefitService.releaseForOrder()
-     * → refreshKeeperCurrentPets() → broadcastOrderChange()
-     *
-     * @param userId 用户ID
-     * @param orderNo 订单编号
+     * 超时自动分配：按负载比升序、评分降序依次尝试候选人，第一个通过校验的即中标。
+     * 全部候选人都不可用时取消订单并全额退款——不允许留下无负责人的有效订单。
      */
+    private boolean autoAssignOrCancel(PetOrder order) {
+        for (Keeper candidate : rankAssignableKeepers(order)) {
+            try {
+                if (assignTo(order, candidate)) {
+                    log.info("订单[{}]超时自动分配给看护者[{}]",
+                            order.getOrder_no_wsh(), candidate.getId_wsh());
+                    return true;
+                }
+            } catch (BusinessException e) {
+                log.debug("自动分配候选人不可用, 订单={}, keeper={}, reason={}",
+                        order.getOrder_no_wsh(), candidate.getId_wsh(), e.getMessage());
+            } catch (Exception e) {
+                // 非业务异常（DB/序列化等）也必须继续尝试下一个候选人，
+                // 否则异常会冒出循环，订单既没分配也没取消退款，永久停在 paid
+                log.warn("自动分配候选人时发生异常, 订单={}, keeper={}",
+                        order.getOrder_no_wsh(), candidate.getId_wsh(), e);
+            }
+        }
+        cancelUnassignableOrder(order);
+        return false;
+    }
+
+    /** 候选看护者排序：负载比升序 → 评分降序 → ID 升序（保证结果稳定）。 */
+    private List<Keeper> rankAssignableKeepers(PetOrder order) {
+        List<Keeper> keepers = keeperMapper.selectList(new LambdaQueryWrapper<Keeper>()
+                .eq(Keeper::getMerchant_id_wsh, order.getMerchant_id_wsh())
+                .in(Keeper::getStatus_wsh, List.of(
+                        StatusCode.KEEPER_ACTIVE.getValue(),
+                        StatusCode.KEEPER_OFFLINE.getValue(),
+                        StatusCode.KEEPER_BUSY.getValue())));
+        return keepers.stream()
+                .sorted(Comparator.comparingDouble(this::keeperLoadRatio)
+                        .thenComparing(k -> k.getRating_wsh() == null ? BigDecimal.ZERO : k.getRating_wsh(),
+                                Comparator.reverseOrder())
+                        .thenComparing(Keeper::getId_wsh))
+                .toList();
+    }
+
+    /** 负载比 = 当前在住 / 容量上限；容量未知时按 1 处理，避免除零。 */
+    private double keeperLoadRatio(Keeper keeper) {
+        int max = keeper.getMax_pets_wsh() == null || keeper.getMax_pets_wsh() <= 0
+                ? 1 : keeper.getMax_pets_wsh();
+        int current = keeper.getCurrent_pets_wsh() == null ? 0 : keeper.getCurrent_pets_wsh();
+        return (double) current / max;
+    }
+
+    /** 无人可分配：取消订单并全额退款，释放券与会员权益。 */
+    private void cancelUnassignableOrder(PetOrder order) {
+        PetOrder update = new PetOrder();
+        update.setStatus_wsh(OrderStatus.CANCELLED);
+        int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
+                .eq(PetOrder::getId_wsh, order.getId_wsh())
+                .eq(PetOrder::getStatus_wsh, OrderStatus.PAID)
+                .isNull(PetOrder::getKeeper_id_wsh));
+        if (updated == 0) {
+            return;
+        }
+        order.setStatus_wsh(OrderStatus.CANCELLED);
+        refundPaidOrder(order, "unassigned", "订单无人可分配退款");
+        couponService.releaseForOrder(order.getId_wsh());
+        membershipBenefitService.releaseForOrder(order.getId_wsh());
+        broadcastOrderChange(order);
+        orderStatusBroadcaster.broadcastPoolChange(order, "pool-removed");
+        log.warn("订单超时无人可分配，已取消并退款: {}", order.getOrder_no_wsh());
+    }
+
+    /** 已支付订单的全额退款 + 平台补贴回冲（拒单与无人可分配共用）。 */
+    private void refundPaidOrder(PetOrder order, String reason, String description) {
+        BigDecimal refundAmount = defaultMoney(order.getFinal_amount_wsh());
+        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+            accountingService.transfer(accountingService.systemUserId(), order.getOwner_id_wsh(),
+                    refundAmount, reason, order.getId_wsh(),
+                    "order", String.valueOf(order.getId_wsh()),
+                    reason + ":order:" + order.getId_wsh(),
+                    description + " - " + order.getOrder_no_wsh());
+        }
+        BigDecimal subsidy = defaultMoney(order.getPlatform_subsidy_wsh());
+        if (subsidy.compareTo(BigDecimal.ZERO) > 0) {
+            accountingService.debit(accountingService.systemUserId(), subsidy, reason + "_subsidy", order.getId_wsh(),
+                    "coupon", String.valueOf(order.getCoupon_id_wsh()),
+                    reason + ":subsidy:" + order.getId_wsh(),
+                    description + "回冲平台补贴 - " + order.getOrder_no_wsh());
+        }
+    }
+
     @Transactional
     @Override
     public void rejectOrder(Long userId, String orderNo) {
@@ -920,22 +1189,7 @@ public class OrderServiceImpl implements OrderService {
         }
         order.setStatus_wsh(OrderStatus.CANCELLED);
 
-        BigDecimal refundAmount = defaultMoney(order.getFinal_amount_wsh());
-        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
-            accountingService.transfer(accountingService.systemUserId(), order.getOwner_id_wsh(),
-                    refundAmount, "reject", order.getId_wsh(),
-                    "order", String.valueOf(order.getId_wsh()),
-                    "reject:order:" + order.getId_wsh(),
-                    "商家拒单退款 - " + order.getOrder_no_wsh());
-        }
-
-        BigDecimal subsidy = defaultMoney(order.getPlatform_subsidy_wsh());
-        if (subsidy.compareTo(BigDecimal.ZERO) > 0) {
-            accountingService.debit(accountingService.systemUserId(), subsidy, "reject_subsidy", order.getId_wsh(),
-                    "coupon", String.valueOf(order.getCoupon_id_wsh()),
-                    "reject:subsidy:" + order.getId_wsh(),
-                    "拒单回冲平台补贴 - " + order.getOrder_no_wsh());
-        }
+        refundPaidOrder(order, "reject", "商家拒单退款");
 
         couponService.releaseForOrder(order.getId_wsh());
         membershipBenefitService.releaseForOrder(order.getId_wsh());
@@ -969,7 +1223,11 @@ public class OrderServiceImpl implements OrderService {
         if (order == null || !OrderStatus.PAID.equals(order.getStatus_wsh())) {
             return false;
         }
-        boolean accepted = confirmPaidOrder(order);
+        // 下单不再指定负责人，新订单一律走自动分配；
+        // 历史订单（含早期 AI 下单）可能已带负责人，仍走原「超时自动确认」路径。
+        boolean accepted = order.getKeeper_id_wsh() == null
+                ? autoAssignOrCancel(order)
+                : confirmPaidOrder(order);
         if (accepted) {
             log.info("订单已支付超时后自动接单, 订单编号: {}", order.getOrder_no_wsh());
         }
@@ -993,30 +1251,21 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public int autoAcceptPaidOrdersIfTimeout() {
         LocalDateTime cutoff = LocalDateTime.now().minus(ACCEPT_TIMEOUT);
-        List<Payment> timeoutPayments = paymentMapper.selectList(
-                new LambdaQueryWrapper<Payment>()
-                        .eq(Payment::getStatus_wsh, "success")
-                        .le(Payment::getPaid_at_wsh, cutoff)
-                        .isNotNull(Payment::getOrder_no_wsh)
-                        .orderByAsc(Payment::getPaid_at_wsh)
-                        .last("LIMIT " + ACCEPT_TIMEOUT_SCAN_LIMIT));
-        List<String> orderNos = timeoutPayments.stream()
-                .map(Payment::getOrder_no_wsh)
-                .filter(no -> no != null && !no.isBlank())
-                .distinct()
-                .collect(Collectors.toList());
-        if (orderNos.isEmpty()) {
-            return 0;
-        }
+        // 直接扫订单表，而不是「先取最早 100 笔支付再反查订单」：
+        // 后者一旦这 100 笔对应的订单离开 paid，查询结果永远是空，第 101 笔之后再也兜不住。
         List<PetOrder> orders = orderMapper.selectList(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getStatus_wsh, OrderStatus.PAID)
-                        .in(PetOrder::getOrder_no_wsh, orderNos)
-                        .orderByAsc(PetOrder::getUpdated_at_wsh));
+                        .le(PetOrder::getUpdated_at_wsh, cutoff)
+                        .orderByAsc(PetOrder::getUpdated_at_wsh)
+                        .last("LIMIT " + ACCEPT_TIMEOUT_SCAN_LIMIT));
         int accepted = 0;
         for (PetOrder order : orders) {
             try {
-                if (confirmPaidOrder(order)) {
+                boolean assigned = order.getKeeper_id_wsh() == null
+                        ? autoAssignOrCancel(order)
+                        : confirmPaidOrder(order);
+                if (assigned) {
                     accepted++;
                     log.info("兜底扫描器自动接单, 订单编号: {}", order.getOrder_no_wsh());
                 }
@@ -1088,108 +1337,21 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 【标记已送达（实现-无参数版本）】
-     *
-     * 业务作用：
-     * 构建空的OrderDeliveredRequestDTO委托给带DTO的重载方法。
-     *
-     * @param userId  用户ID
-     * @param orderNo 订单编号
-     */
-    @Transactional
-    @Override
-    public void markDelivered(Long userId, String orderNo) {
-        OrderDeliveredRequestDTO request = new OrderDeliveredRequestDTO();
-        request.setOrder_no_wsh(orderNo);
-        markDelivered(userId, request);
-    }
-
-    /**
-     * 【标记已送达（实现-完整参数版本）】
-     *
-     * 业务作用：
-     * 主人标记送达，校验归属和状态后更新订单为DELIVERED并记录送达位置信息。
-     *
-     * 调用链：
-     * OrderService.markDelivered()
-     * ↓
-     * getByOrderNo() → 校验主人/状态 → 乐观锁更新DELIVERED + 位置/时间 → broadcastOrderChange()
-     *
-     * 数据处理：
-     * 保存送达地址、经纬度、精度和送达时间。
-     *
-     * @param userId  用户ID
-     * @param request 送达请求DTO
-     */
-    @Transactional
-    @Override
-    public void markDelivered(Long userId, OrderDeliveredRequestDTO request) {
-        if (request == null) {
-            throw new BusinessException(400, "送达信息不能为空");
-        }
-        PetOrder order = getByOrderNo(request.getOrder_no_wsh());
-        if (!userId.equals(order.getOwner_id_wsh())) {
-            throw new BusinessException(403, "只有宠物主人可以标记已送达");
-        }
-        if (!OrderStatus.CONFIRMED.equals(order.getStatus_wsh())) {
-            throw new BusinessException(400, "当前订单状态无法标记已送达");
-        }
-        LocalDateTime deliveredAt = LocalDateTime.now();
-        PetOrder update = new PetOrder();
-        update.setStatus_wsh(OrderStatus.DELIVERED);
-        update.setDelivered_at_wsh(deliveredAt);
-        update.setDelivered_address_wsh(request.getDelivered_address_wsh());
-        update.setDelivered_latitude_wsh(request.getDelivered_latitude_wsh());
-        update.setDelivered_longitude_wsh(request.getDelivered_longitude_wsh());
-        update.setDelivered_accuracy_wsh(request.getDelivered_accuracy_wsh());
-        int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
-                .eq(PetOrder::getId_wsh, order.getId_wsh())
-                .eq(PetOrder::getStatus_wsh, OrderStatus.CONFIRMED));
-        if (updated == 0) {
-            throw new BusinessException(400, "Order status changed, cannot mark delivered");
-        }
-        order.setStatus_wsh(OrderStatus.DELIVERED);
-        order.setDelivered_at_wsh(deliveredAt);
-        order.setDelivered_address_wsh(request.getDelivered_address_wsh());
-        order.setDelivered_latitude_wsh(request.getDelivered_latitude_wsh());
-        order.setDelivered_longitude_wsh(request.getDelivered_longitude_wsh());
-        order.setDelivered_accuracy_wsh(request.getDelivered_accuracy_wsh());
-        broadcastOrderChange(order);
-    }
-
-    /**
-     * 【标记已接收（实现-简易参数版本）】
-     *
-     * 业务作用：
-     * 构建OrderReceivedRequestDTO委托给带DTO的重载方法。
-     *
-     * @param userId       用户ID
-     * @param orderNo      订单编号
-     * @param handoverCode 交接码
-     */
-    @Transactional
-    @Override
-    public void markReceived(Long userId, String orderNo, String handoverCode) {
-        OrderReceivedRequestDTO request = new OrderReceivedRequestDTO();
-        request.setOrder_no_wsh(orderNo);
-        request.setHandover_code_wsh(handoverCode);
-        markReceived(userId, request);
-    }
-
-    /**
      * 【标记已接收（实现-完整参数版本）】
      *
      * 业务作用：
-     * 看护者/商家接收宠物，校验交接码、GPS距离、在岗状态后更新为RECEIVED。
+     * 看护者接收宠物，校验交接码与在岗状态后更新为RECEIVED。
+     *
+     * 业务规则：
+     * 不再校验 GPS 距离。寄养场景是主人把宠物送到看护者处，下单地址与实际
+     * 交接地点本就可能不同（例如帮他人下单、地址填商家地址），用下单坐标
+     * 做基准无法证明"宠物是否交到看护者手上"，因此只保留交接码 + 在岗校验。
      *
      * 调用链：
      * OrderService.markReceived()
      * ↓
      * getByOrderNo() → checkMerchantOrKeeperOrderAccess() → requireKeeperOnDuty()
-     * → 校验交接码/计算距离 → 乐观锁更新RECEIVED + 位置 → broadcastOrderChange()
-     *
-     * 数据处理：
-     * 计算送达坐标与接收坐标之间的距离，必须在配置的交接半径内（默认500米）。
+     * → 校验交接码 → 乐观锁更新RECEIVED → broadcastOrderChange()
      *
      * @param userId  用户ID
      * @param request 接收请求DTO
@@ -1202,8 +1364,15 @@ public class OrderServiceImpl implements OrderService {
         }
         PetOrder order = getByOrderNo(request.getOrder_no_wsh());
         checkMerchantOrKeeperOrderAccess(order, userId);
+        // 订单行锁重读：与「退款申请」并发时只能一方成功（退款要求尚未接收）。
+        // 锁顺序：订单行锁 → keeper 容量锁。
+        PetOrder locked = orderMapper.selectByIdForUpdate(order.getId_wsh());
+        if (locked == null) {
+            throw new BusinessException(404, "订单不存在");
+        }
+        order = locked;
         keeperAttendanceService.requireKeeperOnDuty(order.getKeeper_id_wsh(), order.getMerchant_id_wsh());
-        if (!OrderStatus.DELIVERED.equals(order.getStatus_wsh())) {
+        if (!OrderStatus.CONFIRMED.equals(order.getStatus_wsh())) {
             throw new BusinessException(400, "当前订单状态无法标记已接收");
         }
         if (isBlank(request.getHandover_code_wsh())) {
@@ -1212,8 +1381,12 @@ public class OrderServiceImpl implements OrderService {
         if (!request.getHandover_code_wsh().trim().equals(order.getHandover_code_wsh())) {
             throw new BusinessException(400, "交接码不正确");
         }
+        // 到店复核容量：上一只晚接未完成时仍占名额，不能在 keeper 已经超员的情况下再接收。
+        // 容量锁排在订单锁之后，与下单/接走确认保持同一加锁顺序。
+        ensureKeeperInStoreCapacityForReceive(order);
+        // 距离校验：看护者必须在订单约定的送达地点附近才能确认接收
+        BigDecimal receivedDistance = resolveHandoverDistance(order, request);
         LocalDateTime receivedAt = LocalDateTime.now();
-        BigDecimal receivedDistance = calculateReceivedDistance(order, request);
         PetOrder update = new PetOrder();
         update.setStatus_wsh(OrderStatus.RECEIVED);
         update.setReceived_at_wsh(receivedAt);
@@ -1224,7 +1397,7 @@ public class OrderServiceImpl implements OrderService {
         update.setReceived_distance_m_wsh(receivedDistance);
         int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
                 .eq(PetOrder::getId_wsh, order.getId_wsh())
-                .eq(PetOrder::getStatus_wsh, OrderStatus.DELIVERED));
+                .eq(PetOrder::getStatus_wsh, OrderStatus.CONFIRMED));
         if (updated == 0) {
             throw new BusinessException(400, "Order status changed, cannot mark received");
         }
@@ -1239,19 +1412,34 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * Calculates the distance in meters between the delivery coordinates and the
-     * receive coordinates. Validates both coordinate pairs and enforces a maximum
-     * handover radius (configured via {@code gao.map.handover-radius-meters}).
+     * 校验交接距离：看护者上报位置与订单约定送达地点的距离必须落在
+     * {@code gao.map.handover-radius-meters}（默认 500 米）内。
      *
-     * @param order   the order containing delivery coordinates
-     * @param request the receive request containing receive coordinates
-     * @return the distance in meters (1 decimal place), or null if coordinates are missing
-     * @throws BusinessException if coordinates are invalid or exceed the handover radius
+     * 与旧实现的差别：
+     * 1. 旧实现坐标缺失时直接 return null，等于校验不存在；这里改为拒绝，
+     *    否则前端不传坐标就能绕过；
+     * 2. 旧实现确实也是拿 delivery_* 与 received_* 比，但前端从不上报
+     *    received_*，所以长期空转；现在前端会带坐标。
+     *
+     * 调试开关：request.skip_distance_check_wsh=true 且配置
+     * {@code order.handover.allow-debug-skip=true} 时跳过校验，仅用于验证阶段。
+     *
+     * @return 实际距离（米，保留 1 位小数）；跳过校验时返回 null
      */
-    private BigDecimal calculateReceivedDistance(PetOrder order, OrderReceivedRequestDTO request) {
-        if (order.getDelivery_latitude_wsh() == null || order.getDelivery_longitude_wsh() == null
-                || request.getReceived_latitude_wsh() == null || request.getReceived_longitude_wsh() == null) {
-            return null;
+    private BigDecimal resolveHandoverDistance(PetOrder order, OrderReceivedRequestDTO request) {
+        if (Boolean.TRUE.equals(request.getSkip_distance_check_wsh())) {
+            if (allowDebugSkipDistance) {
+                log.warn("调试开关已跳过交接距离校验，订单号={}", order.getOrder_no_wsh());
+                return null;
+            }
+            log.warn("请求携带 skip_distance_check_wsh 但后端未开启 allow-debug-skip，按正常流程校验，订单号={}",
+                    order.getOrder_no_wsh());
+        }
+        if (order.getDelivery_latitude_wsh() == null || order.getDelivery_longitude_wsh() == null) {
+            throw new BusinessException(400, "订单未记录约定送达坐标，无法校验交接位置，请联系平台处理");
+        }
+        if (request.getReceived_latitude_wsh() == null || request.getReceived_longitude_wsh() == null) {
+            throw new BusinessException(400, "未获取到当前定位，请允许定位后重试");
         }
         if (!GeoDistanceUtils.isValidCoordinate(order.getDelivery_latitude_wsh(), order.getDelivery_longitude_wsh())
                 || !GeoDistanceUtils.isValidCoordinate(request.getReceived_latitude_wsh(), request.getReceived_longitude_wsh())) {
@@ -1263,7 +1451,8 @@ public class OrderServiceImpl implements OrderService {
                 request.getReceived_latitude_wsh(),
                 request.getReceived_longitude_wsh());
         if (meters > handoverRadiusMeters) {
-            throw new BusinessException(400, "接收位置超出交接范围");
+            throw new BusinessException(400,
+                    "当前距离约定送达地点约 " + Math.round(meters) + " 米，超出 " + handoverRadiusMeters + " 米交接范围");
         }
         return BigDecimal.valueOf(meters).setScale(1, RoundingMode.HALF_UP);
     }
@@ -1336,30 +1525,161 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 【完成订单（实现）】
+     * 【确认接走（完成订单）】
      *
      * 业务作用：
-     * 完成服务，触发商家结算（settleOrderToMerchant）、AI报告事件发布和看护者容量刷新。
+     * keeper 在宠物实际被接走时输入独立接走码，服务端在此刻固定计费交接时间 T，
+     * 按冻结快照计算实际晚接小时数 H 与补费金额：
+     * - 0 费：直接完成、结算、释放容量；
+     * - 有费：保持「服务中」并创建唯一一笔 night_overtime 补费单，等主人余额支付成功后完成。
+     *
+     * 幂等：
+     * 已确认接走的订单再次提交（网络重试）直接返回原冻结结果，不重新计时、不生成第二笔补费单。
+     * 因此「已确认」分支必须在校验在岗/状态/接走码之前返回。
      *
      * 调用链：
-     * OrderService.completeOrder()
-     * ↓
-     * getByOrderNo() → checkMerchantOrKeeperOrderAccess() → requireKeeperOnDuty()
-     * → 乐观锁更新COMPLETED + completed_at → settleOrderToMerchant()
-     * → refreshKeeperCurrentPets() → publishCompletedEvent() → broadcastOrderChange()
-     *
-     * @param userId  用户ID
-     * @param orderNo 订单编号
+     * OrderController.complete → OrderService.completeOrder
+     * → 参与权限校验 → [已确认则返回原结果] → 在岗/状态/码校验
+     * → 订单行锁重读 → 取一次服务端时间 T → 计算 H/金额 → 落库
+     * → 0 费走共用完成逻辑 / 有费建补费单并绑定
      */
     @Transactional
     @Override
-    public void completeOrder(Long userId, String orderNo) {
-        PetOrder order = getByOrderNo(orderNo);
+    public OrderCheckoutDTO completeOrder(Long userId, OrderCompleteRequestDTO request) {
+        if (request == null) {
+            throw new BusinessException(400, "接走信息不能为空");
+        }
+        PetOrder order = getByOrderNo(request.getOrder_no_wsh());
+        // 先过参与权限：重复确认也要能返回原结果，不能因为后续状态变化而让网络重试失败
         checkMerchantOrKeeperOrderAccess(order, userId);
+        if (order.getCheckout_confirmed_at_wsh() != null) {
+            return buildCheckoutResult(order);
+        }
         keeperAttendanceService.requireKeeperOnDuty(order.getKeeper_id_wsh(), order.getMerchant_id_wsh());
         if (!OrderStatus.IN_PROGRESS.equals(order.getStatus_wsh())) {
             throw new BusinessException(400, "当前订单状态无法完成");
         }
+        assertPickupCode(request.getPickup_code_wsh(), order);
+
+        // 订单行锁后重读：并发重复点击只能有一方固定 T 并建补费单
+        PetOrder locked = orderMapper.selectByIdForUpdate(order.getId_wsh());
+        if (locked == null) {
+            throw new BusinessException(404, "订单不存在");
+        }
+        if (locked.getCheckout_confirmed_at_wsh() != null) {
+            return buildCheckoutResult(locked);
+        }
+        if (!OrderStatus.IN_PROGRESS.equals(locked.getStatus_wsh())) {
+            throw new BusinessException(400, "当前订单状态无法完成");
+        }
+        assertPickupCode(request.getPickup_code_wsh(), locked);
+
+        // 取一次服务端时间作为计费交接时刻 T，之后冻结
+        LocalDateTime checkoutAt = LocalDateTime.now();
+        int overtimeHours = 0;
+        BigDecimal overtimeAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (BookingUnit.NIGHT.equals(BookingUnit.normalize(locked.getBilling_unit_wsh()))) {
+            // 只读下单时冻结的夜价与锚点，绝不回读当前服务价（商家改价不影响原单）
+            NightPricingRule rule = orderSnapshotService.requireNightPricingRule(locked.getId_wsh());
+            overtimeHours = OrderPricing.overtimeHours(rule.freeCheckoutUntil(), checkoutAt);
+            overtimeAmount = OrderPricing.overtimeAmount(rule.nightPrice(), overtimeHours);
+        }
+
+        PetOrder update = new PetOrder();
+        update.setCheckout_confirmed_at_wsh(checkoutAt);
+        update.setOvertime_hours_wsh(overtimeHours);
+        update.setOvertime_amount_wsh(overtimeAmount);
+        int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
+                .eq(PetOrder::getId_wsh, locked.getId_wsh())
+                .eq(PetOrder::getStatus_wsh, OrderStatus.IN_PROGRESS)
+                .isNull(PetOrder::getCheckout_confirmed_at_wsh));
+        if (updated == 0) {
+            // 并发下另一方已完成首次确认：返回对方的冻结结果
+            PetOrder latest = orderMapper.selectById(locked.getId_wsh());
+            if (latest != null && latest.getCheckout_confirmed_at_wsh() != null) {
+                return buildCheckoutResult(latest);
+            }
+            throw new BusinessException(400, "订单状态已变化，无法确认接走");
+        }
+        locked.setCheckout_confirmed_at_wsh(checkoutAt);
+        locked.setOvertime_hours_wsh(overtimeHours);
+        locked.setOvertime_amount_wsh(overtimeAmount);
+
+        if (overtimeAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            // 免费接走：直接完成、结算、释放容量
+            finishOrder(locked);
+            return buildCheckoutResult(locked);
+        }
+
+        // 有补费：创建唯一一笔补费单并绑定；订单保持服务中，等主人余额支付
+        Payment overtimePayment = createOvertimePayment(locked, overtimeAmount);
+        PetOrder bind = new PetOrder();
+        bind.setId_wsh(locked.getId_wsh());
+        bind.setOvertime_payment_id_wsh(overtimePayment.getId_wsh());
+        orderMapper.updateById(bind);
+        locked.setOvertime_payment_id_wsh(overtimePayment.getId_wsh());
+        broadcastOrderChange(locked);
+        OrderCheckoutDTO dto = buildCheckoutResult(locked);
+        dto.setOvertime_pay_no_wsh(overtimePayment.getPay_no_wsh());
+        dto.setCompleted_wsh(false);
+        return dto;
+    }
+
+    /**
+     * 校验独立接走码：恰好 4 位数字，且必须等于本单接走码（送达码不能用于完成订单）。
+     */
+    private void assertPickupCode(String submitted, PetOrder order) {
+        String code = submitted == null ? null : submitted.trim();
+        if (code == null || !code.matches("\\d{4}")) {
+            throw new BusinessException(400, "接走码格式不正确，应为 4 位数字");
+        }
+        if (order.getPickup_code_wsh() == null || !code.equals(order.getPickup_code_wsh())) {
+            throw new BusinessException(400, "接走码不正确");
+        }
+    }
+
+    /**
+     * 组装接走结果：已完成返回 completed=true；已确认但仍在等补费返回 false + 补费单号。
+     */
+    private OrderCheckoutDTO buildCheckoutResult(PetOrder order) {
+        OrderCheckoutDTO dto = new OrderCheckoutDTO();
+        dto.setCheckout_confirmed_at_wsh(order.getCheckout_confirmed_at_wsh());
+        dto.setOvertime_hours_wsh(order.getOvertime_hours_wsh() == null ? 0 : order.getOvertime_hours_wsh());
+        dto.setOvertime_amount_wsh(defaultMoney(order.getOvertime_amount_wsh()));
+        dto.setCompleted_wsh(OrderStatus.COMPLETED.equals(order.getStatus_wsh()));
+        if (order.getOvertime_payment_id_wsh() != null) {
+            Payment payment = paymentMapper.selectById(order.getOvertime_payment_id_wsh());
+            if (payment != null) {
+                dto.setOvertime_pay_no_wsh(payment.getPay_no_wsh());
+            }
+        }
+        return dto;
+    }
+
+    /**
+     * 创建唯一一笔晚接补费支付单（pending，仅余额）。
+     * <p>
+     * 补费单不接受前端自定义金额：金额取自订单冻结的 overtime_amount_wsh。
+     */
+    private Payment createOvertimePayment(PetOrder order, BigDecimal amount) {
+        Payment payment = new Payment();
+        payment.setOrder_id_wsh(order.getId_wsh());
+        payment.setOrder_no_wsh(order.getOrder_no_wsh());
+        payment.setPay_no_wsh("PAY" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+        payment.setAmount_wsh(amount);
+        payment.setMethod_wsh("balance");
+        payment.setPurpose_wsh(PaymentPurpose.NIGHT_OVERTIME);
+        payment.setStatus_wsh("pending");
+        paymentMapper.insert(payment);
+        return payment;
+    }
+
+    /**
+     * 共用完成逻辑：置 COMPLETED、结算、刷新容量、发布完成事件、广播。
+     * <p>
+     * 0 费接走与补费支付成功两条路径都走这里，保证结算与事件只发生一次。
+     */
+    private void finishOrder(PetOrder order) {
         LocalDateTime completedAt = LocalDateTime.now();
         PetOrder update = new PetOrder();
         update.setStatus_wsh(OrderStatus.COMPLETED);
@@ -1376,6 +1696,49 @@ public class OrderServiceImpl implements OrderService {
         refreshKeeperCurrentPets(order.getKeeper_id_wsh());
         publishCompletedEvent(order);
         broadcastOrderChange(order);
+    }
+
+    /**
+     * 【晚接补费支付成功回调（供支付模块调用）】
+     *
+     * 业务作用：
+     * 补费支付成功后，把补费金额一次性累计进订单的三个金额字段，并完成订单。
+     * 这是 OrderService 提供给 PaymentService 的受控内部方法，不暴露为 HTTP 接口。
+     *
+     * 幂等：
+     * 只有「服务中」且补费单号匹配时才累计；订单已完成直接返回，不会重复累计或重复结算。
+     *
+     * @param orderId   订单ID
+     * @param paymentId 补费支付单ID
+     */
+    @Transactional
+    @Override
+    public void applyOvertimePayment(Long orderId, Long paymentId) {
+        PetOrder order = orderMapper.selectByIdForUpdate(orderId);
+        if (order == null) {
+            throw new BusinessException(404, "订单不存在");
+        }
+        if (!paymentId.equals(order.getOvertime_payment_id_wsh())) {
+            throw new BusinessException(400, "补费支付单与订单不匹配");
+        }
+        if (OrderStatus.COMPLETED.equals(order.getStatus_wsh())) {
+            // 已完成：幂等返回，不重复累计
+            return;
+        }
+        if (!OrderStatus.IN_PROGRESS.equals(order.getStatus_wsh())) {
+            throw new BusinessException(400, "当前订单状态无法结算补费");
+        }
+        BigDecimal overtime = defaultMoney(order.getOvertime_amount_wsh());
+        PetOrder update = new PetOrder();
+        update.setId_wsh(order.getId_wsh());
+        update.setTotal_amount_wsh(defaultMoney(order.getTotal_amount_wsh()).add(overtime));
+        update.setFinal_amount_wsh(defaultMoney(order.getFinal_amount_wsh()).add(overtime));
+        update.setSettlement_amount_wsh(defaultMoney(order.getSettlement_amount_wsh()).add(overtime));
+        orderMapper.updateById(update);
+        order.setTotal_amount_wsh(update.getTotal_amount_wsh());
+        order.setFinal_amount_wsh(update.getFinal_amount_wsh());
+        order.setSettlement_amount_wsh(update.getSettlement_amount_wsh());
+        finishOrder(order);
     }
 
     /**
@@ -1400,15 +1763,23 @@ public class OrderServiceImpl implements OrderService {
             throw new BusinessException("无效的订单状态: " + status);
         }
         PetOrder order = getByOrderNo(orderNo);
+        // 同状态直接返回：避免整实体覆盖写、重复释放权益、重复广播
+        if (Objects.equals(order.getStatus_wsh(), status)) {
+            return;
+        }
         guardManualStatusUpdate(order, status);
         if (BOOKING_STATUSES.contains(status)) {
-            ensureNoPetDateConflict(order.getPet_id_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh(), order.getId_wsh());
+            ensureNoPetConflictForOrder(order);
             Keeper keeper = keeperMapper.selectById(order.getKeeper_id_wsh());
-            ensureKeeperCapacity(order.getKeeper_id_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh(),
-                    order.getId_wsh(), keeper != null ? keeper.getMax_pets_wsh() : null);
-            keeperLeaveService.requireKeeperAvailable(order.getKeeper_id_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh());
+            ensureKeeperCapacityForOrder(order, keeper != null ? keeper.getMax_pets_wsh() : null);
+            requireKeeperAvailableForOrder(order);
         }
         String previousStatus = order.getStatus_wsh();
+        // 防御性检查前置：转移表只允许 confirmed→received→in_progress，
+        // 资金态与完成态必须走专用接口；走到这里说明转移表被改坏了，先暴露再写库
+        if (OrderStatus.CANCELLED.equals(status) || OrderStatus.COMPLETED.equals(status)) {
+            throw new IllegalStateException("手动状态接口不应到达资金/完成分支: " + status);
+        }
         order.setStatus_wsh(status);
         stampStatusTime(order, status);
         int updated = orderMapper.update(order, new LambdaUpdateWrapper<PetOrder>()
@@ -1417,39 +1788,30 @@ public class OrderServiceImpl implements OrderService {
         if (updated == 0) {
             throw new BusinessException(400, "Order status changed, cannot update manually");
         }
-        if (OrderStatus.CANCELLED.equals(status)) {
-            couponService.releaseForOrder(order.getId_wsh());
-            membershipBenefitService.releaseForOrder(order.getId_wsh());
-        }
-        if (!OrderStatus.COMPLETED.equals(previousStatus) && OrderStatus.COMPLETED.equals(status)) {
-            settleOrderToMerchant(order);
-        }
         refreshKeeperCurrentPets(order.getKeeper_id_wsh());
-        if (!OrderStatus.COMPLETED.equals(previousStatus) && OrderStatus.COMPLETED.equals(status)) {
-            publishCompletedEvent(order);
-        }
         broadcastOrderChange(order);
     }
 
     /**
-     * Guard rails for manual status updates. Prevents direct status transitions that
-     * involve accounting-sensitive states (PAID, COMPLETED, CANCELLED, REFUNDING, REFUNDED).
-     * Only allows transitions within the fulfillment flow statuses.
+     * 手动状态修正的护栏：只允许沿履约链向前一步。
      *
-     * @param order        the current order
-     * @param targetStatus the proposed target status
-     * @throws BusinessException if the target status is accounting-managed or outside
-     *                           the fulfillment flow
+     * 用显式转移表（{@link OrderStatus#MANUAL_TRANSITIONS}）替代原来的
+     * "黑名单资金态 + 白名单履约态"双重判断，原因：
+     * 1. 原写法允许 confirmed 直接跳到 in_progress，绕过交接码与开始照片；
+     * 2. 原写法不禁止跳步，规则只能靠读代码推断；
+     * 3. 转移表是单一事实源，前端可以用同一张表决定下拉可选项。
+     *
+     * @param order        当前订单
+     * @param targetStatus 目标状态
+     * @throws BusinessException 目标状态不在当前状态的允许转移内
      */
     private void guardManualStatusUpdate(PetOrder order, String targetStatus) {
-        if (Objects.equals(order.getStatus_wsh(), targetStatus)) {
-            return;
-        }
-        if (ACCOUNTING_MANAGED_STATUSES.contains(targetStatus)) {
-            throw new BusinessException(400, "请使用支付、取消、完成或退款等专用接口变更资金相关状态");
-        }
-        if (!PAID_FLOW_STATUSES.contains(order.getStatus_wsh()) || !PAID_FLOW_STATUSES.contains(targetStatus)) {
-            throw new BusinessException(400, "通用状态接口仅允许修正履约中的非资金状态");
+        String currentStatus = order.getStatus_wsh();
+        Set<String> allowed = OrderStatus.MANUAL_TRANSITIONS.getOrDefault(currentStatus, Set.of());
+        if (!allowed.contains(targetStatus)) {
+            throw new BusinessException(400,
+                    "手动接口只允许沿履约链向前一步（confirmed→received→in_progress），当前 "
+                            + currentStatus + " 不能改为 " + targetStatus);
         }
     }
 
@@ -1560,12 +1922,13 @@ public class OrderServiceImpl implements OrderService {
      * unit 为空的历史服务按 day 语义兼容；未知的非空单位拒绝（UNSUPPORTED_SERVICE_UNIT）。
      *
      * @param service 服务项
-     * @return 规范化计费单位（day/session/hour）
+     * @return 规范化计费单位（night/session/hour）
      * @throws BusinessException 未知单位时抛出 UNSUPPORTED_SERVICE_UNIT
      */
     static String assertServiceUnitSupported(ServiceItem service) {
         if (service == null || service.getUnit_wsh() == null || service.getUnit_wsh().isBlank()) {
-            return BookingUnit.DAY;
+            // 迁移后唯一的长区间单位是按夜；空白单位按夜兜底，避免历史服务完全不可下单
+            return BookingUnit.NIGHT;
         }
         String unit = BookingUnit.normalize(service.getUnit_wsh());
         if (unit == null) {
@@ -1638,11 +2001,17 @@ public class OrderServiceImpl implements OrderService {
      * @param keeper  看护者
      * @return 每日单价
      */
-    static BigDecimal resolvePricePerDay(ServiceItem service, Keeper keeper) {
-        if (service != null && service.getPrice_wsh() != null) {
-            return service.getPrice_wsh();
+    /**
+     * 单价唯一来源：服务单价。
+     * <p>
+     * 看护者个人定价已下线（价格由商家按服务设置），这里不再保留任何按人回退的分支——
+     * 一旦服务没有价格，说明数据异常，直接拒绝下单，而不是静默用某个人的价顶上。
+     */
+    static BigDecimal resolveUnitPrice(ServiceItem service) {
+        if (service == null || service.getPrice_wsh() == null) {
+            throw new BusinessException(400, BookingErrorCode.PRICE_CHANGED, "服务价格缺失，无法下单");
         }
-        return keeper.getPrice_per_day_wsh();
+        return service.getPrice_wsh();
     }
 
     /**
@@ -1665,7 +2034,7 @@ public class OrderServiceImpl implements OrderService {
      * 【折扣适用天数（静态辅助）】
      *
      * 业务作用：
-     * day 订单按天数（quantity）享受长住折扣；session/hour 单次/单日服务
+     * 按夜订单按预订夜数（quantity）享受长住折扣；session/hour 单次服务
      * 不因小时数放大折扣档位，固定按 1 天判定，避免虚构多日优惠。
      *
      * @param unit     计费单位
@@ -1673,7 +2042,7 @@ public class OrderServiceImpl implements OrderService {
      * @return 折扣判定天数
      */
     static int resolveDiscountDays(String unit, int quantity) {
-        return BookingUnit.DAY.equals(BookingUnit.normalize(unit)) ? quantity : 1;
+        return BookingUnit.NIGHT.equals(BookingUnit.normalize(unit)) ? quantity : 1;
     }
 
     /**
@@ -1718,44 +2087,19 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * Validates the service date range: start date must be today or later,
-     * end date must be after start date, and the duration must not exceed 365 days.
-     *
-     * @param startDate the service start date
-     * @param endDate   the service end date
-     * @return the number of days between start and end
-     * @throws BusinessException if dates are invalid or out of range
-     */
-    private int validateDateRange(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null) {
-            throw new BusinessException(400, "开始日期和结束日期为必填项");
-        }
-        if (startDate.isBefore(LocalDate.now())) {
-            throw new BusinessException(400, "开始日期不能是过去的时间");
-        }
-        long days = ChronoUnit.DAYS.between(startDate, endDate);
-        if (days <= 0) {
-            throw new BusinessException(400, "结束日期必须在开始日期之后");
-        }
-        if (days > maxOrderDays) {
-            throw new BusinessException(400, "订单天数不能超过" + maxOrderDays + "天");
-        }
-        return (int) days;
-    }
-
-    /**
-     * Calculates a long-stay discount based on the number of service days.
+     * 长住折扣：按「折扣判定天数」计算金额。
      * <ul>
-     *   <li>30+ days: 10% discount</li>
-     *   <li>7-29 days: 5% discount</li>
-     *   <li>Below 7 days: no discount</li>
+     *   <li>30 天及以上：10%</li>
+     *   <li>7..29 天：5%</li>
+     *   <li>不足 7 天：不打折</li>
      * </ul>
+     * 按夜订单的判定天数 = 预订夜数 N（提前加收的一夜不参与档位）。
      *
-     * @param totalAmount the total amount before discount
-     * @param days        the number of service days
-     * @return the discount amount, or zero if not eligible
+     * @param totalAmount 折扣前金额
+     * @param days        折扣判定天数
+     * @return 折扣金额，不满足条件返回 0
      */
-    private BigDecimal calculateDiscount(BigDecimal totalAmount, int days) {
+    BigDecimal calculateDiscount(BigDecimal totalAmount, int days) {
         if (days >= 30) {
             return totalAmount.multiply(BigDecimal.valueOf(0.1));
         }
@@ -1763,134 +2107,6 @@ public class OrderServiceImpl implements OrderService {
             return totalAmount.multiply(BigDecimal.valueOf(0.05));
         }
         return BigDecimal.ZERO;
-    }
-
-    /**
-     * 验证时间范围
-     *
-     * @param startDate      开始日期
-     * @param endDate        结束日期
-     * @param deliveryTime   配送时间
-     * @param receiverStart  接单开始时间
-     * @param receiverEnd    接单结束时间
-     * @param pickupTime     取货时间
-     * @param merchantId     商家ID（用于解析目标日期营业时段）
-     */
-    private void validateFulfillmentWindow(LocalDate startDate,
-                                           LocalDate endDate,
-                                           LocalDateTime deliveryTime,
-                                           LocalDateTime receiverStart,
-                                           LocalDateTime receiverEnd,
-                                           LocalDateTime pickupTime,
-                                           Long merchantId) {
-        LocalDateTime serviceStart = startDate.atStartOfDay();
-        LocalDateTime serviceEndExclusive = endDate.plusDays(1).atStartOfDay();
-        if (deliveryTime.isBefore(LocalDateTime.now())) {
-            throw new BusinessException(400, "配送时间不能是过去的时间");
-        }
-        if (deliveryTime.isBefore(serviceStart) || !deliveryTime.isBefore(serviceEndExclusive)) {
-            throw new BusinessException(400, "配送时间必须在服务日期范围内");
-        }
-        if (!receiverEnd.isAfter(receiverStart)) {
-            throw new BusinessException(400, "接收结束时间必须在接收开始时间之后");
-        }
-        if (deliveryTime.isBefore(receiverStart) || deliveryTime.isAfter(receiverEnd)) {
-            throw new BusinessException(400, "配送时间必须在接收方可用的时间段内");
-        }
-        if (pickupTime != null && !pickupTime.isAfter(deliveryTime)) {
-            throw new BusinessException(400, "接宠时间必须在送宠时间之后");
-        }
-        List<BusinessHours> hours = businessHoursService.getByMerchantId(merchantId);
-        if (hours != null && !hours.isEmpty()) {
-            if (!businessHoursTargetResolver.isWithinBusinessHours(hours, deliveryTime)) {
-                throw new BusinessException(400, BookingErrorCode.FULFILLMENT_OUTSIDE_BUSINESS_HOURS,
-                        "送达时间不在目标日期营业时段内");
-            }
-            if (pickupTime != null && !businessHoursTargetResolver.isWithinBusinessHours(hours, pickupTime)) {
-                throw new BusinessException(400, BookingErrorCode.FULFILLMENT_OUTSIDE_BUSINESS_HOURS,
-                        "接回时间不在目标日期营业时段内");
-            }
-        }
-    }
-
-    /**
-     * 默认配送时间,用户开始送给keeper的时间
-     */
-    private LocalDateTime defaultDeliveryTime(OrderCreateRequestDTO request) {
-        return request.getDelivery_time_wsh() != null ? request.getDelivery_time_wsh() : request.getStart_date_wsh().atTime(10, 0);
-    }
-
-    /**
-     * 默认接收开始时间,keeper开始接收的时间
-     */
-    private LocalDateTime defaultReceiverStart(LocalDateTime deliveryTime) {
-        return deliveryTime;
-    }
-
-    /**
-     * 默认接收结束时间,超过了等待时间,keeper将不会接收
-     */
-    private LocalDateTime defaultReceiverEnd(LocalDateTime deliveryTime) {
-        return deliveryTime.plusMinutes(RECEIVER_WINDOW_MINUTES);
-    }
-
-    /**
-     * 默认接宠时间,用户开始去keeper那接宠的时间
-     */
-    private LocalDateTime defaultPickupTime(OrderCreateRequestDTO request) {
-        return request.getPickup_time_wsh() != null
-                ? request.getPickup_time_wsh()
-                : request.getEnd_date_wsh().atTime(18, 0);
-    }
-
-    /**
-     * 确保宠物没有时间冲突
-     */
-    private void ensureNoPetDateConflict(Long petId, LocalDate startDate, LocalDate endDate, Long excludeOrderId) {
-        LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<PetOrder>()
-                .eq(PetOrder::getPet_id_wsh, petId)
-                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
-                .lt(PetOrder::getStart_date_wsh, endDate)
-                .gt(PetOrder::getEnd_date_wsh, startDate)
-                .last("LIMIT 1");
-        if (excludeOrderId != null) {
-            wrapper.ne(PetOrder::getId_wsh, excludeOrderId);
-        }
-        PetOrder conflict = orderMapper.selectOne(wrapper);
-        if (conflict != null) {
-            throw new BusinessException(400, "宠物存在冲突订单: " + conflict.getOrder_no_wsh());
-        }
-    }
-
-    /**
-     * 确保keeper有空闲
-     * @param keeperId          keeperId
-     * @param startDate         开始日期
-     * @param endDate           结束日期
-     * @param excludeOrderId    排除订单Id
-     * @param maxPets           最大宠物数
-     */
-    private void ensureKeeperCapacity(Long keeperId, LocalDate startDate, LocalDate endDate,
-                                      Long excludeOrderId, Integer maxPets) {
-        int capacity = maxPets == null ? 0 : maxPets;
-        if (capacity <= 0) {
-            throw new BusinessException(400, "看护者容量不足");
-        }
-        // 数据库行级锁：在事务内锁定看护者行，使同一看护者的容量校验+订单落库在
-        // 数据库层面串行化，避免多实例并发下 selectCount 然后 insert 之间的超卖窗口。
-        keeperMapper.selectByIdForUpdate(keeperId);
-        LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<PetOrder>()
-                .eq(PetOrder::getKeeper_id_wsh, keeperId)
-                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
-                .lt(PetOrder::getStart_date_wsh, endDate)
-                .gt(PetOrder::getEnd_date_wsh, startDate);
-        if (excludeOrderId != null) {
-            wrapper.ne(PetOrder::getId_wsh, excludeOrderId);
-        }
-        Long count = orderMapper.selectCount(wrapper);
-        if (count != null && count >= capacity) {
-            throw new BusinessException(400, BookingErrorCode.CAPACITY_EXCEEDED, "看护者排班与已有订单冲突");
-        }
     }
 
     /**
@@ -1921,7 +2137,7 @@ public class OrderServiceImpl implements OrderService {
             if (qty < 1) {
                 throw new BusinessException(400, BookingErrorCode.QUANTITY_INVALID, "按小时服务数量必须大于0");
             }
-            if ((long) qty * durationMinutes > BookingUnit.DAY_DURATION_MINUTES) {
+            if ((long) qty * durationMinutes > BookingUnit.MAX_DURATION_MINUTES) {
                 throw new BusinessException(400, BookingErrorCode.QUANTITY_INVALID,
                         "按小时服务单笔订单总时长不能超过24小时");
             }
@@ -1973,23 +2189,16 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 宠物区间冲突：候选订单按日过滤后再做半开区间 [start, end) 精确重叠判定。
+     * 宠物区间冲突：候选订单按「日期窗口 或 已在店未完成」加载后再做精确重叠判定。
+     * <p>
+     * 占用区间统一由 {@link OrderOccupancy} 计算（night 含 30 分钟免费宽限，
+     * 已接收/服务中的逾期单视为终点开放），不在本方法内另写一套解释。
      */
     private void ensureNoPetIntervalConflict(Long petId, LocalDateTime start, LocalDateTime end, Long excludeOrderId) {
-        LocalDate startDate = start.toLocalDate();
-        LocalDate endDate = end.minusNanos(1).toLocalDate().plusDays(1);
-        LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<PetOrder>()
-                .eq(PetOrder::getPet_id_wsh, petId)
-                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
-                .lt(PetOrder::getStart_date_wsh, endDate)
-                .gt(PetOrder::getEnd_date_wsh, startDate)
-                .last("LIMIT 50");
-        if (excludeOrderId != null) {
-            wrapper.ne(PetOrder::getId_wsh, excludeOrderId);
-        }
-        List<PetOrder> candidates = orderMapper.selectList(wrapper);
+        List<PetOrder> candidates = loadOccupancyCandidates(petId, null, start, end, excludeOrderId);
+        OrderOccupancy.Interval candidate = new OrderOccupancy.Interval(start, end);
         for (PetOrder existing : candidates) {
-            if (intervalOverlaps(existing, start, end)) {
+            if (OrderOccupancy.overlaps(OrderOccupancy.intervalOf(existing), candidate)) {
                 throw new BusinessException(400, BookingErrorCode.PET_BOOKING_CONFLICT,
                         "宠物存在冲突订单: " + existing.getOrder_no_wsh());
             }
@@ -1997,79 +2206,201 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * 看护员区间容量：行锁 + 候选订单按日过滤 + 半开区间精确重叠计数。
+     * 加载占用判定候选订单。
+     * <p>
+     * SQL 不能先用旧 end_date 把「跨日仍在店」的订单过滤掉，否则容量会被低估：
+     * 候选集 = (日期窗口相交的预约单) ∪ (已接收/服务中且未完成的在店单)。
+     * 超过上限时明确失败，不允许静默截断。
+     */
+    private List<PetOrder> loadOccupancyCandidates(Long petId, Long keeperId,
+                                                   LocalDateTime start, LocalDateTime end,
+                                                   Long excludeOrderId) {
+        LocalDate startDate = start.toLocalDate();
+        LocalDate endDate = end.minusNanos(1).toLocalDate().plusDays(1);
+        LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<>();
+        if (petId != null) {
+            wrapper.eq(PetOrder::getPet_id_wsh, petId);
+        }
+        if (keeperId != null) {
+            wrapper.eq(PetOrder::getKeeper_id_wsh, keeperId);
+        }
+        wrapper.in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
+                .and(w -> w
+                        .and(x -> x.lt(PetOrder::getStart_date_wsh, endDate)
+                                .ge(PetOrder::getEnd_date_wsh, startDate))
+                        .or()
+                        .in(PetOrder::getStatus_wsh, CURRENT_PET_STATUSES));
+        if (excludeOrderId != null) {
+            wrapper.ne(PetOrder::getId_wsh, excludeOrderId);
+        }
+        wrapper.last("LIMIT " + (OCCUPANCY_CANDIDATE_LIMIT + 1));
+        List<PetOrder> candidates = orderMapper.selectList(wrapper);
+        if (candidates.size() > OCCUPANCY_CANDIDATE_LIMIT) {
+            throw new BusinessException(400, "订单占用数据过多，无法校验排班，请稍后重试");
+        }
+        return candidates;
+    }
+
+    /**
+     * 看护员区间容量：候选订单按「日期窗口 或 已在店未完成」加载后，
+     * 用事件扫描求「任一时刻同时在养数」的峰值，峰值超过上限才拒绝。
+     *
+     * @param lockRow 是否对看护者行加锁。下单必须为 true（与插入串行化，防超卖）；
+     *                价格预览必须为 false —— 预览是只读事务，MySQL 的 READ ONLY 事务里
+     *                执行 SELECT ... FOR UPDATE 会直接报 1792，而且即便不报错，
+     *                预览每次改日期都抢一把行锁会阻塞真实下单。
      */
     private void ensureKeeperIntervalCapacity(Long keeperId, LocalDateTime start, LocalDateTime end,
-                                              Long excludeOrderId, Integer maxPets) {
+                                              Long excludeOrderId, Integer maxPets, boolean lockRow) {
         int capacity = maxPets == null ? 0 : maxPets;
         if (capacity <= 0) {
             throw new BusinessException(400, "看护者容量不足");
         }
-        keeperMapper.selectByIdForUpdate(keeperId);
-        LocalDate startDate = start.toLocalDate();
-        LocalDate endDate = end.minusNanos(1).toLocalDate().plusDays(1);
-        LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<PetOrder>()
-                .eq(PetOrder::getKeeper_id_wsh, keeperId)
-                .in(PetOrder::getStatus_wsh, BOOKING_STATUSES)
-                .lt(PetOrder::getStart_date_wsh, endDate)
-                .gt(PetOrder::getEnd_date_wsh, startDate)
-                .last("LIMIT 200");
-        if (excludeOrderId != null) {
-            wrapper.ne(PetOrder::getId_wsh, excludeOrderId);
+        if (lockRow) {
+            keeperMapper.selectByIdForUpdate(keeperId);
         }
-        List<PetOrder> candidates = orderMapper.selectList(wrapper);
-        long overlapping = candidates.stream()
-                .filter(o -> intervalOverlaps(o, start, end))
-                .count();
-        if (overlapping >= capacity) {
+        List<PetOrder> candidates = loadOccupancyCandidates(null, keeperId, start, end, excludeOrderId);
+        List<OrderOccupancy.Interval> existing = new ArrayList<>(candidates.size());
+        for (PetOrder order : candidates) {
+            existing.add(OrderOccupancy.intervalOf(order));
+        }
+        int peak = OrderOccupancy.peakConcurrency(existing, new OrderOccupancy.Interval(start, end));
+        if (peak > capacity) {
             throw new BusinessException(400, BookingErrorCode.CAPACITY_EXCEEDED,
                     "看护者排班与已有订单冲突");
         }
     }
 
     /**
-     * 半开区间 [start, end) 是否与已有订单占用区间重叠（相邻不冲突）。
-     * slot 订单用 [delivery_time, pickup_time)；其余订单按 day 日期区间推导。
+     * 解析按夜寄养的预订夜数 N：必须为正整数且不超过最大夜数上限。
+     * <p>
+     * N 是「预订事实」，与提前送达加收的一夜、实际晚接小时数都是不同含义。
      */
-    private boolean intervalOverlaps(PetOrder existing, LocalDateTime start, LocalDateTime end) {
-        String unit = BookingUnit.normalize(existing.getBilling_unit_wsh());
-        LocalDateTime exStart;
-        LocalDateTime exEnd;
-        if (BookingUnit.MODE_SLOT.equals(BookingUnit.bookingMode(unit))
-                && existing.getDelivery_time_wsh() != null
-                && existing.getPickup_time_wsh() != null) {
-            exStart = existing.getDelivery_time_wsh();
-            exEnd = existing.getPickup_time_wsh();
-        } else {
-            if (existing.getStart_date_wsh() == null || existing.getEnd_date_wsh() == null) {
-                return false;
-            }
-            exStart = existing.getStart_date_wsh().atStartOfDay();
-            exEnd = existing.getEnd_date_wsh().atStartOfDay();
+    private int resolveNightCount(OrderCreateRequestDTO request) {
+        Integer nights = request.getQuantity_wsh();
+        if (nights == null || nights < 1) {
+            throw new BusinessException(400, BookingErrorCode.QUANTITY_INVALID, "预订夜数必须为正整数");
         }
-        return exStart.isBefore(end) && start.isBefore(exEnd);
+        if (nights > maxOrderDays) {
+            throw new BusinessException(400, "预订夜数不能超过" + maxOrderDays + "夜");
+        }
+        return nights;
     }
 
-    /** 是否 slot 模式（session/hour）订单。 */
-    private boolean isSlotOrder(PetOrder order) {
-        String unit = BookingUnit.normalize(order.getBilling_unit_wsh());
-        return BookingUnit.MODE_SLOT.equals(BookingUnit.bookingMode(unit))
-                && order.getDelivery_time_wsh() != null;
+    /** 取两个时刻中较晚的一个（任一为 null 时取另一个）。 */
+    private static LocalDateTime maxInstant(LocalDateTime a, LocalDateTime b) {
+        if (a == null) {
+            return b;
+        }
+        if (b == null) {
+            return a;
+        }
+        return a.isAfter(b) ? a : b;
     }
 
     /**
-     * 按订单模式选择对应的容量校验路径：slot 用区间精确校验，其余用日期区间校验。
+     * 接收宠物前在 keeper 行锁保护下复核「当前在养数」。
+     * <p>
+     * 预约容量在下单时已经校验过，但实际入店是另一时刻：上一只晚接未完成时仍占名额，
+     * 必须在这里再复核一次，否则会出现实际在养超员（AE16）。
+     */
+    private void ensureKeeperInStoreCapacityForReceive(PetOrder order) {
+        Long keeperId = order.getKeeper_id_wsh();
+        if (keeperId == null) {
+            return;
+        }
+        Keeper keeper = keeperMapper.selectByIdForUpdate(keeperId);
+        if (keeper == null) {
+            return;
+        }
+        Integer maxPets = keeper.getMax_pets_wsh();
+        if (maxPets == null || maxPets <= 0) {
+            return;
+        }
+        Long inStore = orderMapper.selectCount(new LambdaQueryWrapper<PetOrder>()
+                .eq(PetOrder::getKeeper_id_wsh, keeperId)
+                .in(PetOrder::getStatus_wsh, CURRENT_PET_STATUSES)
+                .ne(PetOrder::getId_wsh, order.getId_wsh()));
+        if (inStore != null && inStore >= maxPets) {
+            throw new BusinessException(400, BookingErrorCode.CAPACITY_EXCEEDED,
+                    "看护者当前在养宠物已达上限，无法接收");
+        }
+    }
+
+    /**
+     * 寄养首尾交接时刻的营业时间校验：两个交接时刻都必须落在营业窗口内。
+     * <p>
+     * 交接是人对人完成的，闭店时无人交接；寄养期间的过夜不受限——
+     * 受限的只是「送来」和「接走」这两个时刻。
+     */
+    private void validateBoardingBusinessHours(Long merchantId, LocalDateTime careStartAt, LocalDateTime careEndAt) {
+        List<BusinessHours> hours = businessHoursService.getByMerchantId(merchantId);
+        if (hours == null || hours.isEmpty()) {
+            return;
+        }
+        if (!businessHoursTargetResolver.isWithinBusinessHours(hours, careStartAt)) {
+            throw new BusinessException(400, BookingErrorCode.FULFILLMENT_OUTSIDE_BUSINESS_HOURS,
+                    "寄养开始时间不在营业时段内");
+        }
+        if (!businessHoursTargetResolver.isWithinBusinessHours(hours, careEndAt)) {
+            throw new BusinessException(400, BookingErrorCode.FULFILLMENT_OUTSIDE_BUSINESS_HOURS,
+                    "寄养结束时间不在营业时段内");
+        }
+    }
+
+    /**
+     * 休假校验：KeeperLeaveService 的契约是右开区间 [start, endExclusive)。
+     * <p>
+     * 只有 session/hour 的 end_date 是排他边界（= start+1）；
+     * boarding 与 day 的 end_date 是最后一个服务日（闭区间），需要 +1 天。
+     */
+    private void requireKeeperAvailableForOrder(PetOrder order) {
+        requireKeeperAvailableForKeeper(order.getKeeper_id_wsh(), order);
+    }
+
+    /** 指定看护者的休假校验（分配环节订单上还没有 keeper_id，需要显式传入候选人）。 */
+    private void requireKeeperAvailableForKeeper(Long keeperId, PetOrder order) {
+        LocalDate endExclusive = leaveEndExclusive(order);
+        if (keeperId == null || order.getStart_date_wsh() == null || endExclusive == null) {
+            return;
+        }
+        keeperLeaveService.requireKeeperAvailable(keeperId, order.getStart_date_wsh(), endExclusive);
+    }
+
+    /** 休假校验所需的右开端点；日期缺失时返回 null（与 hasLeaveOverlap 的宽松语义一致）。 */
+    private static LocalDate leaveEndExclusive(PetOrder order) {
+        if (order.getEnd_date_wsh() == null) {
+            return null;
+        }
+        String mode = BookingUnit.bookingMode(BookingUnit.normalize(order.getBilling_unit_wsh()));
+        boolean slotUnit = BookingUnit.MODE_SLOT.equals(mode);
+        return slotUnit ? order.getEnd_date_wsh() : order.getEnd_date_wsh().plusDays(1);
+    }
+
+    /**
+     * 按订单自身的占用区间做宠物冲突校验。
+     * <p>
+     * 占用区间由 {@link OrderOccupancy} 统一推导（night 含免费宽限、在店逾期视为终点开放）。
+     */
+    private void ensureNoPetConflictForOrder(PetOrder order) {
+        OrderOccupancy.Interval interval = OrderOccupancy.intervalOf(order);
+        if (interval == null) {
+            return;
+        }
+        ensureNoPetIntervalConflict(order.getPet_id_wsh(), interval.start(), interval.endExclusive(),
+                order.getId_wsh());
+    }
+
+    /**
+     * 按订单自身的占用区间做容量校验。
      */
     private void ensureKeeperCapacityForOrder(PetOrder order, Integer maxPets) {
-        if (isSlotOrder(order)) {
-            ensureKeeperIntervalCapacity(order.getKeeper_id_wsh(),
-                    order.getDelivery_time_wsh(), order.getPickup_time_wsh(),
-                    order.getId_wsh(), maxPets);
-        } else {
-            ensureKeeperCapacity(order.getKeeper_id_wsh(),
-                    order.getStart_date_wsh(), order.getEnd_date_wsh(),
-                    order.getId_wsh(), maxPets);
+        OrderOccupancy.Interval interval = OrderOccupancy.intervalOf(order);
+        if (interval == null) {
+            return;
         }
+        ensureKeeperIntervalCapacity(order.getKeeper_id_wsh(), interval.start(), interval.endExclusive(),
+                order.getId_wsh(), maxPets, true);
     }
 
     /**
@@ -2083,13 +2414,12 @@ public class OrderServiceImpl implements OrderService {
         if (keeper == null) {
             return;
         }
-        LocalDate today = LocalDate.now();
+        // 当前在养 = 已接收/服务中且未完成，不受预约 end_date 过期影响：
+        // 逾期未完成的订单仍占着名额，不能因为日期过了就不算。
         Long current = orderMapper.selectCount(
                 new LambdaQueryWrapper<PetOrder>()
                         .eq(PetOrder::getKeeper_id_wsh, keeperId)
-                        .in(PetOrder::getStatus_wsh, CURRENT_PET_STATUSES)
-                        .le(PetOrder::getStart_date_wsh, today)
-                        .gt(PetOrder::getEnd_date_wsh, today));
+                        .in(PetOrder::getStatus_wsh, CURRENT_PET_STATUSES));
         keeper.setCurrent_pets_wsh(current == null ? 0 : current.intValue());
         Merchant merchant = merchantMapper.selectById(keeper.getMerchant_id_wsh());
         boolean merchantOpen = merchant != null
@@ -2176,28 +2506,6 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void checkOrderAccess(PetOrder order, Long userId) {
-        if (order.getOwner_id_wsh() != null && order.getOwner_id_wsh().equals(userId)) {
-            return;
-        }
-        if (order.getKeeper_id_wsh() != null) {
-            List<Keeper> keepers = keeperMapper.selectList(
-                    new LambdaQueryWrapper<Keeper>().eq(Keeper::getUser_id_wsh, userId));
-            if (keepers.stream().anyMatch(k -> k.getId_wsh().equals(order.getKeeper_id_wsh()))) {
-                return;
-            }
-        }
-        if (order.getMerchant_id_wsh() != null) {
-            Merchant merchant = merchantMapper.selectOne(
-                    new LambdaQueryWrapper<Merchant>().eq(Merchant::getUser_id_wsh, userId).last("LIMIT 1"));
-            if (merchant != null && merchant.getId_wsh().equals(order.getMerchant_id_wsh())) {
-                return;
-            }
-        }
-        throw new BusinessException(403, "无权限操作此订单");
-    }
-
-
     /**
      * Transfers the settlement amount from the system account to the merchant's
      * account upon order completion. The settlement amount is determined by
@@ -2239,10 +2547,48 @@ public class OrderServiceImpl implements OrderService {
         return amount;
     }
 
+    /**
+     * 【金额空值兜底】
+     *
+     * 业务作用：把 null 金额视为 0，避免后续运算空指针。
+     *
+     * 调用场景：下单金额汇总、取消订单退款金额、结算金额解析等处。
+     *
+     * 调用链：createOrder() / cancelOrder() / settlementAmount() → defaultMoney()。
+     *
+     * 数据处理：null 返回 BigDecimal.ZERO，否则原值返回。
+     *
+     * 业务规则：不改变金额精度。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：与 money() 不同，这里不做 setScale，两位小数由调用方自行保证。
+     */
     private BigDecimal defaultMoney(BigDecimal amount) {
         return amount == null ? BigDecimal.ZERO : amount;
     }
 
+    /**
+     * 【生成促销快照JSON】
+     *
+     * 业务作用：把优惠券与会员折扣的明细快照合并成一个促销快照字符串。
+     *
+     * 调用场景：createOrder 写入 order.promotion_snapshot_wsh。
+     *
+     * 调用链：createOrder() → toPromotionSnapshot() → objectMapper.writeValueAsString()。
+     *
+     * 数据处理：写入 coupon_wsh（券快照字符串）、membership_wsh（会员折扣快照字符串）、membership_discount_wsh（会员折扣额）。
+     *
+     * 业务规则：入参为 null 时对应字段写 null，会员折扣额缺省为 0。
+     *
+     * 状态影响：无，仅生成字符串。
+     *
+     * 异常情况：序列化异常时回退返回券快照字符串，券也为 null 则返回 "{}"。
+     *
+     * 注意事项：异常回退路径返回的是券快照本身而非合并结构，读取方需容忍结构差异。
+     */
     private String toPromotionSnapshot(CouponDiscountResult couponDiscount, MembershipDiscountDTO membershipDiscount) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("coupon_wsh", couponDiscount == null ? null : couponDiscount.getSnapshot_wsh());
@@ -2278,18 +2624,60 @@ public class OrderServiceImpl implements OrderService {
         Map<Long, com.pet.order.dto.OrderSnapshotDTO> snapshotMap =
                 orderSnapshotService.findDTOMapByOrderIds(collectIds(orders, PetOrder::getId_wsh));
         Set<Long> ratedOrderIds = new HashSet<>(ratingMapper.selectOrderIdsWithRatings(collectIds(orders, PetOrder::getId_wsh)));
+        Map<Long, Payment> overtimePayments = loadOvertimePayments(orders);
         return orders.stream()
                 .map(order -> {
                     OrderDTO dto = toDTO(order);
                     fillDTO(dto, order, serviceMap, userMap, petMap, keeperMap, merchantMap);
                     dto.setSnapshot_wsh(snapshotMap.get(order.getId_wsh()));
                     dto.setHas_feedback_wsh(ratedOrderIds.contains(order.getId_wsh()));
+                    Payment overtimePayment = order.getOvertime_payment_id_wsh() == null
+                            ? null : overtimePayments.get(order.getOvertime_payment_id_wsh());
+                    if (overtimePayment != null) {
+                        dto.setOvertime_pay_no_wsh(overtimePayment.getPay_no_wsh());
+                        dto.setOvertime_payment_status_wsh(overtimePayment.getStatus_wsh());
+                    }
                     return dto;
                 })
                 .collect(Collectors.toList());
     }
 
+    /** 批量加载晚接补费支付单，供列表/详情展示「待补费」与支付状态。 */
+    private Map<Long, Payment> loadOvertimePayments(List<PetOrder> orders) {
+        Set<Long> paymentIds = orders.stream()
+                .map(PetOrder::getOvertime_payment_id_wsh)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (paymentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Payment> payments = paymentMapper.selectBatchIds(paymentIds);
+        if (payments == null || payments.isEmpty()) {
+            return Map.of();
+        }
+        return payments.stream().collect(Collectors.toMap(Payment::getId_wsh, Function.identity(), (a, b) -> a));
+    }
+
     // 批量获取id
+    /**
+     * 【批量收集关联ID】
+     *
+     * 业务作用：从订单列表中按指定字段抽取非空 ID 集合，用于批量查询。
+     *
+     * 调用场景：toDTOEnrichedList 批量加载服务、用户、宠物、看护者、商家前。
+     *
+     * 调用链：toDTOEnrichedList() → collectIds()。
+     *
+     * 数据处理：按传入的函数取出 ID，过滤 null，去重收集为 Set。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：orders 为 null 时会触发空指针，调用方 toDTOEnrichedList 已提前判空。
+     */
     private Set<Long> collectIds(List<PetOrder> orders, Function<PetOrder, Long> idGetter) {
         return orders.stream()
                 .map(idGetter)
@@ -2297,6 +2685,25 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 【批量加载服务项】
+     *
+     * 业务作用：按 ID 集合批量查询服务项，组装 id → ServiceItem 的映射。
+     *
+     * 调用场景：toDTOEnrichedList 组装订单 DTO 前。
+     *
+     * 调用链：toDTOEnrichedList() → loadServiceMap() → serviceItemMapper.selectList()。
+     *
+     * 数据处理：只投影 id、name、description、images 四个字段，按 id IN 查询。
+     *
+     * 业务规则：ID 集合为空时直接返回空 Map，不发起 SQL。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：只查展示所需字段，避免 N+1 与多余字段传输。
+     */
     private Map<Long, ServiceItem> loadServiceMap(Set<Long> serviceIds) {
         if (serviceIds.isEmpty()) {
             return Map.of();
@@ -2308,6 +2715,25 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toMap(ServiceItem::getId_wsh, Function.identity()));
     }
 
+    /**
+     * 【批量加载用户】
+     *
+     * 业务作用：按 ID 集合批量查询用户，组装 id → User 的映射。
+     *
+     * 调用场景：toDTOEnrichedList 填充订单主人昵称前。
+     *
+     * 调用链：toDTOEnrichedList() → loadUserMap() → userMapper.selectList()。
+     *
+     * 数据处理：只投影 id、nickname、username 三个字段，按 id IN 查询。
+     *
+     * 业务规则：ID 集合为空时直接返回空 Map，不发起 SQL。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：昵称与用户名的取舍由 fillDTO 中的 defaultText 决定。
+     */
     private Map<Long, User> loadUserMap(Set<Long> userIds) {
         if (userIds.isEmpty()) {
             return Map.of();
@@ -2319,6 +2745,25 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toMap(User::getId_wsh, Function.identity()));
     }
 
+    /**
+     * 【批量加载宠物】
+     *
+     * 业务作用：按 ID 集合批量查询宠物，组装 id → Pet 的映射。
+     *
+     * 调用场景：toDTOEnrichedList 填充订单宠物名前。
+     *
+     * 调用链：toDTOEnrichedList() → loadPetMap() → petMapper.selectList()。
+     *
+     * 数据处理：只投影 id、name 两个字段，按 id IN 查询。
+     *
+     * 业务规则：ID 集合为空时直接返回空 Map，不发起 SQL。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：宠物已删除时 Map 中查不到，DTO 对应字段保持为空。
+     */
     private Map<Long, Pet> loadPetMap(Set<Long> petIds) {
         if (petIds.isEmpty()) {
             return Map.of();
@@ -2330,6 +2775,25 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toMap(Pet::getId_wsh, Function.identity()));
     }
 
+    /**
+     * 【批量加载看护者】
+     *
+     * 业务作用：按 ID 集合批量查询看护者，组装 id → Keeper 的映射。
+     *
+     * 调用场景：toDTOEnrichedList 填充订单看护者信息前。
+     *
+     * 调用链：toDTOEnrichedList() → loadKeeperMap() → keeperMapper.selectList()。
+     *
+     * 数据处理：只投影 id、name、phone、avatar 四个字段，按 id IN 查询。
+     *
+     * 业务规则：ID 集合为空时直接返回空 Map，不发起 SQL。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     private Map<Long, Keeper> loadKeeperMap(Set<Long> keeperIds) {
         if (keeperIds.isEmpty()) {
             return Map.of();
@@ -2342,6 +2806,25 @@ public class OrderServiceImpl implements OrderService {
                 .collect(Collectors.toMap(Keeper::getId_wsh, Function.identity()));
     }
 
+    /**
+     * 【批量加载商家】
+     *
+     * 业务作用：按 ID 集合批量查询商家，组装 id → Merchant 的映射。
+     *
+     * 调用场景：toDTOEnrichedList 填充订单商家信息前。
+     *
+     * 调用链：toDTOEnrichedList() → loadMerchantMap() → merchantMapper.selectList()。
+     *
+     * 数据处理：只投影 id、name、phone、address 四个字段，按 id IN 查询。
+     *
+     * 业务规则：ID 集合为空时直接返回空 Map，不发起 SQL。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     private Map<Long, Merchant> loadMerchantMap(Set<Long> merchantIds) {
         if (merchantIds.isEmpty()) {
             return Map.of();
@@ -2378,11 +2861,14 @@ public class OrderServiceImpl implements OrderService {
         if (pet != null) {
             dto.setPet_name_wsh(pet.getName_wsh());
         }
-        Keeper keeper = keeperMap.get(order.getKeeper_id_wsh());
-        if (keeper != null) {
-            dto.setKeeper_name_wsh(keeper.getName_wsh());
-            dto.setKeeper_phone_wsh(keeper.getPhone_wsh());
-            dto.setKeeper_avatar_wsh(keeper.getAvatar_wsh());
+        // 待分配订单没有负责人：Map.of() 对 null key 会抛 NPE，必须先判空
+        if (order.getKeeper_id_wsh() != null) {
+            Keeper keeper = keeperMap.get(order.getKeeper_id_wsh());
+            if (keeper != null) {
+                dto.setKeeper_name_wsh(keeper.getName_wsh());
+                dto.setKeeper_phone_wsh(keeper.getPhone_wsh());
+                dto.setKeeper_avatar_wsh(keeper.getAvatar_wsh());
+            }
         }
         Merchant merchant = merchantMap.get(order.getMerchant_id_wsh());
         if (merchant != null) {
@@ -2402,9 +2888,7 @@ public class OrderServiceImpl implements OrderService {
      */
     private void stampStatusTime(PetOrder order, String status) {
         LocalDateTime now = LocalDateTime.now();
-        if (OrderStatus.DELIVERED.equals(status) && order.getDelivered_at_wsh() == null) {
-            order.setDelivered_at_wsh(now);
-        } else if (OrderStatus.RECEIVED.equals(status) && order.getReceived_at_wsh() == null) {
+        if (OrderStatus.RECEIVED.equals(status) && order.getReceived_at_wsh() == null) {
             order.setReceived_at_wsh(now);
         } else if (OrderStatus.IN_PROGRESS.equals(status) && order.getStarted_at_wsh() == null) {
             order.setStarted_at_wsh(now);
@@ -2461,28 +2945,26 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private boolean confirmPaidOrder(PetOrder order) {
-        requireFutureBookingEligibleMerchant(order.getMerchant_id_wsh());
-        Keeper keeper = requireFutureBookableKeeper(order.getKeeper_id_wsh());
-        validateKeeperQualification(keeper.getId_wsh());
-        ensureKeeperCapacityForOrder(order, keeper.getMax_pets_wsh());
-        keeperLeaveService.requireKeeperAvailable(keeper.getId_wsh(), order.getStart_date_wsh(), order.getEnd_date_wsh());
-
-        PetOrder update = new PetOrder();
-        update.setStatus_wsh(OrderStatus.CONFIRMED);
-        int updated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
-                .eq(PetOrder::getId_wsh, order.getId_wsh())
-                .eq(PetOrder::getStatus_wsh, OrderStatus.PAID));
-        if (updated == 0) {
-            return false;
-        }
-        order.setStatus_wsh(OrderStatus.CONFIRMED);
-        refreshKeeperCurrentPets(order.getKeeper_id_wsh());
-        broadcastOrderChange(order);
-        return true;
-    }
-
     /**
+     * 【已支付订单自动确认接单】
+     *
+     * 业务作用：把 PAID 状态订单推进为 CONFIRMED，接单前重新校验商家、看护者、资质、容量与休假。
+     *
+     * 调用场景：MQ 接单超时消息（autoAcceptPaidOrderIfTimeout）与定时兜底扫描（autoAcceptPaidOrdersIfTimeout）。
+     *
+     * 调用链：autoAcceptPaidOrderIfTimeout() / autoAcceptPaidOrdersIfTimeout() → confirmPaidOrder() → requireFutureBookingEligibleMerchant() / requireFutureBookableKeeper() / validateKeeperQualification() / ensureKeeperCapacityForOrder() / keeperLeaveService.requireKeeperAvailable() → orderMapper.update() → refreshKeeperCurrentPets() → broadcastOrderChange()。
+     *
+     * 数据处理：先做五项可用性校验，再用乐观锁按 id + status=PAID 更新为 CONFIRMED。
+     *
+     * 业务规则：只有 PAID 状态可被确认；更新影响行数为 0 视为并发失败，直接返回 false。
+     *
+     * 状态影响：订单状态改为 CONFIRMED，刷新看护者当前在托数量，并广播 SSE 状态事件。
+     *
+     * 异常情况：商家不可预约、看护者不可接单、资质未通过、容量超限、休假冲突等抛 BusinessException。
+     *
+     * 注意事项：方法本身无 @Transactional，事务边界由调用方决定；返回 false 表示订单已被其他流程改变状态。
+     */
+        /**
      * Cancels a single order if it is still PENDING and was created before the cutoff
      * time. Releases locked coupons and membership benefits. Skips silently if the
      * order is null, not PENDING, or was created after the cutoff.
@@ -2555,11 +3037,223 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * 生成独立接走码：4 位数字字符串（保留前导 0），且与同单送达码不同。
+     *
+     * @param handoverCode 同单送达码
+     * @return 接走码
+     */
+    private String generatePickupCode(String handoverCode) {
+        synchronized (HANDOVER_CODE_RANDOM) {
+            for (int i = 0; i < 100; i++) {
+                String code = String.format("%04d", HANDOVER_CODE_RANDOM.nextInt(10000));
+                if (!code.equals(handoverCode)) {
+                    return code;
+                }
+            }
+        }
+        // 理论上不会走到这里：100 次都撞上同一个码的概率可忽略
+        throw new BusinessException(500, "接走码生成失败，请重试");
+    }
+
+    /**
+     * 【文本空值兜底】
+     *
+     * 业务作用：主值空白时返回兜底文本，否则返回 trim 后的主值。
+     *
+     * 调用场景：fillDTO 填充订单主人昵称。
+     *
+     * 调用链：fillDTO() → defaultText() → isBlank()。
+     *
+     * 数据处理：value 空白返回 fallback，否则返回 value.trim()。
+     *
+     * 业务规则：fallback 不再做 trim。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     private String defaultText(String value, String fallback) {
         return isBlank(value) ? fallback : value.trim();
     }
 
+    /**
+     * 【判断字符串空白】
+     *
+     * 业务作用：判断字符串是否为 null 或仅含空白字符。
+     *
+     * 调用场景：订单号判空、昵称兜底判断等。
+     *
+     * 调用链：autoAcceptPaidOrderIfTimeout() / schedulePaymentTimeoutCheck() / defaultText() → isBlank()。
+     *
+     * 数据处理：null 或 trim 后为空串即返回 true。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：项目未统一使用 StringUtils，这里是本地实现，语义与 StringUtils.isBlank 一致。
+     */
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
+    }
+    /**
+     * 【价格预览】
+     *
+     * 业务作用：
+     * 返回与真实下单完全一致的金额明细与时间语义，前端据此展示，不再自行实现一套计价。
+     *
+     * 调用链：
+     * OrderController.preview → OrderService.previewOrder → quoteOrder（与 doCreateOrder 同一个方法）
+     *
+     * 无写副作用：
+     * 不插订单、不锁优惠券、不锁会员权益、不发 SSE 广播、不排支付超时定时器。
+     *
+     * 异常情况：
+     * 参数非法、服务下架、价格变更、时间冲突等与下单完全相同的业务异常会原样抛出，
+     * 前端可据此在提交前提示用户，而不是等到提交才失败。
+     *
+     * @param ownerId 当前登录用户（用于优惠券/会员折扣预览，不写库）
+     * @param request 预览请求（与下单请求同构，但不要求紧急联系人）
+     * @return 金额明细与规范化后的服务时间
+     */
+    @Transactional(readOnly = true)
+    @Override
+    public OrderQuoteDTO previewOrder(Long ownerId, OrderPreviewRequestDTO request) {
+        Quote q = quoteOrder(ownerId, toCreateRequest(request));
+        OrderQuoteDTO dto = new OrderQuoteDTO();
+        dto.setBilling_unit_wsh(q.unit());
+        dto.setQuantity_wsh(q.quantity());
+        dto.setDuration_minutes_wsh(q.durationMinutes());
+        // days_wsh 与订单落库口径保持完全一致，避免「预览显示 2 天、订单显示 3 天」
+        dto.setDays_wsh(q.daysDisplay());
+        dto.setUnit_price_wsh(q.unitPrice());
+        dto.setTotal_amount_wsh(q.totalAmount());
+        dto.setLong_stay_discount_wsh(q.longStayDiscount());
+        dto.setCoupon_discount_wsh(q.couponDiscount());
+        dto.setMembership_discount_wsh(q.memberDiscount());
+        dto.setPlatform_subsidy_wsh(q.platformSubsidy());
+        dto.setDiscount_wsh(q.discount());
+        dto.setFinal_amount_wsh(q.finalAmount());
+        dto.setStart_date_wsh(q.startDate());
+        dto.setEnd_date_wsh(q.endDate());
+        dto.setDelivery_time_wsh(q.deliveryTime());
+        dto.setPickup_time_wsh(q.pickupTime());
+        dto.setCoupon_id_wsh(q.coupon().getUser_coupon_id_wsh());
+        dto.setMembership_id_wsh(q.membership().getMembership_id_wsh());
+        if (q.isNight()) {
+            // 按夜计价：本次预付 = 夜费 + 提前费；晚接费只给预估，实际接走时结算
+            dto.setBooked_nights_wsh(q.quantity());
+            dto.setEarly_extra_nights_wsh(OrderPricing.earlyExtraNights(q.early()));
+            dto.setEarly_extra_hours_wsh(OrderPricing.earlyExtraHours(q.early()));
+            dto.setEarly_amount_wsh(OrderPricing.earlyAmount(q.unitPrice(), q.quantity(), q.early()));
+            dto.setStandard_checkout_at_wsh(q.standardCheckoutAt());
+            dto.setFree_checkout_until_wsh(q.freeCheckoutUntil());
+            int estimatedHours = OrderPricing.overtimeHours(q.freeCheckoutUntil(), q.pickupTime());
+            dto.setEstimated_overtime_hours_wsh(estimatedHours);
+            dto.setEstimated_overtime_amount_wsh(OrderPricing.overtimeAmount(q.unitPrice(), estimatedHours));
+        }
+        return dto;
+    }
+
+    /** 预览请求 → 下单请求：字段同名直接拷贝，仅补下单必需但预览不需要的紧急联系人占位。 */
+    private OrderCreateRequestDTO toCreateRequest(OrderPreviewRequestDTO preview) {
+        OrderCreateRequestDTO request = new OrderCreateRequestDTO();
+        BeanUtils.copyProperties(preview, request);
+        if (isBlank(request.getEmergency_contact_name_wsh())) {
+            request.setEmergency_contact_name_wsh("preview");
+        }
+        if (isBlank(request.getEmergency_contact_phone_wsh())) {
+            request.setEmergency_contact_phone_wsh("preview");
+        }
+        return request;
+    }
+
+    /**
+     * 报价结果：quoteOrder 的唯一输出。
+     * <p>
+     * 字段全部为「校验后的时间语义 + 最终金额」，不含任何实体写操作。
+     * 用 record 是为了让 doCreateOrder 与 previewOrder 不可能拿到不一致的中间值。
+     */
+    private record Quote(
+            Pet pet,    // 宠物
+            ServiceItem service,    // 服务项
+            Merchant merchant,    // 商家
+            Keeper keeper,    // 看护者
+            String unit,    // 计价单位
+            int quantity,    // 下单数量（night=预订夜数 N）
+            int durationMinutes,    // 持续分钟
+            Duration early,    // 提前送达时长 E（night 用）
+            LocalDate startDate,    // 开始日期
+            LocalDate endDate,    // 结束日期
+            LocalDateTime deliveryTime,    // 照护开始时间
+            LocalDateTime receiverStart,    // 接收开始时间
+            LocalDateTime receiverEnd,    // 接收结束时间
+            LocalDateTime pickupTime,    // 照护结束时间
+            BigDecimal unitPrice,    // 单价
+            BigDecimal totalAmount,    // 总金额
+            BigDecimal longStayDiscount,    // 长住折扣
+            CouponDiscountResult coupon,    // 券折扣
+            BigDecimal memberDiscount,    // 会员折扣
+            BigDecimal discount,    // 折扣
+            MembershipDiscountDTO membership    // 会员折扣
+    ) {
+
+        /**
+         * days_wsh 展示口径：night=预订夜数、session/hour=1。
+         * 下单与预览共用，避免「预览显示 2 夜、订单显示 3 夜」。
+         */
+        int daysDisplay() {
+            if (BookingUnit.NIGHT.equals(unit)) {
+                return quantity;
+            }
+            return 1;
+        }
+
+        /** 是否按夜计价的订单。 */
+        boolean isNight() {
+            return BookingUnit.NIGHT.equals(unit);
+        }
+
+        /** 标准离店锚点 O = D+N 日 14:00（仅 night 有意义）。 */
+        LocalDateTime standardCheckoutAt() {
+            return isNight() ? OrderPricing.standardCheckoutAt(startDate, quantity) : null;
+        }
+
+        /** 免费接走截止 G = O+30 分钟（仅 night 有意义）。 */
+        LocalDateTime freeCheckoutUntil() {
+            return isNight() ? OrderPricing.freeCheckoutUntil(startDate, quantity) : null;
+        }
+
+        /** 券抵扣（null 归一为 0）。 */
+        BigDecimal couponDiscount() {
+            return coupon == null || coupon.getCoupon_discount_wsh() == null
+                    ? BigDecimal.ZERO : coupon.getCoupon_discount_wsh();
+        }
+
+        /** 平台补贴 = 券补贴 + 会员折扣；商家结算不受影响。 */
+        BigDecimal platformSubsidy() {
+            BigDecimal couponSubsidy = coupon == null || coupon.getPlatform_subsidy_wsh() == null
+                    ? BigDecimal.ZERO : coupon.getPlatform_subsidy_wsh();
+            return couponSubsidy.add(memberDiscount == null ? BigDecimal.ZERO : memberDiscount);
+        }
+
+        /**
+         * 实付金额。
+         * <p>
+         * 会员折扣结果缺失时回退到「券后金额」，而不是静默写 0 元——
+         * 0 元实付的订单仍然可以支付，会直接造成资损。
+         */
+        BigDecimal finalAmount() {
+            if (membership != null && membership.getFinal_amount_wsh() != null) {
+                return membership.getFinal_amount_wsh();
+            }
+            return coupon == null || coupon.getFinal_amount_wsh() == null
+                    ? BigDecimal.ZERO : coupon.getFinal_amount_wsh();
+        }
     }
 }
