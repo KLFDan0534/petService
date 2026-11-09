@@ -21,6 +21,25 @@ public class NotificationEventController {
     private final NotificationBroadcaster broadcaster;
     private final SseTokenService sseTokenService;
 
+    /**
+     * 【构造通知事件控制器】
+     *
+     * 业务作用：注入通知广播器与 SSE 令牌服务。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 broadcaster / sseTokenService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖均为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：SSE 接口无法携带请求头，因此 token 通过查询参数传递，由 sseTokenService 校验。
+     */
     public NotificationEventController(NotificationBroadcaster broadcaster, SseTokenService sseTokenService) {
         this.broadcaster = broadcaster;
         this.sseTokenService = sseTokenService;
@@ -49,6 +68,6 @@ public class NotificationEventController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })  
     public SseEmitter stream(@Parameter(description = "JWT认证令牌") @RequestParam("token") String token) {
-        return broadcaster.connect(sseTokenService.requireUserId(token));
+        return broadcaster.connect(sseTokenService.requireUserId(token)); // 令牌无效直接抛 401，不建立连接
     }
 }

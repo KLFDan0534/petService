@@ -27,6 +27,25 @@ public class OperationLogController {
 
     private final OperationLogService operationLogService;
 
+    /**
+     * 【构造操作日志控制器】
+     *
+     * 业务作用：注入操作日志业务服务。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 operationLogService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：类上有 @PreAuthorize("hasRole('ADMIN')")，所有接口仅管理员可访问。
+     */
     public OperationLogController(OperationLogService operationLogService) {
         this.operationLogService = operationLogService;
     }
@@ -99,6 +118,25 @@ public class OperationLogController {
         return Result.success(toDTO(operationLogService.getById(id)));
     }
 
+    /**
+     * 【日志实体转DTO】
+     *
+     * 业务作用：把操作日志实体转换为对外 DTO。
+     *
+     * 调用场景：getById 返回前、toDTOPage 批量转换时。
+     *
+     * 调用链：getById() / toDTOPage() → toDTO()。
+     *
+     * 数据处理：逐字段拷贝 ID、操作人、模块、操作类型、描述、方法、请求 URL、IP、耗时、状态、创建时间。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：入参为 null 时会空指针，调用方均保证非空。
+     *
+     * 注意事项：没有做 null 判空兜底，与项目中其他 toDTO 的写法不一致。
+     */
     private OperationLogDTO toDTO(OperationLog entity) {
         OperationLogDTO dto = new OperationLogDTO();
         dto.setId_wsh(entity.getId_wsh());
@@ -116,7 +154,27 @@ public class OperationLogController {
         return dto;
     }
 
+    /**
+     * 【日志分页转DTO分页】
+     *
+     * 业务作用：把实体的分页对象转换为 DTO 的分页对象。
+     *
+     * 调用场景：page 接口返回前。
+     *
+     * 调用链：page() → toDTOPage() → toDTO()。
+     *
+     * 数据处理：新建 Page 并复制当前页、页大小与总数，记录列表逐条转换为 DTO。
+     *
+     * 业务规则：分页元信息必须完整复制，否则前端分页器会失效。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：转换后的 Page 只承载数据，不再具备继续查询的能力。
+     */
     private IPage<OperationLogDTO> toDTOPage(IPage<OperationLog> page) {
+        // 分页元信息需完整复制，否则前端分页失效
         Page<OperationLogDTO> dtoPage = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         dtoPage.setRecords(page.getRecords().stream().map(this::toDTO).collect(Collectors.toList()));
         return dtoPage;

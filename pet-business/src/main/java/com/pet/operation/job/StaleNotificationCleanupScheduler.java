@@ -19,6 +19,25 @@ public class StaleNotificationCleanupScheduler {
 
     private final NotificationService notificationService;
 
+    /**
+     * 【失效通知清理调度器的构造注入】
+     *
+     * 业务作用：注入通知业务服务。
+     *
+     * 调用场景：Spring 容器创建 StaleNotificationCleanupScheduler 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 notificationService。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public StaleNotificationCleanupScheduler(NotificationService notificationService) {
         this.notificationService = notificationService;
     }

@@ -30,6 +30,25 @@ public class MerchantCustomerServiceTimeoutScheduler {
     private final MerchantCustomerServiceService merchantCustomerServiceService;
     private final int pendingTimeoutDays;
 
+    /**
+     * 【构造客服申请超时任务】
+     *
+     * 业务作用：注入商家客服申请服务，并读取超时天数配置。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 merchantCustomerServiceService / pendingTimeoutDays 字段。
+     *
+     * 数据处理：pendingTimeoutDays 取自配置项 merchant.customer-service.pending-timeout-days，默认 7 天。
+     *
+     * 业务规则：超时天数通过配置项外部化，便于不同环境调整。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：任务由 @Scheduled(cron = "0 30 3 * * ?") 每天凌晨 03:30 触发。
+     */
     public MerchantCustomerServiceTimeoutScheduler(
             MerchantCustomerServiceService merchantCustomerServiceService,
             @Value("${merchant.customer-service.pending-timeout-days:7}") int pendingTimeoutDays) {

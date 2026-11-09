@@ -38,6 +38,25 @@ public class MessageSender {
     private static final Logger log = LoggerFactory.getLogger(MessageSender.class);
     private final RabbitTemplate rabbitTemplate;
 
+    /**
+     * 【消息发送器构造器】
+     *
+     * 业务作用：注入 RabbitTemplate，供各业务发送异步消息使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 rabbitTemplate。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：RabbitMQ 未配置时该 Bean 可能无法创建，需确认 RabbitMQConfig 已生效。
+     */
     public MessageSender(RabbitTemplate rabbitTemplate) {
         this.rabbitTemplate = rabbitTemplate;
     }

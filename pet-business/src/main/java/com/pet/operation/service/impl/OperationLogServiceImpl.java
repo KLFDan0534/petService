@@ -19,6 +19,25 @@ public class OperationLogServiceImpl implements OperationLogService {
 
     private final OperationLogMapper operationLogMapper;
 
+    /**
+     * 【构造函数：注入操作日志 Mapper】
+     *
+     * 业务作用：注入 OperationLogMapper 供分页查询、详情查询与保存使用。
+     *
+     * 调用场景：容器启动创建 OperationLogServiceImpl Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → OperationLogServiceImpl(构造) → operationLogMapper 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类只做日志表的读写，不参与业务逻辑判定。
+     */
     public OperationLogServiceImpl(OperationLogMapper operationLogMapper) {
         this.operationLogMapper = operationLogMapper;
     }
@@ -30,6 +49,7 @@ public class OperationLogServiceImpl implements OperationLogService {
     public IPage<OperationLog> page(PageRequestDTO param, String module, String operation, Integer status) {
         log.info("page() 被调用");
         Page<OperationLog> page = new Page<>(param.getPage(), param.getSize());
+        // 按传入条件动态拼接，未传的筛选项忽略
         LambdaQueryWrapper<OperationLog> wrapper = new LambdaQueryWrapper<OperationLog>()
                 .eq(module != null && !module.isEmpty(), OperationLog::getModule_wsh, module)
                 .eq(operation != null && !operation.isEmpty(), OperationLog::getOperation_wsh, operation)
@@ -64,6 +84,7 @@ public class OperationLogServiceImpl implements OperationLogService {
     @Transactional
     public void cleanOlderThan(int days) {
         log.info("cleanOlderThan() 被调用");
+        // 删除创建时间早于指定天数的历史日志
         operationLogMapper.delete(new LambdaQueryWrapper<OperationLog>()
                 .lt(OperationLog::getCreated_at_wsh, LocalDateTime.now().minusDays(days)));
     }

@@ -39,6 +39,25 @@ public class ChatServiceImpl implements ChatService {
     private final UserRoleMapper userRoleMapper;
     private final UserMapper userMapper;
 
+    /**
+     * 【构造聊天服务】
+     *
+     * 业务作用：注入聊天消息、用户角色、用户三个 Mapper。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 chatMessageMapper / userRoleMapper / userMapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖均为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public ChatServiceImpl(ChatMessageMapper chatMessageMapper,
                            UserRoleMapper userRoleMapper,
                            UserMapper userMapper) {
@@ -64,21 +83,25 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(400, "conversation users cannot be empty");
         }
         int pageSize = normalizeSize(size);
+        // 双方互为收发方，任一方向都算同一会话
         LambdaQueryWrapper<ChatMessage> wrapper = new LambdaQueryWrapper<ChatMessage>()
                 .and(w -> w.eq(ChatMessage::getFrom_user_id_wsh, userId1)
                         .eq(ChatMessage::getTo_user_id_wsh, userId2)
                         .or()
                         .eq(ChatMessage::getFrom_user_id_wsh, userId2)
                         .eq(ChatMessage::getTo_user_id_wsh, userId1));
+        // 按订单维度隔离会话，无订单时取通用会话
         if (orderId != null) {
             wrapper.eq(ChatMessage::getOrder_id_wsh, orderId);
         } else {
             wrapper.isNull(ChatMessage::getOrder_id_wsh);
         }
+        // 游标分页，只取比游标更早的消息
         if (beforeId != null) {
             wrapper.lt(ChatMessage::getId_wsh, beforeId);
         }
 
+        // 先倒序取最新一页，再翻回正序返回
         List<ChatMessage> descending = chatMessageMapper.selectList(
                 wrapper.orderByDesc(ChatMessage::getId_wsh).last("LIMIT " + pageSize));
         return descending.stream()
@@ -162,9 +185,11 @@ public class ChatServiceImpl implements ChatService {
         }
         String content = trimToNull(message.getContent_wsh());
         String fileUrl = trimToNull(message.getFile_url_wsh());
+        // 文字内容与附件不能同时为空
         if (content == null && fileUrl == null) {
             throw new BusinessException(400, "message content or attachment cannot be empty");
         }
+        // 内容超长直接拒绝，避免撑爆存储
         if (content != null && content.length() > MAX_CONTENT_LENGTH) {
             throw new BusinessException(400, "message content is too long");
         }
@@ -249,12 +274,14 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public ChatAgentAssignDTO assignCustomerServiceAgent(Long userId) {
         List<Long> agentIds = userRoleMapper.selectActiveUserIdsByRoleCode(CUSTOMER_SERVICE_ROLE_CODE);
+        // 排除当前用户，避免把会话转给自己
         List<Long> candidates = agentIds == null ? List.of() : agentIds.stream()
                 .filter(id -> id != null && (userId == null || !id.equals(userId)))
                 .collect(Collectors.toList());
         if (candidates.isEmpty()) {
             throw new BusinessException(400, "暂无可用的在线客服，请稍后再试");
         }
+        // 在候选客服中随机挑一个，均摊会话压力
         Long agentId = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
         User agent = agentId == null ? null : userMapper.selectById(agentId);
         if (agent == null) {
@@ -295,6 +322,25 @@ public class ChatServiceImpl implements ChatService {
         return dto;
     }
 
+    /**
+     * 【消息列表转DTO列表】
+     *
+     * 业务作用：批量把聊天消息实体转换为 DTO。
+     *
+     * 调用场景：getUnreadMessages 查询结果转换。
+     *
+     * 调用链：getUnreadMessages() → toDTOList() → toDTO()。
+     *
+     * 数据处理：入参为 null 时返回空列表，否则流式逐条转换。
+     *
+     * 业务规则：保证不返回 null。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：与 toDTO 不同，这里对 null 列表做了兜底。
+     */
     private List<ChatMessageDTO> toDTOList(List<ChatMessage> list) {
         if (list == null) {
             return List.of();
@@ -302,6 +348,25 @@ public class ChatServiceImpl implements ChatService {
         return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    /**
+     * 【分页大小归一】
+     *
+     * 业务作用：把请求的分页条数收敛到合法区间。
+     *
+     * 调用场景：getConversation 拼装 LIMIT 前。
+     *
+     * 调用链：getConversation() → normalizeSize() → 与 DEFAULT_PAGE_SIZE / MAX_PAGE_SIZE 比较。
+     *
+     * 数据处理：null 或非正数取 DEFAULT_PAGE_SIZE，超过上限取 MAX_PAGE_SIZE。
+     *
+     * 业务规则：分页条数上限由 MAX_PAGE_SIZE 决定。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：返回值为 int，直接拼进 SQL 的 LIMIT 子句，因此必须保证是受控整数。
+     */
     private int normalizeSize(Integer size) {
         if (size == null || size <= 0) {
             return DEFAULT_PAGE_SIZE;
@@ -309,6 +374,25 @@ public class ChatServiceImpl implements ChatService {
         return Math.min(size, MAX_PAGE_SIZE);
     }
 
+    /**
+     * 【消息类型归一】
+     *
+     * 业务作用：把消息类型规范化为受支持的小写取值。
+     *
+     * 调用场景：sendMessage 落库前。
+     *
+     * 调用链：sendMessage() → normalizeType() → ALLOWED_TYPES 白名单校验。
+     *
+     * 数据处理：类型为空时，有附件按 image、无附件按 text；非空时 trim 后转小写。
+     *
+     * 业务规则：仅允许 text / image / video / file。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：类型不在白名单内抛 BusinessException(400)「unsupported message type」。
+     *
+     * 注意事项：类型为空但有附件时默认按 image 处理，不会按附件扩展名推断。
+     */
     private String normalizeType(String type, String fileUrl) {
         String normalized = trimToNull(type);
         if (normalized == null) {
@@ -321,6 +405,25 @@ public class ChatServiceImpl implements ChatService {
         return normalized;
     }
 
+    /**
+     * 【去空白转null】
+     *
+     * 业务作用：把字符串 trim 后，空串统一转成 null。
+     *
+     * 调用场景：sendMessage 清洗消息内容与附件地址。
+     *
+     * 调用链：sendMessage() → trimToNull()。
+     *
+     * 数据处理：null 返回 null，trim 后为空串也返回 null。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：该方法只判空串不判 isBlank，全空白字符会被 trim 成空串后转 null。
+     */
     private String trimToNull(String value) {
         if (value == null) {
             return null;
@@ -329,6 +432,25 @@ public class ChatServiceImpl implements ChatService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * 【消息ID空值兜底】
+     *
+     * 业务作用：取出消息 ID，null 时返回 0 用于排序比较。
+     *
+     * 调用场景：getConversation 对查询结果按 ID 正序排序。
+     *
+     * 调用链：getConversation() → nullSafeId()。
+     *
+     * 数据处理：id 为 null 返回 0L，否则返回原值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：数据库自增主键不会为 null，兜底仅防御性处理。
+     */
     private long nullSafeId(ChatMessage message) {
         return message.getId_wsh() == null ? 0L : message.getId_wsh();
     }

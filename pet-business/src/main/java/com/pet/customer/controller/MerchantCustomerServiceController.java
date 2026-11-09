@@ -31,6 +31,25 @@ import java.util.List;
 public class MerchantCustomerServiceController {
     private final MerchantCustomerServiceService service;
 
+    /**
+     * 【构造函数：注入商家客服服务】
+     *
+     * 业务作用：注入 MerchantCustomerServiceService 供申请、审核、辞职与终止接口调用。
+     *
+     * 调用场景：容器启动创建 MerchantCustomerServiceController Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → MerchantCustomerServiceController(构造) → service 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：用户侧接口要求登录，商家侧接口要求 MERCHANT 角色，客服侧接口要求 CUSTOMER_SERVICE 角色。
+     */
     public MerchantCustomerServiceController(MerchantCustomerServiceService service) {
         this.service = service;
     }
@@ -184,6 +203,7 @@ public class MerchantCustomerServiceController {
             @AuthenticationPrincipal JwtAuthenticationToken token,
             @Parameter(description = "客服申请记录ID") @PathVariable Long id,
             @RequestBody(required = false) MerchantCustomerServiceReviewRequestDTO request) {
+        // 审核通过后由服务层自动授予客服角色
         return Result.success(service.approve(id, token.getUserId(), request));
     }
 

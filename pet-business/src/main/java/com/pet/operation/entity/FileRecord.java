@@ -64,6 +64,25 @@ public class FileRecord {
     @Schema(description = "文件URL")
     private String url_wsh;
 
+    /**
+     * 【读取文件访问 URL】
+     *
+     * 业务作用：返回非持久化字段 url_wsh 的值，供序列化时作为文件访问地址输出。
+     *
+     * 调用场景：文件记录被序列化为接口响应时由框架反射调用。
+     *
+     * 调用链：序列化框架 → FileRecord.getUrl_wsh → 返回 url_wsh 字段。
+     *
+     * 数据处理：直接返回字段值，无任何转换。
+     *
+     * 业务规则：url_wsh 标注 @TableField(exist=false)，不参与数据库读写。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：字段上的 @Getter(AccessLevel.NONE) 抑制了 Lombok 生成 getter，故需手写本方法；当前代码库中未见对 url_wsh 赋值的位置，实际调用通常返回 null，真正可用的地址由 MinIO 服务按 object_name_wsh 现算。
+     */
     public String getUrl_wsh() {
         return url_wsh;
     }

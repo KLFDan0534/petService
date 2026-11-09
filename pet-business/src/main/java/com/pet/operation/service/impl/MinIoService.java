@@ -27,6 +27,25 @@ public class MinIoService {
     @Value("${minio.public-url}")
     private String publicUrl;
 
+    /**
+     * 【构造方法】注入 MinIO 客户端
+     *
+     * 业务作用：由 Spring 注入 MinioClient，bucket、endpoint、publicUrl 三个参数则通过 @Value 从配置注入到字段。
+     *
+     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → minioClient 赋值（@Value 字段由容器另行注入）。
+     *
+     * 数据处理：仅字段赋值，不发起远程调用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：bucket 是否存在的检查推迟到首次 uploadFile 时才做；@Value 注入的字段在构造方法执行时尚未赋值，因此构造方法内不能使用它们。
+     */
     public MinIoService(MinioClient minioClient) {
         this.minioClient = minioClient;
     }
@@ -62,6 +81,7 @@ public class MinIoService {
             if (file == null || file.isEmpty()) {
                 throw new BusinessException("上传文件不能为空");
             }
+            // 首次上传时自动创建 bucket
             boolean bucketExists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
             if (!bucketExists) {
                 minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
@@ -79,7 +99,9 @@ public class MinIoService {
             } else {
                 ext = "." + ext;
             }
+            // 用 UUID 重命名，避免同名覆盖
             String objectName = directory + "/" + UUID.randomUUID() + ext;
+            // 服务端派生的类型优先于客户端声明
             String derivedContentType = contentType != null && !contentType.isBlank()
                     ? contentType : file.getContentType();
             minioClient.putObject(PutObjectArgs.builder()

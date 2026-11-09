@@ -40,6 +40,25 @@ public class FileController {
     private final ServiceMediaService serviceMediaService;
     private final MerchantScopeResolver merchantScopeResolver;
 
+    /**
+     * 【文件控制器构造注入】
+     *
+     * 业务作用：注入对象存储、文件记录、服务媒体与商家作用域解析服务。
+     *
+     * 调用场景：Spring 容器创建 FileController 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 4 个 final 成员。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public FileController(MinIoService minIoService, FileRecordService fileRecordService,
                           ServiceMediaService serviceMediaService, MerchantScopeResolver merchantScopeResolver) {
         this.minIoService = minIoService;
@@ -77,6 +96,25 @@ public class FileController {
         return Result.success(toDTO(record));
     }
 
+    /**
+     * 【判断是否管理员】
+     *
+     * 业务作用：从登录凭证中判断当前用户是否具备 ROLE_ADMIN 权限。
+     *
+     * 调用场景：本类内预留的管理员判定辅助方法。
+     *
+     * 调用链：本方法独立执行，当前类中没有调用点。
+     *
+     * 数据处理：遍历 token 的权限集合，比对 "ROLE_ADMIN"。
+     *
+     * 业务规则：token 或其权限集合为空时返回 false。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：当前为未被使用的私有方法，管理员判定实际由 @PreAuthorize 注解完成。
+     */
     private boolean isAdmin(JwtAuthenticationToken token) {
         if (token == null || token.getAuthorities() == null) {
             return false;
@@ -162,6 +200,7 @@ public class FileController {
     })
     public void download(@Parameter(description = "文件记录ID") @PathVariable Long id, HttpServletResponse response) throws IOException {
         FileRecord record = fileRecordService.getById(id);
+        // 记录不存在时直接返回 404
         if (record == null) {
             response.sendError(404, "文件不存在");
             return;
@@ -191,6 +230,7 @@ public class FileController {
             @Parameter(description = "按原始文件名模糊搜索") @RequestParam(required = false) String keyword) {
         log.info("调用 adminList()");
         var page = fileRecordService.pageAll(pageParam, keyword);
+        // 实体分页结果转 DTO 后再包一层分页
         var dtoList = page.getRecords().stream().map(this::toDTO).collect(Collectors.toList());
         PageResult<FileRecordDTO> result = new PageResult<>();
         result.setList(dtoList);
@@ -223,6 +263,25 @@ public class FileController {
         return Result.success();
     }
 
+    /**
+     * 【文件记录实体转 DTO】
+     *
+     * 业务作用：把 FileRecord 实体转换为 FileRecordDTO，并拼接可访问的文件 URL。
+     *
+     * 调用场景：上传、列表、管理员列表返回前。
+     *
+     * 调用链：upload()/list()/adminList()/uploadProductImage() → toDTO() → minIoService.getFileUrl()。
+     *
+     * 数据处理：拷贝主键、原始文件名、类型、大小与创建时间，并按 object_name_wsh 生成访问地址。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：entity 为 null 时抛 NullPointerException（未做空判断）。
+     *
+     * 注意事项：URL 由对象名实时拼接，不落库，存储地址变更后历史记录会自动指向新地址。
+     */
     private FileRecordDTO toDTO(FileRecord entity) {
         FileRecordDTO dto = new FileRecordDTO();
         dto.setId_wsh(entity.getId_wsh());

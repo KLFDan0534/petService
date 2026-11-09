@@ -22,6 +22,25 @@ public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
     private final ComplaintMapper complaintMapper;
     private final NotificationService notificationService;
 
+    /**
+     * 【构造方法】注入投诉 Mapper 与通知服务
+     *
+     * 业务作用：由 Spring 注入 ComplaintMapper 与 NotificationService，供消费投诉处理消息时查询投诉并发送通知。
+     *
+     * 调用场景：Spring 容器启动创建该 MQ 消费组件时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 两个 final 字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；本类未使用 @Slf4j，而是手工声明 LoggerFactory 日志对象。
+     */
     public ComplaintProcessHandlerImpl(ComplaintMapper complaintMapper,
                                        NotificationService notificationService) {
         this.complaintMapper = complaintMapper;
@@ -55,11 +74,13 @@ public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
         log.info("处理投诉 {} (状态={}, 结果={})",
                 complaintId, complaint.getStatus_wsh(), complaint.getResult_wsh());
 
+        // 投诉无主人则跳过通知
         if (complaint.getOwner_id_wsh() == null) {
             log.warn("投诉 {} 没有所有者, 跳过通知", complaintId);
             return;
         }
 
+        // 通知失败只记日志，不影响消息消费
         try {
             Notification notification = new Notification();
             notification.setUser_id_wsh(complaint.getOwner_id_wsh());

@@ -23,6 +23,25 @@ public class RecycleBinController {
 
     private final RecycleBinService recycleBinService;
 
+    /**
+     * 【构造方法】注入回收站服务
+     *
+     * 业务作用：由 Spring 注入 RecycleBinService，供软删除记录的查询、恢复与永久删除接口使用。
+     *
+     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → recycleBinService 赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；类级别已标注 @PreAuthorize("hasRole('ADMIN')")，所有接口均要求管理员身份。
+     */
     public RecycleBinController(RecycleBinService recycleBinService) {
         this.recycleBinService = recycleBinService;
     }

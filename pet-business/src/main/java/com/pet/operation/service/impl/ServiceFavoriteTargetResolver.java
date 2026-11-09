@@ -29,6 +29,25 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
     private final MerchantService merchantService;
     private final ServiceCategoryService serviceCategoryService;
 
+    /**
+     * 【构造服务收藏解析器】
+     *
+     * 业务作用：注入服务项、商家、服务分类三个业务服务。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值三个 service 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖均为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本解析器由收藏列表按目标类型路由调用。
+     */
     public ServiceFavoriteTargetResolver(ServiceItemService serviceItemService,
                                          MerchantService merchantService,
                                          ServiceCategoryService serviceCategoryService) {
@@ -51,6 +70,7 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
     @Override
     public Map<Long, FavoriteCardDTO> resolve(Collection<Long> targetIds) {
         Map<Long, FavoriteCardDTO> result = new LinkedHashMap<>();
+        // 批量查服务项，再一次带出商家与分类
         List<ServiceItem> items = serviceItemService.listByIds(targetIds);
         Map<Long, Merchant> merchants = merchantService.listByIds(
                         items.stream()
@@ -75,19 +95,57 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
             card.setPrimary_info_wsh(merchant == null ? null : merchant.getName_wsh());
             card.setSecondary_info_wsh(resolveCategoryName(item, categoryNames));
             card.setAmount_wsh(item.getPrice_wsh());
+            // 单位缺失时用 unit 占位
             card.setAmount_suffix_wsh("/" + (item.getUnit_wsh() == null || item.getUnit_wsh().isBlank() ? "unit" : item.getUnit_wsh()));
             result.put(item.getId_wsh(), card);
         }
         return result;
     }
 
+    /**
+     * 【解析服务分类名称】
+     *
+     * 业务作用：取服务项所属分类的名称，取不到时回退到服务的 type 字段。
+     *
+     * 调用场景：resolve 组装收藏卡片次要信息时。
+     *
+     * 调用链：resolve() → resolveCategoryName()。
+     *
+     * 数据处理：先看 category_id_wsh 是否在已加载的分类名 Map 中，命中则返回分类名，否则返回 item.type_wsh。
+     *
+     * 业务规则：只使用「已启用」分类构建的 Map，已下架分类查不到。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：回退值 type_wsh 存的是分类编码，与分类名称展示效果不一致。
+     */
     private String resolveCategoryName(ServiceItem item, Map<Long, String> categoryNames) {
         if (item.getCategory_id_wsh() != null && categoryNames.containsKey(item.getCategory_id_wsh())) {
             return categoryNames.get(item.getCategory_id_wsh());
         }
+        // 分类已下架时回退到服务类型编码
         return item.getType_wsh();
     }
 
+    /**
+     * 【取首张图片地址】
+     *
+     * 业务作用：从逗号分隔的图片串中取出第一张图片地址。
+     *
+     * 调用场景：resolve 设置收藏卡片封面图时。
+     *
+     * 调用链：resolve() → firstImage()。
+     *
+     * 数据处理：空值或空白返回 null，否则按逗号切分后取第 0 段并 trim。
+     *
+     * 业务规则：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：未过滤空串，若图片串以逗号开头会返回空字符串而非 null。
+     */
     private String firstImage(String images) {
         if (images == null || images.isBlank()) {
             return null;

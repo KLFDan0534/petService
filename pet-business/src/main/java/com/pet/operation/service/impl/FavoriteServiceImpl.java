@@ -31,6 +31,25 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final FavoriteMapper favoriteMapper;
     private final Map<String, FavoriteTargetResolver> resolverMap;
 
+    /**
+     * 【构造函数：装配收藏目标解析器】
+     *
+     * 业务作用：注入 FavoriteMapper，并把所有 FavoriteTargetResolver 按目标类型注册到 Map 中。
+     *
+     * 调用场景：容器启动创建 FavoriteServiceImpl Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → FavoriteServiceImpl(构造) → FavoriteTargetType.requireSupported → resolverMap.putIfAbsent。
+     *
+     * 数据处理：遍历注入的解析器列表，用目标类型码作为 key 存入 LinkedHashMap，保持注入顺序。
+     *
+     * 业务规则：同一种目标类型不允许注册两个解析器。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：类型码不受支持时 requireSupported 抛异常；出现重复解析器抛 IllegalStateException("Duplicate favorite target resolver")，导致应用启动失败。
+     *
+     * 注意事项：解析器缺失不会导致启动失败，但该类型的收藏卡片会退化为占位内容。
+     */
     public FavoriteServiceImpl(FavoriteMapper favoriteMapper, List<FavoriteTargetResolver> targetResolvers) {
         this.favoriteMapper = favoriteMapper;
         this.resolverMap = new LinkedHashMap<>();
@@ -165,6 +184,25 @@ public class FavoriteServiceImpl implements FavoriteService {
         return favoriteMapper.selectPage(new Page<>(pageParam.getPage(), pageParam.getSize()), wrapper);
     }
 
+    /**
+     * 【组装收藏卡片列表】
+     *
+     * 业务作用：把收藏记录按目标类型分组，调用对应解析器批量取摘要，再逐条拼成卡片。
+     *
+     * 调用场景：pageByUser 分页查询后组装返回数据。
+     *
+     * 调用链：pageByUser → buildCards → FavoriteTargetType.normalize → FavoriteTargetResolver.resolve → mergeSummary。
+     *
+     * 数据处理：先按 target_type_wsh 分组收集目标 ID，按类型批量调用解析器得到 targetId→卡片映射；再逐条填充收藏 ID、目标 ID、类型、类型标签与创建时间，命中摘要时合并，未命中时生成「类型 + #ID」的占位标题并标记目标缺失。
+     *
+     * 业务规则：没有注册解析器的类型不参与批量查询，直接走占位分支；记录为 null 时跳过。
+     *
+     * 状态影响：只读。
+     *
+     * 异常情况：入参为空返回 List.of()；解析器内部异常会向上抛出。
+     *
+     * 注意事项：按类型批量查询避免 N+1；占位描述为英文固定文案，与其它中文提示不一致。
+     */
     private List<FavoriteCardDTO> buildCards(List<Favorite> records) {
         if (records == null || records.isEmpty()) {
             return List.of();
@@ -212,6 +250,25 @@ public class FavoriteServiceImpl implements FavoriteService {
         return result;
     }
 
+    /**
+     * 【合并目标摘要到卡片】
+     *
+     * 业务作用：把解析器返回的摘要字段覆盖到收藏卡片上。
+     *
+     * 调用场景：buildCards 命中摘要时调用。
+     *
+     * 调用链：buildCards → mergeSummary。
+     *
+     * 数据处理：拷贝标题、描述、图片地址、详情地址、主次信息、金额与金额单位后缀共 8 个字段。
+     *
+     * 业务规则：只覆盖展示字段，收藏自身的 ID、目标 ID、类型与创建时间保持不变。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：summary 为 null 时抛 NullPointerException，调用方已做判空。
+     *
+     * 注意事项：字段是逐个手写的，FavoriteCardDTO 新增展示字段时需同步维护此处。
+     */
     private void mergeSummary(FavoriteCardDTO card, FavoriteCardDTO summary) {
         card.setTitle_wsh(summary.getTitle_wsh());
         card.setDescription_wsh(summary.getDescription_wsh());

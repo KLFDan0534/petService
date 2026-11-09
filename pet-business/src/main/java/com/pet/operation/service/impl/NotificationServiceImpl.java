@@ -42,6 +42,25 @@ public class NotificationServiceImpl implements NotificationService {
     private final NoticeMapper noticeMapper;
     private final NotificationBroadcaster notificationBroadcaster;
 
+    /**
+     * 【构造方法】注入通知 Mapper、公告 Mapper 与推送器
+     *
+     * 业务作用：由 Spring 注入 NotificationMapper、NoticeMapper 与 NotificationBroadcaster，供通知读写与 SSE 推送使用。
+     *
+     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 三个 final 字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；本类中 createBatch 方法体已被整块注释掉（保留 NOTIFICATION_BATCH_SIZE 常量），批量插入能力实际不可用。
+     */
     public NotificationServiceImpl(NotificationMapper notificationMapper, NoticeMapper noticeMapper,
                                    NotificationBroadcaster notificationBroadcaster) {
         this.notificationMapper = notificationMapper;

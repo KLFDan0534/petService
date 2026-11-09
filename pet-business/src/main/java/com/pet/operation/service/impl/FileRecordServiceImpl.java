@@ -19,6 +19,25 @@ public class FileRecordServiceImpl implements FileRecordService {
 
     private final FileRecordMapper fileRecordMapper;
 
+    /**
+     * 【构造文件记录服务】
+     *
+     * 业务作用：注入文件上传记录 Mapper。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 fileRecordMapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类的 deleteById 为物理删除，与项目多数逻辑删除的写法不同。
+     */
     public FileRecordServiceImpl(FileRecordMapper fileRecordMapper) {
         this.fileRecordMapper = fileRecordMapper;
     }
@@ -68,6 +87,7 @@ public class FileRecordServiceImpl implements FileRecordService {
     @Override
     public IPage<FileRecord> pageAll(PageRequestDTO pageParam, String keyword) {
         log.info("pageAll() 被调用");
+        // 关键字为空时模糊条件自动跳过
         LambdaQueryWrapper<FileRecord> wrapper = new LambdaQueryWrapper<FileRecord>()
                 .like(StringUtils.hasText(keyword), FileRecord::getOriginal_name_wsh, keyword)
                 .orderByDesc(FileRecord::getCreated_at_wsh);

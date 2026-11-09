@@ -39,6 +39,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
     private final UserMapper userMapper;
     private final RoleGrantService roleGrantService;
 
+    /**
+     * 【商家客服申请服务实现的构造注入】
+     *
+     * 业务作用：注入申请记录、商家、用户 Mapper 与角色授予服务。
+     *
+     * 调用场景：Spring 容器创建 MerchantCustomerServiceServiceImpl 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 4 个 final 成员。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public MerchantCustomerServiceServiceImpl(MerchantCustomerServiceMapper mapper,
                                               MerchantMapper merchantMapper,
                                               UserMapper userMapper,
@@ -85,6 +104,7 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .eq(MerchantCustomerService::getMerchant_id_wsh, request.getMerchant_id_wsh())
                 .eq(MerchantCustomerService::getUser_id_wsh, userId)
                 .last("LIMIT 1"));
+        // 已有记录则复用，重置为待审核并清空上次审核痕迹
         if (existing != null) {
             if (STATUS_APPROVED.equals(existing.getStatus_wsh())) {
                 throw new BusinessException(400, "user is already customer service for this merchant");
@@ -234,6 +254,7 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         patch.setStatus_wsh(STATUS_REJECTED);
         patch.setReview_note_wsh(String.format(AUTO_REJECT_NOTE, timeoutDays));
         patch.setReviewed_at_wsh(now);
+        // 单条批量更新，避免逐行查询
         return mapper.update(patch, new LambdaQueryWrapper<MerchantCustomerService>()
                 .eq(MerchantCustomerService::getStatus_wsh, STATUS_PENDING)
                 .lt(MerchantCustomerService::getUpdated_at_wsh, now.minusDays(timeoutDays)));
@@ -261,6 +282,7 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         entity.setReviewer_id_wsh(userId);
         entity.setReviewed_at_wsh(LocalDateTime.now());
         mapper.updateById(entity);
+        // 状态落库后再判断是否回收客服角色
         revokeCustomerServiceRoleIfNoApprovedMerchant(entity.getUser_id_wsh());
         return toDTO(entity);
     }
@@ -356,6 +378,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 【加载已通过的客服申请】
+     *
+     * 业务作用：按 ID 加载申请并确认其状态为 approved，供辞职流程使用。
+     *
+     * 调用场景：resign() 的第一道校验。
+     *
+     * 调用链：resign() → requireApprovedApplication() → mapper.selectById()。
+     *
+     * 数据处理：按主键查询申请记录并比对状态。
+     *
+     * 业务规则：只有 approved 状态的申请可执行辞职。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：ID 为空抛 400；记录不存在抛 404；状态非 approved 抛 400。
+     *
+     * 注意事项：只校验状态不校验归属，归属校验由调用方 resign() 完成。
+     */
     private MerchantCustomerService requireApprovedApplication(Long id) {
         if (id == null) {
             throw new BusinessException(400, "application id is required");
@@ -370,6 +411,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return entity;
     }
 
+    /**
+     * 【加载待审核且归属本商家的申请】
+     *
+     * 业务作用：在归属校验基础上要求申请处于 pending 状态，供审批使用。
+     *
+     * 调用场景：approve() 与 reject()。
+     *
+     * 调用链：approve()/reject() → requirePendingOwnedApplication() → requireOwnedApplication()。
+     *
+     * 数据处理：先做商家归属校验，再比对状态。
+     *
+     * 业务规则：只有 pending 状态的申请可被审核。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：状态非 pending 抛 BusinessException(400, "only pending applications can be reviewed")。
+     *
+     * 注意事项：无。
+     */
     private MerchantCustomerService requirePendingOwnedApplication(Long id, Long merchantUserId) {
         MerchantCustomerService entity = requireOwnedApplication(id, merchantUserId);
         if (!STATUS_PENDING.equals(entity.getStatus_wsh())) {
@@ -378,6 +438,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return entity;
     }
 
+    /**
+     * 【加载并校验申请归属当前商家】
+     *
+     * 业务作用：确认当前登录用户是商家主人，且申请属于该商家的店铺。
+     *
+     * 调用场景：requirePendingOwnedApplication() 与 terminateByMerchant()。
+     *
+     * 调用链：requirePendingOwnedApplication()/terminateByMerchant() → requireOwnedApplication() → requireMerchantOwner() → mapper.selectById()。
+     *
+     * 数据处理：先按用户 ID 查其名下商家，再按申请 ID 查记录并比对 merchant_id_wsh。
+     *
+     * 业务规则：非商家主人不可操作；不能操作其他商家的申请。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：ID 为空抛 400；用户非商家主人抛 403；记录不存在抛 404；跨商家操作抛 403。
+     *
+     * 注意事项：不校验申请状态，状态由上层方法判断。
+     */
     private MerchantCustomerService requireOwnedApplication(Long id, Long merchantUserId) {
         if (id == null) {
             throw new BusinessException(400, "application id is required");
@@ -393,6 +472,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return entity;
     }
 
+    /**
+     * 【校验并返回当前用户的商家】
+     *
+     * 业务作用：按登录用户 ID 查询其名下商家，非商家主人则抛异常。
+     *
+     * 调用场景：listPendingForMerchant、listApprovedForMerchant、requireOwnedApplication。
+     *
+     * 调用链：各业务方法 → requireMerchantOwner() → merchantMapper.selectOne()。
+     *
+     * 数据处理：按 merchant.user_id_wsh 查询并 LIMIT 1。
+     *
+     * 业务规则：查不到商家即视为非商家主人。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：查不到抛 BusinessException(403, "current user is not a merchant owner")。
+     *
+     * 注意事项：一个账号拥有多个商家时只取第一条，存在多店铺账号归属不确定的问题。
+     */
     private Merchant requireMerchantOwner(Long merchantUserId) {
         Merchant merchant = merchantMapper.selectOne(new LambdaQueryWrapper<Merchant>()
                 .eq(Merchant::getUser_id_wsh, merchantUserId)
@@ -403,6 +501,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return merchant;
     }
 
+    /**
+     * 【按需回收客服角色】
+     *
+     * 业务作用：当用户不再拥有任一商家的已通过客服身份时，回收其 CUSTOMER_SERVICE 角色。
+     *
+     * 调用场景：resign() 与 terminateByMerchant() 更新状态之后。
+     *
+     * 调用链：resign()/terminateByMerchant() → revokeCustomerServiceRoleIfNoApprovedMerchant() → mapper.selectCount() → roleGrantService.revokeRoleFromUser()。
+     *
+     * 数据处理：统计该用户 approved 状态的申请数，为 0 才回收角色。
+     *
+     * 业务规则：只要还有一个商家处于 approved 就保留角色；userId 为空直接返回。
+     *
+     * 状态影响：可能删除 user_role 关联（由 RoleGrantService 写入）。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：必须在状态更新之后调用，否则统计会把刚失效的记录算进去。
+     */
     private void revokeCustomerServiceRoleIfNoApprovedMerchant(Long userId) {
         if (userId == null) {
             return;
@@ -410,6 +527,7 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         Long approvedCount = mapper.selectCount(new LambdaQueryWrapper<MerchantCustomerService>()
                 .eq(MerchantCustomerService::getUser_id_wsh, userId)
                 .eq(MerchantCustomerService::getStatus_wsh, STATUS_APPROVED));
+        // 已无任何商家的客服身份才回收角色
         if (approvedCount == null || approvedCount == 0) {
             roleGrantService.revokeRoleFromUser(userId, "CUSTOMER_SERVICE");
         }
@@ -458,6 +576,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return dto;
     }
 
+    /**
+     * 【申请记录列表转 DTO】
+     *
+     * 业务作用：批量把申请记录实体转换为 DTO。
+     *
+     * 调用场景：listMine、listPendingForMerchant、listApprovedForMerchant 返回前。
+     *
+     * 调用链：各查询方法 → toDTOList() → toDTO()。
+     *
+     * 数据处理：入参为 null 时返回空列表，否则逐条转换。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：每条记录都会查询商家与用户，列表场景存在 N+1 查询。
+     */
     @Override
     public List<MerchantCustomerServiceDTO> toDTOList(List<MerchantCustomerService> list) {
         if (list == null) {
@@ -466,6 +603,25 @@ public class MerchantCustomerServiceServiceImpl implements MerchantCustomerServi
         return list.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    /**
+     * 【去空白并转 null】
+     *
+     * 业务作用：把空白字符串规范化为 null，避免备注字段出现空串。
+     *
+     * 调用场景：apply()、approve()、reject() 处理申请人备注与审核备注。
+     *
+     * 调用链：apply()/approve()/reject() → trimToNull()。
+     *
+     * 数据处理：无文本内容返回 null，否则返回 trim 结果。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：使用 Spring 的 StringUtils.hasText 判断，纯空白也视为空。
+     */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
             return null;

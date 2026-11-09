@@ -22,6 +22,25 @@ public class MerchantFavoriteTargetResolver implements FavoriteTargetResolver {
 
     private final MerchantService merchantService;
 
+    /**
+     * 【构造商家收藏解析器】
+     *
+     * 业务作用：注入商家业务服务，用于批量查询收藏的商家。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 merchantService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public MerchantFavoriteTargetResolver(MerchantService merchantService) {
         this.merchantService = merchantService;
     }
@@ -47,6 +66,7 @@ public class MerchantFavoriteTargetResolver implements FavoriteTargetResolver {
             card.setTarget_type_wsh(FavoriteTargetType.MERCHANT);
             card.setTarget_type_label_wsh(FavoriteTargetType.labelOf(FavoriteTargetType.MERCHANT));
             card.setTitle_wsh(merchant.getName_wsh());
+            // 简介为空时退回地址作为描述
             card.setDescription_wsh(firstNonBlank(merchant.getDescription_wsh(), merchant.getAddress_wsh()));
             card.setPrimary_info_wsh(merchant.getRating_wsh() == null ? null : "Rating " + merchant.getRating_wsh());
             card.setSecondary_info_wsh(merchant.getAddress_wsh());
@@ -56,6 +76,25 @@ public class MerchantFavoriteTargetResolver implements FavoriteTargetResolver {
         return result;
     }
 
+    /**
+     * 【取第一个非空文本】
+     *
+     * 业务作用：在两个文本中取第一个非空白的值作为展示内容。
+     *
+     * 调用场景：resolve 设置收藏卡片描述（优先商家简介，其次地址）。
+     *
+     * 调用链：resolve() → firstNonBlank()。
+     *
+     * 数据处理：first 非空且非空白返回 first，否则返回 second。
+     *
+     * 业务规则：不做 trim，直接返回原值。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：second 即使为 null 也原样返回，调用方需容忍 null。
+     */
     private String firstNonBlank(String first, String second) {
         if (first != null && !first.isBlank()) {
             return first;

@@ -40,18 +40,26 @@ public interface NoticeMapper extends BaseMapper<Notice> {
                                     @Param("type") String type,
                                     @Param("status") Integer status);
 
-    /**
-     * 查询用户尚未关闭的弹窗公告列表
-     * <p>
-     * 懒加载模型：notice_read_wsh 中「有记录 = 该用户已关闭该弹窗」，无记录才需要弹。
-     * 因此用 NOT EXISTS 排除已有阅读记录的公告，不对 is_read_wsh 做状态判断。
-     *
-     * @param userId 用户 ID
-     * @param status 公告状态码
-     * @return 用户未关闭的弹窗公告列表
-     */
-
     //根据用户查询尚未关闭的弹窗公告,且投递方式包含popup
+    /**
+     * 【查询待弹窗公告】返回该用户尚未关闭的弹窗类公告
+     *
+     * 业务作用：用户端登录后拉取需要主动弹出展示的公告列表。
+     *
+     * 调用场景：前端启动或进入首页时调用公告服务，由服务层转调本方法。
+     *
+     * 调用链：公告服务 → 本方法 → notice_wsh 与 notice_read_wsh 联查。
+     *
+     * 数据处理：过滤 deleted_wsh=0、status_wsh=入参状态、type_wsh 小写为 notice、delivery_type_wsh 含 popup 的公告，并用 NOT EXISTS 排除 notice_read_wsh 中已有该用户阅读记录的公告，按 sort_order_wsh 升序、created_at_wsh 降序返回。
+     *
+     * 业务规则：懒加载模型——notice_read_wsh 中「有记录」即视为该用户已关闭该弹窗；不判断 is_read_wsh 状态。
+     *
+     * 状态影响：无，只读查询。
+     *
+     * 异常情况：SQL 执行异常由 MyBatis 抛出 DataAccessException，本接口未做包装。
+     *
+     * 注意事项：delivery_type_wsh 使用 LIKE '%popup%' 模糊匹配，字段中任意位置出现 popup 都会被命中；type_wsh 用 LOWER() 转换后与常量 'notice' 比较，因此依赖数据库函数，无法命中 type 索引。
+     */
     @Select("""
             select n.*
             from notice_wsh n

@@ -239,6 +239,7 @@ public class MessageListener {
             } else {
                 log.warn("上下文中没有可用的 NoticeNotificationHandler");
             }
+            // 无论处理成功还是失败(消息发送给用户)，都确认消息
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
             log.error("处理公告通知失败: {}", noticeId, e);

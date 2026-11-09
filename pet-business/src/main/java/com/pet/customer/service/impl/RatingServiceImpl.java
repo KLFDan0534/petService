@@ -43,6 +43,25 @@ public class RatingServiceImpl implements RatingService {
     private final KeeperMapper keeperMapper;
     private final ServiceItemMapper serviceItemMapper;
 
+    /**
+     * 【评价服务实现的构造注入】
+     *
+     * 业务作用：注入评价、订单、商家、寄养师与服务项 Mapper。
+     *
+     * 调用场景：Spring 容器创建 RatingServiceImpl 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 5 个 final 成员。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public RatingServiceImpl(RatingMapper ratingMapper,
                              OrderMapper orderMapper,
                              MerchantMapper merchantMapper,
@@ -76,6 +95,25 @@ public class RatingServiceImpl implements RatingService {
                         .orderByDesc(Rating::getCreated_at_wsh)));
     }
 
+    /**
+     * 【查询我对某订单的评价】
+     *
+     * 业务作用：返回当前用户针对指定订单提交的评价列表。
+     *
+     * 调用场景：订单详情页回显评价状态，判断是否已评价。
+     *
+     * 调用链：RatingController → getMyRatingsByOrder() → ratingMapper.selectList() → toDTOList()。
+     *
+     * 数据处理：按 order_id_wsh 与 user_id_wsh 同时过滤，不做排序。
+     *
+     * 业务规则：orderId 为空时直接返回空列表，不查库。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：一个订单可能有 merchant/keeper/service 多条不同维度的评价，因此返回的是列表而非单条。
+     */
     @Override
     public List<RatingDTO> getMyRatingsByOrder(Long userId, Long orderId) {
         log.info("调用 getMyRatingsByOrder()");
@@ -124,6 +162,7 @@ public class RatingServiceImpl implements RatingService {
         }
 
         PetOrder order;
+        // 服务评价未传订单时自动找最近已完成单
         if ("service".equalsIgnoreCase(rating.getTarget_type_wsh())) {
             rating.setTarget_type_wsh("service");
             if (request.getOrder_id_wsh() == null) {
@@ -148,6 +187,7 @@ public class RatingServiceImpl implements RatingService {
             }
         }
 
+        // 仅已完成订单可评价
         if (!OrderStatus.COMPLETED.equals(order.getStatus_wsh())) {
             throw new BusinessException(400, BookingErrorCode.ORDER_NOT_COMPLETED, "订单未完成，无法评价");
         }
@@ -157,6 +197,7 @@ public class RatingServiceImpl implements RatingService {
         }
         assertTargetBelongsOrder(rating.getTarget_id_wsh(), rating.getTarget_type_wsh(), order);
 
+        // 同一订单同一维度只能评一次
         Long count = ratingMapper.selectCount(
                 new LambdaQueryWrapper<Rating>()
                         .eq(Rating::getOrder_id_wsh, order.getId_wsh())
@@ -187,6 +228,7 @@ public class RatingServiceImpl implements RatingService {
      */
     private void assertTargetBelongsOrder(Long targetId, String targetType, PetOrder order) {
         boolean matched;
+        // 目标必须与订单上的归属一致
         switch (targetType) {
             case "merchant" -> matched = order.getMerchant_id_wsh().equals(targetId);
             case "keeper" -> matched = order.getKeeper_id_wsh().equals(targetId);
@@ -217,6 +259,7 @@ public class RatingServiceImpl implements RatingService {
         if (rating == null) {
             throw new BusinessException("评价记录不存在");
         }
+        // 按评价类型校验回复人归属
         if ("merchant".equals(rating.getTarget_type_wsh())) {
             Merchant merchant = merchantMapper.selectOne(
                     new LambdaQueryWrapper<Merchant>().eq(Merchant::getUser_id_wsh, userId));
@@ -271,6 +314,25 @@ public class RatingServiceImpl implements RatingService {
         return dto;
     }
 
+    /**
+     * 【评价列表转 DTO】
+     *
+     * 业务作用：批量把 Rating 列表转换为 RatingDTO 列表。
+     *
+     * 调用场景：getRatingsByTarget() 与 getMyRatingsByOrder() 返回前。
+     *
+     * 调用链：getRatingsByTarget()/getMyRatingsByOrder() → toDTOList() → toDTO()。
+     *
+     * 数据处理：入参为 null 时返回空列表，否则逐条转换。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：不补全用户昵称与头像等展示信息。
+     */
     private List<RatingDTO> toDTOList(List<Rating> list) {
         if (list == null) return List.of();
         return list.stream().map(this::toDTO).collect(Collectors.toList());

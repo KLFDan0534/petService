@@ -145,11 +145,49 @@ public class NoticeNotificationHandlerImpl implements NoticeNotificationHandler 
                 || deliveryIncludes(notice.getDelivery_type_wsh(), DELIVERY_BROADCAST));
     }
 
+    /**
+     * 【归一化公告类型】
+     *
+     * 业务作用：去除空白并转小写，便于与常量比较。
+     *
+     * 调用场景：shouldCreateNotifications 判断公告类型是否为 notice。
+     *
+     * 调用链：handle → shouldCreateNotifications → normalizeType。
+     *
+     * 数据处理：null 或空白返回 null，否则 trim 后转小写。
+     *
+     * 业务规则：空白与 null 等价。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：返回 null 后与 TYPE_NOTICE 比较恒为 false，公告会被跳过。
+     */
     private String normalizeType(String type) {
         if (type == null || type.isBlank()) return null;
         return type.trim().toLowerCase();
     }
 
+    /**
+     * 【判断投递方式是否包含指定渠道】
+     *
+     * 业务作用：在逗号分隔的投递方式串中查找目标渠道。
+     *
+     * 调用场景：shouldCreateNotifications 判断是否含 notification 或 broadcast。
+     *
+     * 调用链：handle → shouldCreateNotifications → deliveryIncludes。
+     *
+     * 数据处理：按逗号切分，逐项 trim 后与目标值做精确相等比较。
+     *
+     * 业务规则：null 或空白投递方式返回 false；比较区分大小写。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：未对空元素过滤，但空串不会等于目标值，因此不影响结果。
+     */
     private boolean deliveryIncludes(String deliveryType, String target) {
         if (deliveryType == null || deliveryType.isBlank()) return false;
         return Arrays.stream(deliveryType.split(","))
