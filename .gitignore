@@ -50,9 +50,6 @@ docs/
 # opencode 配置
 .opencode/
 
-# 启动脚本
-start-backend.bat
-start-backend.ps1
 
 # 外部 Skill / 模板
 ui-ux-pro-max-skill/
@@ -138,6 +135,9 @@ b.txt
 
 # pet-allinone 构建产物（保留 Dockerfile/脚本，忽略前端构建输出）
 pet-allinone/dist/
+
+# pet-web 构建产物（独立前端容器，同上）
+pet-web/dist/
 
 # 临时代码查找笔记
 代码关联/

@@ -1,0 +1,36 @@
+name: petservice-web
+
+# ============================================================
+# 独立的前端容器（从原 pet-service 一体化容器里提取出来的部分）
+#
+# 只跑 nginx：托管 frontend 构建产物 + 反代宿主机上的后端/MinIO/RabbitMQ/Chroma
+# 与 docker-compose.yml（基础设施）使用不同的 compose 项目名和网络，
+# 因此可以完全独立地启动 / 停止，互不影响。
+#
+# 构建镜像（会先 npm run build）：
+#   ./pet-web/build.sh        # Git Bash / macOS / Linux
+#   pet-web\build.bat         # Windows
+#
+# 启动：docker compose -f docker-compose.web.yml up -d
+# 停止：docker compose -f docker-compose.web.yml stop      （只停，不删）
+# 移除：docker compose -f docker-compose.web.yml down      （停并删容器）
+# 看日志：docker compose -f docker-compose.web.yml logs -f
+#
+# 访问：http://localhost:8081   （端口可用 WEB_PORT 覆盖）
+# ============================================================
+
+services:
+  pet-web:
+    image: pet-web:latest
+    build:
+      context: ./pet-web
+      dockerfile: Dockerfile
+    container_name: pet-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8081}:80"
+    environment:
+      TZ: Asia/Shanghai
+    extra_hosts:
+      # 让容器内能访问宿主机上的 8080 后端、9000 MinIO 等
+      - "host.docker.internal:host-gateway"

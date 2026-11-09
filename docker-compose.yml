@@ -1,4 +1,20 @@
-version: '3.8'
+name: petservice
+
+# ============================================================
+# 本地开发编排：只跑基础设施，不含任何前端
+#
+# 前端：vite dev server（frontend/，:5173，/api 与 /minio 已配代理）
+# 后端：Spring Boot（IDEA 里跑，:8080）
+# 两者都在宿主机上，不进容器。
+#
+# 启动：docker compose up -d
+# 停止：docker compose stop
+# 移除：docker compose down        （加 -v 会删数据卷，慎用）
+#
+# 需要跑「构建后的前端 + nginx」时，用独立的 docker-compose.web.yml：
+#   docker compose -f docker-compose.web.yml up -d
+# 它是另一个 compose 项目（petservice-web），可以单独启停。
+# ============================================================
 
 services:
   mysql:
@@ -92,32 +108,19 @@ services:
     networks:
       - pet-network
 
-  nginx:
-    image: nginx:latest
-    container_name: pet-nginx
-    restart: "no"
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/conf:/etc/nginx/conf.d
-      - ./frontend/dist:/usr/share/nginx/html
-    depends_on:
-      - mysql
-      - redis
-      - rabbitmq
-      - minio
-      - chroma
-    networks:
-      - pet-network
-
 volumes:
   mysql-data:
     name: petservice_mysql_manual_copy_20260708-135648
   redis-data:
+    name: petservice_redis-data
   rabbitmq-data:
+    name: petservice_rabbitmq-data
   minio-data:
+    name: petservice_minio-data
   chroma-data:
+    name: petservice_chroma-data
 
 networks:
   pet-network:
+    name: petservice_pet-network
     driver: bridge
