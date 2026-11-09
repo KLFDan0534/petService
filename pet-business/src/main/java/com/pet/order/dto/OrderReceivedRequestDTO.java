@@ -27,6 +27,14 @@ public class OrderReceivedRequestDTO {
     @Schema(description = "接收经度")
     private BigDecimal received_longitude_wsh;
 
-    @Schema(description = "接收精度")
+    @Schema(description = "接收定位精度（米）")
     private BigDecimal received_accuracy_wsh;
+
+    /**
+     * 调试用：本次接收跳过距离校验。
+     * 只有后端配置 order.handover.allow-debug-skip=true 时才生效，
+     * 否则该字段被忽略，仍按正常流程校验距离。
+     */
+    @Schema(description = "调试开关：跳过距离校验（需后端开启 allow-debug-skip）")
+    private Boolean skip_distance_check_wsh;
 }

@@ -29,6 +29,25 @@ public class AiReportController {
 
     private final AiReportService aiReportService;
 
+    /**
+     * 【AI 报告控制器构造器】
+     *
+     * 业务作用：注入 AI 报告服务，供报告查询与生成接口使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 aiReportService。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：报告访问鉴权在 Service 层完成，控制器不重复校验。
+     */
     public AiReportController(AiReportService aiReportService) {
         this.aiReportService = aiReportService;
     }
@@ -146,6 +165,7 @@ public class AiReportController {
             @RequestParam(required = false) Long keeperId,
             @RequestParam(required = false) Long orderId) {
         log.info("调用 generateCareSuggestion()");
+        // 查询参数与请求体统一解析，查询参数优先
         petId = resolveLong(petId, body, "petId", "pet_id_wsh");
         keeperId = resolveLong(keeperId, body, "keeperId", "keeper_id_wsh");
         orderId = resolveLong(orderId, body, "orderId", "order_id_wsh");
@@ -217,6 +237,7 @@ public class AiReportController {
         if (body == null) {
             return null;
         }
+        // 驼峰键优先，兼容前端下划线写法
         Object value = body.containsKey(camelKey) ? body.get(camelKey) : body.get(snakeKey);
         if (value == null) {
             return null;

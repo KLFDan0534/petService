@@ -49,6 +49,25 @@ public class OrderCompletedReportListener {
     private final AiReportService aiReportService;
     private final OrderMapper orderMapper;
 
+    /**
+     * 【订单完成监听器构造器】
+     *
+     * 业务作用：注入 AI 报告服务与订单 Mapper，供事件回调中生成报告并更新标志位。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 aiReportService / orderMapper。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：监听在事务提交后执行，不参与主事务。
+     */
     public OrderCompletedReportListener(AiReportService aiReportService, OrderMapper orderMapper) {
         this.aiReportService = aiReportService;
         this.orderMapper = orderMapper;
@@ -73,6 +92,7 @@ public class OrderCompletedReportListener {
             return;
         }
         PetOrder order = orderMapper.selectById(event.orderId());
+        // 订单不存在或已生成过报告时跳过
         if (order == null || Integer.valueOf(1).equals(order.getFinal_report_generated_wsh())) {
             return;
         }
@@ -81,6 +101,7 @@ public class OrderCompletedReportListener {
             order.setFinal_report_generated_wsh(1);
             orderMapper.updateById(order);
         } catch (Exception e) {
+            // 生成失败只记日志，不影响已提交的订单事务
             log.warn("为订单 {} 生成最终报告失败", event.orderId(), e);
         }
     }

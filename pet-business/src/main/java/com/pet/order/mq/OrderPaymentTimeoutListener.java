@@ -19,6 +19,25 @@ public class OrderPaymentTimeoutListener {
 
     private final OrderService orderService;
 
+    /**
+     * 【构造函数：注入订单服务】
+     *
+     * 业务作用：注入 OrderService，供超时消息处理时执行订单取消。
+     *
+     * 调用场景：容器启动创建 OrderPaymentTimeoutListener Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → OrderPaymentTimeoutListener(构造) → orderService 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：类级 Javadoc 写在 @Component/@Slf4j 之后，不符合注解在前、注释在上的常规写法，但不影响编译。
+     */
     public OrderPaymentTimeoutListener(OrderService orderService) {
         this.orderService = orderService;
     }

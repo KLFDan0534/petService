@@ -37,6 +37,25 @@ public class LlmChatServiceImpl implements LlmChatService {
     /** 配置指纹 → OpenAI 模型实例缓存 */
     private final Map<String, OpenAiChatModel> modelCache = new ConcurrentHashMap<>();
 
+    /**
+     * 【大模型对话服务构造器】
+     *
+     * 业务作用：注入静态配置与动态配置存储，供运行时解析当前生效模型。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 aiProperties / configStore。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：实际模型实例按配置指纹缓存，配置变更后会自动重建。
+     */
     public LlmChatServiceImpl(AiProperties aiProperties, AiConfigStore configStore) {
         this.aiProperties = aiProperties;
         this.configStore = configStore;

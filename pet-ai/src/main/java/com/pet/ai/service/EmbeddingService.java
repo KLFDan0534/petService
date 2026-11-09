@@ -26,6 +26,25 @@ public class EmbeddingService {
     private final String endpoint;
     private final String model;
 
+    /**
+     * 【向量化服务构造器】
+     *
+     * 业务作用：注入 RestTemplate，读取 DeepSeek 密钥与地址，并固定向量模型名。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 读取 ai.deepseek.* 配置 → 构造 ObjectMapper → 字段赋值。
+     *
+     * 数据处理：模型名固定为 deepseek-embedding；地址缺省为官方域名。
+     *
+     * 业务规则：密钥允许为空，为空时向量化会退化为零向量。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：密钥变更需重启应用才生效。
+     */
     public EmbeddingService(RestTemplate restTemplate,
                             @org.springframework.beans.factory.annotation.Value("${ai.deepseek.api-key:}") String apiKey,
                             @org.springframework.beans.factory.annotation.Value("${ai.deepseek.endpoint:https://api.deepseek.com}") String endpoint) {

@@ -78,7 +78,7 @@ public interface RefundService {
      *
      * 业务规则：
      * 1. 仅订单主人可申请退款
-     * 2. 可退款状态：PAID/CONFIRMED/DELIVERED/RECEIVED/IN_PROGRESS
+     * 2. 可退款状态：PAID/CONFIRMED/RECEIVED/IN_PROGRESS
      * 3. 不允许重复提交待审批或已通过的退款申请
      *
      * 状态影响：
@@ -108,7 +108,7 @@ public interface RefundService {
      * 查询订单 → 校验可退款状态 → 查重(已有PENDING/APPROVED) → 乐观锁更新订单REFUNDING → insert退款记录
      *
      * 业务规则：
-     * 1. 可退款状态集合：PAID/CONFIRMED/DELIVERED/RECEIVED/IN_PROGRESS
+     * 1. 可退款状态集合：PAID/CONFIRMED/RECEIVED/IN_PROGRESS
      * 2. 不允许存在未完成的退款申请（PENDING或APPROVED）
      * 3. 保存退款前的订单状态(order_status_before_refund)，用于驳回时恢复
      *

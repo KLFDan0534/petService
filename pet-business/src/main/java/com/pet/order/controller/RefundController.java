@@ -28,6 +28,25 @@ public class RefundController {
 
     private final RefundService refundService;
 
+    /**
+     * 【构造退款控制器】
+     *
+     * 业务作用：注入退款业务服务，供各 REST 接口调用。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 refundService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：审核类接口（approve / complete / reject）仅 ADMIN 可调用，创建与查询按登录用户维度隔离。
+     */
     public RefundController(RefundService refundService) {
         this.refundService = refundService;
     }

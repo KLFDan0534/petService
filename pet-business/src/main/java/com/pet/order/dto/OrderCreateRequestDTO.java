@@ -15,18 +15,14 @@ import java.time.LocalDateTime;
 @Setter
 public class OrderCreateRequestDTO {
     @Schema(description = "宠物ID")
-    @NotNull(message = "petId cannot be empty")
+    @NotNull(message = "宠物ID不能为空")
     private Long pet_id_wsh;
-
-    @Schema(description = "托管人ID")
-    @NotNull(message = "keeperId cannot be empty")
-    private Long keeper_id_wsh;
 
     @Schema(description = "商家ID（兼容窗口内的旧客户端字段；商家由服务端根据服务派生，本字段不参与商家选择，不一致时拒绝）")
     private Long merchant_id_wsh;
 
     @Schema(description = "服务ID（产品预订必填；服务端根据服务派生商家与价格）")
-    @NotNull(message = "serviceId cannot be empty")
+    @NotNull(message = "服务ID不能为空")
     private Long service_id_wsh;
 
     @Schema(description = "服务版本（来自服务详情/可预约性响应；为空时跳过版本校验，兼容旧客户端）")
@@ -58,7 +54,7 @@ public class OrderCreateRequestDTO {
     private Integer quantity_wsh;
 
     @Schema(description = "配送地址")
-    @Size(max = 500, message = "deliveryAddress cannot exceed 500 characters")
+    @Size(max = 500, message = "配送地址不能超过500个字符")
     private String delivery_address_wsh;
 
     @Schema(description = "配送纬度")
@@ -80,20 +76,20 @@ public class OrderCreateRequestDTO {
     private LocalDateTime receiver_available_end_wsh;
 
     @Schema(description = "紧急联系人姓名")
-    @NotBlank(message = "emergencyContactName cannot be empty")
-    @Size(max = 50, message = "emergencyContactName cannot exceed 50 characters")
+    @NotBlank(message = "紧急联系人姓名不能为空")
+    @Size(max = 50, message = "紧急联系人姓名不能超过50个字符")
     private String emergency_contact_name_wsh;
 
     @Schema(description = "紧急联系人电话")
-    @NotBlank(message = "emergencyContactPhone cannot be empty")
-    @Size(max = 20, message = "emergencyContactPhone cannot exceed 20 characters")
+    @NotBlank(message = "紧急联系人电话不能为空")
+    @Size(max = 20, message = "紧急联系人电话不能超过20个字符")
     private String emergency_contact_phone_wsh;
 
     @Schema(description = "接宠时间")
     private LocalDateTime pickup_time_wsh;
 
     @Schema(description = "接宠地址")
-    @Size(max = 500, message = "pickupAddress cannot exceed 500 characters")
+    @Size(max = 500, message = "接宠地址不能超过500个字符")
     private String pickup_address_wsh;
 
     @Schema(description = "接宠纬度")
@@ -106,6 +102,6 @@ public class OrderCreateRequestDTO {
     private String pickup_location_source_wsh;
 
     @Schema(description = "备注")
-    @Size(max = 200, message = "remark cannot exceed 200 characters")
+    @Size(max = 200, message = "备注不能超过200个字符")
     private String remark_wsh;
 }

@@ -38,6 +38,25 @@ public class TipController {
     private final TipService tipService;
     private final UserMapper userMapper;
 
+    /**
+     * 【构造方法】注入小费服务与用户 Mapper
+     *
+     * 业务作用：由 Spring 注入 TipService 与 UserMapper，后者用于管理端列表填充打赏人与收款人昵称。
+     *
+     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 两个 final 字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；控制器直接依赖 UserMapper 属于跨层查询，与其它控制器只依赖 Service 的写法不一致。
+     */
     public TipController(TipService tipService, UserMapper userMapper) {
         this.tipService = tipService;
         this.userMapper = userMapper;
@@ -103,6 +122,7 @@ public class TipController {
     public Result<PageResult<TipDTO>> adminList(PageRequestDTO pageParam) {
         log.info("adminList() 被调用, page: {}, size: {}", pageParam.getPage(), pageParam.getSize());
         var page = tipService.pageAll(pageParam);
+        // 逐条补充打赏人与收款人名称
         var dtoList = page.getRecords()
                 .stream()
                 .map(tip -> fillUserName(tipService.toDTO(tip)))
@@ -139,6 +159,7 @@ public class TipController {
         if (userId == null) return null;
         User user = userMapper.selectById(userId);
         if (user == null) return null;
+        // 昵称优先，缺失时回退用户名
         if (user.getNickname_wsh() != null && !user.getNickname_wsh().isBlank()) {
             return user.getNickname_wsh();
         }

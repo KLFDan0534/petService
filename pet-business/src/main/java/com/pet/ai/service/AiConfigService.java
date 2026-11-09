@@ -29,6 +29,25 @@ public class AiConfigService {
     @Getter @Setter
     private double temperature;
 
+    /**
+     * 【构造方法】从配置项初始化 AI 运行时参数
+     *
+     * 业务作用：由 Spring 注入 ai.kenari.* 配置（支持环境变量覆盖），写入实例字段作为运行时默认值。
+     *
+     * 调用场景：Spring 容器启动创建该 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 字段赋值 + 打印初始化日志。
+     *
+     * 数据处理：apiKey 缺省空串、model 缺省 glm-5.3-flash、endpoint 缺省 https://api.b.ai/v1、maxTokens 缺省 8192、temperature 缺省 1.0。
+     *
+     * 业务规则：支持 ${KENARI_API_KEY}、${KENARI_MODEL}、${KENARI_ENDPOINT}、${KENARI_MAX_TOKENS}、${KENARI_TEMPERATURE} 环境变量覆盖。
+     *
+     * 状态影响：无，仅初始化内存字段。
+     *
+     * 异常情况：配置值类型不匹配（如 max-tokens 非数字）时由 Spring 抛出绑定异常。
+     *
+     * 注意事项：这是 yml 兜底配置，DB 中 ai_config_wsh 有启用配置时由 AiConfigStore 优先提供；日志只打印 endpoint 与 model，不打印 key。
+     */
     public AiConfigService(
             @Value("${ai.kenari.api-key:${KENARI_API_KEY:}}") String apiKey,
             @Value("${ai.kenari.model:${KENARI_MODEL:glm-5.3-flash}}") String model,
@@ -87,6 +106,25 @@ public class AiConfigService {
         return this.endpoint + (this.endpoint.endsWith("/") ? "" : "/") + "chat/completions";
     }
 
+    /**
+     * 【API Key 脱敏】保留前 6 位与后 4 位，中间打码
+     *
+     * 业务作用：在配置查询接口返回时隐藏密钥明文。
+     *
+     * 调用场景：getSnapshot 组装对外视图时调用。
+     *
+     * 调用链：getSnapshot → 本方法。
+     *
+     * 数据处理：长度小于 10 或为 null 时返回 "****"，否则返回 前6位 + "****" + 后4位。
+     *
+     * 业务规则：短于 10 位的 Key 完全不展示。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：与 AiConfigStore.maskKey（保留前后 4 位、阈值 8）规则不一致，两套脱敏长度不同；getSnapshot 同时把明文写进 apiKeyRaw 字段，若该接口对外开放会泄露密钥。
+     */
     private String maskApiKey(String key) {
         if (key == null || key.length() < 10) return "****";
         return key.substring(0, 6) + "****" + key.substring(key.length() - 4);

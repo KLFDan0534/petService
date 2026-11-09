@@ -43,6 +43,25 @@ public class AgentController {
     private final AgentService agentService;
     private final LlmChatService aiChatService;
 
+    /**
+     * 【智能下单控制器构造器】
+     *
+     * 业务作用：注入智能下单服务与对话服务，供方案生成、确认与对话接口使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 agentService / aiChatService。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public AgentController(AgentService agentService, LlmChatService aiChatService) {
         this.agentService = agentService;
         this.aiChatService = aiChatService;
@@ -82,12 +101,14 @@ public class AgentController {
             history = new ArrayList<>();
         }
 
+        // 按系统提示词、历史、当前问题拼装消息
         List<Map<String, String>> fullMessages = new ArrayList<>();
         fullMessages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
         fullMessages.addAll(history);
         fullMessages.add(Map.of("role", "user", "content", message));
 
         AgentChatResponseDTO dto = new AgentChatResponseDTO();
+        // 模型不可用时返回降级文案
         String reply = aiChatService.chat(fullMessages);
         dto.setReply(reply == null || reply.isBlank()
                 ? "我暂时无法连接 AI 模型，请稍后再试。"

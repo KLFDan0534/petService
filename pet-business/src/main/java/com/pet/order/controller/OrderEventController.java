@@ -22,6 +22,25 @@ public class OrderEventController {
     private final OrderStatusBroadcaster broadcaster;
     private final SseTokenService sseTokenService;
 
+    /**
+     * 【订单事件控制器构造注入】
+     *
+     * 业务作用：注入订单状态广播器与 SSE 令牌服务。
+     *
+     * 调用场景：Spring 容器创建 OrderEventController 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 broadcaster 与 sseTokenService。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public OrderEventController(OrderStatusBroadcaster broadcaster, SseTokenService sseTokenService) {
         this.broadcaster = broadcaster;
         this.sseTokenService = sseTokenService;

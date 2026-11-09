@@ -57,6 +57,25 @@ public class AiChatServiceImpl implements AiChatService {
     /** 每用户滑动窗口限流：userId → 最近时间戳列表 */
     private final Map<Long, List<Long>> rateBuckets = new ConcurrentHashMap<>();
 
+    /**
+     * 【智能客服服务实现的构造注入】
+     *
+     * 业务作用：注入知识库检索、JSON 解析、AI 配置与聊天历史服务，并初始化带超时的 RestTemplate。
+     *
+     * 调用场景：Spring 容器创建 AiChatServiceImpl 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 创建 SimpleClientHttpRequestFactory 与 RestTemplate。
+     *
+     * 数据处理：连接超时 5 秒、读超时 20 秒；其余依赖直接赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：RestTemplate 在构造器内 new 而非交给 Spring 管理，无法复用全局拦截器与连接池配置。
+     */
     public AiChatServiceImpl(RagService ragService, ObjectMapper objectMapper, AiConfigService aiConfigService,
                              AiConfigStore aiConfigStore, AiChatHistoryService historyService) {
         this.ragService = ragService;
@@ -70,6 +89,25 @@ public class AiChatServiceImpl implements AiChatService {
         this.restTemplate = new RestTemplate(requestFactory);
     }
 
+    /**
+     * 【智能客服对话主流程】
+     *
+     * 业务作用：处理用户提问，命中人工关键词直接转人工，否则检索知识库并调用大模型生成回复。
+     *
+     * 调用场景：用户端 AI 客服对话框发送消息。
+     *
+     * 调用链：AiChatController → chat() → historyService.saveSimple() → containsAny() → ragService.search() → buildSystemPrompt() → callKenari() → historyService.save()。
+     *
+     * 数据处理：校验并 trim 消息 → 限流校验 → 生成或沿用 sessionId 并保存用户消息 → 关键词判定转人工 → 检索 TOP_K=3 篇文档 → 组装提示词与多轮消息 → 解析模型回复 → 按 AI 可用性、知识库命中、AI 主动要求人工三种情况设置 need_human_wsh → 保存 AI 回复。
+     *
+     * 业务规则：消息必填且不超过 500 字；每用户每分钟最多 20 次；命中人工关键词直接转人工；知识库无命中时回复追加提示并标记需人工；AI 回复命中信号词时标记需人工。
+     *
+     * 状态影响：写入 AI 聊天历史（用户消息与 AI 回复），历史写入失败仅记录 warn 日志。
+     *
+     * 异常情况：消息为空或超长抛 BusinessException(400)；超过频率抛 BusinessException(429)；模型调用异常不抛出而是降级为转人工。
+     *
+     * 注意事项：命中人工关键词与模型不可用两种分支提前 return，此时不会保存 AI 回复历史；限流桶为单机内存实现。
+     */
     @Override
     public AiChatResponseDTO chat(AiChatRequestDTO request, Long userId) {
         if (request == null || request.getMessage_wsh() == null || request.getMessage_wsh().isBlank()) {
@@ -151,6 +189,25 @@ public class AiChatServiceImpl implements AiChatService {
         return response;
     }
 
+    /**
+     * 【单轮提问的简化入口】
+     *
+     * 业务作用：用单条问题构造请求并复用 chat() 完成一次无历史的多轮对话调用。
+     *
+     * 调用场景：内部服务或其它模块需要直接向 AI 提问时。
+     *
+     * 调用链：调用方 → ask() → chat()。
+     *
+     * 数据处理：把问题放入 message_wsh，历史置为空列表。
+     *
+     * 业务规则：沿用 chat() 的全部校验、限流与转人工规则。
+     *
+     * 状态影响：同 chat()，会写入聊天历史。
+     *
+     * 异常情况：同 chat()。
+     *
+     * 注意事项：历史为空意味着不带上下文，多轮场景应直接调用 chat() 并传入 history_wsh。
+     */
     @Override
     public AiChatResponseDTO ask(String question, Long userId) {
         AiChatRequestDTO request = new AiChatRequestDTO();
@@ -343,6 +400,25 @@ public class AiChatServiceImpl implements AiChatService {
         }
     }
 
+    /**
+     * 【判断文本是否命中关键词】
+     *
+     * 业务作用：忽略大小写判断文本中是否包含任一关键词。
+     *
+     * 调用场景：chat() 判断用户是否要求人工、判断 AI 回复是否要求转人工。
+     *
+     * 调用链：chat() → containsAny()。
+     *
+     * 数据处理：文本与关键词统一转小写后做 contains 匹配。
+     *
+     * 业务规则：文本为空或空白返回 false；命中任一关键词即返回 true。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：纯子串匹配，可能出现误判（如「联系」出现在正常语句中也会触发转人工）。
+     */
     private boolean containsAny(String text, List<String> keywords) {
         if (text == null || text.isBlank()) {
             return false;

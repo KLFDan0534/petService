@@ -21,6 +21,25 @@ public class AiChatHistoryService {
 
     private final AiChatHistoryMapper mapper;
 
+    /**
+     * 【构造AI聊天记录服务】
+     *
+     * 业务作用：注入 AI 聊天记录的 Mapper。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 mapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类提供保存、会话列表、会话消息、清空会话四类能力，会话 ID 由 newSessionId 生成。
+     */
     public AiChatHistoryService(AiChatHistoryMapper mapper) {
         this.mapper = mapper;
     }

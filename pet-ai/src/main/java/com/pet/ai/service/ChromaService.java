@@ -28,6 +28,25 @@ public class ChromaService {
     private final String tenant;
     private final String database;
 
+    /**
+     * 【Chroma 向量库服务构造器】
+     *
+     * 业务作用：注入 RestTemplate，并读取向量库地址、租户与数据库名。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 读取 chroma.* 配置 → 构造 ObjectMapper → 字段赋值。
+     *
+     * 数据处理：baseUrl 缺省 http://localhost:8000，租户与数据库缺省 default_tenant / default_database。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：ObjectMapper 为本类私有实例，与全局配置隔离。
+     */
     public ChromaService(RestTemplate restTemplate,
                          @org.springframework.beans.factory.annotation.Value("${chroma.url:http://localhost:8000}") String baseUrl,
                          @org.springframework.beans.factory.annotation.Value("${chroma.tenant:default_tenant}") String tenant,
@@ -39,14 +58,71 @@ public class ChromaService {
         this.database = database;
     }
 
+    /**
+     * 【集合基础地址】
+     *
+     * 业务作用：拼接 v2 版本的集合接口地址，带租户与数据库路径。
+     *
+     * 调用场景：查询、创建集合时调用。
+     *
+     * 调用链：getOrCreateCollection → collectionUrl。
+     *
+     * 数据处理：baseUrl + /api/v2/tenants/{tenant}/databases/{database}/collections。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：租户或数据库名变更后需重启应用。
+     */
     private String collectionUrl() {
         return baseUrl + "/api/v2/tenants/" + tenant + "/databases/" + database + "/collections";
     }
 
+    /**
+     * 【指定集合的地址】
+     *
+     * 业务作用：在集合基础地址后追加集合 ID，用于针对单个集合的操作。
+     *
+     * 调用场景：add、get、delete、deleteWhereAll、deleteCollection 中调用。
+     *
+     * 调用链：add / get / delete 等 → collectionUrl(collectionId)。
+     *
+     * 数据处理：直接字符串拼接。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：集合 ID 为空时会拼出非法地址，由调用方保证非空。
+     */
     private String collectionUrl(String collectionId) {
         return collectionUrl() + "/" + collectionId;
     }
 
+    /**
+     * 【构造 JSON 请求实体】
+     *
+     * 业务作用：把请求体 Map 序列化为 JSON，并设置 application/json 头。
+     *
+     * 调用场景：所有向 Chroma 发起 POST 请求的位置。
+     *
+     * 调用链：add / get / delete / deleteWhereAll → jsonEntity → objectMapper.writeValueAsString。
+     *
+     * 数据处理：Map 转 JSON 字符串后包装为 HttpEntity。
+     *
+     * 业务规则：序列化失败直接抛运行时异常。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：序列化失败 → RuntimeException。
+     *
+     * 注意事项：异常信息固定为 JSON 序列化失败，原始异常挂在 cause 上。
+     */
     private HttpEntity<String> jsonEntity(Map<String, Object> body) {
         try {
             String json = objectMapper.writeValueAsString(body);
@@ -301,8 +377,46 @@ public class ChromaService {
         public List<String> documents;
         public List<Map<String, Object>> metadatas;
 
+        /**
+         * 【查询结果无参构造器】
+         *
+         * 业务作用：供 Jackson 反序列化时创建空对象。
+         *
+         * 调用场景：get 方法解析响应体时由框架反射调用。
+         *
+         * 调用链：objectMapper.readValue → 无参构造 → 逐字段赋值。
+         *
+         * 数据处理：无。
+         *
+         * 业务规则：无。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：字段为 public，可直接访问。
+         */
         public ChromaGetResult() {}
 
+        /**
+         * 【查询结果带参构造器】
+         *
+         * 业务作用：快速构造只含 ids、documents、metadatas 的结果对象。
+         *
+         * 调用场景：查询失败或无响应时返回空结果。
+         *
+         * 调用链：get → new ChromaGetResult(List.of(), List.of(), List.of())。
+         *
+         * 数据处理：三个列表直接赋值，embeddings 保持 null。
+         *
+         * 业务规则：无。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：embeddings 为 null，使用前需判空。
+         */
         public ChromaGetResult(List<String> ids, List<String> documents,
                                List<Map<String, Object>> metadatas) {
             this.ids = ids;

@@ -29,10 +29,6 @@ public class OrderBatchCreateRequestDTO {
     /** 批量下单最多宠物数 */
     public static final int MAX_ITEMS = 10;
 
-    @Schema(description = "托管人ID")
-    @NotNull(message = "keeperId cannot be empty")
-    private Long keeper_id_wsh;
-
     @Schema(description = "商家ID（兼容旧客户端字段；商家由服务端根据服务派生，不一致时拒绝）")
     private Long merchant_id_wsh;
 

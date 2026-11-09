@@ -20,6 +20,25 @@ public class OrderAcceptTimeoutListener {
 
     private final OrderService orderService;
 
+    /**
+     * 【构造方法】注入订单服务
+     *
+     * 业务作用：由 Spring 注入 OrderService，供接单超时消息消费时调用自动接单逻辑。
+     *
+     * 调用场景：Spring 容器启动创建该 MQ 监听器 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → orderService 赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；类上的 Javadoc 被放在 @Component 与 @Slf4j 之后、class 关键字之前，注释位置不规范但语法合法。
+     */
     public OrderAcceptTimeoutListener(OrderService orderService) {
         this.orderService = orderService;
     }
@@ -70,12 +89,14 @@ public class OrderAcceptTimeoutListener {
         long deliveryTag = message.getMessageProperties().getDeliveryTag();
         try {
             boolean accepted = orderService.autoAcceptPaidOrderIfTimeout(orderNo);
+            // 自动接单成功记 info，未支付则降级为 debug
             if (accepted) {
                 log.info("接单超时消息已自动接单: {}", orderNo);
             } else {
                 log.debug("忽略接单超时消息, 订单未支付: {}", orderNo);
             }
             channel.basicAck(deliveryTag, false);
+        // 消费异常不重新入队，避免消息死循环
         } catch (Exception e) {
             log.error("处理接单超时消息失败: {}", orderNo, e);
             try {

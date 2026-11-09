@@ -39,6 +39,25 @@ public class TipServiceImpl implements TipService {
     private final KeeperMapper keeperMapper;
     private final AccountingService accountingService;
 
+    /**
+     * 【打赏服务实现的构造注入】
+     *
+     * 业务作用：注入打赏、订单、寄养师 Mapper 与记账服务。
+     *
+     * 调用场景：Spring 容器创建 TipServiceImpl 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 4 个 final 成员。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public TipServiceImpl(TipMapper tipMapper,
                           OrderMapper orderMapper,
                           KeeperMapper keeperMapper,
@@ -70,6 +89,7 @@ public class TipServiceImpl implements TipService {
         log.info("为订单创建打赏: {}", request.getOrder_id_wsh());
         PetOrder order = orderMapper.selectById(request.getOrder_id_wsh());
         if (order == null) throw new BusinessException(404, "订单不存在");
+        // 只有订单主人且订单已完成才能打赏
         if (!userId.equals(order.getOwner_id_wsh())) throw new BusinessException(403, "只有宠物主人可以打赏此订单");
         if (!OrderStatus.COMPLETED.equals(order.getStatus_wsh())) throw new BusinessException(400, "只有已完成的订单可以打赏");
 
@@ -78,9 +98,11 @@ public class TipServiceImpl implements TipService {
         tip.setAmount_wsh(request.getAmount_wsh());
         tip.setMessage_wsh(request.getMessage_wsh());
         tip.setFrom_user_id_wsh(userId);
+        // 未指定接收人时默认打赏给该单看护者
         tip.setTo_user_id_wsh(resolveReceiverUserId(order, request.getTo_user_id_wsh()));
         tipMapper.insert(tip);
 
+        // 打赏款实时转给接收人，不等结算
         accountingService.transfer(userId, tip.getTo_user_id_wsh(), tip.getAmount_wsh(),
                 "tip", order.getId_wsh(), "tip", String.valueOf(tip.getId_wsh()),
                 "tip:" + tip.getId_wsh(), "订单打赏 - " + order.getOrder_no_wsh());
@@ -173,6 +195,7 @@ public class TipServiceImpl implements TipService {
      */
     private Long resolveReceiverUserId(PetOrder order, Long requestedUserId) {
         if (requestedUserId != null) return requestedUserId;
+        // 按订单看护者反查其登录账号
         Keeper keeper = keeperMapper.selectById(order.getKeeper_id_wsh());
         if (keeper == null || keeper.getUser_id_wsh() == null) {
             throw new BusinessException(400, "无法确定打赏接收人");

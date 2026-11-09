@@ -98,16 +98,73 @@ public class PlanTokenStore {
         private int state = STATE_NEW;
         private long claimedAt;
 
+        /**
+         * 【方案缓存条目】
+         *
+         * 业务作用：保存方案快照、归属用户、创建时间与认领状态。
+         *
+         * 调用场景：put 方法写入缓存时构造。
+         *
+         * 调用链：put → new Entry → ConcurrentHashMap。
+         *
+         * 数据处理：初始状态为 NEW，认领时间为 0。
+         *
+         * 业务规则：条目不可跨用户访问，由 token 与 userId 双重校验。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：state 与 claimedAt 为可变字段，由 compute 保证原子更新。
+         */
         private Entry(Long userId, AgentPlanSnapshot snapshot, long createdAt) {
             this.userId = userId;
             this.snapshot = snapshot;
             this.createdAt = createdAt;
         }
 
+        /**
+         * 【判断方案是否过期】
+         *
+         * 业务作用：判断条目自创建以来的时长是否超过方案总有效期。
+         *
+         * 调用场景：claim 认领前判断，过期条目直接移除。
+         *
+         * 调用链：claim → entry.expired。
+         *
+         * 数据处理：当前时间减创建时间与 10 分钟比较。
+         *
+         * 业务规则：有效期固定 10 分钟。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：采用懒淘汰，不依赖定时任务清理。
+         */
         private boolean expired() {
             return System.currentTimeMillis() - createdAt > TTL_MS;
         }
 
+        /**
+         * 【判断认领是否超时】
+         *
+         * 业务作用：判断条目被认领后停留时长是否超过阈值，用于识别进程崩溃残留。
+         *
+         * 调用场景：claim 发现状态已是 CLAIMED 时判断是否可重新认领。
+         *
+         * 调用链：claim → entry.claimExpired。
+         *
+         * 数据处理：认领时间大于 0 且距今超过 3 分钟即视为超时。
+         *
+         * 业务规则：超时阈值固定 3 分钟。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：超时后允许重新认领，可能造成极短时间内的并发重复提交。
+         */
         private boolean claimExpired() {
             return claimedAt > 0 && System.currentTimeMillis() - claimedAt > CLAIM_TTL_MS;
         }
