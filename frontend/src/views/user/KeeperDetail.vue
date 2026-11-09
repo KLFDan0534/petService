@@ -60,8 +60,13 @@
             </dd>
           </div>
           <div class="kd-fact">
-            <dt>日均价格</dt>
-            <dd><span class="kd-price-symbol">¥</span>{{ money(keeper.price_per_day_wsh) }}</dd>
+            <dt>服务价格</dt>
+            <dd>
+              <template v-if="keeper.min_price_wsh">
+                <span class="kd-price-symbol">¥</span>{{ money(keeper.min_price_wsh) }} 起
+              </template>
+              <template v-else>见服务详情</template>
+            </dd>
           </div>
           <div class="kd-fact">
             <dt>接单状态</dt>

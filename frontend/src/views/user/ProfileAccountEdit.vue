@@ -86,7 +86,7 @@
                   inputmode="tel"
                   maxlength="11"
                   placeholder="请输入 11 位手机号"
-                  autocomplete="tel"
+                  autocomplete="off"
                   :class="{ 'has-error': errors.phone }"
                   @input="errors.phone = ''"
                 >
@@ -104,7 +104,7 @@
                   type="email"
                   inputmode="email"
                   placeholder="name@example.com"
-                  autocomplete="email"
+                  autocomplete="off"
                   :class="{ 'has-error': errors.email }"
                   @input="errors.email = ''"
                 >
@@ -232,13 +232,16 @@ const config = computed(() => configMap[type.value] || configMap.phone)
 
 function maskPhone(value) {
   const phone = String(value ?? '')
+  if (phone.includes('*')) return phone
   return phone.length === 11 ? `${phone.slice(0, 3)}****${phone.slice(7)}` : phone || '未设置'
 }
 function maskEmail(value) {
   const email = String(value ?? '')
+  if (email.includes('***')) return email
   const at = email.indexOf('@')
-  if (at <= 1) return email || '未设置'
-  return `${email.slice(0, 2)}***${email.slice(at)}`
+  if (at <= 0) return email || '未设置'
+  const keep = Math.min(2, at)
+  return `${email.slice(0, keep)}***${email.slice(at)}`
 }
 
 const current = computed(() => {
@@ -256,8 +259,9 @@ onMounted(async () => {
       if (r.data.code === 200 && r.data.data) {
         profile.value = r.data.data
         Object.assign(form, {
-          phone_wsh: r.data.data.phone_wsh || '',
-          email_wsh: r.data.data.email_wsh || '',
+          // 手机号/邮箱都是“新号码/新邮箱”输入框，不回填旧值；后端返回的也已是脱敏值。
+          phone_wsh: '',
+          email_wsh: '',
           real_name_wsh: r.data.data.real_name_wsh || '',
           id_card_no_wsh: r.data.data.id_card_no_wsh || '',
         })

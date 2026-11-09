@@ -140,7 +140,10 @@
 
             <div class="kp-foot">
               <span class="kp-price">
-                <span class="kp-price-symbol">¥</span>{{ money(k.price_per_day_wsh) }}<small>/ 天</small>
+                <template v-if="k.min_price_wsh">
+                  <span class="kp-price-symbol">¥</span>{{ money(k.min_price_wsh) }}<small> 起</small>
+                </template>
+                <template v-else><small>价格见服务</small></template>
               </span>
               <div class="kp-actions" @click.stop @keydown.stop>
                 <button type="button" class="cta cta-outline cta-sm" @click="goDetail(k)">查看主页</button>
@@ -176,7 +179,6 @@ const availableOnly = ref(false)
 const SORTS = [
   { key: 'rating', label: '评分优先' },
   { key: 'experience', label: '经验优先' },
-  { key: 'price', label: '价格从低到高' },
 ]
 
 function money(v) { return Number(v || 0).toFixed(2) }
@@ -218,8 +220,6 @@ const visible = computed(() => {
     list = [...list].sort((a, b) => Number(b.rating_wsh || 0) - Number(a.rating_wsh || 0))
   } else if (s === 'experience') {
     list = [...list].sort((a, b) => Number(b.experience_years_wsh || 0) - Number(a.experience_years_wsh || 0))
-  } else if (s === 'price') {
-    list = [...list].sort((a, b) => Number(a.price_per_day_wsh || 0) - Number(b.price_per_day_wsh || 0))
   }
   return list
 })

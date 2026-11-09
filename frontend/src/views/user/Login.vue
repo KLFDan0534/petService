@@ -60,6 +60,14 @@
               <router-link to="/forget-password" class="auth-link-sm">忘记密码？</router-link>
             </div>
 
+            <!-- 人机验证（Cloudflare Turnstile）：由 useTurnstile 渲染，成功后把 token 一起提交给后端 -->
+            <div class="auth-turnstile">
+              <div ref="turnstileRef" class="auth-turnstile-slot"></div>
+              <p v-if="turnstileUnavailable" class="auth-turnstile-hint">
+                人机验证加载失败，请检查网络或代理后刷新页面重试
+              </p>
+            </div>
+
             <button type="submit" class="cta cta-dark cta-lg" :disabled="loading">
               {{ loading ? '登录中…' : '登录' }}
               <span class="cta-arrow" aria-hidden="true">→</span>
@@ -123,6 +131,7 @@
 
 <script setup>
 import { reactive, ref } from 'vue'
+import { useTurnstile } from '@/composables/useTurnstile'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { addDynamicRoutes } from '@/router'
@@ -139,6 +148,15 @@ const errors = reactive({ username: '', password: '' })
 const formError = ref('')
 const loading = ref(false)
 
+// 人机验证：widget 渲染成功后会拿到一次性 token，随登录请求一起提交
+// 若 Cloudflare 脚本加载失败（断网/代理未开），unavailable 为 true，页面给出提示
+const turnstileRef = ref(null)
+const {
+  token: turnstileToken,
+  unavailable: turnstileUnavailable,
+  reset: resetTurnstile,
+} = useTurnstile(turnstileRef)
+
 async function handleLogin() {
   // 逐字段校验
   const next = { username: '', password: '' }
@@ -154,6 +172,7 @@ async function handleLogin() {
     const r = await axios.post('/api/auth/login', {
       username_wsh: username_wsh.value.trim(),
       password_wsh: password_wsh.value,
+      turnstileToken: turnstileToken.value || undefined,
     })
     if (r.data.code === 200) {
       authStore.setAuth(r.data.data)
@@ -162,9 +181,11 @@ async function handleLogin() {
       router.push(redirect)
     } else {
       errors.password = r.data.msg || r.data.message || '用户名或密码不正确'
+      resetTurnstile()
     }
   } catch (e) {
     formError.value = e.response?.data?.message || '登录服务暂时无法连接，请稍后重试'
+    resetTurnstile()
   } finally {
     loading.value = false
   }
@@ -347,5 +368,13 @@ async function handleLogin() {
 }
 @media (prefers-reduced-motion: reduce) {
   .auth-inner { animation: none; }
+}
+
+/* ═══ 人机验证容器（空容器不占高度，避免加载失败时出现空白） ═══ */
+.auth-turnstile { display: grid; gap: 8px; }
+.auth-turnstile-slot:empty { display: none; }
+.auth-turnstile-hint {
+  margin: 0; font-size: 11.5px; line-height: 1.6;
+  color: color-mix(in srgb, var(--ref-brand-deep) 80%, transparent);
 }
 </style>

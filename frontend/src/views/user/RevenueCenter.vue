@@ -158,7 +158,7 @@ const stats = ref({})
 const keeper = ref(null)
 const orders = ref([])
 
-const IN_FLIGHT_STATUSES = ['paid', 'confirmed', 'delivered', 'received', 'in_progress']
+const IN_FLIGHT_STATUSES = ['paid', 'confirmed', 'received', 'in_progress']
 
 const inFlight = computed(() => orders.value.filter((o) => IN_FLIGHT_STATUSES.includes(o.status_wsh)))
 const settled = computed(() => orders.value.filter((o) => o.status_wsh === 'completed').slice().sort((a, b) => String(b.end_date_wsh || '').localeCompare(String(a.end_date_wsh || ''))))

@@ -63,10 +63,6 @@
                 <dd class="tabular">{{ existing.experience_years_wsh ?? 0 }} 年</dd>
               </div>
               <div>
-                <dt>日均报价</dt>
-                <dd class="tabular">¥{{ existing.price_per_day_wsh ?? 0 }}</dd>
-              </div>
-              <div>
                 <dt>可同时照护</dt>
                 <dd class="tabular">{{ existing.max_pets_wsh ?? 0 }} 只</dd>
               </div>
@@ -136,11 +132,6 @@
                 <input id="ka-years" class="ka-input" type="number" min="0" v-model.number="form.experience_years_wsh" placeholder="如：3">
               </div>
 
-              <div class="ka-field">
-                <label class="ka-label" for="ka-price">每日费用（元）<span class="ka-req">*</span></label>
-                <input id="ka-price" class="ka-input" type="number" min="0" step="0.01" v-model.number="form.price_per_day_wsh" placeholder="如：150" required>
-                <p class="ka-hint">门店会在此基础上核定对外价格</p>
-              </div>
 
               <div class="ka-field">
                 <label class="ka-label" for="ka-maxpets">最大接待宠物数</label>
@@ -262,7 +253,6 @@ const form = reactive({
   name_wsh: '',
   phone_wsh: '',
   experience_years_wsh: null,
-  price_per_day_wsh: null,
   max_pets_wsh: null,
   bio_wsh: '',
 })
@@ -327,7 +317,6 @@ async function submitApplication() {
       name_wsh: form.name_wsh,
       phone_wsh: form.phone_wsh,
       experience_years_wsh: form.experience_years_wsh || 0,
-      price_per_day_wsh: form.price_per_day_wsh || 0,
       max_pets_wsh: form.max_pets_wsh || 1,
       bio_wsh: form.bio_wsh || '',
       qualification_image_wsh: validImages.join(','),

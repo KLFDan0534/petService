@@ -2,8 +2,7 @@
 export const OrderStatus = {
   pending: { label: '待付款', badge: 'badge-warning' },
   paid: { label: '已支付', badge: 'badge-info' },
-  confirmed: { label: '待送达', badge: 'badge-info' },
-  delivered: { label: '已送达', badge: 'badge-primary' },
+  confirmed: { label: '待接收', badge: 'badge-info' },
   received: { label: '已接收', badge: 'badge-primary' },
   in_progress: { label: '服务中', badge: 'badge-info' },
   completed: { label: '已完成', badge: 'badge-success' },

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { ROLES } from '@/utils/permission'
 import { useAppStore } from '@/stores/app'
 import { isTokenExpired } from '@/utils/jwt'
+import { captureScroll, createScrollBehavior } from '@/utils/scrollRestore'
 
 // ═══════════════ 角色分区常量（供 meta.roles 权限校验使用）═══════════════
 // 用户区角色：宠物主 / 照护师 / 商家 / 管理员
@@ -657,6 +658,8 @@ export const adminRoutes = [
 const router = createRouter({
   history: createWebHistory(),
   routes: constantRoutes,
+  // 返回上一页时恢复上次浏览位置；新进入页面回顶部。
+  scrollBehavior: createScrollBehavior(),
 })
 
 // 标记动态路由是否已注入，避免重复添加
@@ -703,6 +706,13 @@ export function resetDynamicRoutes() {
   // 复位标记，下次登录可重新注入
   dynamicRoutesLoaded = false
 }
+
+// ═══════════════ 滚动位置记录 ═══════════════
+// 必须在路由切换前记录，此时 DOM 仍是旧页面，window.scrollY 才准确。
+// 恢复动作由 createRouter 的 scrollBehavior 负责。
+router.beforeEach((to, from) => {
+  captureScroll(to, from)
+})
 
 // ═══════════════ 统一路由守卫 ═══════════════
 router.beforeEach((to, from, next) => {

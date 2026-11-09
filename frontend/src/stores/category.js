@@ -42,7 +42,7 @@ export const useCategoryStore = defineStore('category', {
         const parentId = cat.parent_id_wsh || 0
         if (!childrenMap.has(parentId)) childrenMap.set(parentId, [])
         childrenMap.get(parentId).push(cat)
-      })
+      }) // 获取到单个分类的父类,如果当前id没出现就是新的父类,就新增,然后把子类push进value
 
       const buildTree = (parentId = 0) =>
         sortByOrder(childrenMap.get(parentId) || []).map(cat => ({
@@ -58,7 +58,7 @@ export const useCategoryStore = defineStore('category', {
     async loadCategories(force = false) {
       if (this.loaded && !force) return
       try {
-        const res = await getServiceCategoryList()
+        const res = await getServiceCategoryList() // 获取服务分类列表
         if (res.code === 200) {
           this.categories = res.data || []
           this.categoryMap = {}

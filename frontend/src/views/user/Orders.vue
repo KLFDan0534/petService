@@ -36,7 +36,7 @@
             <p class="od-active-meta">
               <span class="od-meta-truncate">{{ activeStay.service_name_wsh || '宠物寄养服务' }}</span>
               <span v-if="activeStay.keeper_name_wsh" class="od-meta-item">{{ activeStay.keeper_name_wsh }}</span>
-              <span v-if="activeStay.delivered_at_wsh" class="od-meta-item od-tabular">{{ formatDateTime(activeStay.delivered_at_wsh, { format: 'compact' }) }} 入住</span>
+              <span v-if="activeStay.received_at_wsh" class="od-meta-item od-tabular">{{ formatDateTime(activeStay.received_at_wsh, { format: 'compact' }) }} 入住</span>
             </p>
           </div>
           <div class="od-active-btm">
@@ -156,7 +156,6 @@
               :processing="processingOrderId === o.id_wsh"
               @cancel="showCancel = o"
               @pay="method => handlePay(o, method)"
-              @deliver="handleDeliver(o)"
               @review="openReview(o)"
               @tip="showTip = o"
               @viewDetail="handleViewDetail(o)"
@@ -189,12 +188,11 @@ import TipDialog from '@/components/order/TipDialog.vue'
 import ReviewDialog from '@/components/order/ReviewDialog.vue'
 import CancelOrderDialog from '@/components/order/CancelOrderDialog.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
-import { getOrders, cancelOrder as apiCancelOrder, confirmDelivered } from '@/api/order'
+import { getOrders, cancelOrder as apiCancelOrder } from '@/api/order'
 import { getServiceDetail } from '@/api/service'
 import { createPayment, executePayment } from '@/api/payment'
 import { createTip } from '@/api/wallet'
 import { createRating, getMyRatingsByOrder } from '@/api/rating'
-import { getCurrentAddress } from '@/composables/useAmapLocation'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, hasExpiredPaymentTimeout } from '@/utils/orderPaymentTimeout'
 import { formatDateTime } from '@/utils/format'
 
@@ -220,12 +218,12 @@ let nextPaymentTimeoutRefreshAt = 0
 const GROUPS = [
   { key: 'all', label: '全部', statuses: [] },
   { key: 'todo', label: '待处理', statuses: ['pending', 'paid', 'confirmed'] },
-  { key: 'active', label: '寄养中', statuses: ['delivered', 'received', 'in_progress'] },
+  { key: 'active', label: '寄养中', statuses: ['received', 'in_progress'] },
   { key: 'completed', label: '已完成', statuses: ['completed'] },
   { key: 'closed', label: '已关闭', statuses: ['cancelled', 'refunding', 'refunded'] },
 ]
 const STATUS_LABELS = {
-  pending: '待付款', paid: '已支付', confirmed: '待送达', delivered: '已送达',
+  pending: '待付款', paid: '已支付', confirmed: '待接收',
   received: '已接收', in_progress: '服务中', completed: '已完成',
   cancelled: '已取消', refunding: '退款中', refunded: '已退款',
 }
@@ -255,7 +253,7 @@ const activeGroupSubStatuses = computed(() => {
 
 const activeStay = computed(() => {
   if (loading.value) return null
-  return orders.value.find(order => ['in_progress', 'received', 'delivered'].includes(order.status_wsh)) || null
+  return orders.value.find(order => ['in_progress', 'received'].includes(order.status_wsh)) || null
 })
 
 const stayTotal = computed(() => {
@@ -436,29 +434,6 @@ async function handleCancel(order) {
   } finally {
     processingOrderId.value = null
     showCancel.value = null
-  }
-}
-
-async function handleDeliver(order) {
-  if (!order?.id_wsh || processingOrderId.value) return
-  processingOrderId.value = order.id_wsh
-  let location
-  try {
-    location = await getCurrentAddress()
-  } catch (error) {
-    appStore.addToast(error.message || '请允许定位后再确认送达', 'warning')
-    processingOrderId.value = null
-    return
-  }
-  try {
-    const res = await confirmDelivered({ order_no_wsh: order.order_no_wsh, delivered_address_wsh: location.address_wsh })
-    if (res.code === 200) appStore.addToast('已确认送达', 'success')
-    await loadOrders()
-  } catch (e) {
-    appStore.addToast(e?.message || '确认送达失败', 'error')
-    await loadOrders()
-  } finally {
-    processingOrderId.value = null
   }
 }
 

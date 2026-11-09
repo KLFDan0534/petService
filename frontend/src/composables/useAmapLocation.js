@@ -19,6 +19,8 @@ async function loadGeoConfig() {
       }
       return {
         apiKey,
+        // 地图 SDK（AMap.Geolocation 等）必须用 Web端(JS API) 类型的 key；未单独配置时回退到 apiKey
+        jsApiKey: data.jsApiKey || apiKey,
         securityCode: data.securityCode || '',
         handoverRadiusMeters: data.handoverRadiusMeters || 500,
         attendanceRadiusMeters: data.attendanceRadiusMeters || 300,
@@ -69,7 +71,7 @@ export async function loadAmap() {
       }
       const script = document.createElement('script')
       script.charset = 'utf-8'
-      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(config.apiKey)}&plugin=AMap.Geolocation,AMap.Geocoder,AMap.AutoComplete,AMap.PlaceSearch&callback=${callbackName}`
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(config.jsApiKey || config.apiKey)}&plugin=AMap.Geolocation,AMap.Geocoder,AMap.AutoComplete,AMap.PlaceSearch&callback=${callbackName}`
       script.async = true
       script.onerror = () => {
         cleanup()

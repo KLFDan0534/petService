@@ -176,9 +176,9 @@ function firstImage(service) {
 const categories = computed(() => {
   // 分类按钮、按钮上的数字、点击后的筛选，用的都是服务自己的 category_name_wsh（和参考设计一致）
   const seen = new Set()
-  const list = []
+  const list = [] //
   for (const service of services.value) {
-    const label = categoryLabel(service)
+    const label = categoryLabel(service) // 从服务里取分类名
     // 跳过空的、跳过「服务」（代表这个服务没匹配到分类）、跳过已经加过的
     if (!label || label === '服务' || seen.has(label)) continue
     seen.add(label)
@@ -191,7 +191,7 @@ const categories = computed(() => {
 const categoryCounts = computed(() => {
   const map = {}
   for (const service of services.value) {
-    const key = categoryLabel(service)
+    const key = categoryLabel(service) // 从服务里取分类名
     map[key] = (map[key] || 0) + 1
   }
   return map
@@ -208,7 +208,7 @@ const heroImage = computed(() => firstImage(services.value?.[0]) || '')
 const filteredServices = computed(() => {
   const keyword = searchQuery.value.toLocaleLowerCase('zh-CN')
   return services.value.filter(service => {
-    const category = categoryLabel(service)
+    const category = categoryLabel(service) // 从服务里取分类名
     // 搜索词会去比名称、描述、分类名，命中一个就算匹配
     const searchableText = [service.name_wsh, service.description_wsh, category]
       .filter(Boolean)
@@ -247,7 +247,7 @@ async function loadServices() {
   } catch (_) {
     // 只要有一个请求出错，就清空列表并弹提示，不让页面一直转圈
     services.value = []
-    merchants.value = []
+    merchants.value = [].
     appStore.addToast('加载预约服务失败，请稍后重试', 'error')
   } finally {
     loading.value = false
@@ -512,6 +512,11 @@ onMounted(() => {
 .s-search input:hover {
   border-color: color-mix(in srgb, var(--ref-ink) 25%, transparent);
 }
+
+.s-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
 .s-search input:focus {
   border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent);
   outline: none;

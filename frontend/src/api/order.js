@@ -17,26 +17,27 @@ export async function createOrder(data) {
   return res.data
 }
 
+// 价格预览：与下单走同一套后端计价，返回的金额就是提交后的实付
+export async function previewOrder(data) {
+  const res = await request.post('/api/orders/preview', data)
+  return res.data
+}
+
 // 一次下好几只宠物的单，合在一起只付一次钱
 export async function createOrdersBatch(data) {
   const res = await request.post('/api/orders/batch', data)
   return res.data
 }
 
+// 指派：商家把待分配订单分给指定看护者
+export async function assignOrder(data) {
+  const res = await request.post('/api/orders/assign', data)
+  return res.data
+}
+
 // 取消订单，用户和商家两边都调这一个
 export async function cancelOrder(data) {
   const res = await request.post('/api/orders/cancel', data)
-  return res.data
-}
-
-export async function confirmDelivered(data) {
-  const res = await request.post('/api/orders/delivered', data)
-  return res.data
-}
-
-// 接单，商家或宠托师点了同意才会进服务流程
-export async function acceptOrder(data) {
-  const res = await request.post('/api/orders/accept', data)
   return res.data
 }
 
@@ -69,12 +70,6 @@ export async function updateOrderStatus(id, data) {
 
 export async function deleteOrder(id) {
   const res = await request.delete(`/api/orders/${id}`)
-  return res.data
-}
-
-// 待接的单，接单大厅那页刷的就是它
-export async function getPendingOrders() {
-  const res = await request.get('/api/orders/pending')
   return res.data
 }
 

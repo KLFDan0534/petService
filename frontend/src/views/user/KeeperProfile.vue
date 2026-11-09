@@ -138,13 +138,6 @@
               </p>
             </div>
 
-            <div class="kpr-card kpr-price-card">
-              <p class="kpr-price-label">每日报价</p>
-              <p class="kpr-price">
-                <span class="kpr-price-symbol">¥</span>{{ priceValue }}
-              </p>
-              <p class="kpr-price-caption">报价由所属门店在服务配置中维护，如需调整请联系门店管理员。</p>
-            </div>
           </div>
         </section>
 
@@ -261,7 +254,6 @@ const load = computed(() => Number(keeper.value?.current_pets_wsh ?? 0))
 const capacity = computed(() => Number(keeper.value?.max_pets_wsh ?? 0))
 const loadPercent = computed(() => (capacity.value > 0 ? Math.min(Math.round((load.value / capacity.value) * 100), 100) : 0))
 
-const priceValue = computed(() => (keeper.value?.price_per_day_wsh ? Number(keeper.value.price_per_day_wsh).toFixed(2) : '—'))
 
 /** 全局 badge-* 色调 → 暖色编辑风色调 */
 const WARM_TONE = {

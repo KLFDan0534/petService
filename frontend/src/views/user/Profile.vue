@@ -78,7 +78,7 @@
             </div>
 
             <div class="ph-actions">
-              <button type="button" class="cta cta-dark" @click="editDialogOpen = true">编辑资料</button>
+              <button type="button" class="cta cta-dark" @click="openEditDialog">编辑资料</button>
               <a href="#account" class="ph-link-btn">账户与安全</a>
             </div>
           </div>
@@ -477,12 +477,11 @@
           </div>
           <div class="dlg-field">
             <label class="dlg-label" for="dlg-nickname">昵称</label>
-            <input id="dlg-nickname" v-model="profile.nickname_wsh" class="dlg-input" placeholder="请输入昵称">
+            <input id="dlg-nickname" v-model="editDraft.nickname_wsh" class="dlg-input" placeholder="请输入昵称">
           </div>
           <div class="dlg-field">
             <label class="dlg-label" for="dlg-gender">性别</label>
-            <select id="dlg-gender" v-model.number="profile.gender_wsh" class="dlg-input">
-              <option :value="0">未知</option>
+            <select id="dlg-gender" v-model.number="editDraft.gender_wsh" class="dlg-input">
               <option :value="1">男</option>
               <option :value="2">女</option>
             </select>
@@ -629,11 +628,11 @@ const appStore = useAppStore()
 
 /* ── status vocabulary (mirrors Orders/orderMeta) ── */
 const ORDER_STATUS_LABEL = {
-  pending: '待付款', paid: '已支付', confirmed: '待送达', delivered: '已送达', received: '已接收',
+  pending: '待付款', paid: '已支付', confirmed: '待接收', received: '已接收',
   in_progress: '服务中', completed: '已完成', cancelled: '已取消', refunding: '退款中', refunded: '已退款',
 }
-const ACTIVE_STATUSES = ['pending', 'paid', 'confirmed', 'delivered', 'received', 'in_progress']
-const STAYING_STATUSES = ['delivered', 'received', 'in_progress']
+const ACTIVE_STATUSES = ['pending', 'paid', 'confirmed', 'received', 'in_progress']
+const STAYING_STATUSES = ['received', 'in_progress']
 const NON_BILLED = ['pending', 'cancelled', 'refunded']
 
 const ROLE_LABEL = {
@@ -650,7 +649,7 @@ function statusLabel(status) {
 function orderBadgeTone(status) {
   const s = String(status ?? '')
   if (['pending', 'refunding'].includes(s)) return 'action'
-  if (['delivered', 'received', 'in_progress'].includes(s)) return 'active'
+  if (['received', 'in_progress'].includes(s)) return 'active'
   if (s === 'completed') return 'done'
   if (['cancelled', 'refunded'].includes(s)) return 'closed'
   return 'queued'
@@ -753,6 +752,8 @@ const ledgerTabs = [
 
 /* dialogs */
 const editDialogOpen = ref(false)
+/* 编辑弹窗的草稿：只有点“保存修改”并成功后才写回 profile，避免切换选项就改掉页面数据 */
+const editDraft = reactive({ nickname_wsh: '', gender_wsh: 0 })
 const rechargeDialogOpen = ref(false)
 const withdrawDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
@@ -868,11 +869,11 @@ const accountRows = computed(() => {
     { key: 'username', label: '用户名', value: profile.username_wsh || '—', note: '由系统管理，不可修改' },
     {
       key: 'nickname', label: '昵称', value: profile.nickname_wsh || '未设置',
-      action: { label: '修改', onClick: () => { editDialogOpen.value = true } },
+      action: { label: '修改', onClick: openEditDialog },
     },
     {
       key: 'gender', label: '性别', value: GENDER_LABEL[Number(profile.gender_wsh || 0)] ?? '未设置',
-      action: { label: '修改', onClick: () => { editDialogOpen.value = true } },
+      action: { label: '修改', onClick: openEditDialog },
     },
     {
       key: 'phone', label: '手机号', value: profile.phone_wsh || '未绑定', note: '用于订单联系与安全通知',
@@ -1073,6 +1074,12 @@ async function reloadAll() {
 }
 
 /* ── actions ── */
+function openEditDialog() {
+  editDraft.nickname_wsh = profile.nickname_wsh || ''
+  editDraft.gender_wsh = Number(profile.gender_wsh || 0)
+  editDialogOpen.value = true
+}
+
 function triggerAvatarInput() { avatarInputRef.value?.click() }
 function onAvatarFile(event) {
   const file = event.target.files?.[0]
@@ -1100,11 +1107,15 @@ async function submitProfileEdit() {
   if (submitting.value) return
   submitting.value = true
   try {
-    const payload = { nickname_wsh: profile.nickname_wsh, avatar_wsh: profile.avatar_wsh, gender_wsh: profile.gender_wsh }
+    const payload = {
+      nickname_wsh: editDraft.nickname_wsh,
+      avatar_wsh: profile.avatar_wsh,
+      gender_wsh: editDraft.gender_wsh,
+    }
     const r = await request.put('/users/me', payload)
     if (r.data.code === 200) {
       appStore.addToast('保存成功', 'success')
-      syncUser(r.data.data || profile)
+      syncUser(r.data.data || { ...profile, ...payload })
       editDialogOpen.value = false
     }
   } catch (e) { appStore.addToast('保存失败', 'error') } finally { submitting.value = false }
