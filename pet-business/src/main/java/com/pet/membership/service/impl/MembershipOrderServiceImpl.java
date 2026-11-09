@@ -60,6 +60,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
     private final ObjectMapper objectMapper;
     private final Object[] activationLocks = createLockShards();
 
+    /**
+     * 【构造会员订单服务】
+     *
+     * 业务作用：注入会员订单、会员套餐、用户会员、会员事件四个 Mapper，以及记账服务和 JSON 序列化器。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值各 Mapper / AccountingService / ObjectMapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：全部依赖均为 final 字段，构造后不可替换。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：实例字段 activationLocks 在构造器执行前已由 createLockShards() 初始化为 64 个分片锁。
+     */
     public MembershipOrderServiceImpl(MembershipOrderMapper membershipOrderMapper,
                                       MemberPlanMapper memberPlanMapper,
                                       UserMembershipMapper userMembershipMapper,
@@ -95,6 +114,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
             throw new BusinessException(400, "请求体不能为空");
         }
         String requestId = normalizeRequestId(request.getRequest_id_wsh());
+        // 幂等预检：同一请求ID直接复用旧订单
         MembershipOrder existing = findByRequestId(requestId);
         if (existing != null) {
             if (!Objects.equals(existing.getUser_id_wsh(), userId)) {
@@ -123,6 +143,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         order.setRemark_wsh(trimToNull(request.getRemark_wsh()));
         try {
             membershipOrderMapper.insert(order);
+        // 唯一索引冲突时回查，兼容并发重复提交
         } catch (DuplicateKeyException e) {
             MembershipOrder duplicate = findByRequestId(requestId);
             if (duplicate != null && Objects.equals(duplicate.getUser_id_wsh(), userId)) {
@@ -225,6 +246,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         int updated = membershipOrderMapper.update(update, new LambdaUpdateWrapper<MembershipOrder>()
                 .eq(MembershipOrder::getId_wsh, order.getId_wsh())
                 .eq(MembershipOrder::getStatus_wsh, STATUS_PENDING));
+        // 乐观锁失败说明状态已被并发修改
         if (updated == 0) {
             throw new BusinessException(400, "会员订单状态已变化，请刷新后重试");
         }
@@ -294,6 +316,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return dto;
     }
 
+    /**
+     * 【查询并校验可用会员套餐】
+     *
+     * 业务作用：按套餐 ID 或套餐编码查出会员套餐，并校验其处于启用状态且有效期配置合法。
+     *
+     * 调用场景：createOrder 创建会员订单前。
+     *
+     * 调用链：createOrder() → requireUsablePlan() → memberPlanMapper.selectById() / selectOne()。
+     *
+     * 数据处理：planId 非空时按主键查询；否则用 trim + 大写后的 planCode 按 code_wsh 查询并 LIMIT 1。
+     *
+     * 业务规则：status_wsh 必须等于 PLAN_ENABLED(1)；duration_days_wsh 必须大于 0。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：套餐不存在抛 BusinessException(404)；已停用抛 400「会员套餐已停用」；有效期配置错误抛 400。
+     *
+     * 注意事项：planCode 查询前会自动 trim 并转大写，调用方无需预处理。
+     */
     private MemberPlan requireUsablePlan(Long planId, String planCode) {
         MemberPlan plan = null;
         if (planId != null) {
@@ -327,6 +368,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
      * 注意事项：已支付订单直接激活（幂等修复）。
      */
     private MembershipOrderDTO payOrderInternal(MembershipOrder order, Long operatorId, boolean adminOperation) {
+        // 已支付订单只补激活，保证重复支付幂等
         if (STATUS_PAID.equals(order.getStatus_wsh())) {
             activateMembership(order, operatorId, adminOperation, false);
             return toDTO(order);
@@ -334,6 +376,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         if (!STATUS_PENDING.equals(order.getStatus_wsh())) {
             throw new BusinessException(400, "当前会员订单状态不可支付");
         }
+        // 管理员确认跳过余额扣款
         if (!adminOperation) {
             ensureUserPayableMethod(order.getPay_method_wsh());
             settleBalancePayment(order);
@@ -345,6 +388,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         int updated = membershipOrderMapper.update(update, new LambdaUpdateWrapper<MembershipOrder>()
                 .eq(MembershipOrder::getId_wsh, order.getId_wsh())
                 .eq(MembershipOrder::getStatus_wsh, STATUS_PENDING));
+        // 并发下已被他人支付时按已支付处理
         if (updated == 0) {
             MembershipOrder latest = membershipOrderMapper.selectById(order.getId_wsh());
             if (latest != null && STATUS_PAID.equals(latest.getStatus_wsh())) {
@@ -392,6 +436,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         UserMembership existing = userMembershipMapper.selectOne(new LambdaQueryWrapper<UserMembership>()
                 .eq(UserMembership::getUser_id_wsh, order.getUser_id_wsh())
                 .last("LIMIT 1"));
+        // 同一订单重复激活直接跳过，保证幂等
         if (existing != null
                 && Objects.equals(existing.getLast_order_id_wsh(), order.getId_wsh())
                 && "active".equals(existing.getStatus_wsh())) {
@@ -418,6 +463,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
             userMembershipMapper.updateById(membership);
         }
 
+        // 有效期有变化时回写订单，保持两边一致
         if (!Objects.equals(order.getMembership_start_at_wsh(), period.startAt())
                 || !Objects.equals(order.getMembership_end_at_wsh(), period.endAt())) {
             MembershipOrder orderUpdate = new MembershipOrder();
@@ -433,10 +479,48 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
                 operatorId, statusChanged ? "会员已开通或续费" : "已补偿会员状态");
     }
 
+    /**
+     * 【取用户分片锁】
+     *
+     * 业务作用：按 userId 的哈希值取模，从分片锁数组中选出一个锁对象。
+     *
+     * 调用场景：activateMembership() 加 synchronized 前。
+     *
+     * 调用链：activateMembership() → activationLock() → activationLocks 数组下标计算。
+     *
+     * 数据处理：userId 为 null 时按 0L 参与哈希，结果用 Math.floorMod 保证非负。
+     *
+     * 业务规则：分片数固定为 ACTIVATION_LOCK_SHARDS(64)。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：不同 userId 可能落到同一分片，只能降低锁竞争，不能做到用户级完全隔离。
+     */
     private Object activationLock(Long userId) {
         return activationLocks[Math.floorMod(Long.hashCode(userId == null ? 0L : userId), activationLocks.length)];
     }
 
+    /**
+     * 【创建分片锁数组】
+     *
+     * 业务作用：新建 64 个 Object 作为会员激活用的分片锁。
+     *
+     * 调用场景：Bean 实例化时初始化 activationLocks 字段。
+     *
+     * 调用链：字段初始化 activationLocks = createLockShards() → 逐个填充 new Object()。
+     *
+     * 数据处理：创建长度为 ACTIVATION_LOCK_SHARDS 的数组并逐位赋值。
+     *
+     * 业务规则：数组长度由常量 ACTIVATION_LOCK_SHARDS 决定。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：静态方法，每个 Service 实例各自持有一份锁数组。
+     */
     private static Object[] createLockShards() {
         Object[] locks = new Object[ACTIVATION_LOCK_SHARDS];
         for (int i = 0; i < locks.length; i++) {
@@ -445,10 +529,30 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return locks;
     }
 
+    /**
+     * 【计算激活有效期区间】
+     *
+     * 业务作用：计算本次会员激活的实际起止时间，处理续费顺延、过期重开两种情况。
+     *
+     * 调用场景：activateMembershipLocked() 写入用户会员有效期前。
+     *
+     * 调用链：activateMembershipLocked() → resolveActivationPeriod() → resolveDurationDays()。
+     *
+     * 数据处理：以订单 membership_start_at 为基准（为空取当前时间）；若已有 active 且未过期的会员、且不是同一订单、且原到期日晚于基准，则从原到期日顺延。
+     *
+     * 业务规则：基准时间早于当前且用户没有有效会员时，起算时间重置为当前时间；时长由 resolveDurationDays 决定。
+     *
+     * 状态影响：无，纯计算，返回 ActivationPeriod 记录。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：与 createOrder 中的 resolveStartAt 算法不同，这里额外考虑了同一订单重复激活不重复顺延。
+     */
     private ActivationPeriod resolveActivationPeriod(MembershipOrder order, MemberPlan plan, UserMembership existing) {
         LocalDateTime now = LocalDateTime.now();
         long durationDays = resolveDurationDays(order, plan);
         LocalDateTime startAt = order.getMembership_start_at_wsh() == null ? now : order.getMembership_start_at_wsh();
+        // 有效会员续费从原到期日顺延
         if (existing != null
                 && "active".equals(existing.getStatus_wsh())
                 && existing.getExpires_at_wsh() != null
@@ -457,6 +561,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
                 && existing.getExpires_at_wsh().isAfter(startAt)) {
             startAt = existing.getExpires_at_wsh();
         }
+        // 起算时间已过期且无有效会员时改用当前时间
         if (startAt.isBefore(now)
                 && (existing == null || existing.getExpires_at_wsh() == null || !existing.getExpires_at_wsh().isAfter(now))) {
             startAt = now;
@@ -464,7 +569,27 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return new ActivationPeriod(startAt, startAt.plusDays(durationDays));
     }
 
+    /**
+     * 【解析会员时长（天）】
+     *
+     * 业务作用：确定本次激活应发放的会员天数。
+     *
+     * 调用场景：resolveActivationPeriod() 计算结束时间。
+     *
+     * 调用链：resolveActivationPeriod() → resolveDurationDays()。
+     *
+     * 数据处理：订单起止时间都存在且结束晚于开始时，按两个 LocalDate 的天数差计算；否则取套餐 duration_days_wsh；都没有则返回 1。
+     *
+     * 业务规则：返回值最小为 1 天。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：按日期差计算，时分秒差异会被抹平。
+     */
     private long resolveDurationDays(MembershipOrder order, MemberPlan plan) {
+        // 优先按订单已定有效期计算天数
         if (order.getMembership_start_at_wsh() != null
                 && order.getMembership_end_at_wsh() != null
                 && order.getMembership_end_at_wsh().isAfter(order.getMembership_start_at_wsh())) {
@@ -478,10 +603,30 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return 1L;
     }
 
+    /**
+     * 【解析会员等级】
+     *
+     * 业务作用：确定写入用户会员记录的等级值。
+     *
+     * 调用场景：activateMembershipLocked() 设置 membership.level_wsh。
+     *
+     * 调用链：activateMembershipLocked() → resolveLevel() → objectMapper.readTree()。
+     *
+     * 数据处理：套餐 level_wsh 非空直接返回；否则读订单套餐快照 JSON 中的 level_wsh 字段。
+     *
+     * 业务规则：快照缺失、解析失败或字段不可转 int 时返回 0。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：JSON 解析异常被吞掉，不向外抛出。
+     *
+     * 注意事项：套餐被删除后仍可从快照恢复等级。
+     */
     private Integer resolveLevel(MemberPlan plan, String snapshot) {
         if (plan != null && plan.getLevel_wsh() != null) {
             return plan.getLevel_wsh();
         }
+        // 套餐已删除时从订单快照恢复等级
         if (snapshot != null && !snapshot.isBlank()) {
             try {
                 JsonNode node = objectMapper.readTree(snapshot).get("level_wsh");
@@ -494,6 +639,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return 0;
     }
 
+    /**
+     * 【计算下单时的会员生效时间】
+     *
+     * 业务作用：创建订单时确定会员生效时间，续费场景从现有会员到期日顺延。
+     *
+     * 调用场景：createOrder() 写入订单 membership_start_at 前。
+     *
+     * 调用链：createOrder() → resolveStartAt() → userMembershipMapper.selectOne()。
+     *
+     * 数据处理：查该用户 status=active 且 expires_at 晚于当前时间的会员，按到期日倒序取第一条，取其 expires_at。
+     *
+     * 业务规则：有有效会员则从其到期日开始，否则从当前时间开始。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：这里算出的只是订单预期有效期，支付成功激活时会由 resolveActivationPeriod 再校正一次。
+     */
     private LocalDateTime resolveStartAt(Long userId) {
         LocalDateTime now = LocalDateTime.now();
         UserMembership membership = userMembershipMapper.selectOne(new LambdaQueryWrapper<UserMembership>()
@@ -502,12 +666,32 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
                 .gt(UserMembership::getExpires_at_wsh, now)
                 .orderByDesc(UserMembership::getExpires_at_wsh)
                 .last("LIMIT 1"));
+        // 有效会员未到期则从其到期日续期
         if (membership != null && membership.getExpires_at_wsh() != null) {
             return membership.getExpires_at_wsh();
         }
         return now;
     }
 
+    /**
+     * 【按订单号查询会员订单】
+     *
+     * 业务作用：根据订单号查出会员订单，为空或不存在时直接抛业务异常。
+     *
+     * 调用场景：getMyOrder / cancelPendingOrder / payOrder / confirmPaidForAdmin 的入口校验。
+     *
+     * 调用链：getMyOrder() / cancelPendingOrder() / payOrder() / confirmPaidForAdmin() → requireOrderByNo() → membershipOrderMapper.selectOne()。
+     *
+     * 数据处理：orderNo trim 后按 order_no_wsh 精确匹配，LIMIT 1。
+     *
+     * 业务规则：订单号不能为空白。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：订单号为空抛 BusinessException(400)；查不到抛 BusinessException(404)「会员订单不存在」。
+     *
+     * 注意事项：不校验归属，归属校验由各调用方分别完成。
+     */
     private MembershipOrder requireOrderByNo(String orderNo) {
         if (orderNo == null || orderNo.isBlank()) {
             throw new BusinessException(400, "会员订单号不能为空");
@@ -521,12 +705,50 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return order;
     }
 
+    /**
+     * 【按幂等请求ID查询订单】
+     *
+     * 业务作用：根据幂等请求 ID 查询已存在的会员订单。
+     *
+     * 调用场景：createOrder 的幂等预检，以及 DuplicateKeyException 后的兜底查询。
+     *
+     * 调用链：createOrder() → findByRequestId() → membershipOrderMapper.selectOne()。
+     *
+     * 数据处理：按 request_id_wsh 精确匹配，LIMIT 1。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无，查不到返回 null。
+     *
+     * 注意事项：方法本身不做空值校验，调用前 requestId 已由 normalizeRequestId 保证非空。
+     */
     private MembershipOrder findByRequestId(String requestId) {
         return membershipOrderMapper.selectOne(new LambdaQueryWrapper<MembershipOrder>()
                 .eq(MembershipOrder::getRequest_id_wsh, requestId)
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 【记录订单维度会员事件】
+     *
+     * 业务作用：向会员事件表写入一条订单维度的事件记录。
+     *
+     * 调用场景：订单创建成功、取消成功、支付成功后。
+     *
+     * 调用链：createOrder() / cancelPendingOrder() / payOrderInternal() → createEvent() → toEventSnapshot() → membershipEventMapper.insert()。
+     *
+     * 数据处理：写入 user_id_wsh、membership_order_id_wsh、event_type_wsh、event_status_wsh=success、message_wsh 和事件快照 JSON。
+     *
+     * 业务规则：事件状态固定为 success，不记录失败事件。
+     *
+     * 状态影响：新增一条 membership_event 记录。
+     *
+     * 异常情况：无显式抛出，插入失败由数据库异常向上传播。
+     *
+     * 注意事项：不写 membership_id 与 operator_id，这两个字段只在 createMembershipEvent 中填充。
+     */
     private void createEvent(MembershipOrder order, String eventType, String message) {
         MembershipEvent event = new MembershipEvent();
         event.setUser_id_wsh(order.getUser_id_wsh());
@@ -538,6 +760,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         membershipEventMapper.insert(event);
     }
 
+    /**
+     * 【记录会员维度激活事件】
+     *
+     * 业务作用：写入带会员 ID 和操作人的会员激活/补偿事件。
+     *
+     * 调用场景：activateMembershipLocked() 完成用户会员写入之后。
+     *
+     * 调用链：activateMembershipLocked() → createMembershipEvent() → toEventSnapshot() → membershipEventMapper.insert()。
+     *
+     * 数据处理：写入 user_id_wsh、membership_id_wsh、membership_order_id_wsh、event_type_wsh、operator_id_wsh、message_wsh 与事件快照。
+     *
+     * 业务规则：本次支付真正改变了订单状态时记 membership_activated，否则记 membership_repaired。
+     *
+     * 状态影响：新增一条 membership_event 记录。
+     *
+     * 异常情况：无显式抛出。
+     *
+     * 注意事项：与 createEvent 的差别是多写 membership_id_wsh 和 operator_id_wsh。
+     */
     private void createMembershipEvent(UserMembership membership, MembershipOrder order, String eventType, Long operatorId, String message) {
         MembershipEvent event = new MembershipEvent();
         event.setUser_id_wsh(order.getUser_id_wsh());
@@ -551,6 +792,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         membershipEventMapper.insert(event);
     }
 
+    /**
+     * 【生成套餐快照JSON】
+     *
+     * 业务作用：把会员套餐序列化为 JSON 快照，随订单一起落库。
+     *
+     * 调用场景：createOrder 写入 order.plan_snapshot_wsh。
+     *
+     * 调用链：createOrder() → toPlanSnapshot() → objectMapper.writeValueAsString()。
+     *
+     * 数据处理：按固定顺序写入 plan_id、plan_code、plan_name、level、price、duration_days、discount_rate、monthly_coupon_config、benefit_config。
+     *
+     * 业务规则：价格经 money() 归一为两位小数。
+     *
+     * 状态影响：无，仅生成字符串。
+     *
+     * 异常情况：序列化异常时返回 "{}"。
+     *
+     * 注意事项：快照保证套餐后续改名改价后仍能展示下单时的信息。
+     */
     private String toPlanSnapshot(MemberPlan plan) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("plan_id_wsh", plan.getId_wsh());
@@ -569,6 +829,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         }
     }
 
+    /**
+     * 【生成订单事件快照JSON】
+     *
+     * 业务作用：把订单关键字段序列化为事件快照字符串。
+     *
+     * 调用场景：createEvent() 与 createMembershipEvent() 写入 event_snapshot_wsh。
+     *
+     * 调用链：createEvent() / createMembershipEvent() → toEventSnapshot() → objectMapper.writeValueAsString()。
+     *
+     * 数据处理：包含 order_no_wsh、status_wsh、amount_wsh、request_id_wsh 四个字段。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：序列化异常时返回 "{}"。
+     *
+     * 注意事项：金额直接取订单字段，不再做精度处理。
+     */
     private String toEventSnapshot(MembershipOrder order) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("order_no_wsh", order.getOrder_no_wsh());
@@ -582,6 +861,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         }
     }
 
+    /**
+     * 【回填套餐快照到DTO】
+     *
+     * 业务作用：从订单的套餐快照 JSON 中取出套餐名与等级回填到 DTO。
+     *
+     * 调用场景：toDTO() 转换会员订单。
+     *
+     * 调用链：toDTO() → applySnapshot() → objectMapper.readTree()。
+     *
+     * 数据处理：读取 plan_name_wsh 与 level_wsh 两个字段写入 DTO。
+     *
+     * 业务规则：快照为空或空白时直接返回，不改动 DTO 原有字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：解析异常被吞掉，DTO 保留原值。
+     *
+     * 注意事项：只回填名称与等级，价格等字段仍取订单自身字段。
+     */
     private void applySnapshot(MembershipOrderDTO dto, String snapshot) {
         if (snapshot == null || snapshot.isBlank()) {
             return;
@@ -600,6 +898,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         }
     }
 
+    /**
+     * 【校验幂等请求ID】
+     *
+     * 业务作用：对幂等请求 ID 做 trim、判空和长度校验。
+     *
+     * 调用场景：createOrder 入口。
+     *
+     * 调用链：createOrder() → normalizeRequestId() → trimToNull()。
+     *
+     * 数据处理：先 trim 去空白，再判断是否为空和长度。
+     *
+     * 业务规则：不能为空白，长度不能超过 120 个字符。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：为空抛 BusinessException(400)「幂等请求ID不能为空」；超长抛 400。
+     *
+     * 注意事项：只做长度限制，不校验字符集。
+     */
     private String normalizeRequestId(String requestId) {
         String value = trimToNull(requestId);
         if (value == null) {
@@ -611,7 +928,27 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return value;
     }
 
+    /**
+     * 【规范化支付方式】
+     *
+     * 业务作用：把下单请求中的支付方式归一，并拦截不支持的渠道。
+     *
+     * 调用场景：createOrder 写入 order.pay_method_wsh 前。
+     *
+     * 调用链：createOrder() → normalizePayMethod() → SUPPORTED_PAY_METHODS 白名单校验。
+     *
+     * 数据处理：空值取 balance，否则 trim 后转小写。
+     *
+     * 业务规则：仅支持 balance / wechat / alipay；mock 已停用。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：传 mock 抛 400「模拟支付已停用」；其他非法值抛 400「不支持的支付方式」。
+     *
+     * 注意事项：允许用 wechat / alipay 下单，但真正支付时会被 ensureUserPayableMethod 拦下。
+     */
     private String normalizePayMethod(String method) {
+        // 未指定支付方式时默认余额支付
         String value = method == null || method.isBlank() ? METHOD_BALANCE : method.trim().toLowerCase(Locale.ROOT);
         if ("mock".equals(value)) {
             throw new BusinessException(400, "模拟支付已停用");
@@ -622,7 +959,27 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return value;
     }
 
+    /**
+     * 【校验用户可用的支付方式】
+     *
+     * 业务作用：用户主动支付时校验支付方式，当前只放行余额支付。
+     *
+     * 调用场景：payOrderInternal 的非管理端支付分支。
+     *
+     * 调用链：payOrderInternal() → ensureUserPayableMethod() → settleBalancePayment()。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：balance 直接放行；mock 与 wechat / alipay 一律拒绝。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：mock 抛 400「模拟支付已停用」；其他非余额渠道抛 400「该支付方式需等待支付平台确认」。
+     *
+     * 注意事项：与 normalizePayMethod 的白名单不一致，下单可用三渠道但支付只支持余额。
+     */
     private void ensureUserPayableMethod(String method) {
+        // 目前仅放行余额支付
         if (METHOD_BALANCE.equals(method)) {
             return;
         }
@@ -632,8 +989,28 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         throw new BusinessException(400, "该支付方式需等待支付平台确认");
     }
 
+    /**
+     * 【余额支付扣款】
+     *
+     * 业务作用：从用户账户扣除会员费，并转入系统暂存账户。
+     *
+     * 调用场景：payOrderInternal 的用户支付分支。
+     *
+     * 调用链：payOrderInternal() → settleBalancePayment() → accountingService.debit() / credit() / systemUserId()。
+     *
+     * 数据处理：金额经 money() 归一；requestId 拼为 membership-payment:{orderId}，用户侧加 :owner，系统侧加 :system。
+     *
+     * 业务规则：金额小于等于 0 时直接跳过；业务类型 membership_payment，关联业务 membership_order。
+     *
+     * 状态影响：写两笔资金流水（用户扣款、系统入账）。
+     *
+     * 异常情况：余额不足等异常由 AccountingService 抛出并向上传播。
+     *
+     * 注意事项：幂等依赖 requestId，重复调用不会重复扣款。
+     */
     private void settleBalancePayment(MembershipOrder order) {
         BigDecimal amount = money(order.getAmount_wsh());
+        // 零金额订单不产生资金流水
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
@@ -645,6 +1022,25 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
                 "membership_order", businessId, requestId + ":system", "会员支付进入系统暂存 - " + order.getOrder_no_wsh());
     }
 
+    /**
+     * 【规范化订单状态筛选值】
+     *
+     * 业务作用：校验管理端传入的订单状态，非法值直接拒绝。
+     *
+     * 调用场景：listOrdersForAdmin()。
+     *
+     * 调用链：listOrdersForAdmin() → normalizeStatusOrNull() → trimToNull()。
+     *
+     * 数据处理：空值返回 null，表示查询不过滤状态。
+     *
+     * 业务规则：仅允许 pending / paid / cancelled / refunded。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：非法状态抛 BusinessException(400)「不支持的会员订单状态」。
+     *
+     * 注意事项：refunded 用字面量而非 STATUS_* 常量，与类内其他常量风格不一致。
+     */
     private String normalizeStatusOrNull(String status) {
         String value = trimToNull(status);
         if (value == null) {
@@ -656,15 +1052,72 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return value;
     }
 
+    /**
+     * 【金额归一】
+     *
+     * 业务作用：把金额统一成两位小数，null 视为 0。
+     *
+     * 调用场景：订单金额、套餐快照、余额扣款金额等处。
+     *
+     * 调用链：createOrder() / toPlanSnapshot() / settleBalancePayment() → money()。
+     *
+     * 数据处理：null 转 0，否则按 HALF_UP 保留两位小数。
+     *
+     * 业务规则：统一四舍五入。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：只处理精度，不做正负校验。
+     */
     private BigDecimal money(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 【生成会员订单号】
+     *
+     * 业务作用：生成形如 MO+时间戳+随机串的会员订单号。
+     *
+     * 调用场景：createOrder 新建订单时。
+     *
+     * 调用链：createOrder() → generateOrderNo()。
+     *
+     * 数据处理：前缀 MO + yyyyMMddHHmmss 时间 + 去掉横线后取前 8 位的大写 UUID。
+     *
+     * 业务规则：方法本身不查重，靠数据库唯一索引兜底。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：前缀 MO 与商品订单的 ORD 前缀不同，便于区分业务线。
+     */
     private String generateOrderNo() {
         return "MO" + DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now())
                 + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 【去空白转null】
+     *
+     * 业务作用：把字符串 trim 后，空白值统一转成 null。
+     *
+     * 调用场景：备注、请求 ID、状态等入参清洗。
+     *
+     * 调用链：createOrder() / normalizeRequestId() / normalizeStatusOrNull() → trimToNull()。
+     *
+     * 数据处理：null 或全空白返回 null，否则返回 trim 后的值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：与 OrderServiceImpl 中的 defaultText / isBlank 语义相近但实现不同。
+     */
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -672,6 +1125,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         return value.trim();
     }
 
+    /** 【会员有效期区间】本次激活的起始与结束时间，仅在 activateMembershipLocked 内部传递。 */
     private record ActivationPeriod(LocalDateTime startAt, LocalDateTime endAt) {
     }
 }

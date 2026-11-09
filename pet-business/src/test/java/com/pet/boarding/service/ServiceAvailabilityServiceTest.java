@@ -305,6 +305,32 @@ class ServiceAvailabilityServiceTest {
         assertFalse(slots.stream().anyMatch(s -> s.endsWith("T10:30:00")));
     }
 
+    /**
+     * 30 分钟粒度：一个计费单位就是半小时，起始槽位必须能落在 :30，
+     * 否则「半小时粒度」在真实预约链路上永远选不到。
+     */
+    @Test
+    void halfHourGranularityOffersHalfHourStarts() {
+        ServiceItem item = serviceItem(15L, 7L);
+        item.setUnit_wsh("hour");
+        item.setDuration_minutes_wsh(30);
+        when(serviceItemMapper.selectById(15L)).thenReturn(item);
+        when(merchantMapper.selectById(7L)).thenReturn(merchant(7L));
+        when(businessHoursService.getByMerchantId(7L)).thenReturn(
+                List.of(hours(1, LocalTime.of(9, 0), LocalTime.of(11, 0), 0)));
+        LocalDate mon = nextOrSame(DayOfWeek.MONDAY);
+
+        ServiceAvailabilityVO vo = service.getAvailability(15L, mon, mon, null);
+
+        List<String> slots = day(vo, 0).getWindows_wsh().get(0).getSlots_wsh();
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T09:00:00")));
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T09:30:00")));
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T10:00:00")));
+        assertTrue(slots.stream().anyMatch(s -> s.endsWith("T10:30:00")));
+        // 10:30 + 30 分钟 = 11:00，刚好覆盖到窗口结束
+        assertFalse(slots.stream().anyMatch(s -> s.endsWith("T11:00:00")));
+    }
+
     @Test
     void hourUnitAlignsFirstSlotToNextWholeHour() {
         ServiceItem item = serviceItem(14L, 7L);

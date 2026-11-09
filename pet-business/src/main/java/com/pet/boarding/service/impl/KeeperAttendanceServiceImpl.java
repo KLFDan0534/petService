@@ -50,6 +50,25 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
     @Value("${gao.map.attendance-radius-meters:${GAO_MAP_ATTENDANCE_RADIUS_METERS:300}}")
     private int attendanceRadiusMeters;
 
+    /**
+     * 【考勤服务实现的构造注入】
+     *
+     * 业务作用：注入考勤、看护者、商家 Mapper 与休假服务。
+     *
+     * 调用场景：Spring 容器创建 KeeperAttendanceServiceImpl 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 4 个 final 成员。
+     *
+     * 数据处理：仅保存依赖引用；打卡半径由 @Value 在字段上注入，不经过构造器。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：attendanceRadiusMeters 通过配置 gao.map.attendance-radius-meters 注入，默认 300 米。
+     */
     public KeeperAttendanceServiceImpl(KeeperAttendanceMapper attendanceMapper,
                                        KeeperMapper keeperMapper,
                                        MerchantMapper merchantMapper,
@@ -72,12 +91,14 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
     public KeeperAttendanceDTO checkIn(Long userId, AttendanceCheckRequestDTO request) {
         Keeper keeper = requireKeeperByUser(userId);
         Merchant merchant = requireMerchantForKeeper(keeper);
+        // 当日休假不允许打卡
         if (keeperLeaveService.isKeeperOnLeave(keeper.getId_wsh(), LocalDate.now())) {
             throw new BusinessException(400, "今天已被商家设置为休假，不能上班打卡");
         }
         if (findActiveShift(keeper.getId_wsh()) != null) {
             throw new BusinessException(400, "当前已有上班打卡记录，请先下班打卡");
         }
+        // 位置校验同时算出与商家的距离
         BigDecimal distance = validateLocation(request, merchant);
 
         KeeperAttendance attendance = new KeeperAttendance();
@@ -107,6 +128,7 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         Keeper keeper = requireKeeperByUser(userId);
         Merchant merchant = requireMerchantForKeeper(keeper);
         KeeperAttendance attendance = findActiveShift(keeper.getId_wsh());
+        // 没有未签退的班次就不能签退
         if (attendance == null) {
             throw new BusinessException(400, "当前没有上班打卡记录");
         }
@@ -356,6 +378,7 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
                 request.getLongitude_wsh(),
                 merchant.getLatitude_wsh(),
                 merchant.getLongitude_wsh());
+        // 超出打卡半径直接拒绝
         if (meters > currentRadius()) {
             throw new BusinessException(400, "当前位置距离商家约 " + Math.round(meters) + " 米，超出打卡范围");
         }
@@ -407,6 +430,7 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
                 .map(KeeperAttendance::getKeeper_id_wsh)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+        // 无看护者ID时跳过空IN查询
         if (keeperIds.isEmpty()) {
             return Map.of();
         }
@@ -446,7 +470,7 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
         dto.setCheck_out_accuracy_wsh(entity.getCheck_out_accuracy_wsh());
         dto.setCheck_out_distance_wsh(entity.getCheck_out_distance_wsh());
         dto.setRadius_meters_wsh(entity.getRadius_meters_wsh());
-        dto.setOn_duty_wsh(entity.getCheck_out_at_wsh() == null);
+        dto.setOn_duty_wsh(entity.getCheck_out_at_wsh() == null); // 未签退即视为在岗
         dto.setCreated_at_wsh(entity.getCreated_at_wsh());
         dto.setUpdated_at_wsh(entity.getUpdated_at_wsh());
         return dto;

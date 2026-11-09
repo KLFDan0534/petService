@@ -31,6 +31,25 @@ import java.util.List;
 public class MemberPlanController {
     private final MemberPlanService memberPlanService;
 
+    /**
+     * 【构造方法】注入会员套餐服务
+     *
+     * 业务作用：由 Spring 注入 MemberPlanService，供套餐查询、新增、更新、状态切换与删除接口使用。
+     *
+     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → memberPlanService 赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；本控制器与 MembershipController 共用 /api/membership 前缀，子路径分别以 /plans 与 /admin/plans 区分。
+     */
     public MemberPlanController(MemberPlanService memberPlanService) {
         this.memberPlanService = memberPlanService;
     }
@@ -59,6 +78,7 @@ public class MemberPlanController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<MemberPlanDTO>> listActivePlans() {
+        // 传 true 表示只返回启用中的套餐
         return Result.success(memberPlanService.listPlans(null, true));
     }
 

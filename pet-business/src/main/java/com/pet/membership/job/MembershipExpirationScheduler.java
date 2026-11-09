@@ -10,6 +10,25 @@ import org.springframework.stereotype.Component;
 public class MembershipExpirationScheduler {
     private final MembershipService membershipService;
 
+    /**
+     * 【会员到期调度器的构造注入】
+     *
+     * 业务作用：注入会员业务服务。
+     *
+     * 调用场景：Spring 容器创建 MembershipExpirationScheduler 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 membershipService。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public MembershipExpirationScheduler(MembershipService membershipService) {
         this.membershipService = membershipService;
     }

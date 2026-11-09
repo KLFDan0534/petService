@@ -30,6 +30,25 @@ public class PetController {
 
     private final PetService petService;
 
+    /**
+     * 【构造方法】注入宠物服务
+     *
+     * 业务作用：由 Spring 注入 PetService，供宠物查询、新增、更新与删除接口使用。
+     *
+     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → petService 赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段。
+     */
     public PetController(PetService petService) {
         this.petService = petService;
     }
@@ -97,6 +116,7 @@ public class PetController {
                                                         @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer page,
                                                         @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size) {
         log.info("调用 listMerchantPets()");
+        // 先全量取出再在内存里组装分页
         List<PetDTO> list = petService.getPetsByOwner(token.getUserId());
         PageResult<PetDTO> result = new PageResult<>();
         result.setList(list);
@@ -130,6 +150,7 @@ public class PetController {
         if (pet == null) {
             return Result.error(404, "宠物不存在");
         }
+        // 只能查看本人名下的宠物
         if (!pet.getOwner_id_wsh().equals(token.getUserId())) {
             return Result.error(403, "无权访问此宠物");
         }
@@ -186,6 +207,7 @@ public class PetController {
         log.info("调用 updatePet()");
         boolean isAdmin = token.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        // 管理员走跳过归属校验的更新分支
         if (isAdmin) {
             return Result.success(petService.updatePetAsAdmin(id, request));
         }
@@ -215,6 +237,7 @@ public class PetController {
         log.info("调用 deletePet()");
         boolean isAdmin = token.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        // 管理员可删除任意宠物
         if (isAdmin) {
             petService.deletePetAsAdmin(id);
         } else {

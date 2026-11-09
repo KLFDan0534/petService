@@ -44,6 +44,25 @@ public class MerchantServiceImpl implements MerchantService {
     private final KeeperService keeperService;
     private final UserMapper userMapper;
 
+    /**
+     * 【构造函数：注入商家相关依赖】
+     *
+     * 业务作用：注入商家 Mapper、资质服务、营业时间 Mapper、看护者服务与用户 Mapper。
+     *
+     * 调用场景：容器启动创建 MerchantServiceImpl Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → MerchantServiceImpl(构造) → 五个依赖字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：营业状态由审核状态、营业模式与营业时间三者共同决定，构造阶段不加载任何配置。
+     */
     public MerchantServiceImpl(MerchantMapper merchantMapper,
                                QualificationService qualificationService,
                                BusinessHoursMapper businessHoursMapper,
@@ -199,7 +218,7 @@ public class MerchantServiceImpl implements MerchantService {
             MerchantDTO dto = toDTO(m);
             double d = GeoDistanceUtils.distanceKm(lat, lng,
                     m.getLatitude_wsh().doubleValue(), m.getLongitude_wsh().doubleValue());
-            dto.setDistance_wsh(Math.round(d * 100.0) / 100.0);
+            dto.setDistance_wsh(Math.round(d * 100.0) / 100.0); // Java 侧再算一次距离，保留两位小数
             return dto;
         }).toList();
     }
@@ -277,6 +296,7 @@ public class MerchantServiceImpl implements MerchantService {
         merchant.setLatitude_wsh(dto.getLatitude_wsh());
         merchant.setLongitude_wsh(dto.getLongitude_wsh());
         merchant.setDescription_wsh(dto.getDescription_wsh());
+        // 执照缺省时回退用资质图片
         merchant.setBusiness_license_wsh(firstText(dto.getBusiness_license_wsh(), dto.getQualification_image_wsh()));
         merchant.setStatus_wsh(StatusCode.MERCHANT_PENDING.getValue());
         merchant.setStore_mode_wsh(MerchantStoreConstants.MODE_AUTO);
@@ -336,6 +356,7 @@ public class MerchantServiceImpl implements MerchantService {
         if (dto.getDescription_wsh() != null) existing.setDescription_wsh(dto.getDescription_wsh());
         if (dto.getFuture_booking_enabled_wsh() != null) {
             Integer enabled = dto.getFuture_booking_enabled_wsh();
+            // 预约开关只接受 0 或 1
             if (enabled != 0 && enabled != 1) {
                 throw new BusinessException(400, "future_booking_enabled_wsh 仅允许 0 或 1");
             }
@@ -550,6 +571,7 @@ public class MerchantServiceImpl implements MerchantService {
                 && status != StatusCode.MERCHANT_REJECTED.getValue())) {
             throw new BusinessException(400, "商家状态无效");
         }
+        // 已通过复用 approve 的联动逻辑
         if (status == StatusCode.MERCHANT_APPROVED.getValue()) {
             approve(id);
             return;
@@ -594,6 +616,7 @@ public class MerchantServiceImpl implements MerchantService {
     public void delete(Long id) {
         log.info("delete() 被调用: id={}", id);
         Merchant merchant = getById(id);
+        // 营业中先强制关店再逻辑删除
         if (merchant.getStore_status_wsh() != null
                 && merchant.getStore_status_wsh() == MerchantStoreConstants.STATUS_OPEN) {
             merchant.setStore_mode_wsh(MerchantStoreConstants.MODE_MANUAL_CLOSED);
@@ -786,6 +809,7 @@ public class MerchantServiceImpl implements MerchantService {
         }
         int resolved = resolveStoreStatus(merchant, now);
         Integer current = merchant.getStore_status_wsh();
+        // 状态有变化才落库并同步看护者
         if (current == null || current != resolved) {
             merchant.setStore_status_wsh(resolved);
             merchantMapper.updateById(merchant);
@@ -824,6 +848,7 @@ public class MerchantServiceImpl implements MerchantService {
         if (merchant == null) {
             return MerchantStoreConstants.STATUS_CLOSED;
         }
+        // 未审核通过一律视为关店
         if (merchant.getStatus_wsh() == null
                 || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
             return MerchantStoreConstants.STATUS_CLOSED;
@@ -879,6 +904,7 @@ public class MerchantServiceImpl implements MerchantService {
         if (open.isBefore(close)) {
             return !now.isBefore(open) && !now.isAfter(close);
         }
+        // 跨天营业，凌晨时段也算在内
         return !now.isBefore(open) || !now.isAfter(close);
     }
 }

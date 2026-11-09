@@ -29,6 +29,25 @@ public class MerchantStoreSyncScheduler {
 
     private final MerchantService merchantService;
 
+    /**
+     * 【构造店铺状态同步任务】
+     *
+     * 业务作用：注入商家业务服务，供定时任务刷新店铺营业状态。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 merchantService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：任务由 @Scheduled(fixedDelay = 60000) 驱动，本类自身不持有线程池配置。
+     */
     public MerchantStoreSyncScheduler(MerchantService merchantService) {
         this.merchantService = merchantService;
     }

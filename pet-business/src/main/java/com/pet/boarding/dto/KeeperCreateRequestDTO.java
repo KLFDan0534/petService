@@ -21,9 +21,6 @@ public class KeeperCreateRequestDTO {
     @Schema(description = "从业经验年数")
     private Integer experience_years_wsh;
 
-    @Schema(description = "每日价格")
-    private BigDecimal price_per_day_wsh;
-
     @Schema(description = "最大接单数量")
     private Integer max_pets_wsh;
 

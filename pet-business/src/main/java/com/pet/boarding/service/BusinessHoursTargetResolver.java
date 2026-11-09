@@ -89,6 +89,25 @@ public class BusinessHoursTargetResolver {
         return merge(candidates);
     }
 
+    /**
+     * 【合并营业窗口】把重叠或相接的窗口合并为单一窗口
+     *
+     * 业务作用：windowsForDate 收集到当天与前一日的候选窗口后，合并为互不重叠的有序窗口列表，供槽位生成使用。
+     *
+     * 调用场景：windowsForDate 在返回结果前调用。
+     *
+     * 调用链：windowsForDate → 本方法 → 返回合并后的 List<BusinessWindow>。
+     *
+     * 数据处理：按 start 升序排序后线性扫描，若当前窗口 start 不晚于上一窗口 end 则合并（end 取较大值），否则追加为新窗口。
+     *
+     * 业务规则：相接（start == last.end）也算重叠并合并；窗口数 <= 1 时原样返回。
+     *
+     * 状态影响：无，返回新列表，不修改入参。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：相接窗口会被合并，因此 [00:00,08:00) 与 [08:00,18:00) 会合成一个 [00:00,18:00)，槽位生成时不会在 08:00 处断开。
+     */
     private List<BusinessWindow> merge(List<BusinessWindow> windows) {
         if (windows.size() <= 1) {
             return windows;
@@ -151,14 +170,71 @@ public class BusinessHoursTargetResolver {
         return false;
     }
 
+    /**
+     * 【休息日判定】判断某条营业时段配置是否为休息日
+     *
+     * 业务作用：过滤掉 is_closed_wsh=1 的配置，使其不参与窗口生成与时刻匹配。
+     *
+     * 调用场景：windowsForDate 与 isWithinBusinessHours 的两个循环中调用。
+     *
+     * 调用链：windowsForDate / isWithinBusinessHours → 本方法。
+     *
+     * 数据处理：读取 is_closed_wsh，非空且等于 1 返回 true。
+     *
+     * 业务规则：is_closed_wsh 为 null 时视为非休息日。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：使用 Integer 拆箱比较，已先判 null 避免空指针；取值只认 1，其它非 0 值都按营业处理。
+     */
     private boolean isRestDay(BusinessHours h) {
         return h.getIs_closed_wsh() != null && h.getIs_closed_wsh() == 1;
     }
 
+    /**
+     * 【取前一天的星期值】把 1-7 的星期值回退一天并处理跨周
+     *
+     * 业务作用：为了把前一日跨午夜时段覆盖到当天的清晨部分。
+     *
+     * 调用场景：windowsForDate 与 isWithinBusinessHours 中调用。
+     *
+     * 调用链：windowsForDate / isWithinBusinessHours → 本方法 → hoursFor。
+     *
+     * 数据处理：输入 dayOfWeek（1=周一…7=周日），周一返回 7，其它返回 dayOfWeek-1。
+     *
+     * 业务规则：使用 ISO 星期编号，1 为周一。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：依赖 day_of_week_wsh 字段同样使用 ISO 编号（1-7），若数据存 0-6 会导致匹配错位。
+     */
     private int previousDayOfWeek(int dayOfWeek) {
         return dayOfWeek == 1 ? 7 : dayOfWeek - 1;
     }
 
+    /**
+     * 【按星期筛选时段】取出指定星期的全部营业时段配置
+     *
+     * 业务作用：从商家全部营业时段中挑出目标星期的记录。
+     *
+     * 调用场景：windowsForDate 与 isWithinBusinessHours 中调用。
+     *
+     * 调用链：windowsForDate / isWithinBusinessHours → 本方法 → Stream.filter。
+     *
+     * 数据处理：按 day_of_week_wsh 等于入参星期值过滤，返回列表。
+     *
+     * 业务规则：只按星期匹配，不判断休息日标记（由 isRestDay 另行判断）。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：day_of_week_wsh 为 null 时 `dayOfWeek == null` 拆箱比较会抛 NullPointerException；同一星期存在多条配置时全部返回，由调用方逐条处理。
+     */
     private List<BusinessHours> hoursFor(List<BusinessHours> hours, int dayOfWeek) {
         return hours.stream().filter(h -> dayOfWeek == h.getDay_of_week_wsh()).toList();
     }

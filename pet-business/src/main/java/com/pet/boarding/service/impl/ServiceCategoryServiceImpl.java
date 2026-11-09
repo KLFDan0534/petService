@@ -30,6 +30,25 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
     private final ServiceCategoryMapper categoryMapper;
     private final ServiceItemMapper serviceItemMapper;
 
+    /**
+     * 【服务分类服务实现的构造注入】
+     *
+     * 业务作用：注入服务分类 Mapper 与服务项目 Mapper。
+     *
+     * 调用场景：Spring 容器创建 ServiceCategoryServiceImpl 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 categoryMapper 与 serviceItemMapper。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：serviceItemMapper 仅用于删除前的引用校验。
+     */
     public ServiceCategoryServiceImpl(ServiceCategoryMapper categoryMapper, ServiceItemMapper serviceItemMapper) {
         this.categoryMapper = categoryMapper;
         this.serviceItemMapper = serviceItemMapper;
@@ -53,6 +72,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
                         .eq(ServiceCategory::getStatus_wsh, 1)
                         .orderByAsc(ServiceCategory::getSort_order_wsh)
                         .orderByAsc(ServiceCategory::getId_wsh));
+        // 以 parent_id 为 0 或空作为根节点
         List<ServiceCategory> roots = all.stream().filter(c -> c.getParent_id_wsh() == null || c.getParent_id_wsh() == 0).collect(Collectors.toList());
         List<ServiceCategoryTreeVO> tree = new ArrayList<>();
         for (ServiceCategory root : roots) {
@@ -76,6 +96,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
         vo.setCode_wsh(node.getCode_wsh());
         vo.setSort_order_wsh(node.getSort_order_wsh());
         vo.setStatus_wsh(node.getStatus_wsh());
+        // 内存中全量匹配子节点，避免递归查库
         for (ServiceCategory child : all) {
             if (child.getParent_id_wsh() != null && child.getParent_id_wsh().equals(node.getId_wsh())) {
                 vo.getChildren().add(buildTreeNode(child, all));
@@ -188,6 +209,7 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
     @CacheEvict(cacheNames = {"service-category", "service-item-page"}, allEntries = true)
     public void delete(Long id) {
         ServiceCategory category = getById(id);
+        // 先查子分类，再查服务引用
         Long childCount = categoryMapper.selectCount(
                 new LambdaQueryWrapper<ServiceCategory>().eq(ServiceCategory::getParent_id_wsh, id));
         if (childCount > 0) {

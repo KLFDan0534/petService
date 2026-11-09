@@ -27,6 +27,25 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
     private final BusinessHoursMapper businessHoursMapper;
     private final MerchantService merchantService;
 
+    /**
+     * 【构造函数：注入营业时间 Mapper 与商家服务】
+     *
+     * 业务作用：注入 BusinessHoursMapper 做配置读写，注入 MerchantService 用于写后刷新店铺状态。
+     *
+     * 调用场景：容器启动创建 BusinessHoursServiceImpl Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → BusinessHoursServiceImpl(构造) → businessHoursMapper/merchantService 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：MerchantService 与本类之间存在相互依赖（MerchantService 也需要营业时间数据），注入时需注意循环依赖配置。
+     */
     public BusinessHoursServiceImpl(BusinessHoursMapper businessHoursMapper, MerchantService merchantService) {
         this.businessHoursMapper = businessHoursMapper;
         this.merchantService = merchantService;
@@ -75,6 +94,7 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
                 .eq(BusinessHours::getMerchant_id_wsh, merchantId)
                 .eq(BusinessHours::getDay_of_week_wsh, dto.getDay_of_week_wsh());
         BusinessHours existing = businessHoursMapper.selectOne(wrapper);
+        // 按商家+星期做 upsert，存在则覆盖
         if (existing != null) {
             hours.setId_wsh(existing.getId_wsh());
             businessHoursMapper.updateById(hours);
@@ -125,6 +145,7 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
         log.info("delete() 被调用");
         BusinessHours existing = businessHoursMapper.selectById(id);
         businessHoursMapper.deleteById(id);
+        // 删除后按原记录商家刷新营业状态
         if (existing != null && existing.getMerchant_id_wsh() != null) {
             merchantService.refreshStoreState(existing.getMerchant_id_wsh());
         }
@@ -150,6 +171,7 @@ public class BusinessHoursServiceImpl implements BusinessHoursService {
         if (existing == null) {
             throw new BusinessException(404, "Business hours not found");
         }
+        // 防越权，只能删自己商家的配置
         if (!merchantId.equals(existing.getMerchant_id_wsh())) {
             throw new BusinessException(403, "No permission to delete this business hours record");
         }

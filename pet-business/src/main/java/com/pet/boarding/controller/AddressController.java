@@ -41,6 +41,25 @@ public class AddressController {
 
     private final AddressService addressService;
 
+    /**
+     * 【构造地址控制器】
+     *
+     * 业务作用：注入地址业务服务，供各 REST 接口调用。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 addressService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：所有接口都从 token 取用户 ID，只允许操作本人地址。
+     */
     public AddressController(AddressService addressService) {
         this.addressService = addressService;
     }

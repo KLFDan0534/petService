@@ -29,6 +29,25 @@ import java.util.List;
 public class MembershipOrderController {
     private final MembershipOrderService membershipOrderService;
 
+    /**
+     * 【构造函数：注入会员订单服务】
+     *
+     * 业务作用：注入 MembershipOrderService 供创建、查询、取消、支付与管理员确认接口调用。
+     *
+     * 调用场景：容器启动创建 MembershipOrderController Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → MembershipOrderController(构造) → membershipOrderService 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：用户侧接口均以令牌中的用户 ID 作为归属条件，管理员接口单独以 /admin 前缀区分。
+     */
     public MembershipOrderController(MembershipOrderService membershipOrderService) {
         this.membershipOrderService = membershipOrderService;
     }

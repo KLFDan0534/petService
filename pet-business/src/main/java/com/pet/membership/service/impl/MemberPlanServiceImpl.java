@@ -39,6 +39,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
     private final MembershipOrderMapper membershipOrderMapper;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 【构造方法】注入会员套餐相关依赖
+     *
+     * 业务作用：由 Spring 注入套餐、用户会员、会员订单 Mapper 与 ObjectMapper。
+     *
+     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 各 final 字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；ObjectMapper 用于 JSON 配置字段的合法性校验。
+     */
     public MemberPlanServiceImpl(MemberPlanMapper memberPlanMapper,
                                  UserMembershipMapper userMembershipMapper,
                                  MembershipOrderMapper membershipOrderMapper,
@@ -62,6 +81,7 @@ public class MemberPlanServiceImpl implements MemberPlanService {
      */
     @Override
     public List<MemberPlanDTO> listPlans(Integer status, boolean activeOnly) {
+        // activeOnly 时忽略显式状态过滤
         LambdaQueryWrapper<MemberPlan> wrapper = new LambdaQueryWrapper<MemberPlan>()
                 .eq(activeOnly, MemberPlan::getStatus_wsh, STATUS_ENABLED)
                 .eq(!activeOnly && status != null, MemberPlan::getStatus_wsh, status != null ? normalizeStatus(status) : null)
@@ -117,6 +137,7 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         plan.setStatus_wsh(request.getStatus_wsh() == null ? STATUS_ENABLED : normalizeStatus(request.getStatus_wsh()));
         plan.setSort_order_wsh(request.getSort_order_wsh() == null ? 0 : request.getSort_order_wsh());
         plan.setRemark_wsh(trimToNull(request.getRemark_wsh()));
+        // 并发下靠唯一索引兜底重复编码
         try {
             memberPlanMapper.insert(plan);
         } catch (DuplicateKeyException e) {
@@ -143,6 +164,7 @@ public class MemberPlanServiceImpl implements MemberPlanService {
             throw new BusinessException(400, "Member plan request cannot be empty");
         }
         MemberPlan plan = requirePlan(id);
+        // 改编码前重新校验唯一性
         if (request.getCode_wsh() != null) {
             String code = normalizeCode(request.getCode_wsh());
             ensureCodeAvailable(code, id);
@@ -221,6 +243,7 @@ public class MemberPlanServiceImpl implements MemberPlanService {
     @Override
     public void deletePlan(Long id) {
         requirePlan(id);
+        // 有会员或订单引用时禁止删除
         Long membershipCount = userMembershipMapper.selectCount(
                 new LambdaQueryWrapper<UserMembership>().eq(UserMembership::getPlan_id_wsh, id));
         if (membershipCount != null && membershipCount > 0) {
@@ -255,6 +278,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return dto;
     }
 
+    /**
+     * 【加载套餐】按ID取套餐实体并在缺失时抛错
+     *
+     * 业务作用：本类内部统一的套餐加载入口，保证后续逻辑拿到的实体一定存在。
+     *
+     * 调用场景：getPlan、updatePlan、updateStatus、deletePlan 中调用。
+     *
+     * 调用链：上述方法 → 本方法 → memberPlanMapper.selectById。
+     *
+     * 数据处理：输入 id → 输出 MemberPlan 实体。
+     *
+     * 业务规则：id 不能为空；套餐必须存在。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：id 为 null 抛 BusinessException(400)；套餐不存在抛 BusinessException(404)。
+     *
+     * 注意事项：无。
+     */
     private MemberPlan requirePlan(Long id) {
         if (id == null) {
             throw new BusinessException(400, "Member plan id cannot be empty");
@@ -266,6 +308,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return plan;
     }
 
+    /**
+     * 【套餐编码唯一性校验】确认 code 未被其它套餐占用
+     *
+     * 业务作用：创建与更新时防止出现重复的套餐编码。
+     *
+     * 调用场景：createPlan 与 updatePlan 在设置 code 后调用。
+     *
+     * 调用链：createPlan / updatePlan → 本方法 → memberPlanMapper.selectCount。
+     *
+     * 数据处理：按 code_wsh 精确匹配计数，excludeId 非空时排除该ID自身。
+     *
+     * 业务规则：计数大于 0 即视为重复。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：code 已存在抛 BusinessException(400)。
+     *
+     * 注意事项：仅在应用层校验，并发下仍可能重复，因此 createPlan/updatePlan 同时捕获 DuplicateKeyException 兜底，依赖数据库唯一索引。
+     */
     private void ensureCodeAvailable(String code, Long excludeId) {
         Long count = memberPlanMapper.selectCount(new LambdaQueryWrapper<MemberPlan>()
                 .eq(MemberPlan::getCode_wsh, code)
@@ -275,6 +336,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         }
     }
 
+    /**
+     * 【规范化套餐编码】去空格转大写并校验格式
+     *
+     * 业务作用：统一套餐编码格式，避免大小写与空白造成重复。
+     *
+     * 调用场景：createPlan 与 updatePlan 设置 code_wsh 前调用。
+     *
+     * 调用链：createPlan / updatePlan → 本方法 → PLAN_CODE_PATTERN.matcher。
+     *
+     * 数据处理：输入 code → trim + toUpperCase(Locale.ROOT) → 输出规范化编码。
+     *
+     * 业务规则：不能为空；必须匹配 2-50 位大写字母、数字或下划线。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：为空或格式不符抛 BusinessException(400)。
+     *
+     * 注意事项：调用方传入的小写编码会被静默转成大写，前端回显需使用返回值。
+     */
     private String normalizeCode(String code) {
         if (code == null || code.isBlank()) {
             throw new BusinessException(400, "Member plan code cannot be empty");
@@ -286,6 +366,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return normalized;
     }
 
+    /**
+     * 【规范化套餐名称】去空格并校验长度
+     *
+     * 业务作用：保证套餐名称非空且不超过字段长度上限。
+     *
+     * 调用场景：createPlan 与 updatePlan 设置 name_wsh 前调用。
+     *
+     * 调用链：createPlan / updatePlan → 本方法。
+     *
+     * 数据处理：输入 name → trim → 输出。
+     *
+     * 业务规则：不能为空；长度不得超过 100。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：为空或超长抛 BusinessException(400)。
+     *
+     * 注意事项：长度按 trim 后的字符数计算，与数据库列长度需保持一致。
+     */
     private String normalizeName(String name) {
         if (name == null || name.isBlank()) {
             throw new BusinessException(400, "Member plan name cannot be empty");
@@ -297,6 +396,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return normalized;
     }
 
+    /**
+     * 【正整数校验】确认数值非空且大于 0
+     *
+     * 业务作用：校验套餐等级与有效天数等必须为正的整数字段。
+     *
+     * 调用场景：createPlan 与 updatePlan 校验 level_wsh、duration_days_wsh 时调用。
+     *
+     * 调用链：createPlan / updatePlan → 本方法。
+     *
+     * 数据处理：输入 value 与错误文案 → 输出原值。
+     *
+     * 业务规则：null 或 <= 0 均不合法。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：不合法时抛 BusinessException(400)，文案由调用方传入。
+     *
+     * 注意事项：错误文案由调用方提供，同一方法在不同字段上会给出不同提示。
+     */
     private Integer positiveInteger(Integer value, String message) {
         if (value == null || value <= 0) {
             throw new BusinessException(400, message);
@@ -304,6 +422,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return value;
     }
 
+    /**
+     * 【金额校验与规整】保留两位小数并禁止负数
+     *
+     * 业务作用：统一套餐价格的精度与取值范围。
+     *
+     * 调用场景：createPlan 与 updatePlan 设置 price_wsh 前调用。
+     *
+     * 调用链：createPlan / updatePlan → 本方法。
+     *
+     * 数据处理：输入 BigDecimal → setScale(2, HALF_UP) → 输出。
+     *
+     * 业务规则：不能为 null；四舍五入保留两位；不得小于 0（允许 0，可用于免费套餐）。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：null 时抛 BusinessException(400)（文案由调用方传入）；负数抛 BusinessException(400, "Amount cannot be negative")。
+     *
+     * 注意事项：四舍五入会静默改变入参精度，如 9.999 会存为 10.00。
+     */
     private BigDecimal money(BigDecimal value, String nullMessage) {
         if (value == null) {
             throw new BusinessException(400, nullMessage);
@@ -315,14 +452,52 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return money;
     }
 
+    /**
+     * 【折扣率规范化】保留两位小数并限定在 (0,1] 区间
+     *
+     * 业务作用：统一套餐折扣率精度并限制取值范围。
+     *
+     * 调用场景：createPlan 与 updatePlan 设置 discount_rate_wsh 时调用。
+     *
+     * 调用链：createPlan / updatePlan → 本方法。
+     *
+     * 数据处理：null 时取 BigDecimal.ONE，否则 setScale(2, HALF_UP) → 输出。
+     *
+     * 业务规则：必须大于 0 且小于等于 1；1 表示不打折。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：越界抛 BusinessException(400)。
+     *
+     * 注意事项：null 会默认按 1（无折扣）处理而非报错；四舍五入后可能由 0.004 变为 0.00 从而触发越界异常。
+     */
     private BigDecimal normalizeRate(BigDecimal rate) {
-        BigDecimal value = rate == null ? BigDecimal.ONE : rate.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal value = rate == null ? BigDecimal.ONE : rate.setScale(2, RoundingMode.HALF_UP); // 空值按不打折处理
         if (value.compareTo(BigDecimal.ZERO) <= 0 || value.compareTo(BigDecimal.ONE) > 0) {
             throw new BusinessException(400, "Discount rate must be greater than 0 and less than or equal to 1");
         }
         return value;
     }
 
+    /**
+     * 【状态规范化】只接受 0（禁用）与 1（启用）
+     *
+     * 业务作用：限制套餐状态取值范围。
+     *
+     * 调用场景：listPlans、createPlan、updatePlan、updateStatus 中调用。
+     *
+     * 调用链：listPlans / createPlan / updatePlan / updateStatus → 本方法。
+     *
+     * 数据处理：输入 status → 输出原值。
+     *
+     * 业务规则：不能为 null；只允许 STATUS_DISABLED(0) 与 STATUS_ENABLED(1)。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：null 抛 BusinessException(400)；非法值抛 BusinessException(400)。
+     *
+     * 注意事项：listPlans 中仅在非 activeOnly 且 status 非 null 时才调用，避免 null 触发异常。
+     */
     private Integer normalizeStatus(Integer status) {
         if (status == null) {
             throw new BusinessException(400, "Member plan status cannot be empty");
@@ -333,12 +508,32 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         return status;
     }
 
+    /**
+     * 【JSON配置校验】确认字符串是合法 JSON 后原样返回
+     *
+     * 业务作用：校验每月优惠券配置与权益配置字段的 JSON 合法性。
+     *
+     * 调用场景：createPlan 与 updatePlan 设置 monthly_coupon_config_wsh、benefit_config_wsh 时调用。
+     *
+     * 调用链：createPlan / updatePlan → 本方法 → trimToNull / objectMapper.readTree。
+     *
+     * 数据处理：空白值返回 null；否则用 ObjectMapper 解析一遍，成功则返回原文本。
+     *
+     * 业务规则：空串与全空白视为未配置，存 null；解析失败视为非法。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：JSON 非法抛 BusinessException(400)，文案由调用方传入。
+     *
+     * 注意事项：只校验不规范化，存储的是调用方原始文本（含多余空格），相同语义的不同写法会存成不同字符串。
+     */
     private String normalizeJson(String value, String message) {
         String text = trimToNull(value);
         if (text == null) {
             return null;
         }
         try {
+            // 解析一遍确认 JSON 合法
             objectMapper.readTree(text);
             return text;
         } catch (Exception e) {
@@ -346,6 +541,25 @@ public class MemberPlanServiceImpl implements MemberPlanService {
         }
     }
 
+    /**
+     * 【去空格转null】空白字符串统一转为 null
+     *
+     * 业务作用：避免把空串写入备注等可选字段。
+     *
+     * 调用场景：createPlan、updatePlan 设置 remark_wsh 时调用，以及 normalizeJson 内部调用。
+     *
+     * 调用链：createPlan / updatePlan / normalizeJson → 本方法。
+     *
+     * 数据处理：输入字符串 → trim 后为空则返回 null，否则返回 trim 结果。
+     *
+     * 业务规则：null 或全空白返回 null。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：返回值已去首尾空格，原格式不保留。
+     */
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;

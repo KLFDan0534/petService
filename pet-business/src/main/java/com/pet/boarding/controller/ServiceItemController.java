@@ -61,6 +61,25 @@ public class ServiceItemController {
     private final ServiceAvailabilityService serviceAvailabilityService;
     private final MerchantScopeResolver merchantScopeResolver;
 
+    /**
+     * 【构造方法】注入服务项目相关依赖
+     *
+     * 业务作用：由 Spring 注入服务项、商家、可预约性与商家范围解析器四个依赖。
+     *
+     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 各 final 字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段。
+     */
     public ServiceItemController(ServiceItemService serviceItemService, MerchantService merchantService,
                                  ServiceAvailabilityService serviceAvailabilityService,
                                  MerchantScopeResolver merchantScopeResolver) {
@@ -110,6 +129,7 @@ public class ServiceItemController {
         ServiceItemQueryDTO q = new ServiceItemQueryDTO();
         q.setMerchant_id_wsh(merchantId);
         q.setPage_wsh(1);
+        // 商家详情页一次取满 100 条
         q.setSize_wsh(100);
         return Result.success(serviceItemService.queryPublic(q).getItems_wsh());
     }
@@ -247,6 +267,7 @@ public class ServiceItemController {
             @RequestParam(required = false) Long merchantId,
             @Valid @RequestBody ServiceItemCreateRequestDTO dto) {
         log.info("create() 被调用");
+        // 归属商家由服务端派生，忽略客户端提交
         Long derivedMerchantId = merchantScopeResolver.resolve(merchantId, currentToken());
         return Result.success(serviceItemService.toDTO(serviceItemService.create(derivedMerchantId, dto)));
     }
@@ -363,13 +384,52 @@ public class ServiceItemController {
         return Result.success(serviceItemService.listByMerchantForManage(merchantId).stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
     }
 
+    /**
+     * 【服务归属校验】确认当前用户是该服务的商家本人或管理员
+     *
+     * 业务作用：管理端写操作前的统一权限校验，先由服务ID查服务再校验其商家归属。
+     *
+     * 调用场景：manageDetail、update、delete、toggleStatus 中调用。
+     *
+     * 调用链：manageDetail / update / delete / toggleStatus → 本方法 → serviceItemService.getById / assertMerchantOwnerOrAdmin。
+     *
+     * 数据处理：输入 serviceId → 查询 ServiceItem → 取其 merchant_id_wsh 继续校验。
+     *
+     * 业务规则：服务必须存在，归属校验委托给 assertMerchantOwnerOrAdmin。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：服务不存在时由 serviceItemService.getById 抛业务异常；服务存在但 merchant_id_wsh 为 null 时 getMerchant_id_wsh() 返回 null，最终由 isOwner 判定失败抛 403。
+     *
+     * 注意事项：先查一次服务、业务方法内通常还会再查一次，存在重复查询。
+     */
     private void assertServiceOwnerOrAdmin(Long serviceId) {
         ServiceItem item = serviceItemService.getById(serviceId);
         assertMerchantOwnerOrAdmin(item.getMerchant_id_wsh());
     }
 
+    /**
+     * 【商家归属校验】确认当前用户拥有该商家或为管理员
+     *
+     * 业务作用：管理端接口的商家维度权限校验。
+     *
+     * 调用场景：assertServiceOwnerOrAdmin 与 listByMerchantForManage 中调用。
+     *
+     * 调用链：assertServiceOwnerOrAdmin / listByMerchantForManage → 本方法 → currentToken / isAdmin / merchantService.isOwner。
+     *
+     * 数据处理：从 SecurityContext 取 JWT，管理员直接放行，否则用 userId 与 merchantId 调 isOwner。
+     *
+     * 业务规则：token 为 null 或 isOwner 返回 false 时拒绝。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：不满足条件抛 BusinessException(403, "No permission to manage this merchant service")。
+     *
+     * 注意事项：错误提示文案固定为 service，但本方法也用于商家维度的列表接口，提示语不够精确。
+     */
     private void assertMerchantOwnerOrAdmin(Long merchantId) {
         JwtAuthenticationToken token = currentToken();
+        // 管理员直接放行
         if (isAdmin(token)) {
             return;
         }
@@ -378,11 +438,49 @@ public class ServiceItemController {
         }
     }
 
+    /**
+     * 【获取当前令牌】从安全上下文取出 JWT 认证对象
+     *
+     * 业务作用：在非 @AuthenticationPrincipal 注入的场景下获取当前登录令牌。
+     *
+     * 调用场景：assertMerchantOwnerOrAdmin 与 create 中调用。
+     *
+     * 调用链：assertMerchantOwnerOrAdmin / create → 本方法 → SecurityContextHolder.getContext().getAuthentication。
+     *
+     * 数据处理：authentication 为 JwtAuthenticationToken 时返回，否则返回 null。
+     *
+     * 业务规则：类型不匹配时返回 null 而非抛异常。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无显式抛出。
+     *
+     * 注意事项：返回 null 后调用方必须自行判空，本类中 assertMerchantOwnerOrAdmin 已判空，但 create 直接把结果传给 merchantScopeResolver，其 null 处理依赖该解析器实现。
+     */
     private JwtAuthenticationToken currentToken() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication instanceof JwtAuthenticationToken jwtToken ? jwtToken : null;
     }
 
+    /**
+     * 【管理员判定】从权限列表中判断是否拥有 ROLE_ADMIN
+     *
+     * 业务作用：为归属校验提供管理员旁路。
+     *
+     * 调用场景：assertMerchantOwnerOrAdmin 中调用。
+     *
+     * 调用链：assertMerchantOwnerOrAdmin → 本方法 → token.getAuthorities。
+     *
+     * 数据处理：遍历权限，任一等于 ROLE_ADMIN 返回 true。
+     *
+     * 业务规则：token 为 null 直接返回 false。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：权限字符串硬编码，与其它 Controller 中的同名方法实现重复。
+     */
     private boolean isAdmin(JwtAuthenticationToken token) {
         if (token == null) return false;
         for (GrantedAuthority authority : token.getAuthorities()) {

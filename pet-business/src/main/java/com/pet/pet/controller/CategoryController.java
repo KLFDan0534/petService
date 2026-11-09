@@ -25,6 +25,25 @@ public class CategoryController {
 
     private final CategoryService categoryService;
 
+    /**
+     * 【构造宠物分类控制器】
+     *
+     * 业务作用：注入宠物分类业务服务，供各 REST 接口调用。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 categoryService 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：查询接口对所有人开放，增删改接口仅 ADMIN 可调用。
+     */
     public CategoryController(CategoryService categoryService) {
         this.categoryService = categoryService;
     }

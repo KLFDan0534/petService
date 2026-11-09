@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pet.boarding.dto.KeeperCreateRequestDTO;
 import com.pet.boarding.dto.KeeperUpdateRequestDTO;
 import com.pet.boarding.entity.Keeper;
+import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
@@ -17,12 +18,15 @@ import com.pet.order.entity.PetOrder;
 import com.pet.order.mapper.OrderMapper;
 import com.pet.qualification.service.QualificationService;
 import com.pet.system.entity.Role;
+import com.pet.system.entity.User;
 import com.pet.system.entity.UserRole;
 import com.pet.system.mapper.RoleMapper;
+import com.pet.system.mapper.UserMapper;
 import com.pet.system.mapper.UserRoleMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -43,13 +47,12 @@ public class KeeperServiceImpl implements KeeperService {
 
     /**
      * 阻碍离职/解雇操作的进行中订单状态集合。
-     * 包含：待付款、已付款、已确认、配送中、已接单、进行中、退款中
+     * 包含：待付款、已付款、已确认、已接单、进行中、退款中
      */
     private static final Set<String> BLOCKING_ORDER_STATUSES = Set.of(
             OrderStatus.PENDING,
             OrderStatus.PAID,
             OrderStatus.CONFIRMED,
-            OrderStatus.DELIVERED,
             OrderStatus.RECEIVED,
             OrderStatus.IN_PROGRESS,
             OrderStatus.REFUNDING);
@@ -60,17 +63,41 @@ public class KeeperServiceImpl implements KeeperService {
     private final UserRoleMapper userRoleMapper;
     private final QualificationService qualificationService;
     private final OrderMapper orderMapper;
+    private final UserMapper userMapper;
+    private final com.pet.boarding.mapper.ServiceItemMapper serviceItemMapper;
 
+    /**
+     * 【构造方法】注入看护者管理所需依赖
+     *
+     * 业务作用：由 Spring 注入看护者、商家、角色、用户角色、资质与订单六类依赖，支撑看护者全生命周期管理。
+     *
+     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 各 final 字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段；类中还定义了 BLOCKING_ORDER_STATUSES 静态集合（待付款/已付款/已确认/已接单/进行中/退款中），离职与解雇前会用它判断是否存在进行中订单。
+     */
     public KeeperServiceImpl(KeeperMapper keeperMapper, MerchantMapper merchantMapper,
                              RoleMapper roleMapper, UserRoleMapper userRoleMapper,
                              QualificationService qualificationService,
-                             OrderMapper orderMapper) {
+                             OrderMapper orderMapper, UserMapper userMapper,
+                             com.pet.boarding.mapper.ServiceItemMapper serviceItemMapper) {
         this.keeperMapper = keeperMapper;
         this.merchantMapper = merchantMapper;
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
         this.qualificationService = qualificationService;
         this.orderMapper = orderMapper;
+        this.userMapper = userMapper;
+        this.serviceItemMapper = serviceItemMapper;
     }
 
     /**
@@ -228,6 +255,9 @@ public class KeeperServiceImpl implements KeeperService {
         if (merchant == null) {
             throw new BusinessException("所选商家不存在");
         }
+        // 用户端 /users/me 返回的是脱敏手机号，提交值可能带 * 或为空；
+        // 此时回退到当前登录用户在数据库里的真实手机号，避免把掩码写入 keeper 表。
+        String applicantPhone = resolveApplicantPhone(dto.getPhone_wsh(), userId);
         Keeper existing = keeperMapper.selectOne(
                 new LambdaQueryWrapper<Keeper>()
                         .eq(Keeper::getUser_id_wsh, userId)
@@ -241,10 +271,9 @@ public class KeeperServiceImpl implements KeeperService {
             }
             existing.setMerchant_id_wsh(dto.getMerchant_id_wsh());
             existing.setName_wsh(dto.getName_wsh());
-            existing.setPhone_wsh(dto.getPhone_wsh());
+            existing.setPhone_wsh(applicantPhone);
             existing.setAvatar_wsh(dto.getAvatar_wsh());
             existing.setExperience_years_wsh(dto.getExperience_years_wsh());
-            existing.setPrice_per_day_wsh(dto.getPrice_per_day_wsh());
             existing.setMax_pets_wsh(dto.getMax_pets_wsh());
             existing.setBio_wsh(dto.getBio_wsh());
             existing.setStatus_wsh(StatusCode.KEEPER_PENDING.getValue());
@@ -264,10 +293,9 @@ public class KeeperServiceImpl implements KeeperService {
         keeper.setUser_id_wsh(userId);
         keeper.setMerchant_id_wsh(dto.getMerchant_id_wsh());
         keeper.setName_wsh(dto.getName_wsh());
-        keeper.setPhone_wsh(dto.getPhone_wsh());
+        keeper.setPhone_wsh(applicantPhone);
         keeper.setAvatar_wsh(dto.getAvatar_wsh());
         keeper.setExperience_years_wsh(dto.getExperience_years_wsh());
-        keeper.setPrice_per_day_wsh(dto.getPrice_per_day_wsh());
         keeper.setMax_pets_wsh(dto.getMax_pets_wsh());
         keeper.setBio_wsh(dto.getBio_wsh());
         keeper.setStatus_wsh(StatusCode.KEEPER_PENDING.getValue());
@@ -282,6 +310,21 @@ public class KeeperServiceImpl implements KeeperService {
                 dto.getQualification_image_wsh(),
                 "看护者申请资质");
         return keeper;
+    }
+
+    /**
+     * 解析申请人手机号：优先使用提交值，空值或脱敏值（含 *）时回退到用户账户里的真实手机号。
+     * 用户端 /users/me 已做脱敏，这里保证 keeper 表仍保存完整号码。
+     */
+    private String resolveApplicantPhone(String submittedPhone, Long userId) {
+        if (StringUtils.hasText(submittedPhone) && !submittedPhone.contains("*")) {
+            return submittedPhone;
+        }
+        User user = userMapper.selectById(userId);
+        if (user != null && StringUtils.hasText(user.getPhone_wsh())) {
+            return user.getPhone_wsh();
+        }
+        return submittedPhone;
     }
 
     /**
@@ -304,7 +347,6 @@ public class KeeperServiceImpl implements KeeperService {
         if (dto.getPhone_wsh() != null) existing.setPhone_wsh(dto.getPhone_wsh());
         if (dto.getAvatar_wsh() != null) existing.setAvatar_wsh(dto.getAvatar_wsh());
         if (dto.getExperience_years_wsh() != null) existing.setExperience_years_wsh(dto.getExperience_years_wsh());
-        if (dto.getPrice_per_day_wsh() != null) existing.setPrice_per_day_wsh(dto.getPrice_per_day_wsh());
         if (dto.getMax_pets_wsh() != null) existing.setMax_pets_wsh(dto.getMax_pets_wsh());
         if (dto.getBio_wsh() != null) existing.setBio_wsh(dto.getBio_wsh());
         keeperMapper.updateById(existing);
@@ -525,6 +567,31 @@ public class KeeperServiceImpl implements KeeperService {
      * 状态影响：只读操作。
      */
     @Override
+    public void fillMinServicePrice(List<KeeperVO> keepers) {
+        if (keepers == null || keepers.isEmpty()) {
+            return;
+        }
+        Set<Long> merchantIds = keepers.stream()
+                .map(KeeperVO::getMerchant_id_wsh)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        if (merchantIds.isEmpty()) {
+            return;
+        }
+        List<ServiceItem> items = serviceItemMapper.selectList(
+                new LambdaQueryWrapper<ServiceItem>()
+                        .in(ServiceItem::getMerchant_id_wsh, merchantIds)
+                        .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue())
+                        .isNotNull(ServiceItem::getPrice_wsh));
+        java.util.Map<Long, java.math.BigDecimal> minByMerchant = new java.util.HashMap<>();
+        for (ServiceItem item : items) {
+            minByMerchant.merge(item.getMerchant_id_wsh(), item.getPrice_wsh(),
+                    (a, b) -> a.compareTo(b) <= 0 ? a : b);
+        }
+        keepers.forEach(vo -> vo.setMin_price_wsh(minByMerchant.get(vo.getMerchant_id_wsh())));
+    }
+
+    @Override
     public KeeperVO toDTO(Keeper entity) {
         if (entity == null) return null;
         return toKeeperVO(entity);
@@ -744,7 +811,6 @@ public class KeeperServiceImpl implements KeeperService {
         vo.setRating_wsh(k.getRating_wsh());
         vo.setCompletion_rate_wsh(k.getCompletion_rate_wsh());
         vo.setComplaint_rate_wsh(k.getComplaint_rate_wsh());
-        vo.setPrice_per_day_wsh(k.getPrice_per_day_wsh());
         vo.setMax_pets_wsh(k.getMax_pets_wsh());
         vo.setCurrent_pets_wsh(k.getCurrent_pets_wsh());
         vo.setBio_wsh(k.getBio_wsh());

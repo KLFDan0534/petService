@@ -38,8 +38,8 @@ public class KeeperVO {
     private BigDecimal completion_rate_wsh;
     @Schema(description = "投诉率")
     private BigDecimal complaint_rate_wsh;
-    @Schema(description = "每日价格")
-    private BigDecimal price_per_day_wsh;
+    @Schema(description = "所属商家在售服务的最低价（元）；无在售服务时为 null")
+    private BigDecimal min_price_wsh;
     @Schema(description = "最大可接待宠物数")
     private Integer max_pets_wsh;
     @Schema(description = "当前接待宠物数")

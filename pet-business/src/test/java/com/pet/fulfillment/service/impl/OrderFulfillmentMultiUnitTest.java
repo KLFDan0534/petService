@@ -123,7 +123,8 @@ class OrderFulfillmentMultiUnitTest {
         order.setBilling_unit_wsh("day");
         order.setDays_wsh(2);
         order.setStart_date_wsh(day);
-        order.setEnd_date_wsh(day.plusDays(2));
+        // end_date 是最后一个服务日（含）：2 天 = day ~ day+1
+        order.setEnd_date_wsh(day.plusDays(1));
 
         when(orderMapper.selectById(9L)).thenReturn(order);
 

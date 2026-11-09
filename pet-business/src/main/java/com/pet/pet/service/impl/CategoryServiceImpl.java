@@ -21,6 +21,25 @@ public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryMapper categoryMapper;
 
+    /**
+     * 【构造函数：注入分类 Mapper】
+     *
+     * 业务作用：注入 CategoryMapper 供各查询与增删改方法使用。
+     *
+     * 调用场景：容器启动创建 CategoryServiceImpl Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → CategoryServiceImpl(构造) → categoryMapper 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类未显式实现接口方法上的 @Override 之外逻辑，全部直接操作 Mapper。
+     */
     public CategoryServiceImpl(CategoryMapper categoryMapper) {
         this.categoryMapper = categoryMapper;
     }
@@ -97,6 +116,7 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("调用 create()");
         Category category = new Category();
         category.setName_wsh(request.getName_wsh());
+        // 父级与排序号为空时按顶级、默认序处理
         category.setParent_id_wsh(request.getParent_id_wsh() != null ? request.getParent_id_wsh() : 0L);
         category.setSort_order_wsh(request.getSort_order_wsh() != null ? request.getSort_order_wsh() : 0);
         categoryMapper.insert(category);
@@ -118,6 +138,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryDTO update(Long id, CategoryUpdateRequestDTO request) {
         log.info("调用 update()");
         Category existing = getByIdRaw(id);
+        // 仅覆盖请求中非空字段，避免清空其他属性
         if (request.getName_wsh() != null) existing.setName_wsh(request.getName_wsh());
         if (request.getParent_id_wsh() != null) existing.setParent_id_wsh(request.getParent_id_wsh());
         if (request.getSort_order_wsh() != null) existing.setSort_order_wsh(request.getSort_order_wsh());
@@ -141,16 +162,55 @@ public class CategoryServiceImpl implements CategoryService {
         log.info("调用 delete()");
         long subCount = categoryMapper.selectCount(
                 new LambdaQueryWrapper<Category>().eq(Category::getParent_id_wsh, id));
+        // 存在子分类时拒绝删除，避免层级悬空
         if (subCount > 0) throw new BusinessException("存在子分类，无法删除");
         categoryMapper.deleteById(id);
     }
 
+    /**
+     * 【按 ID 获取分类实体】
+     *
+     * 业务作用：主键查询分类实体，不存在时抛业务异常。
+     *
+     * 调用场景：update 更新前获取待修改实体。
+     *
+     * 调用链：CategoryServiceImpl.update → getByIdRaw → CategoryMapper.selectById。
+     *
+     * 数据处理：主键查询单条，命中直接返回实体。
+     *
+     * 业务规则：分类必须存在。
+     *
+     * 状态影响：只读。
+     *
+     * 异常情况：查不到时抛 BusinessException("分类不存在")。
+     *
+     * 注意事项：与 getById 的区别是返回实体而非 DTO，供内部更新使用。
+     */
     private Category getByIdRaw(Long id) {
         Category c = categoryMapper.selectById(id);
         if (c == null) throw new BusinessException("分类不存在");
         return c;
     }
 
+    /**
+     * 【分类实体转 DTO】
+     *
+     * 业务作用：把 Category 实体字段拷贝到 CategoryDTO。
+     *
+     * 调用场景：listAll、listByParent、getById、create、update 组装返回数据。
+     *
+     * 调用链：各业务方法 → toDTO。
+     *
+     * 数据处理：赋值 id、名称、父级 ID 与排序号；入参为 null 时返回 null。
+     *
+     * 业务规则：null 入参不抛异常，直接返回 null。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：返回值可能为 null，调用方需自行判空。
+     */
     private CategoryDTO toDTO(Category c) {
         if (c == null) return null;
         CategoryDTO dto = new CategoryDTO();
@@ -161,6 +221,25 @@ public class CategoryServiceImpl implements CategoryService {
         return dto;
     }
 
+    /**
+     * 【分类实体列表转 DTO 列表】
+     *
+     * 业务作用：批量把分类实体转换为 DTO。
+     *
+     * 调用场景：listAll、listByParent。
+     *
+     * 调用链：listAll / listByParent → toDTOList → toDTO。
+     *
+     * 数据处理：入参为 null 时返回空列表，否则逐条映射。
+     *
+     * 业务规则：空输入返回 List.of() 而不是 null。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：列表中的 null 元素会被 toDTO 映射为 null 并保留在结果中。
+     */
     private List<CategoryDTO> toDTOList(List<Category> list) {
         if (list == null) return List.of();
         return list.stream().map(this::toDTO).collect(Collectors.toList());

@@ -24,6 +24,25 @@ public class PetServiceImpl implements PetService {
     private final PetMapper petMapper;
     private final UserMapper userMapper;
 
+    /**
+     * 【构造宠物服务】
+     *
+     * 业务作用：注入宠物 Mapper 与用户 Mapper。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 petMapper / userMapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖均为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：userMapper 仅用于 toDTO 时回填主人昵称。
+     */
     public PetServiceImpl(PetMapper petMapper, UserMapper userMapper) {
         this.petMapper = petMapper;
         this.userMapper = userMapper;
@@ -206,15 +225,55 @@ public class PetServiceImpl implements PetService {
         petMapper.deleteById(id);
     }
 
+    /**
+     * 【按ID取宠物实体】
+     *
+     * 业务作用：按主键查询宠物实体，不存在时抛业务异常。
+     *
+     * 调用场景：updatePet / deletePet / updatePetAsAdmin 的前置查询。
+     *
+     * 调用链：updatePet() / deletePet() / updatePetAsAdmin() → getByIdRaw() → petMapper.selectById()。
+     *
+     * 数据处理：主键查询单条记录。
+     *
+     * 业务规则：宠物必须存在。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：宠物不存在时抛 BusinessException「宠物不存在」。
+     *
+     * 注意事项：返回的是实体而非 DTO，调用方可直接修改后 updateById。
+     */
     private Pet getByIdRaw(Long id) {
         Pet pet = petMapper.selectById(id);
+        // 查不到宠物直接抛业务异常
         if (pet == null) {
             throw new BusinessException("宠物不存在");
         }
         return pet;
     }
 
+    /**
+     * 【按非空字段覆盖宠物属性】
+     *
+     * 业务作用：把请求中非 null 的字段写入已有宠物实体，实现部分更新。
+     *
+     * 调用场景：updatePet 与 updatePetAsAdmin 更新前。
+     *
+     * 调用链：updatePet() / updatePetAsAdmin() → applyUpdate() → petMapper.updateById()。
+     *
+     * 数据处理：逐字段判空后覆盖名称、类型、品种、年龄、体重、性别、绝育、疫苗、头像、描述、过敏史、习惯共 12 个字段。
+     *
+     * 业务规则：null 字段保持原值，无法通过该接口把字段清空。
+     *
+     * 状态影响：无，只修改内存中的实体，落库由调用方执行。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：主人字段 owner_id_wsh 不在可更新范围内，宠物归属不可通过该接口变更。
+     */
     private void applyUpdate(Pet existing, PetUpdateRequestDTO request) {
+        // 只覆盖非空字段，实现部分更新
         if (request.getName_wsh() != null) existing.setName_wsh(request.getName_wsh());
         if (request.getType_wsh() != null) existing.setType_wsh(request.getType_wsh());
         if (request.getBreed_wsh() != null) existing.setBreed_wsh(request.getBreed_wsh());
@@ -229,6 +288,25 @@ public class PetServiceImpl implements PetService {
         if (request.getHabits_wsh() != null) existing.setHabits_wsh(request.getHabits_wsh());
     }
 
+    /**
+     * 【宠物实体转DTO】
+     *
+     * 业务作用：把宠物实体转换为 DTO，并回填主人展示名。
+     *
+     * 调用场景：各查询接口返回前、创建与更新后。
+     *
+     * 调用链：getPetById() / createPet() / updatePet() / toDTOList() → toDTO() → userMapper.selectById()。
+     *
+     * 数据处理：逐字段拷贝宠物属性；owner_id_wsh 非空时查用户表，优先取昵称，昵称为空取用户名。
+     *
+     * 业务规则：入参为 null 时返回 null；主人不存在时 owner_name_wsh 为 null。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：每条记录都会触发一次用户查询，列表场景存在 N+1 问题。
+     */
     private PetDTO toDTO(Pet pet) {
         if (pet == null) return null;
         PetDTO dto = new PetDTO();
@@ -236,6 +314,7 @@ public class PetServiceImpl implements PetService {
         dto.setOwner_id_wsh(pet.getOwner_id_wsh());
         if (pet.getOwner_id_wsh() != null) {
             User owner = userMapper.selectById(pet.getOwner_id_wsh());
+            // 昵称缺失时退回用户名展示
             dto.setOwner_name_wsh(owner != null ? (owner.getNickname_wsh() != null ? owner.getNickname_wsh() : owner.getUsername_wsh()) : null);
         }
         dto.setName_wsh(pet.getName_wsh());
@@ -254,7 +333,27 @@ public class PetServiceImpl implements PetService {
         return dto;
     }
 
+    /**
+     * 【宠物列表转DTO列表】
+     *
+     * 业务作用：批量把宠物实体转换为 DTO。
+     *
+     * 调用场景：listAll 与 getPetsByOwner 返回前。
+     *
+     * 调用链：listAll() / getPetsByOwner() → toDTOList() → toDTO()。
+     *
+     * 数据处理：入参为 null 时返回空列表，否则流式逐条转换。
+     *
+     * 业务规则：保证不返回 null。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：逐条转换会逐条查用户表，列表越大查询次数越多。
+     */
     private List<PetDTO> toDTOList(List<Pet> list) {
+        // 空列表兜底，避免上层判空
         if (list == null) return List.of();
         return list.stream().map(this::toDTO).collect(Collectors.toList());
     }

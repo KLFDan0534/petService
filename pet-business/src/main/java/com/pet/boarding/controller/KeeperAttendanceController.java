@@ -34,6 +34,25 @@ public class KeeperAttendanceController {
 
     private final KeeperAttendanceService attendanceService;
 
+    /**
+     * 【构造方法】注入考勤服务
+     *
+     * 业务作用：由 Spring 注入 KeeperAttendanceService，供签到、签退与考勤查询接口使用。
+     *
+     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → attendanceService 赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段。
+     */
     public KeeperAttendanceController(KeeperAttendanceService attendanceService) {
         this.attendanceService = attendanceService;
     }

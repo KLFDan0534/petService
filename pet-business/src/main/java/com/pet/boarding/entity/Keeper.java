@@ -69,10 +69,6 @@ public class Keeper {
     @Schema(description = "投诉率")
     private BigDecimal complaint_rate_wsh;
 
-    @TableField(value = "price_per_day_wsh")
-    @Schema(description = "每日价格")
-    private BigDecimal price_per_day_wsh;
-
     @TableField(value = "max_pets_wsh")
     @Schema(description = "最大可接待宠物数")
     private Integer max_pets_wsh;

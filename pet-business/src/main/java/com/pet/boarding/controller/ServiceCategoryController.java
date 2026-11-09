@@ -41,6 +41,25 @@ public class ServiceCategoryController {
 
     private final ServiceCategoryService categoryService;
 
+    /**
+     * 【服务分类控制器构造注入】
+     *
+     * 业务作用：注入服务分类业务服务。
+     *
+     * 调用场景：Spring 容器创建 ServiceCategoryController 时。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 赋值 categoryService。
+     *
+     * 数据处理：仅保存依赖引用。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public ServiceCategoryController(ServiceCategoryService categoryService) {
         this.categoryService = categoryService;
     }
@@ -138,6 +157,7 @@ public class ServiceCategoryController {
     })
     public Result<ServiceCategoryDTO> getById(@Parameter(description = "分类ID") @PathVariable Long id) {
         ServiceCategoryDTO dto = categoryService.toDTO(categoryService.getById(id));
+        // 禁用分类对匿名用户按不存在处理
         if (dto == null || dto.getStatus_wsh() == null
                 || dto.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
             throw new BusinessException(404, BookingErrorCode.CATEGORY_DISABLED,

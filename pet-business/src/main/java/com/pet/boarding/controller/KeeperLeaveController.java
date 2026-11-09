@@ -50,6 +50,25 @@ public class KeeperLeaveController {
 
     private final KeeperLeaveService leaveService;
 
+    /**
+     * 【构造函数：注入请假服务】
+     *
+     * 业务作用：注入 KeeperLeaveService 供商家与管理员接口调用。
+     *
+     * 调用场景：容器启动创建 KeeperLeaveController Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → KeeperLeaveController(构造) → leaveService 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本控制器全部接口按角色区分商家侧与管理员侧，权限由各方法上的 @PreAuthorize 控制。
+     */
     public KeeperLeaveController(KeeperLeaveService leaveService) {
         this.leaveService = leaveService;
     }
@@ -228,7 +247,7 @@ public class KeeperLeaveController {
                                           @Parameter(description = "请假记录ID") @PathVariable Long id,
                                           @RequestBody(required = false) Map<String, String> body) {
         log.info("调用 approve(id={})", id);
-        String reason = body == null ? null : body.get("reason");
+        String reason = body == null ? null : body.get("reason"); // 请求体可省略，缺省无审批备注
         return Result.success(leaveService.toDTO(leaveService.approve(id, token.getUserId(), reason)));
     }
 

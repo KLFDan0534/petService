@@ -39,7 +39,7 @@ public interface KeeperMapper extends BaseMapper<Keeper> {
             "name_wsh, phone_wsh, avatar_wsh, " +
             "experience_years_wsh, rating_wsh, " +
             "completion_rate_wsh, complaint_rate_wsh, " +
-            "price_per_day_wsh, max_pets_wsh, " +
+            "max_pets_wsh, " +
             "current_pets_wsh, bio_wsh, status_wsh, " +
             "offline_source_wsh, deleted_wsh, created_at_wsh, updated_at_wsh " +
             "FROM keeper_wsh WHERE id_wsh = #{id} FOR UPDATE")
@@ -59,7 +59,7 @@ public interface KeeperMapper extends BaseMapper<Keeper> {
             "name_wsh, phone_wsh, avatar_wsh, " +
             "experience_years_wsh, rating_wsh, " +
             "completion_rate_wsh, complaint_rate_wsh, " +
-            "price_per_day_wsh, max_pets_wsh, " +
+            "max_pets_wsh, " +
             "current_pets_wsh, bio_wsh, status_wsh, " +
             "offline_source_wsh, deleted_wsh, created_at_wsh, updated_at_wsh " +
             "FROM keeper_wsh WHERE merchant_id_wsh = #{merchantId} AND deleted_wsh = 0")

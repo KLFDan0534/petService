@@ -27,6 +27,25 @@ public class AddressServiceImpl implements AddressService {
 
     private final AddressMapper addressMapper;
 
+    /**
+     * 【构造方法】注入地址 Mapper
+     *
+     * 业务作用：由 Spring 注入 AddressMapper，供用户地址的增删改查与默认地址切换使用。
+     *
+     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → addressMapper 赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段。
+     */
     public AddressServiceImpl(AddressMapper addressMapper) {
         this.addressMapper = addressMapper;
     }
@@ -96,6 +115,7 @@ public class AddressServiceImpl implements AddressService {
         addr.setLongitude_wsh(dto.getLongitude_wsh());
         addr.setIs_default_wsh(dto.getIs_default_wsh());
         if (addr.getIs_default_wsh() == null) addr.setIs_default_wsh(0);
+        // 设为默认前先清掉其它地址的默认标记
         if (addr.getIs_default_wsh() == 1) {
             addressMapper.update(null, new LambdaUpdateWrapper<Address>()
                     .eq(Address::getUser_id_wsh, userId)
@@ -106,6 +126,7 @@ public class AddressServiceImpl implements AddressService {
                 new LambdaQueryWrapper<Address>()
                         .eq(Address::getUser_id_wsh, userId)
                         .eq(Address::getIs_default_wsh, 1));
+        // 用户没有默认地址时兜底补一个
         if (count == 0) {
             addr.setIs_default_wsh(1);
             addressMapper.updateById(addr);
@@ -139,6 +160,7 @@ public class AddressServiceImpl implements AddressService {
         if (dto.getLatitude_wsh() != null) existing.setLatitude_wsh(dto.getLatitude_wsh());
         if (dto.getLongitude_wsh() != null) existing.setLongitude_wsh(dto.getLongitude_wsh());
         if (dto.getIs_default_wsh() != null) {
+            // 排除自身，避免把自己取消默认
             if (dto.getIs_default_wsh() == 1) {
                 addressMapper.update(null, new LambdaUpdateWrapper<Address>()
                         .eq(Address::getUser_id_wsh, userId)
@@ -213,6 +235,7 @@ public class AddressServiceImpl implements AddressService {
     @Transactional
     public void setDefault(Long userId, Long id) {
         log.info("setDefault() 被调用");
+        // 先全部置零再单独置一，保证默认唯一
         addressMapper.update(null, new LambdaUpdateWrapper<Address>()
                 .eq(Address::getUser_id_wsh, userId)
                 .set(Address::getIs_default_wsh, 0));

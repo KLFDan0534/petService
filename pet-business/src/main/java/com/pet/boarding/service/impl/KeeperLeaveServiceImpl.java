@@ -40,6 +40,25 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
     private final KeeperMapper keeperMapper;
     private final MerchantMapper merchantMapper;
 
+    /**
+     * 【构造看护者休假服务】
+     *
+     * 业务作用：注入休假、看护者、商家三个 Mapper。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 leaveMapper / keeperMapper / merchantMapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖均为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：休假记录在考勤打卡与订单分配时会被其他服务调用校验，改动需评估下游影响。
+     */
     public KeeperLeaveServiceImpl(KeeperLeaveMapper leaveMapper,
                                   KeeperMapper keeperMapper,
                                   MerchantMapper merchantMapper) {
@@ -81,6 +100,7 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
         Merchant merchant = requireMerchantByUser(merchantUserId);
         validateRequest(request);
         Keeper keeper = requireMerchantKeeper(merchant.getId_wsh(), request.getKeeper_id_wsh());
+        // 结束日期加一天转开区间，避免首尾相接被误判重叠
         if (hasLeaveOverlap(keeper.getId_wsh(), request.getStart_date_wsh(), request.getEnd_date_wsh().plusDays(1))) {
             throw new BusinessException(400, "所选日期已存在休假安排");
         }
@@ -110,6 +130,7 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
         if (leave == null) {
             throw new BusinessException(404, "休假记录不存在");
         }
+        // 只能操作本商家名下的休假记录
         if (!merchant.getId_wsh().equals(leave.getMerchant_id_wsh())) {
             throw new BusinessException(403, "无权删除此休假记录");
         }
@@ -125,6 +146,7 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
     public IPage<KeeperLeave> pageAll(PageRequestDTO pageParam, String status) {
         Page<KeeperLeave> page = new Page<>(pageParam.getPage(), pageParam.getSize());
         LambdaQueryWrapper<KeeperLeave> wrapper = new LambdaQueryWrapper<>();
+        // 状态为空时不加筛选，查全部
         if (status != null && !status.isBlank()) {
             wrapper.eq(KeeperLeave::getStatus_wsh, status);
         }
@@ -232,7 +254,9 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
         if (keeperId == null || startDate == null || endExclusive == null) {
             return false;
         }
+        // 开区间右端点回退一天，转成闭区间比较
         LocalDate endInclusive = endExclusive.minusDays(1);
+        // 起止倒挂时收敛为单日，避免区间为空
         if (endInclusive.isBefore(startDate)) {
             endInclusive = startDate;
         }
@@ -327,6 +351,7 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
                 .map(KeeperLeave::getKeeper_id_wsh)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+        // 没有关联看护者时直接返回空映射
         if (keeperIds.isEmpty()) {
             return Map.of();
         }

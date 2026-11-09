@@ -466,6 +466,16 @@ public interface KeeperService {
     KeeperVO toDTO(Keeper entity);
 
     /**
+     * 批量填充「所属商家在售服务的最低价」。
+     * <p>
+     * 价格属于服务而非看护者，看护者卡片只展示「¥xx 起」，具体金额以服务详情为准。
+     * 一次查询覆盖整页看护者，避免 N+1。
+     *
+     * @param keepers 已转换的看护者 VO 列表（原地写入 min_price_wsh）
+     */
+    void fillMinServicePrice(List<KeeperVO> keepers);
+
+    /**
      * 【设置看护者在线状态】
      *
      * 业务作用：
