@@ -17,6 +17,25 @@ public class TransactionServiceImpl implements TransactionService {
 
     private final TransactionMapper transactionMapper;
 
+    /**
+     * 【构造交易记录服务】
+     *
+     * 业务作用：注入交易记录 Mapper。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 transactionMapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类只提供查询能力，交易流水写入由记账链路负责。
+     */
     public TransactionServiceImpl(TransactionMapper transactionMapper) {
         this.transactionMapper = transactionMapper;
     }
@@ -73,6 +92,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     public List<Transaction> listAllByType(String type) {
         log.info("调用 listAllByType(), type={}", type);
+        // 类型为空时退化为全量查询
         if (type == null || type.isBlank()) {
             return listAll();
         }

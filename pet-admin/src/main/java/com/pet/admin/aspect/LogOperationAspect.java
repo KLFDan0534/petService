@@ -39,6 +39,25 @@ public class LogOperationAspect {
     private final OperationLogService operationLogService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 【操作日志切面构造器】
+     *
+     * 业务作用：注入操作日志服务与 JSON 序列化器，供切面记录入参与结果。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 operationLogService / objectMapper。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：ObjectMapper 为全局共享实例。
+     */
     public LogOperationAspect(OperationLogService operationLogService, ObjectMapper objectMapper) {
         this.operationLogService = operationLogService;
         this.objectMapper = objectMapper;

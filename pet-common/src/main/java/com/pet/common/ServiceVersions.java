@@ -15,6 +15,25 @@ public final class ServiceVersions {
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
+    /**
+     * 【服务版本工具类私有构造器】
+     *
+     * 业务作用：阻止实例化，保证该类只以静态方法形式使用。
+     *
+     * 调用场景：无；工具类不会被实例化。
+     *
+     * 调用链：无。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：工具类不允许创建实例。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：版本格式统一由 format 方法产出，其他模块不得自行拼接。
+     */
     private ServiceVersions() {
     }
 

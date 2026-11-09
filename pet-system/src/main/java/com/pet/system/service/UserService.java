@@ -329,5 +329,24 @@ public interface UserService {
      */
     String forgotPassword(String email);
 
+    /**
+     * 【重置全部用户密码】
+     *
+     * 业务作用：声明批量重置所有用户密码的能力。
+     *
+     * 调用场景：管理员运维或测试环境初始化时调用。
+     *
+     * 调用链：UserController → UserService.resetAllPasswords → UserServiceImpl。
+     *
+     * 数据处理：入参为明文新密码，由实现类负责加密。
+     *
+     * 业务规则：密码长度需在 6 到 72 个字符之间。
+     *
+     * 状态影响：影响全表用户密码。
+     *
+     * 异常情况：密码非法 → BusinessException(400)。
+     *
+     * 注意事项：接口层不校验长度，校验在实现类中完成。
+     */
     int resetAllPasswords(String newPassword);
 }

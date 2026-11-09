@@ -69,7 +69,7 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(QUEUE_ORDER_PAYMENT_TIMEOUT_DELAY)
             .ttl(ORDER_PAYMENT_TIMEOUT_TTL_MS)
             .deadLetterExchange(EXCHANGE_DIRECT)
-            .deadLetterRoutingKey(QUEUE_ORDER_PAYMENT_TIMEOUT)
+            .deadLetterRoutingKey(QUEUE_ORDER_PAYMENT_TIMEOUT) // 死信转到真实消费队列
             .build();
     }
 
@@ -92,7 +92,7 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(QUEUE_ORDER_ACCEPT_TIMEOUT_DELAY)
             .ttl(ORDER_ACCEPT_TIMEOUT_TTL_MS)
             .deadLetterExchange(EXCHANGE_DIRECT)
-            .deadLetterRoutingKey(QUEUE_ORDER_ACCEPT_TIMEOUT)
+            .deadLetterRoutingKey(QUEUE_ORDER_ACCEPT_TIMEOUT) // 死信转到真实消费队列
             .build();
     }
 

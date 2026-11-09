@@ -36,7 +36,6 @@ public class StatisticsServiceImpl implements StatisticsService {
     private static final Set<String> REVENUE_STATUSES = Set.of(
             OrderStatus.PAID,
             OrderStatus.CONFIRMED,
-            OrderStatus.DELIVERED,
             OrderStatus.RECEIVED,
             OrderStatus.IN_PROGRESS,
             OrderStatus.COMPLETED);
@@ -44,7 +43,6 @@ public class StatisticsServiceImpl implements StatisticsService {
     private static final Set<String> ACTIVE_ORDER_STATUSES = Set.of(
             OrderStatus.PAID,
             OrderStatus.CONFIRMED,
-            OrderStatus.DELIVERED,
             OrderStatus.RECEIVED,
             OrderStatus.IN_PROGRESS);
 
@@ -58,6 +56,25 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final OrderMapper orderMapper;
     private final TipMapper tipMapper;
 
+    /**
+     * 【统计服务构造器】
+     *
+     * 业务作用：注入用户、宠物、商家、看护者、订单服务以及评价、投诉、订单、打赏四个 Mapper。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 逐字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：直接注入 Mapper 用于跨模块统计，避免为聚合查询新增 Service 方法。
+     */
     public StatisticsServiceImpl(UserService userService, PetService petService,
                                   MerchantService merchantService, KeeperService keeperService,
                                   OrderService orderService,
@@ -88,12 +105,13 @@ public class StatisticsServiceImpl implements StatisticsService {
      * <p>业务作用：从各Service获取全量数据，聚合计算平台运营概览指标。</p>
      * <p>数据来源：UserService.listAll() / PetService.listAll() / MerchantService.listAll() / KeeperService.listAll() / OrderService.listAll()</p>
      * <p>数据处理：listAll()获取全量数据后用size()计数；订单流式filter(isRevenueOrder)+map(finalAmount)+reduce求和；按状态filter统计pending/completed。</p>
-     * <p>业务规则：isRevenueOrder判断——订单状态在REVENUE_STATUSES集合中（PAID/CONFIRMED/DELIVERED/RECEIVED/IN_PROGRESS/COMPLETED）。</p>
+     * <p>业务规则：isRevenueOrder判断——订单状态在REVENUE_STATUSES集合中（PAID/CONFIRMED/RECEIVED/IN_PROGRESS/COMPLETED）。</p>
      * <p>注意事项：TODO 前端返回数据太久了，需要优化——全量listAll在大数据量下存在性能瓶颈。</p>
      */
     @Override
     public AdminDashboardVO getAdminDashboard() {
         AdminDashboardVO stats = new AdminDashboardVO();
+        // 全量拉取后计数，数据量大时是瓶颈
         stats.setTotal_users_wsh(userService.listAll().size());
         stats.setTotal_pets_wsh(petService.listAll().size());
         stats.setTotal_merchants_wsh(merchantService.listAll().size());
@@ -102,6 +120,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         List<OrderDTO> allOrders = orderService.listAll();
         stats.setTotal_orders_wsh(allOrders.size());
 
+        // 营收只统计已支付之后的订单状态
         BigDecimal totalRevenue = allOrders.stream()
                 .filter(this::isRevenueOrder)
                 .map(this::finalAmount)
@@ -131,7 +150,7 @@ public class StatisticsServiceImpl implements StatisticsService {
      * <p>业务作用：统计用户个人数据——宠物数、进行中订单、已完成订单、累计消费。</p>
      * <p>数据来源：PetService.getPetsByOwner() / OrderService.listByOwner()</p>
      * <p>数据处理：getPetsByOwner获取宠物列表size()；listByOwner获取订单列表；isActiveOrder过滤进行中订单；isRevenueOrder+finalAmount计算累计消费。</p>
-     * <p>业务规则：isActiveOrder判断——订单状态在ACTIVE_ORDER_STATUSES集合中（PAID/CONFIRMED/DELIVERED/RECEIVED/IN_PROGRESS）。</p>
+     * <p>业务规则：isActiveOrder判断——订单状态在ACTIVE_ORDER_STATUSES集合中（PAID/CONFIRMED/RECEIVED/IN_PROGRESS）。</p>
      * <p>注意事项：仅限本人数据查询，Service层不跨用户。</p>
      */
     @Override
@@ -147,6 +166,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         long completedOrders = orders.stream()
                 .filter(o -> OrderStatus.COMPLETED.equals(o.getStatus_wsh()))
                 .count();
+        // 累计消费按实付金额汇总
         BigDecimal totalSpent = orders.stream()
                 .filter(this::isRevenueOrder)
                 .map(this::finalAmount)
@@ -193,6 +213,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         stats.setActive_orders_wsh(active);
         stats.setCompleted_orders_wsh(completed);
 
+        // 服务过的宠物按 pet_id 去重计数
         stats.setPets_wsh((int) orders.stream().map(OrderDTO::getPet_id_wsh).distinct().count());
 
         return stats;
@@ -232,29 +253,107 @@ public class StatisticsServiceImpl implements StatisticsService {
         long orderCount = totalOrders == null ? 0 : totalOrders;
         long completedCount = completedOrders == null ? 0 : completedOrders;
         stats.setTotal_completed_wsh(completedCount);
+        // 完成率以订单总数为分母
         stats.setCompletion_rate_wsh(percent(completedCount, orderCount));
 
         Long complaints = complaintMapper.selectCount(new LambdaQueryWrapper<Complaint>()
                 .eq(Complaint::getTarget_type_wsh, normalizedType)
                 .eq(Complaint::getTarget_id_wsh, targetId));
+        // 投诉率同样以订单总数为分母
         stats.setComplaint_rate_wsh(percent(complaints == null ? 0 : complaints, orderCount));
 
         stats.setTotal_tips_wsh(totalTips(normalizedType, targetId));
         return stats;
     }
 
+    /**
+     * 【判断是否计入营收】
+     *
+     * 业务作用：判断订单状态是否属于计入营收的状态集合。
+     *
+     * 调用场景：各看板统计营收时作为 stream 的过滤条件。
+     *
+     * 调用链：getAdminDashboard / getUserDashboard / getMerchantDashboard → filter(isRevenueOrder) → finalAmount。
+     *
+     * 数据处理：订单非空且 status_wsh 命中 REVENUE_STATUSES。
+     *
+     * 业务规则：状态集为 PAID、CONFIRMED、RECEIVED、IN_PROGRESS、COMPLETED。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：order 为 null 返回 false。
+     *
+     * 注意事项：退款中与已退款不计入营收，待付款与已取消同样排除。
+     */
     private boolean isRevenueOrder(OrderDTO order) {
         return order != null && REVENUE_STATUSES.contains(order.getStatus_wsh());
     }
 
+    /**
+     * 【判断是否进行中】
+     *
+     * 业务作用：判断订单是否处于已付款到服务中之间的进行中状态。
+     *
+     * 调用场景：用户看板与商家看板统计进行中订单数时使用。
+     *
+     * 调用链：getUserDashboard / getMerchantDashboard → filter(isActiveOrder)。
+     *
+     * 数据处理：订单非空且 status_wsh 命中 ACTIVE_ORDER_STATUSES。
+     *
+     * 业务规则：状态集为 PAID、CONFIRMED、RECEIVED、IN_PROGRESS，不含 COMPLETED。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：order 为 null 返回 false。
+     *
+     * 注意事项：已完成订单单独统计，避免重复计入。
+     */
     private boolean isActiveOrder(OrderDTO order) {
         return order != null && ACTIVE_ORDER_STATUSES.contains(order.getStatus_wsh());
     }
 
+    /**
+     * 【取订单实付金额】
+     *
+     * 业务作用：取出订单实付金额，空值统一按 0 处理。
+     *
+     * 调用场景：统计营收时作为 map 的取值函数。
+     *
+     * 调用链：getAdminDashboard 等 → map(this::finalAmount) → reduce 求和。
+     *
+     * 数据处理：final_amount_wsh 为 null 时返回 BigDecimal.ZERO。
+     *
+     * 业务规则：以实付金额而非订单原价为统计口径。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：order 为 null 时会抛空指针，调用前需确保订单非空。
+     */
     private BigDecimal finalAmount(OrderDTO order) {
         return order.getFinal_amount_wsh() == null ? BigDecimal.ZERO : order.getFinal_amount_wsh();
     }
 
+    /**
+     * 【标准化信誉统计目标类型】
+     *
+     * 业务作用：校验并标准化目标类型，仅允许 merchant 与 keeper。
+     *
+     * 调用场景：getReputationStats 入口处调用。
+     *
+     * 调用链：getReputationStats → normalizeTargetType → 返回小写类型。
+     *
+     * 数据处理：忽略大小写比较，返回统一小写值。
+     *
+     * 业务规则：其他取值一律视为非法参数。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：非 merchant/keeper → IllegalArgumentException。
+     *
+     * 注意事项：抛的是 IllegalArgumentException，会被全局异常处理器按 500 处理。
+     */
     private String normalizeTargetType(String targetType) {
         if ("merchant".equalsIgnoreCase(targetType)) {
             return "merchant";
@@ -265,6 +364,25 @@ public class StatisticsServiceImpl implements StatisticsService {
         throw new IllegalArgumentException("targetType must be merchant or keeper");
     }
 
+    /**
+     * 【构造目标订单查询条件】
+     *
+     * 业务作用：按目标类型生成订单查询条件，商家查 merchant_id，看护者查 keeper_id。
+     *
+     * 调用场景：getReputationStats 统计订单总数、完成数与 totalTips 中复用。
+     *
+     * 调用链：getReputationStats / totalTips → orderTargetWrapper。
+     *
+     * 数据处理：merchant 用 merchant_id_wsh 等值匹配，其余按 keeper_id_wsh 匹配。
+     *
+     * 业务规则：非 merchant 一律按 keeper 处理，不做二次校验。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：调用前需先经 normalizeTargetType 校验。
+     */
     private LambdaQueryWrapper<PetOrder> orderTargetWrapper(String targetType, Long targetId) {
         LambdaQueryWrapper<PetOrder> wrapper = new LambdaQueryWrapper<>();
         if ("merchant".equals(targetType)) {
@@ -275,16 +393,55 @@ public class StatisticsServiceImpl implements StatisticsService {
         return wrapper;
     }
 
+    /**
+     * 【计算平均评分】
+     *
+     * 业务作用：根据评价列表计算平均分，保留一位小数。
+     *
+     * 调用场景：getReputationStats 计算商家或看护者平均分时调用。
+     *
+     * 调用链：getReputationStats → averageRating → reduce 求和 → divide。
+     *
+     * 数据处理：评分为 null 按 0 计入，总和除以条数。
+     *
+     * 业务规则：空列表返回 0.0，舍入方式为 HALF_UP。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：null 评分按 0 计入会拉低均值，需与评价写入逻辑保持一致。
+     */
     private BigDecimal averageRating(List<Rating> ratings) {
         if (ratings == null || ratings.isEmpty()) {
             return BigDecimal.ZERO.setScale(1);
         }
+        // 评分为空按 0 计入，避免空指针
         BigDecimal total = ratings.stream()
                 .map(r -> BigDecimal.valueOf(r.getScore_wsh() == null ? 0 : r.getScore_wsh()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return total.divide(BigDecimal.valueOf(ratings.size()), 1, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 【计算百分比】
+     *
+     * 业务作用：计算部分占整体的百分比，保留一位小数。
+     *
+     * 调用场景：统计完成率与投诉率时调用。
+     *
+     * 调用链：getReputationStats → percent。
+     *
+     * 数据处理：part / total × 100。
+     *
+     * 业务规则：total 小于等于 0 时返回 0.0，舍入方式为 HALF_UP。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：不做上限截断，投诉率理论上可能超过 100。
+     */
     private BigDecimal percent(long part, long total) {
         if (total <= 0) {
             return BigDecimal.ZERO.setScale(1);
@@ -294,10 +451,30 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .divide(BigDecimal.valueOf(total), 1, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 【统计打赏数量】
+     *
+     * 业务作用：统计某个商家或看护者名下订单获得的打赏条数。
+     *
+     * 调用场景：getReputationStats 汇总打赏指标时调用。
+     *
+     * 调用链：getReputationStats → totalTips → orderMapper.selectList → tipMapper.selectCount。
+     *
+     * 数据处理：先查该目标全部订单 ID，再用 in 条件统计打赏记录数。
+     *
+     * 业务规则：无订单时直接返回 0。
+     *
+     * 状态影响：无（只读）。
+     *
+     * 异常情况：count 为 null 时按 0 处理。
+     *
+     * 注意事项：订单量大时 in 条件会很长，后续可改为联表统计。
+     */
     private long totalTips(String targetType, Long targetId) {
         List<PetOrder> orders = orderMapper.selectList(orderTargetWrapper(targetType, targetId)
                 .select(PetOrder::getId_wsh));
         List<Long> orderIds = orders.stream().map(PetOrder::getId_wsh).toList();
+        // 无订单时无需再查打赏表
         if (orderIds.isEmpty()) {
             return 0;
         }

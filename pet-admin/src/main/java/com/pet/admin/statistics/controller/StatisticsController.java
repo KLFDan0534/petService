@@ -28,6 +28,25 @@ public class StatisticsController {
 
     private final StatisticsService statisticsService;
 
+    /**
+     * 【统计控制器构造器】
+     *
+     * 业务作用：注入统计服务，供看板接口调用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 statisticsService。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public StatisticsController(StatisticsService statisticsService) {
         this.statisticsService = statisticsService;
     }

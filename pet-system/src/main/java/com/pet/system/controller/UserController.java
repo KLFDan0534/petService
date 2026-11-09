@@ -35,6 +35,25 @@ public class UserController {
 
     private final UserService userService;
 
+    /**
+     * 【用户控制器构造器】
+     *
+     * 业务作用：注入用户服务，供用户信息查询与修改接口使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 userService。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public UserController(UserService userService) {
         this.userService = userService;
     }
@@ -195,6 +214,7 @@ public class UserController {
         UserVO vo = new UserVO();
         vo.setReal_name_wsh(request.getReal_name_wsh());
         vo.setId_card_no_wsh(request.getId_card_no_wsh());
+        // 提交后统一置为待审核
         vo.setReal_name_status_wsh(UserProfileConstants.REAL_NAME_PENDING);
         return Result.success(userService.updateUser(token.getUserId(), vo));
     }
@@ -259,6 +279,7 @@ public class UserController {
     public Result<Void> deleteCurrentUser(@AuthenticationPrincipal JwtAuthenticationToken token,
                                           @RequestHeader("Authorization") String authHeader) {
         log.info("调用 deleteCurrentUser()");
+        // 去掉 Bearer 前缀后再注销令牌
         String accessToken = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
         userService.deleteCurrentUser(token.getUserId(), accessToken);
         return Result.success();
@@ -362,6 +383,7 @@ public class UserController {
                                                @Parameter(description = "搜索关键词（用户名/昵称/手机号）") @RequestParam(required = false) String q) {
         log.info("调用 listAll(), q={}", q);
         IPage<UserVO> up = userService.listPage(pageParam, q);
+        // 把分页结果包装成统一返回结构
         PageResult<UserVO> pr = new PageResult<>();
         pr.copyPageInfo(up);
         pr.setList(up.getRecords());

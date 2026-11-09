@@ -39,6 +39,25 @@ public class PageResult<T> {
     private int size;
     private long pages;
 
+    /**
+     * 【分页结果无参构造器】
+     *
+     * 业务作用：创建空的分页结果，供手工组装分页数据时使用。
+     *
+     * 调用场景：Service 层自行分页后逐字段赋值，如 OrderController 组装商户订单分页。
+     *
+     * 调用链：调用方 → new PageResult<>() → setList / setTotal / setPage / setSize。
+     *
+     * 数据处理：不初始化任何字段，list 保持 null。
+     *
+     * 业务规则：使用前必须显式设置各字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：list 默认为 null 而非空集合，前端需容错。
+     */
     public PageResult() {}
 
     /**

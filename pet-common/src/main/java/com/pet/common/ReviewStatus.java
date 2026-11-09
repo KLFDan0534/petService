@@ -19,6 +19,25 @@ package com.pet.common;
  * - Qualification.status：资质审核
  */
 public final class ReviewStatus {
+    /**
+     * 【审核状态常量类私有构造器】
+     *
+     * 业务作用：阻止实例化，保证该类只作为审核状态常量容器使用。
+     *
+     * 调用场景：无；常量类不会被实例化。
+     *
+     * 调用链：无。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：常量类不允许创建实例。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：商家、看护者、实名审核共用同一套状态取值。
+     */
     private ReviewStatus() {}
     /** 待审核 */
     public static final String PENDING = "pending";

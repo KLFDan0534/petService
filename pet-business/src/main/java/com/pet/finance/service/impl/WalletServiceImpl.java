@@ -24,6 +24,25 @@ public class WalletServiceImpl implements WalletService {
 
     private final WalletMapper walletMapper;
 
+    /**
+     * 【构造钱包服务】
+     *
+     * 业务作用：注入钱包 Mapper。
+     *
+     * 调用场景：Spring 容器启动创建 Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造器 → 赋值 walletMapper 字段。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：依赖为 final 字段。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类中加余额、扣余额、冻结等方法均已标记 @Deprecated，新代码应改用 AccountingService。
+     */
     public WalletServiceImpl(WalletMapper walletMapper) {
         this.walletMapper = walletMapper;
     }
@@ -44,6 +63,7 @@ public class WalletServiceImpl implements WalletService {
         log.info("调用 getByUserId()");
         Wallet w = walletMapper.selectOne(
                 new LambdaQueryWrapper<Wallet>().eq(Wallet::getUser_id_wsh, userId));
+        // 钱包不存在则先建一条再重新查询
         if (w == null) {
             walletMapper.createWallet(userId);
             return getByUserId(userId);
@@ -106,6 +126,7 @@ public class WalletServiceImpl implements WalletService {
     public void deductBalance(Long userId, BigDecimal amount) {
         log.info("调用 deductBalance()");
         int affected = walletMapper.deductBalance(userId, amount);
+        // 更新 0 行时区分余额不足与并发失败
         if (affected == 0) {
             Wallet w = getByUserId(userId);
             if (w.getBalance_wsh().compareTo(amount) < 0)
@@ -131,6 +152,7 @@ public class WalletServiceImpl implements WalletService {
     public void freeze(Long userId, BigDecimal amount) {
         log.info("调用 freeze()");
         int affected = walletMapper.freeze(userId, amount);
+        // 冻结失败时区分可用余额不足
         if (affected == 0) {
             Wallet w = getByUserId(userId);
             if (w.getBalance_wsh().subtract(w.getFrozen_amount_wsh()).compareTo(amount) < 0)
@@ -241,8 +263,28 @@ public class WalletServiceImpl implements WalletService {
                 resolveOrderDirection(pageParam.getOrder_wsh()));
     }
 
+    /**
+     * 【解析钱包排序字段】
+     *
+     * 业务作用：把前端传入的排序字段名映射为 SQL 中带表别名的列名，防止 SQL 注入。
+     *
+     * 调用场景：listPage 组装分页查询参数时。
+     *
+     * 调用链：listPage() → resolveOrderColumn() → walletMapper.selectWalletPage()。
+     *
+     * 数据处理：空值或空白返回 w.created_at_wsh；id、user_id、balance 分别映射为对应列；其他未知值一律回退到 w.created_at_wsh。
+     *
+     * 业务规则：只接受白名单内的四个取值。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无，非法值静默回退而不是抛异常。
+     *
+     * 注意事项：返回值直接拼进 SQL，新增排序字段时必须在此同步维护白名单。
+     */
     private String resolveOrderColumn(String sortBy) {
         if (sortBy == null || sortBy.isBlank()) return "w.created_at_wsh";
+        // 排序字段走白名单，未知值回落创建时间
         switch (sortBy.trim().toLowerCase()) {
             case "id": return "w.id_wsh";
             case "user_id": return "w.user_id_wsh";
@@ -252,6 +294,25 @@ public class WalletServiceImpl implements WalletService {
         }
     }
 
+    /**
+     * 【解析排序方向】
+     *
+     * 业务作用：把前端传入的排序方向规范化为 ASC 或 DESC。
+     *
+     * 调用场景：listPage 组装分页查询参数时。
+     *
+     * 调用链：listPage() → resolveOrderDirection() → walletMapper.selectWalletPage()。
+     *
+     * 数据处理：忽略大小写比较是否为 asc，是则返回 ASC，其余一律 DESC。
+     *
+     * 业务规则：默认降序。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无，非法值静默按降序处理。
+     *
+     * 注意事项：返回值直接拼进 SQL，因此只能返回两个固定字面量。
+     */
     private String resolveOrderDirection(String order) {
         return (order != null && "asc".equalsIgnoreCase(order.trim())) ? "ASC" : "DESC";
     }

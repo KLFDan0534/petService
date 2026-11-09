@@ -40,12 +40,50 @@ public class Result<T> {
     private String errorCode;
     private T data;
 
+    /**
+     * 【响应体私有构造器（无稳定标识）】
+     *
+     * 业务作用：构造不含 errorCode 的响应体，仅供静态工厂方法内部使用。
+     *
+     * 调用场景：Result.success 与 Result.error(code, message) 内部调用。
+     *
+     * 调用链：Result.success / Result.error → 构造器 → 字段赋值。
+     *
+     * 数据处理：code、message、data 直接赋值。
+     *
+     * 业务规则：构造器私有，禁止外部直接 new。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：errorCode 保持 null，前端只能依据 code 与 message 判断。
+     */
     private Result(int code, String message, T data) {
         this.code = code;
         this.message = message;
         this.data = data;
     }
 
+    /**
+     * 【响应体私有构造器（含稳定标识）】
+     *
+     * 业务作用：构造带 errorCode 的响应体，供需要稳定错误标识的返回使用。
+     *
+     * 调用场景：Result.error(code, errorCode, message) 内部调用。
+     *
+     * 调用链：Result.error → 构造器 → 字段赋值。
+     *
+     * 数据处理：四个字段直接赋值。
+     *
+     * 业务规则：构造器私有，禁止外部直接 new。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：errorCode 用于前端提示映射，变更会破坏前端兼容。
+     */
     private Result(int code, String errorCode, String message, T data) {
         this.code = code;
         this.errorCode = errorCode;
@@ -74,6 +112,25 @@ public class Result<T> {
         return new Result<>(code, message, null);
     }
 
+    /**
+     * 【构造带稳定标识的错误响应】
+     *
+     * 业务作用：返回带业务码、稳定错误标识与提示消息的失败响应。
+     *
+     * 调用场景：需要前端按 errorCode 精确提示的错误返回。
+     *
+     * 调用链：调用方 → Result.error → 私有构造器。
+     *
+     * 数据处理：data 置 null，其余字段透传。
+     *
+     * 业务规则：code 取业务码，errorCode 取 BookingErrorCode 等常量。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：与两参 error 的区别是多了 errorCode，前端应优先读 errorCode。
+     */
     public static <T> Result<T> error(int code, String errorCode, String message) {
         return new Result<>(code, errorCode, message, null);
     }

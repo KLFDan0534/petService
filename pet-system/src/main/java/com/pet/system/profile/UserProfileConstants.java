@@ -40,6 +40,25 @@ public final class UserProfileConstants {
     /** 已驳回（审核未通过，需用户修改资料后重新提交） */
     public static final int REAL_NAME_REJECTED = 3;
 
+    /**
+     * 【用户资料常量类私有构造器】
+     *
+     * 业务作用：阻止实例化，保证该类只作为常量容器使用。
+     *
+     * 调用场景：无；常量类不会被实例化。
+     *
+     * 调用链：无。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：常量类不允许创建实例。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：实名状态取值需与数据库存量值保持一致。
+     */
     private UserProfileConstants() {
     }
 }

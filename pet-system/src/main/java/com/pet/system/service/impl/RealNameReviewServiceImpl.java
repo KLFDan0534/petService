@@ -23,6 +23,25 @@ public class RealNameReviewServiceImpl implements RealNameReviewService {
 
     private final UserMapper userMapper;
 
+    /**
+     * 【实名审核服务构造器】
+     *
+     * 业务作用：注入用户 Mapper，供实名审核状态读写使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 userMapper。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public RealNameReviewServiceImpl(UserMapper userMapper) {
         this.userMapper = userMapper;
     }
@@ -53,6 +72,7 @@ public class RealNameReviewServiceImpl implements RealNameReviewService {
         if (status != null) {
             qw.eq(User::getReal_name_status_wsh, status);
         }
+        // 关键词同时模糊匹配用户名、昵称与真实姓名
         if (StringUtils.hasText(keyword)) {
             qw.and(w -> w.like(User::getUsername_wsh, keyword)
                     .or().like(User::getNickname_wsh, keyword)
@@ -90,11 +110,13 @@ public class RealNameReviewServiceImpl implements RealNameReviewService {
     public void approve(Long userId, Long reviewerId, String remark) {
         log.info("调用 approve(), userId={}, reviewerId={}", userId, reviewerId);
         User user = getUserById(userId);
+        // 只有待审核状态才能批准
         if (user.getReal_name_status_wsh() == null
                 || user.getReal_name_status_wsh() != UserProfileConstants.REAL_NAME_PENDING) {
             throw new BusinessException("仅待审核状态的实名认证可批准");
         }
         user.setReal_name_status_wsh(UserProfileConstants.REAL_NAME_VERIFIED);
+        // 通过后清掉历史驳回原因
         user.setReject_reason_wsh(null);
         userMapper.updateById(user);
     }
@@ -123,6 +145,7 @@ public class RealNameReviewServiceImpl implements RealNameReviewService {
     public void reject(Long userId, Long reviewerId, String remark) {
         log.info("调用 reject(), userId={}, reviewerId={}", userId, reviewerId);
         User user = getUserById(userId);
+        // 只有待审核状态才能驳回
         if (user.getReal_name_status_wsh() == null
                 || user.getReal_name_status_wsh() != UserProfileConstants.REAL_NAME_PENDING) {
             throw new BusinessException("仅待审核状态的实名认证可驳回");

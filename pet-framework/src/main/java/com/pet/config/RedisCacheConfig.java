@@ -33,6 +33,25 @@ import java.util.Map;
 @Configuration
 public class RedisCacheConfig {
 
+    /**
+     * 【构建 Redis 缓存管理器】
+     *
+     * 业务作用：为 Spring Cache 提供统一的缓存管理器，按业务名区分 TTL。
+     *
+     * 调用场景：Spring 容器启动时创建 CacheManager Bean。
+     *
+     * 调用链：Spring 装配 → redisCacheManager → 默认配置 → 各业务 TTL → transactionAware → build。
+     *
+     * 数据处理：默认 TTL 30 分钟；category 2 小时、notice 10 分钟、notification 与 notificationUnreadCount 各 5 分钟。
+     *
+     * 业务规则：key 用字符串序列化，value 用 JSON 序列化；不缓存 null 值。
+     *
+     * 状态影响：无，返回配置好的管理器实例。
+     *
+     * 异常情况：RedisConnectionFactory 不可用时启动失败。
+     *
+     * 注意事项：开启事务感知后，写缓存与清除缓存推迟到事务提交，避免并发读回写旧值。
+     */
     @Bean
     public RedisCacheManager redisCacheManager(RedisConnectionFactory factory) {
         //默认配置: key用字符串,value用JSON (高可读,跨服务通用)
@@ -62,6 +81,25 @@ public class RedisCacheConfig {
                 .build();
     }
 
+    /**
+     * 【构建 JSON 序列化器】
+     *
+     * 业务作用：生成带类型信息的 JSON 序列化器，保证缓存对象可正确反序列化。
+     *
+     * 调用场景：redisCacheManager 配置默认缓存时调用。
+     *
+     * 调用链：redisCacheManager → jsonSerializer → ObjectMapper 配置。
+     *
+     * 数据处理：注册 JavaTimeModule 支持时间类型，开启 NON_FINAL 默认类型信息，关闭未知字段报错。
+     *
+     * 业务规则：必须带类型信息，否则反序列化会退化为 LinkedHashMap。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：实体存在只读别名 getter，缓存 JSON 会多出字段，故关闭 FAIL_ON_UNKNOWN_PROPERTIES 以免命中即 500。
+     */
     private GenericJackson2JsonRedisSerializer jsonSerializer(){
         ObjectMapper om = new ObjectMapper();
         om.registerModule(new JavaTimeModule());

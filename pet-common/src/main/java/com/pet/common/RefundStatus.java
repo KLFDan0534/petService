@@ -17,6 +17,25 @@ package com.pet.common;
  * - 退款流程涉及钱包余额变动，需要事务一致性保证
  */
 public final class RefundStatus {
+    /**
+     * 【退款状态常量类私有构造器】
+     *
+     * 业务作用：阻止实例化，保证该类只作为退款状态常量容器使用。
+     *
+     * 调用场景：无；常量类不会被实例化。
+     *
+     * 调用链：无。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：常量类不允许创建实例。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：状态值需与订单 refunding / refunded 流转保持一致。
+     */
     private RefundStatus() {}
     /** 退款申请中 */
     public static final String PENDING = "pending";

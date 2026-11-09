@@ -16,6 +16,25 @@ import java.util.Map;
 @EnableAsync
 @EnableScheduling
 public class PetApplication {
+    /**
+     * 【应用启动入口】
+     *
+     * 业务作用：启动 Spring Boot 应用，启动前先把代理配置写入 JVM 网络属性。
+     *
+     * 调用场景：java -jar 或 IDE 直接运行时调用。
+     *
+     * 调用链：main → applyJvmProxyFromDotEnv → SpringApplication.run。
+     *
+     * 数据处理：无返回值，异常直接抛出由 JVM 处理。
+     *
+     * 业务规则：代理必须在创建任何 HttpClient 之前设置，因此放在 run 之前。
+     *
+     * 状态影响：启动整个应用上下文。
+     *
+     * 异常情况：端口占用、配置错误等由 Spring 启动期抛出。
+     *
+     * 注意事项：不能调整到 run 之后调用，否则已创建的 HttpClient 不会生效。
+     */
     public static void main(String[] args) {
         applyJvmProxyFromDotEnv();
         SpringApplication.run(PetApplication.class, args);
@@ -80,6 +99,25 @@ public class PetApplication {
         return Map.of();
     }
 
+    /**
+     * 【取首个非空白值】
+     *
+     * 业务作用：在多个候选值中取第一个非空白字符串。
+     *
+     * 调用场景：读取代理配置时依次尝试 .env 与系统环境变量的多种写法。
+     *
+     * 调用链：applyJvmProxyFromDotEnv → firstNonBlank。
+     *
+     * 数据处理：命中即返回 trim 后的值。
+     *
+     * 业务规则：null 与空白字符串均视为无效。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：全部无效时返回 null。
+     *
+     * 注意事项：可变参数个数不限，调用方自行保证顺序优先级。
+     */
     private static String firstNonBlank(String... values) {
         for (String v : values) {
             if (v != null && !v.isBlank()) {
@@ -89,6 +127,25 @@ public class PetApplication {
         return null;
     }
 
+    /**
+     * 【写入 JVM 代理属性】
+     *
+     * 业务作用：把代理地址解析后写入 scheme.proxyHost 与 scheme.proxyPort。
+     *
+     * 调用场景：applyJvmProxyFromDotEnv 拿到代理地址后调用。
+     *
+     * 调用链：applyJvmProxyFromDotEnv → setProxyProps → System.setProperty。
+     *
+     * 数据处理：缺少协议前缀时补 http://，解析 URI 取 host 与 port。
+     *
+     * 业务规则：host 为空或端口不大于 0 时不设置，保持直连。
+     *
+     * 状态影响：修改 JVM 全局系统属性。
+     *
+     * 异常情况：URI 解析失败被吞掉，按直连处理。
+     *
+     * 注意事项：代理地址必须显式带端口，否则不会生效。
+     */
     private static void setProxyProps(String scheme, String proxy) {
         try {
             String normalized = proxy.startsWith("http") ? proxy : "http://" + proxy;

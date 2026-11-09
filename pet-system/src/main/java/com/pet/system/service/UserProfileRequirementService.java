@@ -13,6 +13,25 @@ public class UserProfileRequirementService {
 
     private final UserMapper userMapper;
 
+    /**
+     * 【资料前置条件服务构造器】
+     *
+     * 业务作用：注入用户 Mapper，供读取用户资料状态使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 userMapper。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public UserProfileRequirementService(UserMapper userMapper) {
         this.userMapper = userMapper;
     }
@@ -41,14 +60,35 @@ public class UserProfileRequirementService {
         if (user == null) {
             throw new BusinessException(401, "用户不存在或未登录");
         }
+        // 动作要求实名时校验审核通过状态
         if (action.isRequireRealName() && !isRealNameVerified(user)) {
             throw new BusinessException(403, action.getLabel() + "前需要先完成实名认证");
         }
+        // 手机号空白视为未绑定
         if (action.isRequireBoundPhone() && !StringUtils.hasText(user.getPhone_wsh())) {
             throw new BusinessException(403, action.getLabel() + "前需要先绑定手机号");
         }
     }
 
+    /**
+     * 【判断是否已实名】
+     *
+     * 业务作用：判断用户的实名审核状态是否为已通过。
+     *
+     * 调用场景：ensureAllowed 校验实名前置条件时调用。
+     *
+     * 调用链：ensureAllowed → isRealNameVerified → 比对 real_name_status_wsh。
+     *
+     * 数据处理：状态为 null 视为未实名，否则与 REAL_NAME_VERIFIED 比较。
+     *
+     * 业务规则：仅审核通过状态算已实名，审核中与驳回均不算。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：状态值为 Integer，比较使用拆箱，null 已提前排除。
+     */
     private boolean isRealNameVerified(User user) {
         return user.getReal_name_status_wsh() != null
                 && user.getReal_name_status_wsh() == UserProfileConstants.REAL_NAME_VERIFIED;

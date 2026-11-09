@@ -37,6 +37,25 @@ public class JwtUtil {
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
 
+    /**
+     * 【JWT 工具构造器】
+     *
+     * 业务作用：解析 Base64 密钥并初始化 HMAC 签名器，同时读取两种令牌的有效期配置。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 读取 jwt.* 配置 → Base64 解码 → Keys.hmacShaKeyFor → 赋值。
+     *
+     * 数据处理：secret 经 Base64 解码为字节数组，用于生成 SecretKey。
+     *
+     * 业务规则：密钥长度必须满足 HS512 要求（不少于 256 bit），否则启动失败。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：密钥为空或长度不足 → 启动期抛异常。
+     *
+     * 注意事项：密钥变更会使所有已签发令牌立即失效。
+     */
     public JwtUtil(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
@@ -153,6 +172,7 @@ public class JwtUtil {
      */
     public boolean validateToken(String token) {
         try {
+            // 能解析即有效，任何异常统一按无效处理
             parseToken(token);
             return true;
         } catch (Exception e) {

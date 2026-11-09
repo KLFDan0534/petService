@@ -18,6 +18,25 @@ public class RoleGrantService {
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
 
+    /**
+     * 【角色授予服务构造器】
+     *
+     * 业务作用：注入角色 Mapper 与用户角色 Mapper。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 roleMapper / userRoleMapper。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     public RoleGrantService(RoleMapper roleMapper, UserRoleMapper userRoleMapper) {
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
@@ -57,10 +76,12 @@ public class RoleGrantService {
         if (role == null) {
             throw new BusinessException("角色不存在: " + normalizedCode);
         }
+        // 已持有该角色则直接返回，保证幂等
         Long exists = userRoleMapper.countActiveUserRole(userId, role.getId_wsh());
         if (exists != null && exists > 0) {
             return;
         }
+        // 优先恢复被逻辑删除的关联记录
         if (userRoleMapper.restoreUserRole(userId, role.getId_wsh()) > 0) {
             return;
         }
@@ -104,11 +125,31 @@ public class RoleGrantService {
         if (role == null) {
             throw new BusinessException("role not found: " + normalizedCode);
         }
+        // 逻辑删除关联，保留记录便于后续恢复
         userRoleMapper.delete(new LambdaQueryWrapper<UserRole>()
                 .eq(UserRole::getUser_id_wsh, userId)
                 .eq(UserRole::getRole_id_wsh, role.getId_wsh()));
     }
 
+    /**
+     * 【规范化角色编码】
+     *
+     * 业务作用：去掉首尾空白并统一转为大写，用于编码比对。
+     *
+     * 调用场景：按角色编码授予角色时调用。
+     *
+     * 调用链：grantByCode 等 → normalizeRoleCode → trim + toUpperCase。
+     *
+     * 数据处理：使用 Locale.ROOT 避免地区差异导致的大小写问题。
+     *
+     * 业务规则：入参为 null 时会抛空指针，调用前需判空。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：roleCode 为 null → NullPointerException。
+     *
+     * 注意事项：只做格式规范化，不校验编码是否存在。
+     */
     private String normalizeRoleCode(String roleCode) {
         return roleCode.trim().toUpperCase(Locale.ROOT);
     }

@@ -6,6 +6,7 @@ import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
+import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.impl.KeeperServiceImpl;
 import com.pet.common.BusinessException;
 import com.pet.common.StatusCode;
@@ -14,6 +15,7 @@ import com.pet.qualification.service.QualificationService;
 import com.pet.system.entity.Role;
 import com.pet.system.entity.UserRole;
 import com.pet.system.mapper.RoleMapper;
+import com.pet.system.mapper.UserMapper;
 import com.pet.system.mapper.UserRoleMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +52,8 @@ class KeeperEmploymentServiceTest {
     @Mock private UserRoleMapper userRoleMapper;
     @Mock private QualificationService qualificationService;
     @Mock private OrderMapper orderMapper;
+    @Mock private UserMapper userMapper;
+    @Mock private ServiceItemMapper serviceItemMapper;
 
     @Test
     void keeperCanResignWhenNoUnfinishedOrders() {
@@ -249,7 +253,9 @@ class KeeperEmploymentServiceTest {
                 roleMapper,
                 userRoleMapper,
                 qualificationService,
-                orderMapper);
+                orderMapper,
+                userMapper,
+                serviceItemMapper);
     }
 
     @Test
@@ -350,7 +356,6 @@ class KeeperEmploymentServiceTest {
         request.setName_wsh("new keeper");
         request.setPhone_wsh("13800000000");
         request.setExperience_years_wsh(3);
-        request.setPrice_per_day_wsh(new BigDecimal("88.00"));
         request.setMax_pets_wsh(2);
         request.setBio_wsh("careful");
         request.setQualification_image_wsh("cert.png");

@@ -29,9 +29,31 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class AuthController {
 
+    // 用户服务
     private final UserService userService;
+
+    // 人机验证服务
     private final TurnstileVerifyService turnstileVerifyService;
 
+    /**
+     * 【认证控制器构造器】
+     *
+     * 业务作用：注入用户服务与人机校验服务，供登录、注册、刷新令牌等接口使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 userService / turnstileVerifyService。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本控制器接口在 SecurityConfig 中整体放行，鉴权依赖人机校验与令牌逻辑。
+     */
     public AuthController(UserService userService, TurnstileVerifyService turnstileVerifyService) {
         this.userService = userService;
         this.turnstileVerifyService = turnstileVerifyService;

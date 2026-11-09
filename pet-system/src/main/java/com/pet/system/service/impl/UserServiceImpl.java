@@ -55,6 +55,25 @@ public class UserServiceImpl implements UserService {
     private final StringRedisTemplate redisTemplate;
     private final Map<String, LoginAttempt> localLoginAttempts = new ConcurrentHashMap<>();
 
+    /**
+     * 【用户服务构造器】
+     *
+     * 业务作用：注入用户、角色、用户角色 Mapper，以及密码编码器、JWT 工具与 Redis 模板。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 逐字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：localLoginAttempts 为进程内登录失败计数，多实例部署时各节点独立计数。
+     */
     public UserServiceImpl(UserMapper userMapper, RoleMapper roleMapper,
                            UserRoleMapper userRoleMapper, PasswordEncoder passwordEncoder,
                            JwtUtil jwtUtil, StringRedisTemplate redisTemplate) {
@@ -100,35 +119,35 @@ public class UserServiceImpl implements UserService {
     public LoginResponseVO register(RegisterRequestDTO request) {
         String phone = normalizePhone(request.getPhone_wsh());
         String captcha = normalizeCaptcha(request.getCaptcha_wsh());
-        verifyRegisterCaptcha(phone, captcha);
-        ensurePhoneAvailable(phone, null);
+        verifyRegisterCaptcha(phone, captcha); // 验证验证码
+        ensurePhoneAvailable(phone, null); // 确保手机号未被绑定
 
         User user = new User();
-        BeanUtil.copyProperties(request, user);
-        user.setPhone_wsh(phone);
-        user.setPassword_wsh(passwordEncoder.encode(request.getPassword_wsh()));
-        user.setNickname_wsh(StringUtils.hasText(request.getNickname_wsh())
+        BeanUtil.copyProperties(request, user); // 属性拷贝
+        user.setPhone_wsh(phone); // 设置手机号
+        user.setPassword_wsh(passwordEncoder.encode(request.getPassword_wsh())); // 设置密码
+        user.setNickname_wsh(StringUtils.hasText(request.getNickname_wsh()) // 设置昵称
                 ? HtmlUtils.htmlEscape(request.getNickname_wsh())
-                : request.getUsername_wsh());
-        user.setStatus_wsh(StatusCode.USER_ACTIVE.getValue());
+                : request.getUsername_wsh()); // 设置用户名
+        user.setStatus_wsh(StatusCode.USER_ACTIVE.getValue()); // 设置状态(默认正常)
 
         try {
-            userMapper.insert(user);
+            userMapper.insert(user); // 插入用户
         } catch (DuplicateKeyException e) {
-            clearRegisterCaptcha(phone);
-            throw new BusinessException("用户名已存在");
+            clearRegisterCaptcha(phone); // 清除验证码
+            throw new BusinessException("用户名已存在"); // 抛出异常(不确定是不是用户名重复 TODO )
         }
 
-//        默认角色
-        Role ownerRole = roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getCode_wsh, "OWNER"));
+//        默认角色 // 获取默认角色
+        Role ownerRole = roleMapper.selectOne(new LambdaQueryWrapper<Role>().eq(Role::getCode_wsh, "OWNER")); // 查询角色
         if (ownerRole != null) {
             UserRole userRole = new UserRole();
-            userRole.setUser_id_wsh(user.getId_wsh());
-            userRole.setRole_id_wsh(ownerRole.getId_wsh());
-            userRoleMapper.insert(userRole);
+            userRole.setUser_id_wsh(user.getId_wsh()); // 设置用户ID
+            userRole.setRole_id_wsh(ownerRole.getId_wsh()); // 设置角色ID
+            userRoleMapper.insert(userRole); // 插入用户角色
         }
 
-        clearRegisterCaptcha(phone);
+        clearRegisterCaptcha(phone); // 清除验证码
         return buildLoginResponse(user);
     }
 
@@ -260,8 +279,8 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public void logout(String token) {
-        if (StringUtils.hasText(token) && redisTemplate != null && redisTemplate.opsForValue() != null) {
-            redisTemplate.opsForValue().set(TOKEN_BLACKLIST_PREFIX + token, "1", 1, TimeUnit.DAYS);
+        if (StringUtils.hasText(token) && redisTemplate != null) {
+            redisTemplate.opsForValue().set(TOKEN_BLACKLIST_PREFIX + token, "1", 1, TimeUnit.DAYS);// 把令牌加入黑名单
             rememberUserLogout(token);
         }
     }
@@ -359,12 +378,22 @@ public class UserServiceImpl implements UserService {
         if (StringUtils.hasText(vo.getNickname_wsh())) user.setNickname_wsh(vo.getNickname_wsh());
         if (StringUtils.hasText(vo.getPhone_wsh())) {
             String phone = normalizePhone(vo.getPhone_wsh());
-            ensurePhoneAvailable(phone, userId);
-            user.setPhone_wsh(phone);
+            // 用户端拿到的 phone_wsh 已是脱敏值（138****8000），原样回传时视为未修改，
+            // 避免把带 * 的字符串写进数据库；真实改号走 /users/me/phone 专用接口。
+            if (!phone.contains("*")) {
+                ensurePhoneAvailable(phone, userId);
+                user.setPhone_wsh(phone);
+            }
         }
         if (StringUtils.hasText(vo.getAvatar_wsh())) user.setAvatar_wsh(vo.getAvatar_wsh());
         if (vo.getGender_wsh() != null) user.setGender_wsh(vo.getGender_wsh());
-        if (StringUtils.hasText(vo.getEmail_wsh())) user.setEmail_wsh(vo.getEmail_wsh());
+        if (StringUtils.hasText(vo.getEmail_wsh())) {
+            // 用户端拿到的 email_wsh 已是脱敏值（ab***@example.com），原样回传视为未修改，
+            // 避免把掩码写进数据库；真实修改走 /users/me/email 专用接口。
+            if (!vo.getEmail_wsh().contains("***")) {
+                user.setEmail_wsh(vo.getEmail_wsh());
+            }
+        }
         if (StringUtils.hasText(vo.getReal_name_wsh())) user.setReal_name_wsh(vo.getReal_name_wsh());
         if (StringUtils.hasText(vo.getId_card_no_wsh())) user.setId_card_no_wsh(vo.getId_card_no_wsh());
         if (vo.getReal_name_status_wsh() != null) user.setReal_name_status_wsh(vo.getReal_name_status_wsh());
@@ -598,6 +627,25 @@ public class UserServiceImpl implements UserService {
         return tempPassword;
     }
 
+    /**
+     * 【重置全部用户密码】
+     *
+     * 业务作用：把系统中所有用户的密码统一重置为指定新密码。
+     *
+     * 调用场景：管理员运维场景，如测试环境批量重置账号。
+     *
+     * 调用链：UserController → UserService.resetAllPasswords → 长度校验 → passwordEncoder.encode → userMapper.resetAllPasswords。
+     *
+     * 数据处理：新密码经 BCrypt 加密后作为统一密文批量更新。
+     *
+     * 业务规则：密码长度必须在 6 到 72 个字符之间，否则拒绝。
+     *
+     * 状态影响：批量更新 user_wsh 表中所有用户密码，原有密码全部失效。
+     *
+     * 异常情况：密码为空或长度越界 → BusinessException(400)。
+     *
+     * 注意事项：高风险操作，会让所有用户无法用旧密码登录，生产环境需谨慎调用。
+     */
     @Override
     @Transactional
     public int resetAllPasswords(String newPassword) {
@@ -628,7 +676,6 @@ public class UserServiceImpl implements UserService {
         try {
             return StringUtils.hasText(token)
                     && redisTemplate != null
-                    && redisTemplate.opsForValue() != null
                     && redisTemplate.opsForValue().get(TOKEN_BLACKLIST_PREFIX + token) != null;
         } catch (Exception ignored) {
             return false;
@@ -978,10 +1025,11 @@ public class UserServiceImpl implements UserService {
         vo.setId_wsh(user.getId_wsh());
         vo.setUsername_wsh(user.getUsername_wsh());
         vo.setNickname_wsh(user.getNickname_wsh());
-        vo.setPhone_wsh(user.getPhone_wsh());
+        // 用户端接口不返回完整手机号/邮箱，避免抓包泄露；管理后台列表走 User.toVO，仍保留明文。
+        vo.setPhone_wsh(maskPhone(user.getPhone_wsh()));
+        vo.setEmail_wsh(maskEmail(user.getEmail_wsh()));
         vo.setAvatar_wsh(user.getAvatar_wsh());
         vo.setGender_wsh(user.getGender_wsh());
-        vo.setEmail_wsh(user.getEmail_wsh());
         vo.setReal_name_wsh(user.getReal_name_wsh());
         vo.setId_card_no_wsh(user.getId_card_no_wsh());
         vo.setReal_name_status_wsh(user.getReal_name_status_wsh());
@@ -993,5 +1041,38 @@ public class UserServiceImpl implements UserService {
         vo.setRoles_wsh(roleMapper.selectRoleCodesByUserId(user.getId_wsh()));
         vo.setPayment_password_set_wsh(StringUtils.hasText(user.getPayment_password_wsh()));
         return vo;
+    }
+
+    /**
+     * 手机号脱敏：11 位号码保留前 3 位与后 4 位，中间用 **** 代替。
+     * 已脱敏（含 *）、空值或非 11 位号码原样返回，保证幂等。
+     */
+    private String maskPhone(String phone) {
+        if (!StringUtils.hasText(phone) || phone.contains("*")) {
+            return phone;
+        }
+        String value = phone.trim();
+        if (value.length() != 11) {
+            return phone;
+        }
+        return value.substring(0, 3) + "****" + value.substring(7);
+    }
+
+    /**
+     * 邮箱脱敏：保留本地部分前 2 位与完整域名，其余用 *** 代替，例如 ab***@example.com。
+     * 已脱敏（含 ***）、空值或格式不合法时原样返回，保证幂等。
+     */
+    private String maskEmail(String email) {
+        if (!StringUtils.hasText(email) || email.contains("***")) {
+            return email;
+        }
+        String value = email.trim();
+        int at = value.indexOf('@');
+        if (at <= 0) {
+            return value;
+        }
+        String local = value.substring(0, at);
+        int keep = Math.min(2, local.length());
+        return local.substring(0, keep) + "***" + value.substring(at);
     }
 }

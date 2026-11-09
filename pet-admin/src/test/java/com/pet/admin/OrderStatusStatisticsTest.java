@@ -43,13 +43,12 @@ class OrderStatusStatisticsTest {
     void dashboardsCountAutoAcceptedOrdersAsRevenueAndActive() {
         OrderDTO paid = order(OrderStatus.PAID, "10.00");
         OrderDTO confirmed = order(OrderStatus.CONFIRMED, "20.00");
-        OrderDTO delivered = order(OrderStatus.DELIVERED, "30.00");
         OrderDTO received = order(OrderStatus.RECEIVED, "40.00");
         OrderDTO inProgress = order(OrderStatus.IN_PROGRESS, "50.00");
         OrderDTO completed = order(OrderStatus.COMPLETED, "60.00");
         OrderDTO pending = order(OrderStatus.PENDING, "70.00");
         OrderDTO cancelled = order(OrderStatus.CANCELLED, "80.00");
-        List<OrderDTO> orders = List.of(paid, confirmed, delivered, received, inProgress, completed, pending, cancelled);
+        List<OrderDTO> orders = List.of(paid, confirmed, received, inProgress, completed, pending, cancelled);
 
         when(userService.listAll()).thenReturn(List.of());
         when(petService.listAll()).thenReturn(List.of());
@@ -75,11 +74,11 @@ class OrderStatusStatisticsTest {
         UserDashboardVO user = service.getUserDashboard(7L);
         MerchantDashboardVO merchant = service.getMerchantDashboard(8L);
 
-        assertEquals(new BigDecimal("210.00"), admin.getTotal_revenue_wsh());
-        assertEquals(new BigDecimal("210.00"), user.getTotal_spent_wsh());
-        assertEquals(new BigDecimal("210.00"), merchant.getTotal_revenue_wsh());
-        assertEquals(5, user.getActive_orders_wsh());
-        assertEquals(5, merchant.getActive_orders_wsh());
+        assertEquals(new BigDecimal("180.00"), admin.getTotal_revenue_wsh());
+        assertEquals(new BigDecimal("180.00"), user.getTotal_spent_wsh());
+        assertEquals(new BigDecimal("180.00"), merchant.getTotal_revenue_wsh());
+        assertEquals(4, user.getActive_orders_wsh());
+        assertEquals(4, merchant.getActive_orders_wsh());
         assertEquals(1, admin.getPending_orders_wsh());
         assertEquals(1, merchant.getPending_orders_wsh());
         assertEquals(1, admin.getCompleted_orders_wsh());

@@ -41,6 +41,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
 
+    /**
+     * 【JWT 认证过滤器构造器】
+     *
+     * 业务作用：注入 JWT 工具与 Redis 模板，供请求级令牌校验使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 jwtUtil / redisTemplate。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：过滤器在 SecurityConfig 中被注册到 UsernamePasswordAuthenticationFilter 之前。
+     */
     public JwtAuthenticationFilter(JwtUtil jwtUtil, StringRedisTemplate redisTemplate) {
         this.jwtUtil = jwtUtil;
         this.redisTemplate = redisTemplate;
@@ -72,6 +91,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(authHeader) && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
             try {
+                // 查退登黑名单，Redis 异常时静默降级
                 String blacklisted = redisTemplate.opsForValue().get("blacklist:token:" + token);
                 if (blacklisted != null) {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -81,6 +101,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             } catch (Exception ignored) {
             }
+            // 验签通过才注入认证，失败仅放行
             if (jwtUtil.validateToken(token)) {
                 Long userId = jwtUtil.getUserIdFromToken(token);
                 List<String> roles = jwtUtil.getRolesFromToken(token);

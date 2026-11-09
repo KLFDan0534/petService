@@ -43,6 +43,25 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    /**
+     * 【安全配置构造器】
+     *
+     * 业务作用：注入 JWT 认证过滤器，供安全过滤器链注册。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 jwtAuthenticationFilter。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无；过滤器 Bean 缺失时启动失败。
+     *
+     * 注意事项：该过滤器在 securityFilterChain 中被插到 UsernamePasswordAuthenticationFilter 之前。
+     */
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
@@ -72,21 +91,44 @@ public class SecurityConfig {
             .cors(cors -> cors.disable())
             .csrf(csrf -> csrf.disable())
             .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+            // 无状态会话，认证完全依赖 JWT
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/index.html", "/assets/**", "/admin/**", "/css/**", "/js/**", "/favicon.ico").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/api-docs/**", "/v3/api-docs/**").permitAll()
+                // 公开浏览类 GET 接口免登录
                 .requestMatchers(HttpMethod.GET, "/api/merchants/**", "/api/keepers/**", "/api/services/**", "/api/ratings/**", "/api/categories/**", "/api/service-categories/**", "/api/notices/active", "/api/geo/config", "/api/order-events/stream", "/api/chat-events/stream", "/api/notification-events/stream").permitAll()
                 .requestMatchers("/api/files/**").permitAll()
+                // 非 /api 前缀视为前端页面直接放行
                 .requestMatchers(new NonApiRequestMatcher()).permitAll()
                 .anyRequest().authenticated()
             )
+            // JWT 过滤器插在账号密码认证之前
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
     static class NonApiRequestMatcher implements RequestMatcher {
+        /**
+         * 【非 API 路径匹配】
+         *
+         * 业务作用：判定请求 URI 是否属于非 API 路径，用于放行静态页面与前端路由。
+         *
+         * 调用场景：安全过滤器链对未显式匹配的请求做兜底判断时调用。
+         *
+         * 调用链：authorizeHttpRequests → NonApiRequestMatcher.matches → 前缀判断。
+         *
+         * 数据处理：取 requestURI，排除 /api/、/swagger-ui/、/api-docs/、/v3/ 四类前缀。
+         *
+         * 业务规则：不属于上述前缀的路径视为前端资源，直接放行。
+         *
+         * 状态影响：无。
+         *
+         * 异常情况：无。
+         *
+         * 注意事项：放行范围较宽，新增后端接口必须使用 /api/ 前缀，否则会绕过认证。
+         */
         @Override
         public boolean matches(HttpServletRequest request) {
             String uri = request.getRequestURI();

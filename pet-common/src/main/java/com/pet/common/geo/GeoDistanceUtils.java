@@ -31,6 +31,25 @@ public final class GeoDistanceUtils {
 
     private static final double EARTH_RADIUS_METERS = 6371000.0;
 
+    /**
+     * 【地理距离工具类私有构造器】
+     *
+     * 业务作用：阻止实例化，保证该类只以静态方法形式使用。
+     *
+     * 调用场景：无；工具类不会被实例化。
+     *
+     * 调用链：无。
+     *
+     * 数据处理：无。
+     *
+     * 业务规则：工具类不允许创建实例。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：地球半径常量固定为 6371000 米，与 Haversine 公式配套。
+     */
     private GeoDistanceUtils() {
     }
 

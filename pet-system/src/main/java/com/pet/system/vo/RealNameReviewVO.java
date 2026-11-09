@@ -29,6 +29,25 @@ public class RealNameReviewVO {
     @Schema(description = "驳回原因")
     private String reject_reason_wsh;
 
+    /**
+     * 【获取脱敏身份证号】
+     *
+     * 业务作用：返回身份证号的脱敏展示值，保留前 6 位与后 4 位。
+     *
+     * 调用场景：前端渲染实名审核详情时由 Jackson 序列化自动调用。
+     *
+     * 调用链：序列化 RealNameReviewVO → getId_card_no_wsh → 拼接掩码。
+     *
+     * 数据处理：长度不小于 10 时保留前 6 位与后 4 位，中间以 8 个星号替代。
+     *
+     * 业务规则：长度不足 10 时原样返回，不做截断。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：覆盖了 Lombok 生成的 getter，序列化结果即为脱敏值，接口不会泄露完整号码。
+     */
     public String getId_card_no_wsh() {
         if (id_card_no_wsh != null && id_card_no_wsh.length() >= 10) {
             String raw = id_card_no_wsh;

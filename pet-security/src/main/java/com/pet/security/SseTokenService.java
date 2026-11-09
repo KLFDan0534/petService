@@ -31,6 +31,25 @@ public class SseTokenService {
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
 
+    /**
+     * 【SSE 令牌服务构造器】
+     *
+     * 业务作用：注入 JWT 工具与 Redis 模板，供 SSE 连接鉴权使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 jwtUtil / redisTemplate。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：redisTemplate 允许为 null，isBlacklisted 中已做空判断。
+     */
     public SseTokenService(JwtUtil jwtUtil, StringRedisTemplate redisTemplate) {
         this.jwtUtil = jwtUtil;
         this.redisTemplate = redisTemplate;
@@ -62,6 +81,25 @@ public class SseTokenService {
         return jwtUtil.getUserIdFromToken(token);
     }
 
+    /**
+     * 【判断令牌是否已拉黑】
+     *
+     * 业务作用：查询 Redis 中是否存在该令牌的黑名单键，用于登出后立即失效。
+     *
+     * 调用场景：requireUserId 校验链中的第二道检查。
+     *
+     * 调用链：requireUserId → isBlacklisted → redisTemplate.opsForValue().get。
+     *
+     * 数据处理：按 blacklist:token:{token} 查询，存在即视为已拉黑。
+     *
+     * 业务规则：Redis 不可用或查询异常时按未拉黑处理，保证可用性优先。
+     *
+     * 状态影响：无（只读）。
+     *
+     * 异常情况：查询异常被吞掉并返回 false。
+     *
+     * 注意事项：降级放行意味着 Redis 故障期间已登出的令牌仍可用。
+     */
     private boolean isBlacklisted(String token) {
         try {
             return redisTemplate != null

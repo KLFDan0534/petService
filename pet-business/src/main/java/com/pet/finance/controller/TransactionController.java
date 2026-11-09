@@ -24,6 +24,25 @@ public class TransactionController {
 
     private final TransactionService transactionService;
 
+    /**
+     * 【构造函数：注入交易流水服务】
+     *
+     * 业务作用：注入 TransactionService 供用户侧与管理员侧流水查询使用。
+     *
+     * 调用场景：容器启动创建 TransactionController Bean 时自动调用。
+     *
+     * 调用链：Spring IoC → TransactionController(构造) → transactionService 字段赋值。
+     *
+     * 数据处理：仅做字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本控制器只提供只读查询，不涉及资金变更。
+     */
     public TransactionController(TransactionService transactionService) {
         this.transactionService = transactionService;
     }
@@ -81,6 +100,7 @@ public class TransactionController {
     @PreAuthorize("hasRole('ADMIN')")
     public Result<List<TransactionDTO>> listAll(@RequestParam(required = false) String type) {
         log.info("调用 listAll(), type={}", type);
+        // type 为空时返回全部类型流水
         return Result.success(transactionService.listAllByType(type).stream().map(transactionService::toDTO).collect(Collectors.toList()));
     }
 }

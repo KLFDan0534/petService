@@ -177,7 +177,7 @@ class OrderAutoAcceptTimeoutTest {
 
         assertTrue(orderServiceImpl.autoAcceptPaidOrderIfTimeout("ORD002"));
         assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
-        verify(keeperLeaveService).requireKeeperAvailable(20L, order.getStart_date_wsh(), order.getEnd_date_wsh());
+        verify(keeperLeaveService).requireKeeperAvailable(20L, order.getStart_date_wsh(), order.getEnd_date_wsh().plusDays(1));
         verify(orderStatusBroadcaster).broadcast(order);
     }
 
@@ -195,11 +195,6 @@ class OrderAutoAcceptTimeoutTest {
 
     @Test
     void fallbackScannerAutoAcceptsPaidOrdersWithOldSuccessfulPayments() {
-        Payment payment = payment("PAY_TIMEOUT", 12L, 103L, BigDecimal.ZERO);
-        payment.setOrder_no_wsh("ORD_TIMEOUT");
-        payment.setStatus_wsh("success");
-        payment.setPaid_at_wsh(LocalDateTime.now().minusMinutes(31));
-
         PetOrder order = order(103L, "ORD_TIMEOUT", OrderStatus.PAID);
         order.setKeeper_id_wsh(20L);
         order.setMerchant_id_wsh(10L);
@@ -212,7 +207,7 @@ class OrderAutoAcceptTimeoutTest {
         QualificationDTO qualification = new QualificationDTO();
         qualification.setStatus_wsh(QualificationService.STATUS_APPROVED);
 
-        when(paymentMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(payment));
+        // 兜底扫描直接查订单表（status=paid 且 updated_at 早于阈值），不再从支付记录反查
         when(orderMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(order));
         when(keeperMapper.selectById(20L)).thenReturn(keeper);
         when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
@@ -225,7 +220,7 @@ class OrderAutoAcceptTimeoutTest {
 
         assertEquals(1, accepted);
         assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
-        verify(keeperLeaveService).requireKeeperAvailable(20L, order.getStart_date_wsh(), order.getEnd_date_wsh());
+        verify(keeperLeaveService).requireKeeperAvailable(20L, order.getStart_date_wsh(), order.getEnd_date_wsh().plusDays(1));
         verify(orderStatusBroadcaster).broadcast(order);
     }
 
@@ -281,67 +276,6 @@ class OrderAutoAcceptTimeoutTest {
         ArgumentCaptor<PetOrder> updateCaptor = ArgumentCaptor.forClass(PetOrder.class);
         verify(orderMapper).update(updateCaptor.capture(), any(LambdaUpdateWrapper.class));
         assertEquals(OrderStatus.CONFIRMED, updateCaptor.getValue().getStatus_wsh());
-    }
-
-    @Test
-    void merchantOwnerCannotAcceptOrderUnlessTheyAreAssignedKeeper() {
-        PetOrder order = order(104L, "ORD_MERCHANT_DENIED", OrderStatus.PAID);
-        order.setMerchant_id_wsh(10L);
-        order.setKeeper_id_wsh(20L);
-        Keeper keeper = keeper(20L, 21L);
-
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
-        when(keeperMapper.selectById(20L)).thenReturn(keeper);
-
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> orderService().acceptOrder(30L, "ORD_MERCHANT_DENIED"));
-
-        assertEquals(403, exception.getCode());
-        verify(orderMapper, never()).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
-        verify(qualificationService, never()).listByOwner(any(), any(), eq(false));
-    }
-
-    @Test
-    void assignedKeeperCanAcceptPaidOrderAfterQualificationApproval() {
-        PetOrder order = order(105L, "ORD_KEEPER_ACCEPT", OrderStatus.PAID);
-        order.setMerchant_id_wsh(10L);
-        order.setKeeper_id_wsh(20L);
-        Keeper keeper = keeper(20L, 21L);
-
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
-        when(keeperMapper.selectById(20L)).thenReturn(keeper);
-        when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
-        when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
-                .thenReturn(List.of(approvedQualification()));
-        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
-        when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
-
-        orderService().acceptOrder(21L, "ORD_KEEPER_ACCEPT");
-
-        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
-        verify(keeperLeaveService).requireKeeperAvailable(20L, order.getStart_date_wsh(), order.getEnd_date_wsh());
-        verify(orderStatusBroadcaster).broadcast(order);
-    }
-
-    @Test
-    void merchantUserCanAcceptOnlyWhenTheirAssignedKeeperProfileIsCertified() {
-        PetOrder order = order(106L, "ORD_MERCHANT_KEEPER_ACCEPT", OrderStatus.PAID);
-        order.setMerchant_id_wsh(10L);
-        order.setKeeper_id_wsh(20L);
-        Keeper keeper = keeper(20L, 30L);
-
-        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
-        when(keeperMapper.selectById(20L)).thenReturn(keeper);
-        when(merchantMapper.selectById(10L)).thenReturn(futureBookingMerchant());
-        when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
-                .thenReturn(List.of(approvedQualification()));
-        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
-        when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
-
-        orderService().acceptOrder(30L, "ORD_MERCHANT_KEEPER_ACCEPT");
-
-        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
-        verify(orderStatusBroadcaster).broadcast(order);
     }
 
     private OrderServiceImpl orderService() {

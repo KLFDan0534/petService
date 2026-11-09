@@ -24,6 +24,25 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     private final WithdrawalMapper withdrawalMapper;
     private final AccountingService accountingService;
 
+    /**
+     * 【构造方法】注入提现 Mapper 与账务服务
+     *
+     * 业务作用：由 Spring 注入 WithdrawalMapper 与 AccountingService，供提现申请、审批与资金冻结解冻使用。
+     *
+     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
+     *
+     * 调用链：Spring 容器 → 本构造方法 → 两个 final 字段赋值。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
+     *
+     * 注意事项：依赖为 final 字段。
+     */
     public WithdrawalServiceImpl(WithdrawalMapper withdrawalMapper, AccountingService accountingService) {
         this.withdrawalMapper = withdrawalMapper;
         this.accountingService = accountingService;
@@ -101,6 +120,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     @Override
     public Withdrawal apply(Long userId, BigDecimal amount, String bankName, String bankCard, String accountName) {
         log.info("调用 apply()");
+        // 提现金额必须大于 0
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(400, "提现金额必须大于0");
         }
@@ -114,6 +134,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         wd.setAccount_name_wsh(accountName);
         wd.setStatus_wsh("pending");
         withdrawalMapper.insert(wd);
+        // 落单后立即冻结对应金额
         accountingService.freeze(userId, amount, "withdraw", null,
                 "withdrawal", String.valueOf(wd.getId_wsh()),
                 "withdraw:freeze:" + wd.getId_wsh(), "提现申请冻结 - " + bankCard);
@@ -136,6 +157,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     public Withdrawal approve(Long id, String remark) {
         log.info("调用 approve()");
         Withdrawal wd = getById(id);
+        // 仅待审核的提现可批准
         if (!"pending".equals(wd.getStatus_wsh())) {
             throw new BusinessException(400, "仅待审核提现可批准");
         }
@@ -167,6 +189,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         wd.setStatus_wsh("rejected");
         wd.setRemark_wsh(remark);
         withdrawalMapper.updateById(wd);
+        // 驳回时解冻申请时冻结的金额
         accountingService.unfreeze(wd.getUser_id_wsh(), wd.getAmount_wsh(), "withdraw", null,
                 "withdrawal", String.valueOf(wd.getId_wsh()),
                 "withdraw:unfreeze:" + wd.getId_wsh(), "提现驳回解冻 - " + wd.getBank_card_wsh());
@@ -189,6 +212,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     public Withdrawal complete(Long id) {
         log.info("调用 complete()");
         Withdrawal wd = getById(id);
+        // 仅已批准的提现可完成打款
         if (!"approved".equals(wd.getStatus_wsh())) {
             throw new BusinessException(400, "仅已批准提现可完成");
         }
@@ -229,6 +253,25 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         return dto;
     }
 
+    /**
+     * 【加载提现单】按ID取提现记录并在缺失时抛错
+     *
+     * 业务作用：approve、reject、complete 三个状态流转方法共用的加载与存在性校验。
+     *
+     * 调用场景：approve、reject、complete 中调用。
+     *
+     * 调用链：approve / reject / complete → 本方法 → withdrawalMapper.selectById。
+     *
+     * 数据处理：输入 id → 输出 Withdrawal 实体。
+     *
+     * 业务规则：提现记录必须存在。
+     *
+     * 状态影响：无，只读。
+     *
+     * 异常情况：记录不存在抛 BusinessException(404, "提现记录不存在")。
+     *
+     * 注意事项：id 为 null 时 selectById 返回 null，同样抛 404 而非 400；本方法为 private，与接口中可能的同名查询方法无关。
+     */
     private Withdrawal getById(Long id) {
         Withdrawal wd = withdrawalMapper.selectById(id);
         if (wd == null) throw new BusinessException(404, "提现记录不存在");

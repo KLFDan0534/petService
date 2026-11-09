@@ -18,7 +18,7 @@ public interface StatisticsService {
      * <p>调用场景：管理员登录后台首页查看平台运营概览。</p>
      * <p>调用链：StatisticsController.getAdminDashboard() → StatisticsService.getAdminDashboard() → UserService.listAll()/PetService.listAll()/MerchantService.listAll()/KeeperService.listAll()/OrderService.listAll() → 流式计算统计 → 返回AdminDashboardVO</p>
      * <p>数据处理：分别调用各Service的listAll()获取全量数据；size()计数；订单流过滤isRevenueOrder统计营收；根据状态过滤pending/completed订单。</p>
-     * <p>业务规则：营收统计包含状态为PAID/CONFIRMED/DELIVERED/RECEIVED/IN_PROGRESS/COMPLETED的订单。</p>
+     * <p>业务规则：营收统计包含状态为PAID/CONFIRMED/RECEIVED/IN_PROGRESS/COMPLETED的订单。</p>
      * <p>状态影响：只读操作。</p>
      * <p>异常情况：数据量大时可能导致查询缓慢（已标记TODO需优化）。</p>
      * <p>注意事项：全量listAll()在大数据量下性能需关注；前端返回时间可能过长。</p>

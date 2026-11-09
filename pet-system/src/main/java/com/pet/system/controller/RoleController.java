@@ -49,6 +49,25 @@ public class RoleController {
     private final RoleMapper roleMapper;
     private final UserRoleMapper userRoleMapper;
 
+    /**
+     * 【角色控制器构造器】
+     *
+     * 业务作用：注入角色 Mapper 与用户角色 Mapper，供角色增删改查与用户角色分配使用。
+     *
+     * 调用场景：Spring 容器启动时由依赖注入自动调用。
+     *
+     * 调用链：Spring IoC → 构造器 → 赋值 roleMapper / userRoleMapper。
+     *
+     * 数据处理：仅字段赋值。
+     *
+     * 业务规则：无。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：本类整体由类级 @PreAuthorize 限定为 ADMIN。
+     */
     public RoleController(RoleMapper roleMapper, UserRoleMapper userRoleMapper) {
         this.roleMapper = roleMapper;
         this.userRoleMapper = userRoleMapper;
@@ -84,6 +103,7 @@ public class RoleController {
                         .last("LIMIT 1000"));
         List<UserRole> allLinks = userRoleMapper.selectList(null);
         Map<Long, Integer> countMap = new HashMap<>();
+        // 先统计各角色关联用户数再回填列表
         for (UserRole ur : allLinks) {
             if (ur.getRole_id_wsh() != null) {
                 countMap.merge(ur.getRole_id_wsh(), 1, Integer::sum);
@@ -295,6 +315,7 @@ public class RoleController {
             }
         }
 
+        // 客服角色只能走商家审批，禁止手工分配
         if (customerServiceRoleId != null && requestedRoleIds.contains(customerServiceRoleId) && !alreadyCustomerService) {
             throw new BusinessException(400, "CUSTOMER_SERVICE role must be granted by merchant approval");
         }
@@ -302,6 +323,7 @@ public class RoleController {
 
         userRoleMapper.deleteUserRolesExcept(userId, customerServiceRoleId);
 
+        // 已软删的关联优先恢复，避免重复插入
         for (Long roleId : requestedRoleIds) {
             if (userRoleMapper.restoreUserRole(userId, roleId) > 0) {
                 continue;
@@ -314,6 +336,25 @@ public class RoleController {
         return Result.success();
     }
 
+    /**
+     * 【判断用户是否已有客服角色】
+     *
+     * 业务作用：查询用户当前是否已持有 CUSTOMER_SERVICE 角色。
+     *
+     * 调用场景：setUserRoles 判断是否需要拒绝手工分配客服角色时调用。
+     *
+     * 调用链：setUserRoles → isExistingUserCustomerService → userRoleMapper.countActiveUserRole。
+     *
+     * 数据处理：客服角色 ID 为空直接返回 false，否则按用户与角色计数。
+     *
+     * 业务规则：计数大于 0 视为已持有。
+     *
+     * 状态影响：无（只读）。
+     *
+     * 异常情况：计数为 null 时返回 false。
+     *
+     * 注意事项：只统计未删除的关联记录。
+     */
     private boolean isExistingUserCustomerService(Long userId, Long customerServiceRoleId) {
         if (customerServiceRoleId == null) {
             return false;
@@ -322,16 +363,73 @@ public class RoleController {
         return exists != null && exists > 0;
     }
 
+    /**
+     * 【查询客服角色】
+     *
+     * 业务作用：按固定编码 CUSTOMER_SERVICE 查出角色记录。
+     *
+     * 调用场景：setUserRoles 处理客服角色保留逻辑时调用。
+     *
+     * 调用链：setUserRoles → findCustomerServiceRole → roleMapper.selectOne(LIMIT 1)。
+     *
+     * 数据处理：按 code_wsh 等值匹配。
+     *
+     * 业务规则：角色不存在时返回 null，调用方需容忍。
+     *
+     * 状态影响：无（只读）。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：编码大小写敏感，依赖库中存储值规范。
+     */
     private Role findCustomerServiceRole() {
         return roleMapper.selectOne(new LambdaQueryWrapper<Role>()
                 .eq(Role::getCode_wsh, CUSTOMER_SERVICE_ROLE_CODE)
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 【判断角色是否为客服角色】
+     *
+     * 业务作用：判断给定角色记录的编码是否为 CUSTOMER_SERVICE。
+     *
+     * 调用场景：updateRole 与 deleteRole 拦截对客服角色的手工修改。
+     *
+     * 调用链：updateRole / deleteRole → isCustomerServiceRole → isCustomerServiceCode。
+     *
+     * 数据处理：角色为 null 时返回 false。
+     *
+     * 业务规则：客服角色只能由商家客服申请流程授予。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     private boolean isCustomerServiceRole(Role role) {
         return role != null && isCustomerServiceCode(role.getCode_wsh());
     }
 
+    /**
+     * 【判断编码是否为客服编码】
+     *
+     * 业务作用：忽略大小写与首尾空白地判断编码是否为 CUSTOMER_SERVICE。
+     *
+     * 调用场景：createRole、updateRole 校验入参编码时调用。
+     *
+     * 调用链：createRole / updateRole / isCustomerServiceRole → isCustomerServiceCode。
+     *
+     * 数据处理：先判空，再 trim 后忽略大小写比较。
+     *
+     * 业务规则：编码为 null 返回 false。
+     *
+     * 状态影响：无。
+     *
+     * 异常情况：无。
+     *
+     * 注意事项：无。
+     */
     private boolean isCustomerServiceCode(String code) {
         return code != null && CUSTOMER_SERVICE_ROLE_CODE.equalsIgnoreCase(code.trim());
     }
