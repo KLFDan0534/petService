@@ -57,7 +57,7 @@ public class OrderDTO {
     private Integer days_wsh;
     @Schema(description = "每日价格（兼容投影）")
     private BigDecimal price_per_day_wsh;
-    @Schema(description = "计费单位（day/session/hour）")
+    @Schema(description = "计费单位（night/session/hour）")
     private String billing_unit_wsh;
     @Schema(description = "计费数量")
     private Integer quantity_wsh;
@@ -171,6 +171,5 @@ public class OrderDTO {
     private LocalDateTime created_at_wsh;
     @Schema(description = "是否已有反馈（评价）")
     private Boolean has_feedback_wsh;
-
 
 }

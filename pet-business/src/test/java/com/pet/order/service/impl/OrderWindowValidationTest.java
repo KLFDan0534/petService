@@ -70,6 +70,7 @@ class OrderWindowValidationTest {
     private static final Long SERVICE_ID = 5L;
 
     @Mock private OrderMapper orderMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private PaymentMapper paymentMapper;
     @Mock private PetMapper petMapper;
     @Mock private KeeperMapper keeperMapper;
@@ -113,7 +114,7 @@ class OrderWindowValidationTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper, serviceCategoryMapper);
     }
 
     private LocalDate tomorrow() {

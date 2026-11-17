@@ -44,7 +44,7 @@ public class ServiceProductDetailVO {
     private BigDecimal service_rating_wsh;
     @Schema(description = "服务评价数")
     private Long service_rating_count_wsh;
-    @Schema(description = "当前是否可预约（day/天 单位且商家开放未来预约）")
+    @Schema(description = "当前是否可预约（night 单位且商家开放未来预约）")
     private Boolean bookable_wsh;
     @Schema(description = "不可预约原因标识（可预约时为 null）")
     private String bookable_reason_wsh;

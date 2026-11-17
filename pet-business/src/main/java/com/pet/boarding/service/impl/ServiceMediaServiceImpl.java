@@ -46,22 +46,9 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
     private final int maxCount;
 
     /**
-     * 【服务媒体服务构造器】
-     *
      * 业务作用：注入媒体、服务产品、文件记录相关依赖，并读取图册张数上限配置。
-     *
-     * 调用场景：Spring 容器启动时由依赖注入自动调用。
-     *
-     * 调用链：Spring IoC → 构造器 → 读取 ${product-media.max-count:10}。
-     *
-     * 数据处理：字段赋值；maxCount 缺省为 10。
-     *
      * 业务规则：图册上限由配置项控制。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：配置值非数字时启动失败。
-     *
      * 注意事项：maxCount 为 final，运行期不可调整。
      */
     public ServiceMediaServiceImpl(ServiceMediaMapper mediaMapper,
@@ -81,22 +68,9 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
     }
 
     /**
-     * 【整体替换产品图册】
-     *
      * 业务作用：整体替换某个服务产品的图册，先校验入参与文件归属，再删旧插新。
-     *
-     * 调用场景：商家在后台保存产品图册时调用。
-     *
-     * 调用链：Controller → replaceMedia → selectByIdForUpdate 行锁 → 空列表则清空返回 → validateInput → 校验文件归属 → deleteByServiceId → 逐条 insert。
-     *
-     * 数据处理：items 为 null 归一为空列表；空列表直接清空记录；非空则批量查 file_record，校验用途与商家归属后重建记录。
-     *
      * 业务规则：服务产品必须存在；文件必须存在、用途为 product、归属商家与产品一致；张数、排序与封面约束见 validateInput。
-     *
-     * 状态影响：删除并重建 service_media 记录；对象存储中的图片不删除。
-     *
      * 异常情况：产品不存在 → 404；文件不存在或用途不符 → 400；商家不匹配 → 403；校验失败整体回滚。
-     *
      * 注意事项：@Transactional 配合 selectByIdForUpdate 防止并发保存交叉；旧图册对应的 MinIO 对象不会随记录删除而清理。
      */
     @Override
@@ -162,22 +136,9 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
     }
 
     /**
-     * 【图册入参校验】
-     *
      * 业务作用：校验图册的张数、文件唯一性、排序连续性与封面唯一性。
-     *
-     * 调用场景：replaceMedia 写库前调用。
-     *
-     * 调用链：replaceMedia → validateInput。
-     *
-     * 数据处理：统计 file_id 去重与 sort_order 去重，核对排序集合等于 0..N-1，统计封面数量。
-     *
      * 业务规则：张数不超过 maxCount；file_id 不可为 null 且不可重复；排序非负、互不重复且连续；非空图册有且仅有一张封面。
-     *
-     * 状态影响：无（只校验不写库）。
-     *
      * 异常情况：任一规则不满足抛 BusinessException(400)，携带对应 BookingErrorCode。
-     *
      * 注意事项：排序必须从 0 开始连续，前端需按索引提交。
      */
     private void validateInput(List<ServiceMediaItemDTO> items) {
@@ -225,22 +186,8 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
     }
 
     /**
-     * 【查询单个产品图册】
-     *
      * 业务作用：查询单个服务产品的图册，并拼接可访问的图片地址。
-     *
-     * 调用场景：产品详情页、商家编辑页展示图册时调用。
-     *
-     * 调用链：Controller → listMedia → selectByServiceIdOrdered → selectBatchIds → minIoService.getFileUrl。
-     *
-     * 数据处理：先按排序查 media，再批量查 file_record 组装 URL 与原始文件名。
-     *
      * 业务规则：无记录返回空列表；文件记录缺失时该条只返回基础字段，不抛异常。
-     *
-     * 状态影响：无（只读）。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：file_record 缺失会得到 url 为 null 的条目，前端需容错。
      */
     @Override
@@ -281,22 +228,8 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
     }
 
     /**
-     * 【批量查询产品图册】
-     *
      * 业务作用：批量查询多个服务产品的图册，按产品 ID 分组返回。
-     *
-     * 调用场景：产品列表页一次性加载多个产品的图集时调用。
-     *
-     * 调用链：Controller → listMediaByServiceIds → selectByServiceIdsOrdered → 批量查 file_record → 按 service_id_wsh 分组。
-     *
-     * 数据处理：一次查全部 media，再一次批量查文件，最后分组。
-     *
      * 业务规则：入参为空或无记录返回空 Map。
-     *
-     * 状态影响：无（只读）。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：用于避免列表页的 N+1 查询，返回的 Map 保持插入顺序。
      */
     @Override
@@ -339,22 +272,9 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
     }
 
     /**
-     * 【解析历史图片地址】
-     *
      * 业务作用：从历史逗号分隔的图片串中筛出能对上文件记录的受信地址。
-     *
-     * 调用场景：历史产品数据迁移或详情回显时调用。
-     *
-     * 调用链：调用方 → resolveTrustedLegacyImages → 截取 objectName → 按 object_name_wsh 查 file_record。
-     *
-     * 数据处理：只保留以当前存储前缀开头且能查到文件记录的项，其余记入 unresolved。
-     *
      * 业务规则：非本系统前缀或查不到记录的值一律不返回。
-     *
-     * 状态影响：无（只读）。
-     *
      * 异常情况：不抛异常；未解析项仅记 warn 日志。
-     *
      * 注意事项：逐条查库，历史数据量大时性能较差；未解析项只审计不清理。
      */
     @Override
@@ -396,22 +316,10 @@ public class ServiceMediaServiceImpl implements ServiceMediaService {
     }
 
     /**
-     * 【上传产品图片】
-     *
      * 业务作用：校验并上传产品图片，落库文件记录，落库失败时补偿删除已上传对象。
-     *
-     * 调用场景：商家上传产品图册图片时调用。
-     *
-     * 调用链：Controller → uploadProductImage → imageValidator.validate → minIoService.uploadFile → fileRecordService.create → 失败则 deleteFile 补偿。
-     *
-     * 数据处理：由校验器得到扩展名与 contentType，写入 objectName、size、purpose=product、merchant_id、user_id。
-     *
      * 业务规则：图片类型与大小由 ProductImageValidator 判定；文件记录必须绑定商家。
-     *
      * 状态影响：新增一条 file_record；对象存储新增一个对象（失败时回滚删除）。
-     *
      * 异常情况：文件记录保存失败 → 补偿删除对象后抛 BusinessException(500, PRODUCT_IMAGE_RECORD_FAILED)；补偿删除再失败仅记日志。
-     *
      * 注意事项：对象存储与数据库不在同一事务，靠手工补偿保证最终一致。
      */
     @Override

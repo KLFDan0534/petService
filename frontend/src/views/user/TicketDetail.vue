@@ -233,7 +233,7 @@ async function handleClose() {
 </script>
 
 <style scoped>
-/* ═══ Editorial warm — shared --ref-* tokens from design-tokens.css ═══ */
+/* Editorial warm — shared --ref-* tokens from design-tokens.css */
 .td-page {
   width: 100%;
   min-height: 60vh;
@@ -243,7 +243,7 @@ async function handleClose() {
 }
 .td-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .td-crumb {
   display: flex;
   align-items: center;
@@ -257,7 +257,7 @@ async function handleClose() {
 .td-crumb-sep { color: var(--ref-line); }
 .td-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .td-eyebrow {
   display: flex;
   align-items: center;
@@ -270,7 +270,7 @@ async function handleClose() {
 .td-idx { font-variant-numeric: tabular-nums; }
 .td-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .td-head {
   display: flex;
   flex-wrap: wrap;
@@ -320,7 +320,7 @@ async function handleClose() {
 }
 .td-head-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 4px; }
 
-/* ═══ Result box ═══ */
+/* Result box */
 .td-result {
   margin-top: 28px;
   padding: 18px 22px;
@@ -342,7 +342,7 @@ async function handleClose() {
   color: var(--ref-ink-soft);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .td-section { margin-top: 52px; }
 .td-sec-head {
   display: flex;
@@ -369,7 +369,7 @@ async function handleClose() {
   opacity: 0.8;
 }
 
-/* ═══ Thread ═══ */
+/* Thread */
 .td-thread {
   margin-top: 20px;
   padding: 24px;
@@ -414,7 +414,7 @@ async function handleClose() {
 }
 .td-msg-meta strong { color: var(--ref-ink-soft); }
 
-/* ═══ Reply ═══ */
+/* Reply */
 .td-reply {
   margin-top: 20px;
   padding: 20px 24px;
@@ -460,7 +460,7 @@ async function handleClose() {
   color: var(--ref-ink-soft);
 }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -480,7 +480,7 @@ async function handleClose() {
 .badge-secondary { background: transparent; color: var(--ref-muted); border-color: var(--ref-line); }
 .badge-danger, .badge-error { background: color-mix(in srgb, var(--color-danger) 11%, var(--ref-surface)); color: color-mix(in srgb, var(--color-danger) 78%, var(--ref-ink)); border-color: color-mix(in srgb, var(--color-danger) 28%, transparent); }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -505,7 +505,7 @@ async function handleClose() {
 .cta-danger { background: color-mix(in srgb, var(--color-danger) 9%, transparent); color: var(--color-danger); border-color: color-mix(in srgb, var(--color-danger) 28%, transparent); }
 .cta-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 15%, transparent); }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .td-loading { padding: 40px 0 8px; }
 .td-skel {
   height: 12px;
@@ -520,7 +520,7 @@ async function handleClose() {
 .td-skel-lede { width: 72%; }
 .td-skel-facts { width: 100%; height: 96px; }
 
-/* ═══ Not found ═══ */
+/* Not found */
 .td-notfound {
   margin-top: 60px;
   padding: 72px 24px;
@@ -541,7 +541,7 @@ async function handleClose() {
 
 @keyframes td-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .td-facts { grid-template-columns: repeat(2, 1fr); }
 }

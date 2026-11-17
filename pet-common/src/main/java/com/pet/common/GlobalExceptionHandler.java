@@ -21,24 +21,6 @@ import org.slf4j.LoggerFactory;
 import java.util.stream.Collectors;
 
 /**
- * 【全局异常处理器】
- *
- * 业务作用：
- * 统一拦截所有 Controller 层抛出的异常，转换为标准 Result 响应格式返回前端。
- * 避免异常信息泄露，提供用户友好的错误提示。
- *
- * 调用场景：
- * 所有 Controller 方法执行过程中抛出异常时自动触发。
- *
- * 调用链：
- * Controller
- *   ↓
- * Service → BusinessException
- *   ↓
- * GlobalExceptionHandler
- *   ↓
- * Result.error() → 前端
- *
  * 异常映射规则：
  * - BusinessException(code, msg)：根据 code 映射 HTTP Status
  * - AccessDeniedException：403 无权限
@@ -50,6 +32,8 @@ import java.util.stream.Collectors;
  * - HttpMediaTypeNotSupportedException：415 不支持的 Content-Type
  * - DateTimeParseException：400 日期格式错误
  * - Exception（兜底）：500 服务器内部错误，打印完整堆栈
+ *
+ * 业务作用：统一拦截所有 Controller 层抛出的异常，转换为标准 Result 响应格式返回前端。 避免异常信息泄露，提供用户友好的错误提示。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {

@@ -337,7 +337,7 @@ onUnmounted(() => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ═══ Brand ═══ */
+/* Brand */
 .auth-brand {
   display: inline-flex; align-items: center; gap: 12px;
   text-decoration: none; color: var(--ref-ink);
@@ -358,7 +358,7 @@ onUnmounted(() => {
 .auth-brand-name { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.1; }
 .auth-brand-sub { margin-top: 5px; font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ref-muted); }
 
-/* ═══ Header ═══ */
+/* Header */
 .auth-head { margin-top: 44px; }
 .auth-eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ref-muted); }
 .auth-title {
@@ -368,7 +368,7 @@ onUnmounted(() => {
 }
 .auth-lede { margin: 14px 0 0; font-size: 13.5px; line-height: 1.75; color: var(--ref-ink-soft); }
 
-/* ═══ Alerts ═══ */
+/* Alerts */
 .auth-alert {
   margin-top: 24px; padding: 12px 14px;
   border-radius: var(--r-btn); font-size: 13px; line-height: 1.6;
@@ -379,7 +379,7 @@ onUnmounted(() => {
   color: var(--ref-brand-deep);
 }
 
-/* ═══ Form ═══ */
+/* Form */
 .auth-form { margin-top: 30px; display: grid; gap: 20px; }
 .auth-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
 .auth-field { display: grid; gap: 8px; }
@@ -404,7 +404,7 @@ onUnmounted(() => {
   margin: 0; font-size: 11px; line-height: 1.7; color: var(--ref-muted);
 }
 
-/* ═══ 验证码行 ═══ */
+/* 验证码行 */
 .auth-captcha-row { display: flex; align-items: flex-end; gap: 12px; }
 .auth-captcha-input { flex: 1; min-width: 0; display: grid; gap: 8px; }
 .auth-send {
@@ -416,7 +416,7 @@ onUnmounted(() => {
 .auth-send:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); color: var(--ref-ink); }
 .auth-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -431,7 +431,7 @@ onUnmounted(() => {
 .cta .cta-arrow { font-size: 15px; transition: transform 0.15s; }
 .cta:hover .cta-arrow { transform: translateX(3px); }
 
-/* ═══ Footer ═══ */
+/* Footer */
 .auth-foot {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin-top: 32px; padding-top: 22px; border-top: 1px solid var(--ref-line);
@@ -444,7 +444,7 @@ onUnmounted(() => {
 }
 .auth-link:hover { color: var(--ref-brand); border-color: var(--ref-brand); }
 
-/* ═══ Aside ═══ */
+/* Aside */
 .auth-side { display: none; }
 .auth-side-label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); }
 .auth-side-title {
@@ -460,7 +460,7 @@ onUnmounted(() => {
 .auth-side-item-desc { display: block; margin-top: 6px; max-width: 300px; font-size: 13px; line-height: 1.7; color: rgba(255, 255, 255, 0.55); }
 .auth-side-addr { margin: 0; font-size: 11px; color: rgba(255, 255, 255, 0.35); font-variant-numeric: tabular-nums; }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (min-width: 900px) {
   .auth-main { flex: 1 1 52%; padding: 64px 40px 80px; }
   .auth-grid { grid-template-columns: 1fr 1fr; }

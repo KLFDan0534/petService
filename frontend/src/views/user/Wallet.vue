@@ -185,7 +185,7 @@ onMounted(() => {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .wl-crumb {
   display: flex;
   align-items: center;
@@ -199,7 +199,7 @@ onMounted(() => {
 .wl-crumb-sep { color: var(--ref-line); }
 .wl-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .wl-eyebrow {
   display: flex;
   align-items: center;
@@ -213,7 +213,7 @@ onMounted(() => {
 .wl-idx { font-variant-numeric: tabular-nums; }
 .wl-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .wl-head {
   display: flex;
   flex-wrap: wrap;
@@ -242,7 +242,7 @@ onMounted(() => {
 }
 .wl-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -265,7 +265,7 @@ onMounted(() => {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Text link ═══ */
+/* Text link */
 .text-link {
   display: inline-flex;
   align-items: center;
@@ -285,7 +285,7 @@ onMounted(() => {
 .tl-arrow { transition: transform 0.15s; }
 .text-link:hover .tl-arrow { transform: translateX(4px); }
 
-/* ═══ Balance panel ═══ */
+/* Balance panel */
 .wl-balance {
   margin-top: 8px;
   overflow: hidden;
@@ -357,7 +357,7 @@ onMounted(() => {
   color: var(--ref-ink);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .wl-section { margin-top: 56px; }
 .wl-sec-head {
   display: flex;
@@ -384,7 +384,7 @@ onMounted(() => {
 }
 .wl-sec-action { padding-bottom: 4px; flex-shrink: 0; }
 
-/* ═══ Ledger ═══ */
+/* Ledger */
 .wl-ledger {
   margin-top: 20px;
   overflow: hidden;
@@ -428,7 +428,7 @@ onMounted(() => {
 .lr-out { color: var(--ref-ink); }
 .lr-balance { margin: 4px 0 0; font-size: 11px; color: var(--ref-muted); font-variant-numeric: tabular-nums; }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .wl-empty {
   margin-top: 20px;
   padding: 56px 24px;
@@ -453,7 +453,7 @@ onMounted(() => {
   margin-top: 22px;
 }
 
-/* ═══ Frozen note ═══ */
+/* Frozen note */
 .wl-frozen-note {
   margin: 16px 0 0;
   padding: 14px 18px;
@@ -465,7 +465,7 @@ onMounted(() => {
   color: var(--ref-ink-soft);
 }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .wl-b-main { flex-direction: column; align-items: stretch; }
   .wl-b-actions { padding-bottom: 0; }

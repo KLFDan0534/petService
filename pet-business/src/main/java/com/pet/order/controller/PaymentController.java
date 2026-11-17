@@ -32,26 +32,7 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    /**
-     * 【支付控制器构造注入】
-     *
-     * 业务作用：注入支付业务服务。
-     *
-     * 调用场景：Spring 容器创建 PaymentController 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 paymentService。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public PaymentController(PaymentService paymentService) {
+        public PaymentController(PaymentService paymentService) {
         this.paymentService = paymentService;
     }
 
@@ -188,22 +169,9 @@ public class PaymentController {
     }
 
     /**
-     * 【校验请求体非空】
-     *
      * 业务作用：请求体为 null 时抛 400，避免后续空指针。
-     *
-     * 调用场景：createPayment() 与 pay() 解析参数前。
-     *
-     * 调用链：createPayment()/pay() → requireBody()。
-     *
-     * 数据处理：原样返回非空请求体。
-     *
      * 业务规则：请求体必填。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：body 为 null 抛 BusinessException(400, "Request body cannot be empty")。
-     *
      * 注意事项：泛型方法，仅校验非空，不校验内部字段是否齐全。
      */
     private <T> T requireBody(T body) {

@@ -619,7 +619,7 @@ function orderStatusLabel(status) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .cp-crumb {
   display: flex;
   align-items: center;
@@ -633,7 +633,7 @@ function orderStatusLabel(status) {
 .cp-crumb-sep { color: var(--ref-line); }
 .cp-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .cp-eyebrow {
   display: flex;
   align-items: center;
@@ -647,7 +647,7 @@ function orderStatusLabel(status) {
 .cp-idx { font-variant-numeric: tabular-nums; }
 .cp-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Header ═══ */
+/* Header */
 .cp-head {
   display: flex;
   flex-wrap: wrap;
@@ -700,7 +700,7 @@ function orderStatusLabel(status) {
 }
 .cp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ Filter chips ═══ */
+/* Filter chips */
 .cp-filters { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 .cp-chip {
   display: inline-flex;
@@ -722,7 +722,7 @@ function orderStatusLabel(status) {
 .cp-chip.active { background: var(--ref-ink); border-color: var(--ref-ink); color: var(--ref-cream); }
 .cp-chip-count { opacity: 0.72; font-variant-numeric: tabular-nums; font-size: 11px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -746,7 +746,7 @@ function orderStatusLabel(status) {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Text link ═══ */
+/* Text link */
 .text-link {
   display: inline-flex;
   align-items: center;
@@ -764,7 +764,7 @@ function orderStatusLabel(status) {
 .tl-arrow { transition: transform 0.15s; }
 .text-link:hover .tl-arrow { transform: translateX(4px); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -796,7 +796,7 @@ function orderStatusLabel(status) {
   border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
 
-/* ═══ Order context ═══ */
+/* Order context */
 .cp-order-ctx {
   display: flex;
   flex-wrap: wrap;
@@ -836,7 +836,7 @@ function orderStatusLabel(status) {
   text-overflow: ellipsis;
 }
 
-/* ═══ 投诉 card ═══ */
+/* 投诉 card */
 .cp-report {
   margin-top: 20px;
   padding: 24px;
@@ -892,7 +892,7 @@ function orderStatusLabel(status) {
 }
 .cp-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
-/* ═══ Section ═══ */
+/* Section */
 .cp-section { margin-top: 48px; }
 .cp-sec-head {
   display: flex;
@@ -920,7 +920,7 @@ function orderStatusLabel(status) {
   opacity: 0.8;
 }
 
-/* ═══ Body / skeleton / empty ═══ */
+/* Body / skeleton / empty */
 .cp-body { margin-top: 24px; }
 .cp-skel-stack { display: grid; gap: 14px; }
 .cp-skeleton {
@@ -949,7 +949,7 @@ function orderStatusLabel(status) {
 .cp-empty-desc { margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 .cp-empty .cta { margin-top: 22px; }
 
-/* ═══ Cards ═══ */
+/* Cards */
 .cp-list { display: grid; gap: 14px; }
 .cp-card {
   padding: 22px 24px;
@@ -1050,7 +1050,7 @@ function orderStatusLabel(status) {
   border-top: 1px solid var(--ref-line);
 }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed;
   inset: 0;
@@ -1150,7 +1150,7 @@ function orderStatusLabel(status) {
 }
 .dlg-cancel:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); }
 
-/* ═══ Complaint detail ═══ */
+/* Complaint detail */
 .cp-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
 .cp-detail-badge { flex-shrink: 0; }
 .cp-detail-content {
@@ -1222,7 +1222,7 @@ function orderStatusLabel(status) {
 }
 .cp-msg-meta strong { color: var(--ref-ink-soft); }
 
-/* ═══ Linked order ═══ */
+/* Linked order */
 .cp-linked {
   display: flex;
   align-items: center;
@@ -1241,12 +1241,12 @@ function orderStatusLabel(status) {
   color: var(--ref-ink);
 }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes cp-shimmer { to { background-position: -200% 0; } }
 @keyframes cp-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cp-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 760px) {
   .cp-card-top { flex-direction: column; }
 }

@@ -1,10 +1,5 @@
 import request from '@/utils/request'
 
-export async function getPublicQualifications(ownerType, ownerId) {
-  const res = await request.get(`/api/qualifications/${ownerType}/${ownerId}`)
-  return res.data
-}
-
 // 后台待审的资质列表，商家和护工上传的证照都进这里
 export async function getPendingQualifications() {
   const res = await request.get('/api/qualifications/pending')

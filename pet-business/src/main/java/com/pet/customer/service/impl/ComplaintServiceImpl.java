@@ -25,9 +25,10 @@ import com.pet.customer.mapper.ComplaintMapper;
 import com.pet.customer.mapper.ComplaintMessageMapper;
 import com.pet.customer.service.ChatEventBroadcaster;
 import com.pet.customer.service.ComplaintService;
+import com.pet.customer.service.IssueAccess;
+import com.pet.customer.service.IssueNotifier;
 import com.pet.customer.service.MerchantCustomerServiceService;
 import com.pet.mq.MessageSender;
-import com.pet.operation.entity.Notification;
 import com.pet.operation.service.NotificationService;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.mapper.OrderMapper;
@@ -59,6 +60,15 @@ public class ComplaintServiceImpl implements ComplaintService {
     private static final int EVIDENCE_CHAT_LIMIT = 50;
     private static final int EVIDENCE_CARE_LIMIT = 20;
 
+    /** 投诉状态：待处理 */
+    private static final String STATUS_PENDING = "pending";
+    /** 投诉状态：处理中 */
+    private static final String STATUS_PROCESSING = "processing";
+    /** 投诉状态：已处理（终态） */
+    private static final String STATUS_RESOLVED = "resolved";
+    /** 投诉状态：已驳回（终态） */
+    private static final String STATUS_REJECTED = "rejected";
+
     private final ComplaintMapper complaintMapper;
     private final ComplaintMessageMapper complaintMessageMapper;
     private final UserMapper userMapper;
@@ -71,24 +81,13 @@ public class ComplaintServiceImpl implements ComplaintService {
     private final MerchantCustomerServiceService merchantCustomerServiceService;
     private final MessageSender messageSender;
     private final ChatEventBroadcaster chatEventBroadcaster;
+    /** 与工单共用的商家范围/可见性判定，避免三处各写一份 */
+    private final IssueAccess issueAccess;
+    /** 与工单共用的站内通知投递 */
+    private final IssueNotifier issueNotifier;
 
     /**
-     * 【投诉服务实现的构造注入】
-     *
      * 业务作用：由 Spring 注入投诉、订单、聊天、护理记录、商家、寄养师、通知与消息发送等依赖。
-     *
-     * 调用场景：应用启动时 Spring 容器创建 ComplaintServiceImpl 单例。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值各 final 成员字段。
-     *
-     * 数据处理：把 12 个 Mapper/Service 实例保存到成员变量，不做任何查询。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：全部字段为 final，必须经构造器注入，无法使用字段注入。
      */
     public ComplaintServiceImpl(ComplaintMapper complaintMapper,
@@ -102,7 +101,9 @@ public class ComplaintServiceImpl implements ComplaintService {
                                 KeeperMapper keeperMapper,
                                 MerchantCustomerServiceService merchantCustomerServiceService,
                                 MessageSender messageSender,
-                                ChatEventBroadcaster chatEventBroadcaster) {
+                                ChatEventBroadcaster chatEventBroadcaster,
+                                IssueAccess issueAccess,
+                                IssueNotifier issueNotifier) {
         this.complaintMapper = complaintMapper;
         this.complaintMessageMapper = complaintMessageMapper;
         this.userMapper = userMapper;
@@ -115,18 +116,14 @@ public class ComplaintServiceImpl implements ComplaintService {
         this.merchantCustomerServiceService = merchantCustomerServiceService;
         this.messageSender = messageSender;
         this.chatEventBroadcaster = chatEventBroadcaster;
+        this.issueAccess = issueAccess;
+        this.issueNotifier = issueNotifier;
     }
 
     /**
-     * 【业务名称】按投诉人查询投诉列表（实现）
+     * 按投诉人查询投诉列表（实现）
+     *
      * 业务作用：根据投诉人 ID 获取其发起的投诉列表，按创建时间倒序。
-     * 调用场景：用户查看自己发起的投诉。
-     * 调用链：listByOwner() → selectList() → toDTOList()。
-     * 数据处理：按 owner_id 匹配，按创建时间倒序。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public List<ComplaintDTO> listByOwner(Long ownerId) {
@@ -139,34 +136,14 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】查询全部投诉（实现）
+     * 查询全部投诉（实现）
+     *
      * 业务作用：获取所有投诉记录，按创建时间倒序。
-     * 调用场景：后台管理。
-     * 调用链：listAll() → selectList() → toDTOList()。
-     * 数据处理：无条件全量查询。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
-    @Override
-    public List<ComplaintDTO> listAll() {
-        log.info("调用 listAll()");
-        List<Complaint> list = complaintMapper.selectList(
-                new LambdaQueryWrapper<Complaint>().orderByDesc(Complaint::getCreated_at_wsh));
-        return toDTOList(list);
-    }
-
     /**
-     * 【业务名称】分页查询投诉（实现）
+     * 分页查询投诉（实现）
+     *
      * 业务作用：分页查询全部投诉。
-     * 调用场景：后台分页管理。
-     * 调用链：listPage() → selectPage() → toDTOPage()。
-     * 数据处理：分页查询，按创建时间倒序。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public IPage<ComplaintDTO> listPage(PageRequestDTO pageParam) {
@@ -182,15 +159,10 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】按角色分页查询投诉（实现）
+     * 按角色分页查询投诉（实现）
+     *
      * 业务作用：按角色权限分页查询投诉列表。
-     * 调用场景：不同角色查看投诉。
-     * 调用链：listPageForStaff() → 确定商家ID范围 → selectPage() → toDTOPage()。
-     * 数据处理：管理员查全部；商家只能查自己商家的投诉；客服可查其服务商家的投诉。
      * 业务规则：角色权限隔离。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public IPage<ComplaintDTO> listPageForStaff(ComplaintListRequestDTO pageParam, Long staffUserId,
@@ -199,7 +171,7 @@ public class ComplaintServiceImpl implements ComplaintService {
         if (admin) {
             return listPage(pageParam);
         }
-        Set<Long> merchantIds = staffMerchantIds(staffUserId, merchant, customerService);
+        Set<Long> merchantIds = issueAccess.staffMerchantIds(staffUserId, merchant, customerService);
         if (merchantIds.isEmpty()) {
             Page<ComplaintDTO> emptyPage = new Page<>(pageParam.getPage(), pageParam.getSize(), 0);
             emptyPage.setRecords(List.of());
@@ -215,13 +187,9 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】构建投诉筛选条件（实现）
+     * 构建投诉筛选条件（实现）
+     *
      * 业务作用：根据筛选参数构建投诉查询条件。
-     * 调用场景：投诉列表筛选。
-     * 数据处理：支持状态、商家、关键字筛选。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：关键字对标题/内容做 LIKE 模糊匹配。
      */
     private void applyComplaintFilters(LambdaQueryWrapper<Complaint> wrapper, ComplaintListRequestDTO pageParam) {
@@ -243,63 +211,41 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】获取投诉证据详情（实现）
+     * 获取投诉证据详情（实现）
+     *
      * 业务作用：获取投诉证据详情。
-     * 调用场景：用户查看投诉处理详情。
-     * 调用链：getEvidence() → selectById() → buildEvidence()。
-     * 数据处理：查询投诉信息，关联订单摘要、聊天记录和护理记录。
      * 业务规则：投诉不存在抛异常。
-     * 状态影响：无。
      * 异常情况：投诉不存在抛 BusinessException(404)。
-     * 注意事项：无。
      */
-    @Override
-    public ComplaintEvidenceDTO getEvidence(Long id) {
-        log.info("调用 getEvidence()");
-        return buildEvidence(requireComplaint(id));
-    }
-
     /**
-     * 【业务名称】按角色获取投诉证据详情（实现）
+     * 按角色获取投诉证据详情（实现）
+     *
      * 业务作用：按角色权限获取投诉证据详情。
-     * 调用场景：内部人员审核投诉。
-     * 调用链：getEvidenceForStaff() → assertStaffCanManage() → buildEvidence()。
-     * 数据处理：同 getEvidence()，增加权限校验。
      * 业务规则：权限校验。
-     * 状态影响：无。
      * 异常情况：无权限抛 BusinessException(403)。
-     * 注意事项：无。
      */
     @Override
     public ComplaintEvidenceDTO getEvidenceForStaff(Long id, Long staffUserId,
                                                     boolean admin, boolean merchant, boolean customerService) {
         log.info("调用 getEvidenceForStaff()");
         Complaint complaint = requireComplaint(id);
-        assertStaffCanManage(complaint, staffUserId, admin, merchant, customerService);
+        assertCanManage(complaint, staffUserId, admin, merchant, customerService);
         return buildEvidence(complaint);
     }
 
     /**
-     * 【业务名称】创建投诉（实现）
+     * 创建投诉（实现）
+     *
      * 业务作用：用户对指定订单发起投诉。
-     * 调用场景：用户提交投诉。
-     * 调用链：create() → validateOrderComplaint() → resolveMerchantId() → insert() → toDTO()。
-     * 数据处理：校验订单和商家 → 创建 pending 投诉。
      * 业务规则：需校验订单归属和商家有效性。
-     * 状态影响：新增一条 pending 投诉记录。
      * 异常情况：订单不存在/不归属/商家不存在抛异常。
      * 注意事项：@Transactional 保证事务一致性。
      */
     /**
-     * 【业务名称】获取可投诉目标列表（实现）
+     * 获取可投诉目标列表（实现）
+     *
      * 业务作用：返回当前用户可投诉/举报的对象（订单、消费过的商家、服务过的寄养师）。
-     * 调用场景：投诉/举报表单第一步"选择投诉对象"。
-     * 调用链：getTargets() → orderMapper.selectList() → merchantMapper.selectBatchIds() → keeperMapper.selectBatchIds()。
-     * 数据处理：按 owner 查询最近订单，聚合出商家与寄养师。
      * 业务规则：只返回与当前用户相关的对象。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public ComplaintTargetsDTO getTargets(Long ownerId) {
@@ -389,13 +335,10 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】创建投诉（实现）
+     * 创建投诉（实现）
+     *
      * 业务作用：用户对指定订单或商家发起投诉，含防滥用校验。
-     * 调用场景：用户提交投诉。
-     * 调用链：create() → validateOrderComplaint() → resolveMerchantId() → 防滥用校验 → insert() → toDTO()。
-     * 数据处理：校验→解析目标→防滥用校验→插入 pending 投诉。
      * 业务规则：订单归属校验；商家须为消费过的商家；重复投诉拦截；限流；长度限制。
-     * 状态影响：新增 pending 投诉；通知客服。
      * 异常情况：见各校验的 BusinessException。
      * 注意事项：@Transactional 保证事务一致性。
      */
@@ -419,20 +362,17 @@ public class ComplaintServiceImpl implements ComplaintService {
         complaint.setStatus_wsh("pending");
         validateTargetBelongsToMerchant(complaint);
         complaintMapper.insert(complaint);
-        notifyCsStaff(merchantId, complaint.getId_wsh(), complaint.getTitle_wsh());
+        issueNotifier.notifyCustomerService("complaint", merchantId, complaint.getId_wsh(),
+                "新投诉待处理", "收到新投诉：「" + complaint.getTitle_wsh() + "」，请及时受理处理。");
         return toDTO(complaint);
     }
 
     /**
-     * 【业务名称】防滥用校验（实现）
+     * 防滥用校验（实现）
+     *
      * 业务作用：投诉创建前的长度限制、频率限制、重复投诉拦截、商家归属校验。
-     * 调用场景：create() 内调用。
-     * 数据处理：按 ownerId/merchantId 计数。
-     * 业务规则：标题≤100、内容≤2000；10分钟内最多3条；同商家处理中投诉只能1条；
-     * 无订单时商家必须是我消费过的商家。
-     * 状态影响：无。
+     * 业务规则：标题≤100、内容≤2000；10分钟内最多3条；同商家处理中投诉只能1条； 无订单时商家必须是我消费过的商家。
      * 异常情况：违反任一规则抛 BusinessException。
-     * 注意事项：无。
      */
     private void assertCanComplain(PetOrder order, Long merchantId,
                                    ComplaintCreateRequestDTO request, Long ownerId) {
@@ -470,14 +410,11 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】投诉目标归属校验（实现）
+     * 投诉目标归属校验（实现）
+     *
      * 业务作用：当投诉指定寄养师时，校验该寄养师属于所选商家，防止指向他人。
-     * 调用场景：create() 内调用。
-     * 数据处理：按 target_id 查询寄养师并比对商家。
      * 业务规则：寄养师不存在抛404；不属于所选商家抛403。
-     * 状态影响：无。
      * 异常情况：见业务规则。
-     * 注意事项：无。
      */
     private void validateTargetBelongsToMerchant(Complaint complaint) {
         if (!"keeper".equals(complaint.getTarget_type_wsh()) || complaint.getTarget_id_wsh() == null) {
@@ -495,64 +432,11 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】新投诉提醒客服（实现）
-     * 业务作用：投诉创建后，向服务该商家的所有已授权客服发送站内通知。
-     * 调用场景：用户提交投诉后，客服收到待处理提醒。
-     * 数据处理：查询商家的 approved 客服并逐一创建通知。
-     * 业务规则：商家为空或无需提醒时不发送。
-     * 状态影响：新增通知记录。
-     * 异常情况：通知失败仅记录日志，不影响主流程。
-     * 注意事项：与工单提醒逻辑保持一致。
-     */
-    private void notifyCsStaff(Long merchantId, Long complaintId, String title) {
-        try {
-            Set<Long> csUserIds = merchantCustomerServiceService.getApprovedCsUserIds(merchantId);
-            for (Long csUserId : csUserIds) {
-                if (csUserId == null) {
-                    continue;
-                }
-                Notification notification = new Notification();
-                notification.setUser_id_wsh(csUserId);
-                notification.setTitle_wsh("新投诉待处理");
-                notification.setContent_wsh("收到新投诉：「" + title + "」，请及时受理处理。");
-                notification.setType_wsh("complaint");
-                notification.setRelated_id_wsh(complaintId);
-                notification.setIs_read_wsh(0);
-                notificationService.create(notification);
-            }
-        } catch (Exception e) {
-            log.warn("发送新投诉客服提醒失败: complaintId={}", complaintId, e);
-        }
-    }
-
-    /**
-     * 【业务名称】处理投诉（实现）
-     * 业务作用：处理投诉，更新状态和结果，发送通知和异步消息。
-     * 调用场景：后台管理处理投诉。
-     * 调用链：process() → selectById() → processLoaded()。
-     * 数据处理：更新状态和结果 → 通知 → 异步消息。
-     * 业务规则：仅管理员可调用。
-     * 状态影响：投诉状态变更；发送站内通知。
-     * 异常情况：投诉不存在抛异常。
-     * 注意事项：@Transactional + 事务提交后异步消息。
-     */
-    @Transactional
-    @Override
-    public ComplaintDTO process(Long id, String result, String status) {
-        log.info("调用 process()");
-        return processLoaded(requireComplaint(id), result, status);
-    }
-
-    /**
-     * 【业务名称】按角色处理投诉（实现）
+     * 按角色处理投诉（实现）
+     *
      * 业务作用：按角色权限处理投诉。
-     * 调用场景：内部人员处理投诉。
-     * 调用链：processForStaff() → assertStaffCanManage() → processLoaded()。
-     * 数据处理：同 process()，增加权限校验。
      * 业务规则：权限校验。
-     * 状态影响：同 process()。
      * 异常情况：无权限抛 BusinessException(403)。
-     * 注意事项：无。
      */
     @Transactional
     @Override
@@ -560,27 +444,14 @@ public class ComplaintServiceImpl implements ComplaintService {
                                         boolean admin, boolean merchant, boolean customerService) {
         log.info("调用 processForStaff()");
         Complaint complaint = requireComplaint(id);
-        assertStaffCanManage(complaint, staffUserId, admin, merchant, customerService);
+        assertCanManage(complaint, staffUserId, admin, merchant, customerService);
         return processLoaded(complaint, result, status);
     }
 
     /**
-     * 【受理投诉】
-     *
      * 业务作用：把待处理的投诉置为处理中，并给投诉人发送受理通知。
-     *
-     * 调用场景：商家或客服在工单详情点击「受理」。
-     *
-     * 调用链：ComplaintController → accept() → requireComplaint() → assertStaffCanManage() → complaintMapper.updateById() → sendComplaintNotification()。
-     *
-     * 数据处理：读取投诉 → 校验权限与状态 → status_wsh 改为 processing、result_wsh 写入「投诉已受理，正在处理中」→ 更新 complaint 表。
-     *
      * 业务规则：仅 status_wsh 为 pending 的投诉可受理，否则返回 400；非管理员需对投诉所属商家有权限。
-     *
-     * 状态影响：更新 complaint 表状态与处理结果；新增一条 type=complaint 的站内通知。
-     *
      * 异常情况：投诉不存在抛 BusinessException(404)；无权限抛 403；状态非 pending 抛 400。
-     *
      * 注意事项：方法带 @Transactional，但通知在事务内发送，通知失败仅记录 warn 日志不会回滚。
      */
     @Transactional
@@ -588,31 +459,27 @@ public class ComplaintServiceImpl implements ComplaintService {
     public ComplaintDTO accept(Long id, Long staffUserId, boolean admin, boolean merchant, boolean customerService) {
         log.info("调用 accept(), id={}", id);
         Complaint complaint = requireComplaint(id);
-        assertStaffCanManage(complaint, staffUserId, admin, merchant, customerService);
-        if (!"pending".equals(complaint.getStatus_wsh())) {
+        assertCanManage(complaint, staffUserId, admin, merchant, customerService);
+        // 条件更新（CAS）：WHERE id=? AND status='pending'，两个客服同时点受理只有一个能成功
+        int affected = complaintMapper.casUpdateStatus(
+                complaint.getId_wsh(), STATUS_PENDING, STATUS_PROCESSING, "投诉已受理，正在处理中");
+        if (affected == 0) {
             throw new BusinessException(400, "仅待处理的投诉可受理");
         }
-        complaint.setStatus_wsh("processing");
+        complaint.setStatus_wsh(STATUS_PROCESSING);
         complaint.setResult_wsh("投诉已受理，正在处理中");
-        complaintMapper.updateById(complaint);
-        sendComplaintNotification(
-                complaint.getOwner_id_wsh(),
-                complaint.getId_wsh(),
+        issueNotifier.notifyUser("complaint", complaint.getOwner_id_wsh(), complaint.getId_wsh(),
                 "投诉受理通知",
                 "您的投诉「" + complaint.getTitle_wsh() + "」已被受理，正在处理中。");
         return toDTO(complaint);
     }
 
     /**
-     * 【业务名称】查询投诉沟通消息（实现）
+     * 查询投诉沟通消息（实现）
+     *
      * 业务作用：查询某投诉的往来消息。
-     * 调用场景：投诉详情展示沟通记录。
-     * 调用链：listMessages() → requireComplaint() → 权限校验 → selectList() → toMessageDTO()。
-     * 数据处理：投诉人本人或可管理该投诉的内部人员可查看。
      * 业务规则：按创建时间正序返回。
-     * 状态影响：无。
      * 异常情况：无权限抛 BusinessException(403)。
-     * 注意事项：无。
      */
     @Override
     public List<ComplaintMessageDTO> listMessages(Long id, Long userId,
@@ -620,7 +487,7 @@ public class ComplaintServiceImpl implements ComplaintService {
         log.info("调用 listMessages(), complaintId={}", id);
         Complaint complaint = requireComplaint(id);
         if (userId == null || !userId.equals(complaint.getOwner_id_wsh())) {
-            assertStaffCanManage(complaint, userId, admin, merchant, customerService);
+            assertCanManage(complaint, userId, admin, merchant, customerService);
         }
         if (userId != null) {
             complaintMessageMapper.markReadByComplaintId(id, userId);
@@ -635,15 +502,11 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】发送投诉沟通消息（实现）
+     * 发送投诉沟通消息（实现）
+     *
      * 业务作用：投诉人或内部人员发送消息，并站内通知接收方。
-     * 调用场景：用户追问 / 客服回复。
-     * 调用链：sendMessage() → requireComplaint() → 权限校验 → insert() → 通知。
-     * 数据处理：用户发言通知客服组；客服发言通知投诉人。
      * 业务规则：内容必填且≤1000字；仅投诉人与可管理该投诉的内部人员可发言。
-     * 状态影响：新增消息；发送站内通知。
      * 异常情况：无权限抛 403；内容为空/超长抛 400。
-     * 注意事项：无。
      */
     @Transactional
     @Override
@@ -653,7 +516,7 @@ public class ComplaintServiceImpl implements ComplaintService {
         Complaint complaint = requireComplaint(id);
         boolean isOwner = senderId != null && senderId.equals(complaint.getOwner_id_wsh());
         if (!isOwner) {
-            assertStaffCanManage(complaint, senderId, admin, merchant, customerService);
+            assertCanManage(complaint, senderId, admin, merchant, customerService);
         }
         String text = content == null ? null : content.trim();
         String file = fileUrl == null ? null : fileUrl.trim();
@@ -679,15 +542,14 @@ public class ComplaintServiceImpl implements ComplaintService {
                 }
                 chatEventBroadcaster.broadcastThreadMessage("complaint", id, csUserId, senderId, text, file, message.getCreated_at_wsh());
             }
-            notifyCsStaffNewMessage(complaint.getMerchant_id_wsh(), id, complaint.getTitle_wsh());
+            issueNotifier.notifyCustomerService("complaint", complaint.getMerchant_id_wsh(), id,
+                    "投诉新消息", "投诉「" + complaint.getTitle_wsh() + "」有新的用户消息，请及时回复。");
         } else {
             message.setTo_user_id_wsh(complaint.getOwner_id_wsh());
             complaintMessageMapper.insert(message);
             chatEventBroadcaster.broadcastThreadMessage(
                     "complaint", id, complaint.getOwner_id_wsh(), senderId, text, file, message.getCreated_at_wsh());
-            sendComplaintNotification(
-                    complaint.getOwner_id_wsh(),
-                    id,
+            issueNotifier.notifyUser("complaint", complaint.getOwner_id_wsh(), id,
                     "投诉新消息",
                     "您的投诉「" + complaint.getTitle_wsh() + "」有新的客服回复，请查看。");
         }
@@ -695,53 +557,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【业务名称】投诉新消息提醒客服（实现）
-     * 业务作用：投诉人发言后，通知服务该商家的客服查看。
-     * 调用场景：用户追问投诉。
-     * 数据处理：查询商家的 approved 客服并逐一创建通知。
-     * 业务规则：商家为空或通知失败仅记录日志。
-     * 状态影响：新增通知。
-     * 异常情况：无。
-     * 注意事项：与 notifyCsStaff 逻辑一致。
-     */
-    private void notifyCsStaffNewMessage(Long merchantId, Long complaintId, String title) {
-        try {
-            Set<Long> csUserIds = merchantCustomerServiceService.getApprovedCsUserIds(merchantId);
-            for (Long csUserId : csUserIds) {
-                if (csUserId == null) {
-                    continue;
-                }
-                Notification notification = new Notification();
-                notification.setUser_id_wsh(csUserId);
-                notification.setTitle_wsh("投诉新消息");
-                notification.setContent_wsh("投诉「" + title + "」有新的用户消息，请及时回复。");
-                notification.setType_wsh("complaint");
-                notification.setRelated_id_wsh(complaintId);
-                notification.setIs_read_wsh(0);
-                notificationService.create(notification);
-            }
-        } catch (Exception e) {
-            log.warn("发送投诉新消息客服提醒失败: complaintId={}", complaintId, e);
-        }
-    }
-
-    /**
-     * 【投诉消息实体转 DTO】
-     *
      * 业务作用：把 ComplaintMessage 实体转换为 ComplaintMessageDTO，并补全发送人显示名。
-     *
-     * 调用场景：listMessages() 与 sendMessage() 返回结果时调用。
-     *
-     * 调用链：listMessages()/sendMessage() → toMessageDTO() → userMapper.selectById()。
-     *
-     * 数据处理：逐字段拷贝 id、complaint_id、from/to_user_id、内容、附件、已读标记、创建时间；发送人昵称为空时回退为用户名。
-     *
      * 业务规则：发送人不存在时 from_user_name_wsh 置空。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：每条消息都会触发一次 userMapper 查询，列表场景存在 N+1 查询问题。
      */
     private ComplaintMessageDTO toMessageDTO(ComplaintMessage message) {
@@ -764,22 +581,9 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【加载投诉并校验存在】
-     *
      * 业务作用：按主键加载投诉实体，不存在则抛异常，供各业务方法复用。
-     *
-     * 调用场景：getEvidence、getEvidenceForStaff、process、accept、listMessages、sendMessage 等入口。
-     *
-     * 调用链：各业务方法 → requireComplaint() → complaintMapper.selectById()。
-     *
-     * 数据处理：按 id 查询 complaint 表单条记录并返回。
-     *
      * 业务规则：id 查不到记录即视为资源不存在。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：记录为空抛 BusinessException(404, "投诉不存在")。
-     *
      * 注意事项：未做 id 为空的前置判断，id 为 null 时会直接走数据库查询。
      */
     private Complaint requireComplaint(Long id) {
@@ -791,91 +595,23 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【校验内部人员投诉操作权限】
-     *
      * 业务作用：判断当前内部人员是否有权操作该投诉，无权则抛 403。
-     *
-     * 调用场景：getEvidenceForStaff、processForStaff、accept、listMessages、sendMessage 中的权限校验。
-     *
-     * 调用链：各业务方法 → assertStaffCanManage() → staffMerchantIds()。
-     *
-     * 数据处理：管理员直接放行；否则取出该人员可管理的商家 ID 集合，判断是否包含投诉的 merchant_id_wsh。
-     *
-     * 业务规则：投诉 merchant_id_wsh 为空时非管理员一律拒绝。
-     *
-     * 状态影响：无。
-     *
+     * 业务规则：判定本身在 IssueAccess 中（与工单共用），这里只保留投诉自己的 403 文案。
      * 异常情况：无权限抛 BusinessException(403, "无权限操作此商家的投诉")。
-     *
-     * 注意事项：权限粒度为商家级，不区分具体投诉；管理员由调用方传入的 admin 布尔值决定，不在此处解析角色。
      */
-    private void assertStaffCanManage(Complaint complaint, Long userId,
-                                      boolean admin, boolean merchant, boolean customerService) {
-        if (admin) {
-            return;
+    private void assertCanManage(Complaint complaint, Long userId,
+                                 boolean admin, boolean merchant, boolean customerService) {
+        if (!issueAccess.canManageMerchant(
+                complaint.getMerchant_id_wsh(), userId, admin, merchant, customerService)) {
+            throw new BusinessException(403, "无权限操作此商家的投诉");
         }
-        if (complaint.getMerchant_id_wsh() != null
-                && staffMerchantIds(userId, merchant, customerService).contains(complaint.getMerchant_id_wsh())) {
-            return;
-        }
-        throw new BusinessException(403, "无权限操作此商家的投诉");
     }
 
     /**
-     * 【计算内部人员可管理的商家范围】
-     *
-     * 业务作用：汇总当前用户作为商家所有者或客服可管理的商家 ID 集合。
-     *
-     * 调用场景：listPageForStaff() 列表过滤与 assertStaffCanManage() 权限校验。
-     *
-     * 调用链：listPageForStaff()/assertStaffCanManage() → staffMerchantIds() → merchantMapper.selectOne() / merchantCustomerServiceService.getApprovedMerchantIds()。
-     *
-     * 数据处理：merchant 为真时按 user_id_wsh 查本人拥有的商家；customerService 为真时追加已授权客服的商家 ID。
-     *
-     * 业务规则：userId 为空直接返回空集合；结果去重且保持插入顺序。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：商家查询用 LIMIT 1，一个账号若拥有多个商家只会取到其中一条。
-     */
-    private Set<Long> staffMerchantIds(Long userId, boolean merchant, boolean customerService) {
-        if (userId == null) {
-            return Set.of();
-        }
-        Set<Long> ids = new LinkedHashSet<>();
-        if (merchant) {
-            Merchant owned = merchantMapper.selectOne(new LambdaQueryWrapper<Merchant>()
-                    .eq(Merchant::getUser_id_wsh, userId)
-                    .last("LIMIT 1"));
-            if (owned != null && owned.getId_wsh() != null) {
-                ids.add(owned.getId_wsh());
-            }
-        }
-        if (customerService) {
-            ids.addAll(merchantCustomerServiceService.getApprovedMerchantIds(userId));
-        }
-        return ids;
-    }
-
-    /**
-     * 【校验投诉关联订单】
-     *
      * 业务作用：校验请求中的订单存在且属于当前投诉人，并返回订单实体。
-     *
-     * 调用场景：create() 创建投诉的第一步。
-     *
-     * 调用链：create() → validateOrderComplaint() → orderMapper.selectById()。
-     *
      * 数据处理：request 为空抛 400；order_id_wsh 为空时返回 null 表示不关联订单；否则按 id 查订单并比对 owner_id_wsh。
-     *
      * 业务规则：只能对本人订单发起投诉。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：请求为空抛 400；订单不存在抛 404；非本人订单抛 403。
-     *
      * 注意事项：返回 null 是合法分支，表示按商家维度投诉而非订单维度。
      */
     private PetOrder validateOrderComplaint(ComplaintCreateRequestDTO request, Long ownerId) {
@@ -897,22 +633,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【解析投诉归属商家】
-     *
      * 业务作用：确定投诉应归属的商家 ID。
-     *
-     * 调用场景：create() 中解析商家后做商家有效性与防滥用校验。
-     *
-     * 调用链：create() → resolveMerchantId() → 返回 merchantId 供 validateMerchantIfProvided() 使用。
-     *
-     * 数据处理：有订单时取订单的 merchant_id_wsh，无订单时取请求中的 merchant_id_wsh。
-     *
      * 业务规则：订单场景下忽略请求传入的商家，以订单为准，防止伪造归属。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：两者都可能为 null，此时投诉无商家归属，后续客服通知也不会发送。
      */
     private Long resolveMerchantId(ComplaintCreateRequestDTO request, PetOrder order) {
@@ -920,23 +642,9 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【校验商家存在性】
-     *
      * 业务作用：商家 ID 非空时确认该商家在库中存在。
-     *
-     * 调用场景：create() 解析出商家 ID 之后。
-     *
-     * 调用链：create() → validateMerchantIfProvided() → merchantMapper.selectById()。
-     *
-     * 数据处理：按 merchant_id_wsh 查询 merchant 表。
-     *
      * 业务规则：商家 ID 为 null 时跳过校验。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：商家不存在抛 BusinessException(404, "商家不存在")。
-     *
-     * 注意事项：无。
      */
     private void validateMerchantIfProvided(Long merchantId) {
         if (merchantId != null && merchantMapper.selectById(merchantId) == null) {
@@ -945,22 +653,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【解析投诉对象 ID】
-     *
      * 业务作用：确定投诉/举报指向的具体对象主键（寄养师或商家）。
-     *
-     * 调用场景：create() 组装 Complaint 实体时。
-     *
-     * 调用链：create() → resolveTargetId() → complaint.setTarget_id_wsh()。
-     *
-     * 数据处理：请求显式指定 target_id_wsh 时直接使用；无订单时返回请求值；有订单时优先取订单的 keeper_id_wsh，没有则退化为 merchant_id_wsh。
-     *
      * 业务规则：显式传入优先于订单推导。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：返回值可能为 null，需与 resolveTargetType() 的结果配合解读。
      */
     private Long resolveTargetId(ComplaintCreateRequestDTO request, PetOrder order) {
@@ -971,22 +665,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【解析投诉对象类型】
-     *
      * 业务作用：确定投诉对象是寄养师（keeper）还是商家（merchant）。
-     *
-     * 调用场景：create() 组装 Complaint 实体时。
-     *
-     * 调用链：create() → resolveTargetType() → complaint.setTarget_type_wsh()。
-     *
-     * 数据处理：请求中 target_type_wsh 非空白则 trim 后使用；无订单时返回 null；有订单时按是否存在 keeper_id_wsh 判断。
-     *
      * 业务规则：显式类型优先；订单中有寄养师即判定为 keeper。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：与 resolveTargetId() 的判断逻辑必须保持一致，否则会出现类型与 ID 不匹配。
      */
     private String resolveTargetType(ComplaintCreateRequestDTO request, PetOrder order) {
@@ -1000,33 +680,46 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【按已加载实体处理投诉】
-     *
      * 业务作用：写入处理结果与状态，通知投诉人，并在事务提交后发送 MQ 消息。
-     *
-     * 调用场景：process() 与 processForStaff() 完成权限校验后调用。
-     *
-     * 调用链：process()/processForStaff() → processLoaded() → complaintMapper.updateById() → sendComplaintNotification() → messageSender.sendComplaintProcess()。
-     *
-     * 数据处理：设置 status_wsh、result_wsh 后更新 complaint 表；随后组装通知并注册事务同步回调。
-     *
      * 业务规则：状态与结果直接采用调用方入参，不校验状态机流转；MQ 消息仅在事务提交后发送。
-     *
-     * 状态影响：更新 complaint 表；新增投诉处理站内通知；提交后发送投诉处理 MQ 消息。
-     *
      * 异常情况：MQ 发送失败仅记录 warn 日志，不影响主流程。
-     *
      * 注意事项：通过 TransactionSynchronizationManager 判断是否存在事务，无事务时立即同步执行消息发送。
      */
     private ComplaintDTO processLoaded(Complaint complaint, String result, String status) {
+        String current = complaint.getStatus_wsh();
+        String targetResult = result == null ? null : result.trim();
+
+        // 1) 幂等：已经是目标状态且结论一致 → 不写库、不发通知、直接返回当前数据
+        if (status.equals(current) && Objects.equals(targetResult, trimResult(complaint.getResult_wsh()))) {
+            log.info("投诉 {} 已是 {} 且结论一致，按幂等直接返回", complaint.getId_wsh(), status);
+            return toDTO(complaint);
+        }
+        // 2) 终态不允许再变：resolved ↔ rejected 互转、终态覆盖结论一律拒绝
+        if (STATUS_RESOLVED.equals(current) || STATUS_REJECTED.equals(current)) {
+            throw new BusinessException(400, "该投诉已处理完成，不能再次处理");
+        }
+        // 3) 只有非终态（pending / processing）才允许进入终态
+        if (!STATUS_PENDING.equals(current) && !STATUS_PROCESSING.equals(current)) {
+            throw new BusinessException(400, "当前状态不允许该操作");
+        }
+        // 4) 条件更新（CAS）：WHERE id=? AND status=<读到的前态>，并发下只有一个能改成功
+        int affected = complaintMapper.casUpdateStatus(
+                complaint.getId_wsh(), current, status, targetResult);
+        if (affected == 0) {
+            // 别人先改了：如果改成了同样的结果，按幂等返回；否则要求刷新
+            Complaint latest = requireComplaint(complaint.getId_wsh());
+            if (status.equals(latest.getStatus_wsh())
+                    && Objects.equals(targetResult, trimResult(latest.getResult_wsh()))) {
+                log.info("投诉 {} 并发处理结果一致，按幂等返回", complaint.getId_wsh());
+                return toDTO(latest);
+            }
+            throw new BusinessException(400, "该投诉状态已变化，请刷新后重试");
+        }
         complaint.setStatus_wsh(status);
-        complaint.setResult_wsh(result);
-        complaintMapper.updateById(complaint);
-        sendComplaintNotification(
-                complaint.getOwner_id_wsh(),
-                complaint.getId_wsh(),
-                "投诉处理通知",
-                "您的投诉「" + complaint.getTitle_wsh() + "」已处理，结果：" + result);
+        complaint.setResult_wsh(targetResult);
+
+        // 5) 用户通知的唯一投递路径是 MQ（ComplaintProcessHandlerImpl），此处不再同步发通知，
+        //    否则一次处理会产生两条内容重复、语言不一致的站内通知。
         Long complaintId = complaint.getId_wsh();
         Runnable task = () -> {
             try {
@@ -1048,23 +741,14 @@ public class ComplaintServiceImpl implements ComplaintService {
         return toDTO(complaint);
     }
 
+    /** 结论比较前统一去空白：null 与 "" 视为相同，避免「只是多了个空格」被判成结果变更。 */
+    private String trimResult(String value) {
+        return value == null ? null : value.trim();
+    }
+
     /**
-     * 【组装投诉证据包】
-     *
      * 业务作用：把投诉主体、证据摘要、聊天记录与护理记录打包成证据 DTO。
-     *
-     * 调用场景：getEvidence() 与 getEvidenceForStaff() 返回详情前调用。
-     *
-     * 调用链：getEvidence()/getEvidenceForStaff() → buildEvidence() → toDTO() → listEvidenceChatMessages() / listEvidenceCareRecords()。
-     *
-     * 数据处理：投诉转 DTO（其中已含 evidence_summary_wsh），再按 order_id_wsh 拉取聊天与护理记录。
-     *
      * 业务规则：投诉无关联订单时聊天与护理记录返回空列表。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：证据摘要由 toDTO() 内部生成，此处只是复用，不会重复查询摘要结构。
      */
     private ComplaintEvidenceDTO buildEvidence(Complaint complaint) {
@@ -1078,56 +762,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【发送投诉相关站内通知】
-     *
-     * 业务作用：向指定用户写入一条 type=complaint 的站内通知。
-     *
-     * 调用场景：受理、处理、客服回复投诉时。
-     *
-     * 调用链：accept()/processLoaded()/sendMessage() → sendComplaintNotification() → notificationService.create()。
-     *
-     * 数据处理：构造 Notification，写入接收人、标题、内容、类型、关联投诉 ID 与未读标记。
-     *
-     * 业务规则：通知内容由调用方拼装，本方法不做模板处理。
-     *
-     * 状态影响：新增 notification 表记录。
-     *
-     * 异常情况：通知写入异常被捕获，仅记录 warn 日志。
-     *
-     * 注意事项：异常吞掉是为避免通知失败影响投诉主流程。
-     */
-    private void sendComplaintNotification(Long userId, Long complaintId, String title, String content) {
-        try {
-            Notification notification = new Notification();
-            notification.setUser_id_wsh(userId);
-            notification.setTitle_wsh(title);
-            notification.setContent_wsh(content);
-            notification.setType_wsh("complaint");
-            notification.setRelated_id_wsh(complaintId);
-            notification.setIs_read_wsh(0);
-            notificationService.create(notification);
-        } catch (Exception e) {
-            log.warn("发送投诉通知失败: complaintId={}", complaintId, e);
-        }
-    }
-
-    /**
-     * 【投诉实体列表转 DTO 列表】
-     *
      * 业务作用：批量把 Complaint 实体转换为 ComplaintDTO。
-     *
-     * 调用场景：listByOwner() 与 listAll() 返回前。
-     *
-     * 调用链：listByOwner()/listAll() → toDTOList() → toDTO()。
-     *
-     * 数据处理：对列表逐条调用 toDTO() 后收集为新列表。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：入参为 null 时会在 stream() 处抛 NullPointerException。
-     *
      * 注意事项：每条记录都会触发用户查询与证据摘要查询，大列表时开销较高。
      */
     private List<ComplaintDTO> toDTOList(List<Complaint> list) {
@@ -1135,22 +771,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【投诉实体转 DTO】
-     *
      * 业务作用：把 Complaint 实体转换为 ComplaintDTO，补全投诉人名称与证据摘要。
-     *
-     * 调用场景：列表、详情、创建、受理、处理等所有对外返回投诉的地方。
-     *
-     * 调用链：各业务方法 → toDTO() → userMapper.selectById() → buildEvidenceSummary()。
-     *
-     * 数据处理：逐字段拷贝投诉信息；按 owner_id_wsh 查用户，昵称为空时用用户名；最后按 order_id_wsh 生成证据摘要。
-     *
      * 业务规则：实体为 null 时返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：列表转换时每条记录都会额外查询用户与订单，存在 N+1 查询。
      */
     private ComplaintDTO toDTO(Complaint entity) {
@@ -1181,22 +803,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【生成证据摘要】
-     *
      * 业务作用：统计投诉关联订单的聊天条数、护理记录条数与最近时间，形成证据摘要。
-     *
-     * 调用场景：toDTO() 组装投诉 DTO 时。
-     *
-     * 调用链：toDTO() → buildEvidenceSummary() → countChatMessages() / countCareRecords() / latestChatTime() / latestCareRecordTime()。
-     *
-     * 数据处理：按 order_id_wsh 查订单，填充订单号、订单状态、两类记录的数量与最近时间。
-     *
      * 业务规则：orderId 为空或订单不存在时返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：一次调用会触发 4 次统计查询，列表场景需注意性能。
      */
     private ComplaintEvidenceSummaryDTO buildEvidenceSummary(Long orderId) {
@@ -1219,23 +827,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【统计订单聊天消息数】
-     *
      * 业务作用：统计某订单下的聊天消息总条数。
-     *
-     * 调用场景：buildEvidenceSummary() 生成证据摘要。
-     *
-     * 调用链：buildEvidenceSummary() → countChatMessages() → chatMessageMapper.selectCount()。
-     *
-     * 数据处理：按 order_id_wsh 计数 chat_message 表。
-     *
      * 业务规则：统计结果为 null 时按 0 处理。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
      */
     private long countChatMessages(Long orderId) {
         Long count = chatMessageMapper.selectCount(new LambdaQueryWrapper<ChatMessage>()
@@ -1244,23 +837,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【统计订单护理记录数】
-     *
      * 业务作用：统计某订单下的护理记录总条数。
-     *
-     * 调用场景：buildEvidenceSummary() 生成证据摘要。
-     *
-     * 调用链：buildEvidenceSummary() → countCareRecords() → careRecordMapper.selectCount()。
-     *
-     * 数据处理：按 order_id_wsh 计数 care_record 表。
-     *
      * 业务规则：统计结果为 null 时按 0 处理。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
      */
     private long countCareRecords(Long orderId) {
         Long count = careRecordMapper.selectCount(new LambdaQueryWrapper<CareRecord>()
@@ -1269,22 +847,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【查询最近一条聊天时间】
-     *
      * 业务作用：取某订单最新一条聊天消息的创建时间。
-     *
-     * 调用场景：buildEvidenceSummary() 生成证据摘要。
-     *
-     * 调用链：buildEvidenceSummary() → latestChatTime() → chatMessageMapper.selectOne()。
-     *
-     * 数据处理：按 order_id_wsh 过滤、created_at_wsh 倒序取第一条。
-     *
      * 业务规则：无消息时返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：使用 last("LIMIT 1") 拼接 SQL，依赖数据库方言。
      */
     private java.time.LocalDateTime latestChatTime(Long orderId) {
@@ -1296,22 +860,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【查询最近一条护理记录时间】
-     *
      * 业务作用：取某订单最新一条护理记录的时间。
-     *
-     * 调用场景：buildEvidenceSummary() 生成证据摘要。
-     *
-     * 调用链：buildEvidenceSummary() → latestCareRecordTime() → careRecordMapper.selectOne()。
-     *
-     * 数据处理：按 order_id_wsh 过滤，先按 record_time_wsh 再按 created_at_wsh 倒序取第一条。
-     *
      * 业务规则：优先返回 record_time_wsh，为空时回退到 created_at_wsh；无记录返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：排序用了两个字段，与 countCareRecords 的口径无冲突但需注意与列表查询排序保持一致。
      */
     private java.time.LocalDateTime latestCareRecordTime(Long orderId) {
@@ -1327,22 +877,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【查询证据用聊天记录】
-     *
      * 业务作用：取订单最近 50 条聊天消息作为投诉证据。
-     *
-     * 调用场景：buildEvidence() 组装证据包。
-     *
-     * 调用链：buildEvidence() → listEvidenceChatMessages() → chatMessageMapper.selectList() → toChatDTO()。
-     *
-     * 数据处理：按 order_id_wsh 过滤，created_at_wsh 倒序，限制 EVIDENCE_CHAT_LIMIT（50）条。
-     *
      * 业务规则：orderId 为空返回空列表。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：返回顺序为倒序（最新在前），与前端展示需对齐。
      */
     private List<ChatMessageDTO> listEvidenceChatMessages(Long orderId) {
@@ -1359,22 +895,8 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【查询证据用护理记录】
-     *
      * 业务作用：取订单最近 20 条护理记录作为投诉证据。
-     *
-     * 调用场景：buildEvidence() 组装证据包。
-     *
-     * 调用链：buildEvidence() → listEvidenceCareRecords() → careRecordMapper.selectList() → toCareDTO()。
-     *
-     * 数据处理：按 order_id_wsh 过滤，record_time_wsh 与 created_at_wsh 倒序，限制 EVIDENCE_CARE_LIMIT（20）条。
-     *
      * 业务规则：orderId 为空返回空列表。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：返回顺序为倒序（最新在前）。
      */
     private List<CareRecordDTO> listEvidenceCareRecords(Long orderId) {
@@ -1392,22 +914,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【聊天消息实体转 DTO】
-     *
      * 业务作用：把 ChatMessage 实体转换为 ChatMessageDTO 供证据展示。
-     *
-     * 调用场景：listEvidenceChatMessages() 转换时。
-     *
-     * 调用链：listEvidenceChatMessages() → toChatDTO()。
-     *
-     * 数据处理：逐字段拷贝 id、收发双方、订单 ID、内容、类型、附件、已读标记与创建时间。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：不补全发送人名称，与 toMessageDTO() 的处理不一致。
      */
     private ChatMessageDTO toChatDTO(ChatMessage message) {
@@ -1425,23 +932,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     /**
-     * 【护理记录实体转 DTO】
-     *
      * 业务作用：把 CareRecord 实体转换为 CareRecordDTO 供证据展示。
-     *
-     * 调用场景：listEvidenceCareRecords() 转换时。
-     *
-     * 调用链：listEvidenceCareRecords() → toCareDTO()。
-     *
-     * 数据处理：逐字段拷贝 id、订单 ID、宠物 ID、寄养师 ID、类型、内容、图片、记录时间与创建时间。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
      */
     private CareRecordDTO toCareDTO(CareRecord record) {
         CareRecordDTO dto = new CareRecordDTO();

@@ -8,7 +8,6 @@ import com.pet.boarding.service.BusinessHoursService;
 import com.pet.boarding.service.MerchantService;
 import com.pet.security.JwtAuthenticationToken;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,22 +46,7 @@ public class BusinessHoursController {
     private final MerchantService merchantService;
 
     /**
-     * 【构造函数：注入营业时间与商家服务】
-     *
      * 业务作用：注入 BusinessHoursService（配置读写）与 MerchantService（归属校验）。
-     *
-     * 调用场景：容器启动创建 BusinessHoursController Bean 时自动调用。
-     *
-     * 调用链：Spring IoC → BusinessHoursController(构造) → businessHoursService/merchantService 字段赋值。
-     *
-     * 数据处理：仅做字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：写操作在控制器层先做归属校验，服务层还会再做一次归属校验。
      */
     public BusinessHoursController(BusinessHoursService businessHoursService, MerchantService merchantService) {
@@ -124,7 +108,7 @@ public class BusinessHoursController {
                                            @RequestBody BusinessHoursUpsertRequestDTO dto) {
         log.info("upsert() 被调用");
         // 管理员放行，其余必须是该商家负责人
-        if (!isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
+        if (!JwtAuthenticationToken.isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
             return Result.error(403, "无权修改此商家的营业时间");
         }
         return Result.success(businessHoursService.toDTO(businessHoursService.upsert(merchantId, dto)));
@@ -157,39 +141,11 @@ public class BusinessHoursController {
                                @Parameter(description = "营业时间记录ID") @PathVariable Long id) {
         log.info("delete() 被调用");
         // 删除同样只允许管理员或商家负责人
-        if (!isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
+        if (!JwtAuthenticationToken.isAdmin(token) && !merchantService.isOwner(merchantId, token.getUserId())) {
             return Result.error(403, "无权修改此商家的营业时间");
         }
         businessHoursService.delete(merchantId, id);
         return Result.success();
     }
 
-    /**
-     * 【判断是否为平台管理员】
-     *
-     * 业务作用：遍历令牌权限判断是否包含 ROLE_ADMIN。
-     *
-     * 调用场景：upsert 与 delete 判断是否跳过商家归属校验。
-     *
-     * 调用链：upsert / delete → isAdmin → JwtAuthenticationToken.getAuthorities。
-     *
-     * 数据处理：逐个比较 authority 字符串是否等于 ROLE_ADMIN，命中即返回 true。
-     *
-     * 业务规则：token 为 null 时返回 false。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：返回 false 时仍会继续走商家归属校验，不会直接拒绝。
-     */
-    private boolean isAdmin(JwtAuthenticationToken token) {
-        if (token == null) return false;
-        for (GrantedAuthority authority : token.getAuthorities()) {
-            if ("ROLE_ADMIN".equals(authority.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

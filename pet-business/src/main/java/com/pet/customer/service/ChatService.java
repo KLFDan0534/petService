@@ -18,14 +18,10 @@ public interface ChatService {
     int MAX_PAGE_SIZE = 200;
 
     /**
-     * 【业务名称】获取历史会话记录（默认分页）
+     * 获取历史会话记录（默认分页）
+     *
      * 业务作用：获取两个用户之间的历史会话记录，默认取最近100条。
-     * 调用场景：用户打开聊天窗口。
-     * 调用链：getConversation() → getConversation()（带分页参数）。
-     * 数据处理：按两个用户+订单查询，按时间正序。
      * 业务规则：orderId 为空时返回非订单维度的通用聊天。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：默认取最近100条。
      *
      * @param userId1 会话参与方1的用户ID
@@ -38,14 +34,10 @@ public interface ChatService {
     }
 
     /**
-     * 【业务名称】获取历史会话记录（游标分页）
+     * 获取历史会话记录（游标分页）
+     *
      * 业务作用：获取两个用户之间的历史会话记录，支持基于游标的分页拉取。
-     * 调用场景：聊天窗口上拉加载更多。
-     * 调用链：getConversation() → ChatMessageMapper.selectByUsers()。
-     * 数据处理：按两个用户+订单匹配，按消息ID游标分页，按时间正序。
      * 业务规则：beforeId 为空表示从最新开始。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：限制最多200条。
      *
      * @param userId1 会话参与方1的用户ID
@@ -58,14 +50,10 @@ public interface ChatService {
     List<ChatMessageDTO> getConversation(Long userId1, Long userId2, Long orderId, Long beforeId, Integer size);
 
     /**
-     * 【业务名称】查询未读消息
+     * 查询未读消息
+     *
      * 业务作用：查询指定用户所有未读消息。
-     * 调用场景：用户查看未读消息列表。
-     * 调用链：getUnreadMessages() → ChatMessageMapper.selectUnreadByUser()。
-     * 数据处理：按接收方查询 is_read = false 的消息，按时间倒序。
      * 业务规则：最多返回200条。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：不改变已读状态。
      *
      * @param userId 用户ID
@@ -74,14 +62,9 @@ public interface ChatService {
     List<ChatMessageDTO> getUnreadMessages(Long userId);
 
     /**
-     * 【业务名称】统计未读消息总数
+     * 统计未读消息总数
+     *
      * 业务作用：统计指定用户的未读消息总数。
-     * 调用场景：用户首页显示未读消息角标。
-     * 调用链：countUnreadMessages() → ChatMessageMapper.countUnreadByUser()。
-     * 数据处理：统计接收方未读消息数。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：性能敏感，频繁调用。
      *
      * @param userId 用户ID
@@ -90,14 +73,10 @@ public interface ChatService {
     long countUnreadMessages(Long userId);
 
     /**
-     * 【业务名称】发送消息
+     * 发送消息
+     *
      * 业务作用：发送一条聊天消息，包含文本、图片、视频、文件等多种类型。
-     * 调用场景：用户发送消息。
-     * 调用链：sendMessage() → ChatMessageMapper.insert()。
-     * 数据处理：插入消息记录。
      * 业务规则：消息已读状态默认为 false。
-     * 状态影响：新增消息记录；接收方角度新增一条未读消息。
-     * 异常情况：无。
      * 注意事项：发送方和接收方不可相同。
      *
      * @param message 待发送的消息实体，包含发送方、接收方、内容、类型、文件等信息
@@ -106,14 +85,10 @@ public interface ChatService {
     ChatMessageDTO sendMessage(ChatMessage message);
 
     /**
-     * 【业务名称】标记单条消息已读
+     * 标记单条消息已读
+     *
      * 业务作用：将单条消息标记为已读。
-     * 调用场景：用户已读取某条消息。
-     * 调用链：markAsRead() → ChatMessageMapper.updateById()。
-     * 数据处理：更新 is_read = true。
      * 业务规则：仅接收方可标记已读。
-     * 状态影响：消息标记为已读。
-     * 异常情况：无。
      * 注意事项：需校验 userId 是否是该消息的接收方。
      *
      * @param messageId 消息ID
@@ -122,15 +97,10 @@ public interface ChatService {
     void markAsRead(Long messageId, Long userId);
 
     /**
-     * 【业务名称】标记会话已读
+     * 标记会话已读
+     *
      * 业务作用：将两个用户之间某订单维度（或非订单维度）的全部未读消息标记为已读。
-     * 调用场景：用户进入聊天窗口时。
-     * 调用链：markConversationAsRead() → ChatMessageMapper.markConversationAsRead()。
-     * 数据处理：批量更新未读消息为已读。
      * 业务规则：orderId 为空则标记非订单维度的会话。
-     * 状态影响：该会话的所有未读消息标记为已读。
-     * 异常情况：无。
-     * 注意事项：无。
      *
      * @param currentUserId 当前用户ID（接收方）
      * @param otherUserId 对方用户ID（发送方）
@@ -139,15 +109,11 @@ public interface ChatService {
     void markConversationAsRead(Long currentUserId, Long otherUserId, Long orderId);
 
     /**
-     * 【业务名称】随机分配人工客服
+     * 随机分配人工客服
+     *
      * 业务作用：从系统中拥有客服角色的有效用户中随机挑选一名（排除当前用户自己），用于智能客服转人工后直接接入一对一实时聊天。
-     * 调用场景：智能客服页面点击“转人工客服”按钮。
-     * 调用链：assignCustomerServiceAgent() → UserRoleMapper.selectActiveUserIdsByRoleCode() → UserMapper.selectById()。
-     * 数据处理：按角色编码查询客服用户ID列表 → 排除当前用户 → 随机取一名 → 查询用户昵称/头像。
      * 业务规则：候选为空（无在线客服）时抛 BusinessException(400) 提示稍后再试。
-     * 状态影响：无。
      * 异常情况：无可用客服时抛 BusinessException(400)。
-     * 注意事项：无。
      *
      * @param userId 当前用户ID
      * @return 随机分配的客服信息（用户ID/名称/头像）

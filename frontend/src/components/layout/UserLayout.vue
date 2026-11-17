@@ -600,7 +600,7 @@ watch(() => route.value.fullPath, () => {
   height: 20px;
 }
 
-/* --- AI 历史对话下拉 --- */
+/* AI 历史对话下拉 */
 .ai-dropdown-wrapper {
   position: relative;
 }
@@ -826,7 +826,7 @@ watch(() => route.value.fullPath, () => {
   }
 }
 
-/* ====== 底部导航/联系我们 ====== */
+/* 底部导航/联系我们 */
 .user-footer {
   width: 100%;
   margin-top: 48px;

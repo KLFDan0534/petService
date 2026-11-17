@@ -48,26 +48,7 @@ public class RefundServiceImpl implements RefundService {
     private final OrderMapper orderMapper;
     private final AccountingService accountingService;
 
-    /**
-     * 【退款服务实现的构造注入】
-     *
-     * 业务作用：注入退款、订单 Mapper 与记账服务。
-     *
-     * 调用场景：Spring 容器创建 RefundServiceImpl 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 3 个 final 成员。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public RefundServiceImpl(RefundMapper refundMapper, OrderMapper orderMapper, AccountingService accountingService) {
+        public RefundServiceImpl(RefundMapper refundMapper, OrderMapper orderMapper, AccountingService accountingService) {
         this.refundMapper = refundMapper;
         this.orderMapper = orderMapper;
         this.accountingService = accountingService;
@@ -400,22 +381,8 @@ public class RefundServiceImpl implements RefundService {
     }
 
     /**
-     * 【金额空值兜底】
-     *
      * 业务作用：把可能为 null 的金额统一按 0 处理，避免空指针与比较异常。
-     *
-     * 调用场景：completeRefund() 处理退款金额与平台补贴金额时。
-     *
-     * 调用链：completeRefund() → defaultMoney() → BigDecimal 比较。
-     *
      * 数据处理：amount 为 null 返回 BigDecimal.ZERO，否则原样返回。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：仅做 null 兜底，不做精度与正负校验。
      */
     private BigDecimal defaultMoney(BigDecimal amount) {

@@ -33,22 +33,8 @@ public class GeoController {
     private int attendanceRadiusMeters;
 
     /**
-     * 【获取地图配置】
-     *
      * 业务作用：向前端下发高德地图 API Key、安全密钥与两个距离半径配置。
-     *
-     * 调用场景：前端地图组件初始化时拉取配置。
-     *
-     * 调用链：GET /api/geo/config → GeoController.config → trimToEmpty → 组装 GeoConfigResponseDTO。
-     *
-     * 数据处理：四个配置项分别经 trimToEmpty 兜底后写入 DTO；enabled 由 API Key 是否为空推导。
-     *
      * 业务规则：API Key 为空时 enabled=false，前端据此判断是否启用地图能力。
-     *
-     * 状态影响：只读。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：该接口公开可访问且直接返回明文 API Key，属于设计上的取舍；handoverRadiusMeters 未做 trimToEmpty 处理，因为它是 int。
      */
     @GetMapping("/config")
@@ -72,22 +58,9 @@ public class GeoController {
     }
 
     /**
-     * 【去空白并兜底空串】
-     *
      * 业务作用：把可空字符串 trim 后返回，null 转为空串。
-     *
-     * 调用场景：config 处理 apiKey 与 securityCode。
-     *
-     * 调用链：GeoController.config → trimToEmpty。
-     *
      * 数据处理：null 返回 ""，否则返回 trim 结果。
-     *
      * 业务规则：不会返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：与 AmapGeoService.trimToNull 语义相反，此处保留空串而非 null。
      */
     private String trimToEmpty(String value) {

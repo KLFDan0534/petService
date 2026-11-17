@@ -38,22 +38,7 @@ public class LlmChatServiceImpl implements LlmChatService {
     private final Map<String, OpenAiChatModel> modelCache = new ConcurrentHashMap<>();
 
     /**
-     * 【大模型对话服务构造器】
-     *
      * 业务作用：注入静态配置与动态配置存储，供运行时解析当前生效模型。
-     *
-     * 调用场景：Spring 容器启动时由依赖注入自动调用。
-     *
-     * 调用链：Spring IoC → 构造器 → 赋值 aiProperties / configStore。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：实际模型实例按配置指纹缓存，配置变更后会自动重建。
      */
     public LlmChatServiceImpl(AiProperties aiProperties, AiConfigStore configStore) {
@@ -63,39 +48,31 @@ public class LlmChatServiceImpl implements LlmChatService {
 
     /** 解析当前生效配置并返回（按指纹缓存）的 OpenAI 模型；无 API Key 时返回 null。 */
     private OpenAiChatModel resolveChatModel() {
-        AiConfigWsh cfg = configStore.getActiveConfig(AiConfigWsh.USAGE_AGENT);
-        String endpoint = cfg != null ? cfg.getEndpoint_wsh() : aiProperties.getEndpoint();
-        String apiKey = cfg != null ? cfg.getApi_key_wsh() : aiProperties.getApiKey();
-        if (apiKey == null || apiKey.isEmpty()) {
+        AiConfigStore.ModelParams p = configStore.resolveParams(
+                AiConfigWsh.USAGE_AGENT,
+                aiProperties.getEndpoint(), aiProperties.getApiKey(), aiProperties.getModel(),
+                aiProperties.getMaxTokens(), aiProperties.getTemperature());
+        if (p.apiKey() == null || p.apiKey().isEmpty()) {
             return null;
         }
-        String model = cfg != null ? cfg.getModel_wsh() : aiProperties.getModel();
-        int maxTokens = cfg != null && cfg.getMax_tokens_wsh() != null
-                ? cfg.getMax_tokens_wsh()
-                : aiProperties.getMaxTokens();
-        double temperature = cfg != null && cfg.getTemperature_wsh() != null
-                ? cfg.getTemperature_wsh().doubleValue()
-                : aiProperties.getTemperature();
-        String fingerprint = endpoint + "|" + apiKey + "|" + model + "|" + maxTokens + "|" + temperature;
+        String fingerprint = p.endpoint() + "|" + p.apiKey() + "|" + p.model()
+                + "|" + p.maxTokens() + "|" + p.temperature();
         return modelCache.computeIfAbsent(fingerprint, key -> OpenAiChatModel.builder()
-                .baseUrl(endpoint.replaceAll("/+$", ""))
-                .apiKey(apiKey)
-                .modelName(model)
-                .maxTokens(maxTokens)
-                .temperature(temperature)
+                .baseUrl(p.endpoint().replaceAll("/+$", ""))
+                .apiKey(p.apiKey())
+                .modelName(p.model())
+                .maxTokens(p.maxTokens())
+                .temperature(p.temperature())
                 .build());
     }
 
     /**
-     * 【业务名称】AI单轮对话实现
-     * <p>业务作用：将systemPrompt和userMessage组装为两元素消息列表，委托给多轮对话方法chat(List)执行。</p>
-     * <p>调用场景：Controller层需要带系统提示词的AI对话时调用。</p>
-     * <p>调用链：chat(String, String) → chat(List) → langchain4j → DeepSeek API</p>
-     * <p>数据处理：构造ArrayList，先添加system角色消息，再添加user角色消息。</p>
-     * <p>业务规则：始终添加两条消息（system + user），不做空值过滤。</p>
-     * <p>状态影响：无。</p>
-     * <p>异常情况：无直接异常，由底层chat(List)方法处理。</p>
-     * <p>注意事项：不校验systemPrompt和userMessage是否为null或空。</p>
+     * AI单轮对话实现
+     *
+     * 业务作用：将systemPrompt和userMessage组装为两元素消息列表，委托给多轮对话方法chat(List)执行。
+     * 业务规则：始终添加两条消息（system + user），不做空值过滤。
+     * 异常情况：无直接异常，由底层chat(List)方法处理。
+     * 注意事项：不校验systemPrompt和userMessage是否为null或空。
      */
     @Override
     public String chat(String systemPrompt, String userMessage) {
@@ -106,15 +83,12 @@ public class LlmChatServiceImpl implements LlmChatService {
     }
 
     /**
-     * 【业务名称】AI多轮对话实现
-     * <p>业务作用：将Map格式消息列表转换为langchain4j的ChatMessage列表，调用OpenAiChatModel获取AI回复。</p>
-     * <p>调用场景：各类需要AI对话能力的业务场景统一调用的核心方法。</p>
-     * <p>调用链：调用方 → chat(List) → LangChain4j OpenAiChatModel.chat() → DeepSeek /v1/chat/completions API</p>
-     * <p>数据处理：遍历messageList，按role字段分发转换为SystemMessage/AiMessage/UserMessage；构建ChatRequest；调用AI模型；从response.aiMessage()提取text()。</p>
-     * <p>业务规则：chatModel为null（API未配置）时记录警告日志并返回null；消息转换不校验content是否为空。</p>
-     * <p>状态影响：无状态变更。</p>
-     * <p>异常情况：any Exception被捕获，记录error日志，返回null。不向上抛出异常。</p>
-     * <p>注意事项：模型实例按后台生效配置动态解析并按指纹缓存；key 未配置时返回 null，所有异常统一吞掉返回 null，调用方需要感知失败场景时需额外处理。</p>
+     * AI多轮对话实现
+     *
+     * 业务作用：将Map格式消息列表转换为langchain4j的ChatMessage列表，调用OpenAiChatModel获取AI回复。
+     * 业务规则：chatModel为null（API未配置）时记录警告日志并返回null；消息转换不校验content是否为空。
+     * 异常情况：any Exception被捕获，记录error日志，返回null。不向上抛出异常。
+     * 注意事项：模型实例按后台生效配置动态解析并按指纹缓存；key 未配置时返回 null，所有异常统一吞掉返回 null，调用方需要感知失败场景时需额外处理。
      */
     @Override
     public String chat(List<Map<String, String>> messageList) {

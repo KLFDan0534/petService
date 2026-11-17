@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -483,5 +484,40 @@ class ServiceItemManageTest {
         assertEquals("session", created.getUnit_wsh());
         // 不能默认改成 60 分钟
         assertEquals(480, created.getDuration_minutes_wsh());
+    }
+    @Test
+    void updateRejectsMovingDayServiceIntoBoardingCategory() {
+        // 先建一个「按天」的服务（美容分类），再把分类改成寄养 —— 单位没变，也必须被拦
+        ServiceItem existing = new ServiceItem();
+        existing.setId_wsh(301L);
+        existing.setCategory_id_wsh(21L);
+        existing.setUnit_wsh("day");
+        when(serviceItemMapper.selectByIdForUpdate(301L)).thenReturn(existing);
+        when(categoryMapper.selectById(11L)).thenReturn(boardingLeaf("BOARDING_STANDARD"));
+        when(categoryMapper.selectById(1L)).thenReturn(boardingRoot());
+
+        ServiceItemUpdateRequestDTO dto = new ServiceItemUpdateRequestDTO();
+        dto.setCategory_id_wsh(11L);
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.update(301L, dto));
+
+        assertEquals(BookingErrorCode.UNSUPPORTED_SERVICE_UNIT, error.getErrorCode());
+        verify(serviceItemMapper, never()).updateById(any(ServiceItem.class));
+    }
+
+    @Test
+    void updateAllowsUnchangedLegacyCombination() {
+        // 分类与单位都没动时跳过校验，历史脏数据仍然能改价格
+        ServiceItem existing = new ServiceItem();
+        existing.setId_wsh(302L);
+        existing.setCategory_id_wsh(11L);
+        existing.setUnit_wsh("day");
+        when(serviceItemMapper.selectByIdForUpdate(302L)).thenReturn(existing);
+
+        ServiceItemUpdateRequestDTO dto = new ServiceItemUpdateRequestDTO();
+        dto.setPrice_wsh(new BigDecimal("199.00"));
+
+        assertDoesNotThrow(() -> service.update(302L, dto));
+        verify(serviceItemMapper).updateById(existing);
     }
 }

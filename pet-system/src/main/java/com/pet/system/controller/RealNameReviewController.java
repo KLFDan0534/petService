@@ -27,25 +27,6 @@ public class RealNameReviewController {
 
     private final RealNameReviewService realNameReviewService;
 
-    /**
-     * 【实名审核控制器构造器】
-     *
-     * 业务作用：注入实名审核服务，供提交审核与查询审核状态接口使用。
-     *
-     * 调用场景：Spring 容器启动时由依赖注入自动调用。
-     *
-     * 调用链：Spring IoC → 构造器 → 赋值 realNameReviewService。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
     public RealNameReviewController(RealNameReviewService realNameReviewService) {
         this.realNameReviewService = realNameReviewService;
     }

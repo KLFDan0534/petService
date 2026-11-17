@@ -138,8 +138,8 @@
 <script setup>
 import { ref, watch } from 'vue'
 import AppDialog from '@/components/common/AppDialog.vue'
-import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { uploadFileToDirectory } from '@/api/file'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -150,7 +150,6 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'close'])
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 
 const formError = ref('')
@@ -236,7 +235,7 @@ async function onAvatarChange(e) {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const r = await authStore.apiPost('/api/files/upload?directory=pets', formData)
+    const r = await uploadFileToDirectory('pets', formData)
     if (r.code === 200 && r.data.url_wsh) {
       petForm.value.avatar_wsh = r.data.url_wsh
       avatarPreview.value = r.data.url_wsh

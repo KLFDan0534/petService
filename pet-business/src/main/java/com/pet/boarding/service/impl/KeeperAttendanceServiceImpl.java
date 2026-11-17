@@ -51,22 +51,6 @@ public class KeeperAttendanceServiceImpl implements KeeperAttendanceService {
     private int attendanceRadiusMeters;
 
     /**
-     * 【考勤服务实现的构造注入】
-     *
-     * 业务作用：注入考勤、看护者、商家 Mapper 与休假服务。
-     *
-     * 调用场景：Spring 容器创建 KeeperAttendanceServiceImpl 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 4 个 final 成员。
-     *
-     * 数据处理：仅保存依赖引用；打卡半径由 @Value 在字段上注入，不经过构造器。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：attendanceRadiusMeters 通过配置 gao.map.attendance-radius-meters 注入，默认 300 米。
      */
     public KeeperAttendanceServiceImpl(KeeperAttendanceMapper attendanceMapper,

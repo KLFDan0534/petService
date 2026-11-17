@@ -203,7 +203,7 @@ function money(value) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .rc-crumb {
   display: flex;
   align-items: center;
@@ -217,7 +217,7 @@ function money(value) {
 .rc-crumb-sep { color: var(--ref-line); }
 .rc-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .rc-eyebrow {
   display: flex;
   align-items: center;
@@ -229,7 +229,7 @@ function money(value) {
 }
 .rc-eyebrow-line { width: 32px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .rc-head {
   display: flex;
   flex-wrap: wrap;
@@ -258,7 +258,7 @@ function money(value) {
 }
 .rc-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -281,7 +281,7 @@ function money(value) {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Grid ═══ */
+/* Grid */
 .rc-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
@@ -290,7 +290,7 @@ function money(value) {
   align-items: start;
 }
 
-/* ═══ Form card ═══ */
+/* Form card */
 .rc-form-card {
   border: 1px solid var(--ref-line);
   border-radius: 20px;
@@ -397,7 +397,7 @@ function money(value) {
   color: var(--ref-muted);
 }
 
-/* ═══ Balance aside ═══ */
+/* Balance aside */
 .rc-balance {
   border: 1px solid var(--ref-line);
   border-radius: 20px;
@@ -443,7 +443,7 @@ function money(value) {
 .rc-info dt { font-size: 13px; font-weight: 500; color: var(--ref-ink); }
 .rc-info dd { margin: 0; font-size: 12px; line-height: 1.7; color: var(--ref-muted); }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .rc-grid { grid-template-columns: 1fr; }
 }

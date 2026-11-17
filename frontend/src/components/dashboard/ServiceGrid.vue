@@ -38,7 +38,7 @@
           </div>
           <div class="service-price">
             <strong>¥{{ formatMoney(service.price_wsh) }}</strong>
-            <span>/ {{ unitLabel(service.unit_wsh) || '次' }}</span>
+            <span>/ {{ unitLabel(service.unit_wsh) }}</span>
           </div>
         </div>
 

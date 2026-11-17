@@ -304,7 +304,7 @@ onMounted(async () => {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .cr-crumb {
   display: flex;
   align-items: center;
@@ -318,7 +318,7 @@ onMounted(async () => {
 .cr-crumb-sep { color: var(--ref-line); }
 .cr-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .cr-eyebrow {
   display: flex;
   align-items: center;
@@ -332,7 +332,7 @@ onMounted(async () => {
 .cr-idx { font-variant-numeric: tabular-nums; }
 .cr-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .cr-head { padding: 40px 0 8px; }
 .cr-head-copy { min-width: 0; }
 .cr-title {
@@ -353,7 +353,7 @@ onMounted(async () => {
   color: color-mix(in srgb, var(--ref-ink-soft) 82%, transparent);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .cr-section { margin-top: 52px; }
 .cr-sec-head { padding-bottom: 20px; }
 .cr-sec-eyebrow { font-size: 10px; letter-spacing: 0.22em; }
@@ -374,7 +374,7 @@ onMounted(async () => {
   opacity: 0.8;
 }
 
-/* ═══ Panel ═══ */
+/* Panel */
 .cr-panel {
   max-width: 640px;
   padding: 22px 24px;
@@ -437,7 +437,7 @@ onMounted(async () => {
   color: var(--ref-muted);
 }
 
-/* ═══ Records ═══ */
+/* Records */
 .cr-records {
   overflow: hidden;
   border: 1px solid var(--ref-line);
@@ -480,12 +480,12 @@ onMounted(async () => {
 }
 .cr-figure p { margin: 8px 0 0; font-size: 11px; color: var(--ref-muted); }
 
-/* ═══ Stars ═══ */
+/* Stars */
 .cr-stars { display: inline-flex; gap: 2px; }
 .cr-star { color: var(--ref-line); font-size: 16px; line-height: 1; }
 .cr-star.on { color: #f6b100; }
 
-/* ═══ List ═══ */
+/* List */
 .cr-list {
   margin: 0;
   padding: 0;
@@ -501,7 +501,7 @@ onMounted(async () => {
 .cr-review-date { font-size: 11px; color: var(--ref-muted); }
 .cr-review-content { margin: 12px 0 0; font-size: 13.5px; line-height: 1.7; color: var(--ref-ink-soft); }
 
-/* ═══ Complaint row ═══ */
+/* Complaint row */
 .cr-complaint {
   display: flex;
   flex-wrap: wrap;
@@ -536,7 +536,7 @@ onMounted(async () => {
 .cr-complaint-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
 .cr-complaint-date { font-size: 11px; color: var(--ref-muted); }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .cr-empty {
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
@@ -550,7 +550,7 @@ onMounted(async () => {
 .cr-empty p { margin: 10px auto 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 .cr-empty .cta { margin-top: 22px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -573,7 +573,7 @@ onMounted(async () => {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (min-width: 760px) {
   .cr-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .cr-figure { border-right: 1px solid var(--ref-line); border-bottom: 0; }

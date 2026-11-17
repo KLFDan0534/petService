@@ -39,26 +39,7 @@ public class TipServiceImpl implements TipService {
     private final KeeperMapper keeperMapper;
     private final AccountingService accountingService;
 
-    /**
-     * 【打赏服务实现的构造注入】
-     *
-     * 业务作用：注入打赏、订单、寄养师 Mapper 与记账服务。
-     *
-     * 调用场景：Spring 容器创建 TipServiceImpl 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 4 个 final 成员。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public TipServiceImpl(TipMapper tipMapper,
+        public TipServiceImpl(TipMapper tipMapper,
                           OrderMapper orderMapper,
                           KeeperMapper keeperMapper,
                           AccountingService accountingService) {
@@ -139,18 +120,7 @@ public class TipServiceImpl implements TipService {
     }
 
     /**
-     * 【管理员分页查询打赏记录（实现）】
-     *
-     * 业务作用：
-     * 分页查询打赏记录，按创建时间倒序排列。
-     *
-     * 调用链：
-     * TipService.pageAll()
-     * ↓
-     * tipMapper.selectPage(Page, LambdaQueryWrapper)
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：分页查询打赏记录，按创建时间倒序排列。
      *
      * @param pageParam 分页参数
      * @return 分页的打赏记录

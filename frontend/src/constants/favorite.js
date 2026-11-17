@@ -4,7 +4,7 @@ export const FAVORITE_TARGET_TYPES = Object.freeze({
   SERVICE: 'service',
 })
 
-export const FAVORITE_TARGET_TYPE_LABELS = Object.freeze({
+const FAVORITE_TARGET_TYPE_LABELS = Object.freeze({
   merchant: '商家',
   keeper: '寄养员',
   service: '服务',

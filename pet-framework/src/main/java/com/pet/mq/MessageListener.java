@@ -4,7 +4,6 @@ import com.pet.common.mq.ComplaintProcessHandler;
 import com.pet.common.mq.NoticeNotificationHandler;
 import com.pet.config.RabbitMQConfig;
 import com.rabbitmq.client.Channel;
-import org.hibernate.validator.constraints.Range;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;

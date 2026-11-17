@@ -18,6 +18,6 @@ public class MerchantDashboardVO {
     private long active_orders_wsh;
     @Schema(description = "已完成订单数")
     private long completed_orders_wsh;
-    @Schema(description = "宠物数量")
+    @Schema(description = "当前服务中的宠物数量")
     private int pets_wsh;
 }

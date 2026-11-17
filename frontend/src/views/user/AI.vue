@@ -292,7 +292,7 @@ async function generateReport(type) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ai-crumb {
   display: flex;
   align-items: center;
@@ -306,7 +306,7 @@ async function generateReport(type) {
 .ai-crumb-sep { color: var(--ref-line); }
 .ai-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .ai-eyebrow {
   display: flex;
   align-items: center;
@@ -320,7 +320,7 @@ async function generateReport(type) {
 .ai-idx { font-variant-numeric: tabular-nums; }
 .ai-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .ai-head {
   display: flex;
   flex-wrap: wrap;
@@ -349,7 +349,7 @@ async function generateReport(type) {
 }
 .ai-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -372,7 +372,7 @@ async function generateReport(type) {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -388,7 +388,7 @@ async function generateReport(type) {
 .badge-active { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
 .badge-info { background: color-mix(in srgb, var(--color-info) 12%, transparent); color: var(--color-info); border-color: color-mix(in srgb, var(--color-info) 30%, transparent); }
 
-/* ═══ Section ═══ */
+/* Section */
 .ai-section { margin-top: 56px; }
 .ai-sec-head {
   display: flex;
@@ -415,7 +415,7 @@ async function generateReport(type) {
   opacity: 0.8;
 }
 
-/* ═══ 01 · 三种能力 ═══ */
+/* 01 · 三种能力 */
 .ai-tools {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -518,7 +518,7 @@ async function generateReport(type) {
 .ai-tool-link.on-dark { background: var(--ref-cream); color: var(--ref-ink); border-color: transparent; }
 .ai-tool-link.on-dark:hover { background: #fff; }
 
-/* ═══ 02 · 宠物健康报告 ═══ */
+/* 02 · 宠物健康报告 */
 .ai-report {
   margin-top: 20px;
   border: 1px solid var(--ref-line);
@@ -626,7 +626,7 @@ async function generateReport(type) {
   overflow-wrap: anywhere;
 }
 
-/* ═══ 03 · 能力边界 ═══ */
+/* 03 · 能力边界 */
 .ai-limits {
   list-style: none;
   margin: 20px 0 0;
@@ -654,7 +654,7 @@ async function generateReport(type) {
   color: var(--ref-muted);
 }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 980px) {
   .ai-tools { grid-template-columns: 1fr; }
 }

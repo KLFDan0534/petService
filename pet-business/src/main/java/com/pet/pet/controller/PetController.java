@@ -3,6 +3,8 @@ package com.pet.pet.controller;
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.Result;
 import com.pet.common.annotation.LogOperation;
+import com.pet.boarding.entity.Merchant;
+import com.pet.boarding.service.MerchantService;
 import com.pet.pet.dto.PetDTO;
 import com.pet.pet.dto.PetCreateRequestDTO;
 import com.pet.pet.dto.PetUpdateRequestDTO;
@@ -29,28 +31,18 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 public class PetController {
 
     private final PetService petService;
+    private final MerchantService merchantService;
 
     /**
      * 【构造方法】注入宠物服务
      *
      * 业务作用：由 Spring 注入 PetService，供宠物查询、新增、更新与删除接口使用。
-     *
-     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → petService 赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段。
      */
-    public PetController(PetService petService) {
+    public PetController(PetService petService, MerchantService merchantService) {
         this.petService = petService;
+        this.merchantService = merchantService;
     }
 
     /**
@@ -95,7 +87,11 @@ public class PetController {
     }
 
     /**
-     * 获取商户的宠物列表（用于管理）
+     * 获取本店服务过的宠物列表（商家后台只读视图）
+     * <p>
+     * 宠物归主人所有，商家没有宠物池，因此这里返回的是「在本商家下过单的宠物」去重档案，
+     * 而不是当前登录账号自己作为宠物主人添加的宠物。
+     *
      * @param token 当前用户认证信息
      * @param page 页码（默认1）
      * @param size 每页大小（默认10）
@@ -105,7 +101,7 @@ public class PetController {
      **/
     @GetMapping("/merchant")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "获取商户宠物", description = "获取商户的宠物管理列表")
+    @Operation(summary = "获取本店服务过的宠物", description = "商家后台宠物管理：按订单聚合本店服务过的宠物档案")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "操作成功"),
             @ApiResponse(responseCode = "400", description = "请求参数错误"),
@@ -116,8 +112,12 @@ public class PetController {
                                                         @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer page,
                                                         @Parameter(description = "每页大小") @RequestParam(defaultValue = "10") Integer size) {
         log.info("调用 listMerchantPets()");
+        Merchant merchant = merchantService.findByUserId(token.getUserId());
+        // 账号未绑定商家资料时给空列表，由前端提示，不抛异常
+        List<PetDTO> list = merchant == null
+                ? List.of()
+                : petService.getPetsServedByMerchant(merchant.getId_wsh());
         // 先全量取出再在内存里组装分页
-        List<PetDTO> list = petService.getPetsByOwner(token.getUserId());
         PageResult<PetDTO> result = new PageResult<>();
         result.setList(list);
         result.setTotal(list.size());

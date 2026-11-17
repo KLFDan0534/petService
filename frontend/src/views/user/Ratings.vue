@@ -241,7 +241,7 @@ async function submitReply(r) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .rt-crumb {
   display: flex;
   align-items: center;
@@ -255,7 +255,7 @@ async function submitReply(r) {
 .rt-crumb-sep { color: var(--ref-line); }
 .rt-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .rt-eyebrow {
   display: flex;
   align-items: center;
@@ -269,7 +269,7 @@ async function submitReply(r) {
 .rt-idx { font-variant-numeric: tabular-nums; }
 .rt-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Header ═══ */
+/* Header */
 .rt-head {
   display: flex;
   flex-wrap: wrap;
@@ -322,7 +322,7 @@ async function submitReply(r) {
 }
 .rt-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ Filter chips ═══ */
+/* Filter chips */
 .rt-filters { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
 .rt-chip {
   display: inline-flex;
@@ -341,7 +341,7 @@ async function submitReply(r) {
 .rt-chip:hover { border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); background: color-mix(in srgb, var(--ref-sand) 60%, transparent); }
 .rt-chip.active { background: var(--ref-ink); border-color: var(--ref-ink); color: var(--ref-cream); }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -365,7 +365,7 @@ async function submitReply(r) {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Section ═══ */
+/* Section */
 .rt-section { margin-top: 44px; }
 .rt-sec-head {
   display: flex;
@@ -393,7 +393,7 @@ async function submitReply(r) {
   opacity: 0.8;
 }
 
-/* ═══ Body / skeleton / empty ═══ */
+/* Body / skeleton / empty */
 .rt-body { margin-top: 24px; }
 .rt-skel-stack { display: grid; gap: 14px; }
 .rt-skeleton {
@@ -422,7 +422,7 @@ async function submitReply(r) {
 .rt-empty-desc { margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 .rt-empty .cta { margin-top: 22px; }
 
-/* ═══ Cards ═══ */
+/* Cards */
 .rt-list { display: grid; gap: 14px; }
 .rt-card {
   padding: 22px 24px;
@@ -544,7 +544,7 @@ async function submitReply(r) {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 12%, transparent);
 }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed;
   inset: 0;
@@ -640,7 +640,7 @@ async function submitReply(r) {
 }
 .dlg-cancel:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); }
 
-/* ═══ Star picker ═══ */
+/* Star picker */
 .rt-pick { display: flex; align-items: center; gap: 4px; }
 .rt-pick-btn {
   display: inline-flex;
@@ -660,12 +660,12 @@ async function submitReply(r) {
 .rt-pick-star.on { color: var(--ref-brand); }
 .rt-pick-label { margin-left: 8px; font-size: 13px; color: var(--ref-ink-soft); }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes rt-shimmer { to { background-position: -200% 0; } }
 @keyframes rt-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rt-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 760px) {
   .rt-card-top { flex-direction: column; }
 }

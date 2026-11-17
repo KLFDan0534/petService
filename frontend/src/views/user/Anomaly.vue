@@ -52,11 +52,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import AppDialog from '@/components/common/AppDialog.vue'
-import { useAuthStore } from '@/stores/auth'
 import { getCareRecordsByOrder, createCareRecord } from '@/api/careRecord'
+import { getOrders } from '@/api/order'
 import { useAppStore } from '@/stores/app'
 
-const authStore = useAuthStore()
 const appStore = useAppStore()
 // records 是这个订单已上报的异常，orders 是下拉里能选的订单
 const records = ref([])
@@ -78,7 +77,7 @@ function typeClass(t) {
 // 进来先把我的订单拉一遍，只留下还能上报的那几个状态
 onMounted(async () => {
   try {
-    const r = await authStore.apiGet('/orders')
+    const r = await getOrders()
     if (r.code === 200) orders.value = (r.data || []).filter(o =>
       ['pending', 'confirmed', 'in_progress'].includes(o.status_wsh))
   } catch (e) {}

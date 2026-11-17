@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  *
  * 字段口径：
  * - total_amount_wsh  基础价（未减任何优惠）
- * - long_stay_discount_wsh  长住折扣（day 按天数、boarding 按完整 24 小时周期数）
+ * - long_stay_discount_wsh  长住折扣（仅 night 按预订夜数计算）
  * - coupon_discount_wsh     优惠券抵扣
  * - membership_discount_wsh 会员折扣
  * - discount_wsh            三者之和
@@ -32,16 +32,16 @@ public class OrderQuoteDTO {
     @Schema(description = "计费单位（服务端权威值）")
     private String billing_unit_wsh;
 
-    @Schema(description = "计费数量：day=天数、session=1、hour=小时数、boarding=1")
+    @Schema(description = "计费数量：night=夜数、session=1、hour=槽位数")
     private Integer quantity_wsh;
 
-    @Schema(description = "单单位时长（分钟）：day/boarding=1440，session/hour=服务配置时长")
+    @Schema(description = "单单位时长（分钟）：night=1440，session/hour=服务配置时长")
     private Integer duration_minutes_wsh;
 
-    @Schema(description = "兼容展示天数：day=天数、boarding=计费小时折算天数、session/hour=1")
+    @Schema(description = "兼容展示天数：night=夜数、session/hour=1")
     private Integer days_wsh;
 
-    @Schema(description = "单价（每单位；boarding 为每 24 小时）")
+    @Schema(description = "单价（每单位；night=每夜、session=每次、hour=每小时）")
     private BigDecimal unit_price_wsh;
 
     @Schema(description = "基础价（未减优惠）")
@@ -83,13 +83,13 @@ public class OrderQuoteDTO {
     @Schema(description = "命中的会员权益ID")
     private Long membership_id_wsh;
 
-    @Schema(description = "寄养实际照护总分钟数（仅 boarding 返回）")
+    @Schema(description = "寄养实际照护总分钟数（仅 night 返回）")
     private Long total_minutes_wsh;
 
-    @Schema(description = "寄养计费小时数（仅 boarding 返回；零头 ≤30 分钟丢弃、>30 进一小时）")
+    @Schema(description = "寄养计费小时数（仅 night 返回；零头 ≤30 分钟丢弃、>30 进一小时）")
     private Long billable_hours_wsh;
 
-    // ==================== 按夜计（night）报价字段 ====================
+    // 按夜计（night）报价字段
 
     @Schema(description = "预订夜数 N（仅 night 返回；不因提前加收而改变）")
     private Integer booked_nights_wsh;

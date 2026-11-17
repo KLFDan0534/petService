@@ -100,7 +100,6 @@ CREATE TABLE IF NOT EXISTS `keeper_wsh` (
     `rating_wsh` DECIMAL(3, 2) DEFAULT 5.00,
     `completion_rate_wsh` DECIMAL(5, 2) DEFAULT 100.00,
     `complaint_rate_wsh` DECIMAL(5, 2) DEFAULT 0.00,
-    `price_per_day_wsh` DECIMAL(10, 2) NOT NULL,
     `max_pets_wsh` INT DEFAULT 5,
     `current_pets_wsh` INT DEFAULT 0,
     `status_wsh` TINYINT DEFAULT 1,
@@ -119,9 +118,9 @@ CREATE TABLE IF NOT EXISTS `pet_service_wsh` (
     `category_id_wsh` BIGINT,
     `description_wsh` TEXT,
     `price_wsh` DECIMAL(10, 2) NOT NULL,
-    `unit_wsh` VARCHAR(20) DEFAULT 'day',
+    `unit_wsh` VARCHAR(20),
     `duration_minutes_wsh` INT,
-    `booking_mode_wsh` VARCHAR(20) DEFAULT 'date_range',
+    `booking_mode_wsh` VARCHAR(20),
     `images_wsh` TEXT,
     `status_wsh` TINYINT DEFAULT 1,
     `deleted_wsh` TINYINT DEFAULT 0,
@@ -156,7 +155,7 @@ CREATE TABLE IF NOT EXISTS `pet_order_wsh` (
     `end_date_wsh` DATE NOT NULL,
     `days_wsh` INT NOT NULL,
     `price_per_day_wsh` DECIMAL(10, 2) NOT NULL,
-    `billing_unit_wsh` VARCHAR(20) DEFAULT 'day',
+    `billing_unit_wsh` VARCHAR(20),
     `quantity_wsh` INT DEFAULT 1,
     `unit_price_wsh` DECIMAL(10, 2),
     `duration_minutes_wsh` INT,
@@ -861,4 +860,16 @@ CREATE TABLE IF NOT EXISTS `ai_chat_history_wsh` (
     `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_ai_chat_user` (`user_id_wsh`),
     INDEX `idx_ai_chat_session` (`session_id_wsh`)
+);
+
+CREATE TABLE IF NOT EXISTS `agent_session_wsh` (
+    `session_id_wsh` VARCHAR(64) NOT NULL,
+    `user_id_wsh` BIGINT NOT NULL,
+    `title_wsh` VARCHAR(200),
+    `state_json_wsh` TEXT,
+    `status_wsh` VARCHAR(20) NOT NULL DEFAULT 'COLLECTING',
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`session_id_wsh`),
+    INDEX `idx_agent_session_user` (`user_id_wsh`, `updated_at_wsh`)
 );

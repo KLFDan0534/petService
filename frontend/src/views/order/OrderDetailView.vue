@@ -128,7 +128,7 @@
               </div>
               <div class="od-fact">
                 <dt>计费</dt>
-                <dd>{{ order.quantity_wsh ? `${order.quantity_wsh} ${unitLabel(order.billing_unit_wsh)}` : order.days_wsh ? `${order.days_wsh} 天` : '—' }}</dd>
+                <dd>{{ billingText(order) }}</dd>
               </div>
             </dl>
           </div>
@@ -159,8 +159,8 @@
                     </dd>
                   </div>
                   <div class="od-fact">
-                    <dt>地址</dt>
-                    <dd><span class="od-inline"><span class="od-pin" aria-hidden="true">◉</span>{{ order.delivery_address_wsh || order.merchant_address_wsh || '—' }}</span></dd>
+                    <dt>门店地址</dt>
+                    <dd><span class="od-inline"><span class="od-pin" aria-hidden="true">◉</span>{{ order.merchant_address_wsh || order.delivery_address_wsh || '—' }}</span></dd>
                   </div>
                 </dl>
               </div>
@@ -327,7 +327,7 @@ import { useAppStore } from '@/stores/app'
 import { useOrderDetailStore } from '@/stores/orderDetail'
 import { createRefund } from '@/api/refund'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
-import { unitLabel } from '@/domain/BookingUnit'
+import { billingText } from '@/domain/BookingUnit'
 import { PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS, isPaymentTimeoutExpired } from '@/utils/orderPaymentTimeout'
 import { formatMoney } from '@/utils/format'
 
@@ -358,7 +358,7 @@ const overtimePending = computed(() => Boolean(order.value?.overtime_pay_no_wsh)
   && order.value?.overtime_payment_status_wsh === 'pending')
 const overtimeAmount = computed(() => Math.max(0, Number(order.value?.overtime_amount_wsh || 0)).toFixed(2))
 
-/* ── 状态 ╱ 进度 ── */
+/* 状态 ╱ 进度 */
 const STATUS_META = {
   pending: { label: '待付款', tone: 'action' },
   paid: { label: '已支付', tone: 'queued' },
@@ -385,7 +385,7 @@ function statusToneClass(tone) {
   return { action: 'od-tone-action', queued: 'od-tone-queued', active: 'od-tone-active', done: 'od-tone-done', closed: 'od-tone-closed' }[tone] || 'od-tone-closed'
 }
 
-/* ── 展示字段 ── */
+/* 展示字段 */
 const finalAmount = computed(() => Number(order.value?.final_amount_wsh || order.value?.total_amount_wsh || order.value?.settlement_amount_wsh || 0))
 const discount = computed(() => Number(order.value?.discount_wsh ?? 0))
 const cover = computed(() => parseImages(order.value?.service_images_wsh)[0] || order.value?.start_photo_wsh || '')
@@ -401,7 +401,7 @@ function phaseStamp(phase) {
   return stamp ? dateTime(stamp) : '—'
 }
 
-/* ── 生命周期 ── */
+/* 生命周期 */
 onMounted(() => {
   init()
   timeoutTimer = window.setInterval(() => {
@@ -431,7 +431,7 @@ async function init() {
   await store.fetchOrderDetail(orderId.value)
 }
 
-/* ── 交互 ── */
+/* 交互 */
 function goList() { router.push('/orders') }
 
 async function copyOrderNo() {
@@ -525,7 +525,7 @@ function openComplaint() {
   })
 }
 
-/* ── 工具 ── */
+/* 工具 */
 function parseImages(raw) {
   if (!raw) return []
   if (Array.isArray(raw)) return raw.filter(Boolean)

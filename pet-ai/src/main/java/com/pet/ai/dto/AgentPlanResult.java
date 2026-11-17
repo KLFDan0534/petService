@@ -9,14 +9,19 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 智能下单 plan 阶段结果：推荐方案（需用户确认后才落单）。
+ * 智能下单方案卡片：当前会话的推荐方案（需用户确认后才落单）。
+ * <p>
+ * 多轮改造后不再有「方案 token」——方案归属于会话，confirm 阶段凭 {@code session_id_wsh} 下单。
  */
 @Getter
 @Setter
 public class AgentPlanResult {
 
-    @Schema(description = "方案 token（confirm 阶段凭此下单）")
-    private String plan_token_wsh;
+    @Schema(description = "会话ID（confirm 阶段凭此下单）")
+    private String session_id_wsh;
+
+    @Schema(description = "本轮助手回复文本")
+    private String reply_wsh;
 
     @Schema(description = "宠物名")
     private String pet_name_wsh;
@@ -38,25 +43,25 @@ public class AgentPlanResult {
     @Schema(description = "服务ID")
     private Long service_id_wsh;
 
-    @Schema(description = "计费单位（固定 day）")
+    @Schema(description = "计费单位（智能下单目前仅支持按夜寄养，单位 night；全局计价单位仅 night / session / hour）")
     private String unit_wsh;
 
     @Schema(description = "开始日期")
     private LocalDate start_date_wsh;
     @Schema(description = "结束日期")
     private LocalDate end_date_wsh;
-    @Schema(description = "寄养天数")
+    @Schema(description = "预订夜数（历史字段名 days_wsh，语义为夜数）")
     private Integer days_wsh;
 
-    @Schema(description = "每日单价（展示用）")
+    @Schema(description = "每夜单价（展示用）")
     private BigDecimal unit_price_wsh;
-    @Schema(description = "总价（展示用，= 单价 × 天数）")
+    @Schema(description = "预估总价（展示用，由服务端 /api/orders/preview 报价给出，前端不自行计算）")
     private BigDecimal total_price_wsh;
 
     @Schema(description = "看护人距离（公里）")
     private Double distance_wsh;
 
-    @Schema(description = "状态：plan_generated / needs_user_input / failed")
+    @Schema(description = "状态：await_confirm / collecting / failed")
     private String status_wsh;
     @Schema(description = "提示消息")
     private String message_wsh;

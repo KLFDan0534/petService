@@ -577,7 +577,7 @@ function money(value) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ms-crumb {
   display: flex;
   align-items: center;
@@ -591,7 +591,7 @@ function money(value) {
 .ms-crumb-sep { color: var(--ref-line); }
 .ms-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .ms-eyebrow {
   display: flex;
   align-items: center;
@@ -605,7 +605,7 @@ function money(value) {
 .ms-idx { font-variant-numeric: tabular-nums; }
 .ms-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .ms-head {
   display: flex;
   flex-wrap: wrap;
@@ -634,7 +634,7 @@ function money(value) {
 }
 .ms-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -660,7 +660,7 @@ function money(value) {
 .cta-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 16%, transparent); }
 .cta-sm { height: var(--control-height-sm); padding: 0 12px; font-size: 12px; border-radius: 9px; }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -677,7 +677,7 @@ function money(value) {
 .badge-active { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); border-color: color-mix(in srgb, var(--color-success) 30%, transparent); }
 .badge-done { background: color-mix(in srgb, var(--ref-ink) 5%, transparent); color: var(--ref-ink-soft); }
 
-/* ═══ Facts ═══ */
+/* Facts */
 .ms-facts {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -711,7 +711,7 @@ function money(value) {
   color: var(--ref-muted);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .ms-section { margin-top: 56px; scroll-margin-top: 24px; }
 .ms-sec-head {
   display: flex;
@@ -747,7 +747,7 @@ function money(value) {
   color: var(--ref-muted);
 }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .ms-skeleton {
   height: 172px;
   border: 1px solid var(--ref-line);
@@ -758,7 +758,7 @@ function money(value) {
 }
 .ms-skeleton-row { height: 84px; }
 
-/* ═══ 01 · 当前权益 ═══ */
+/* 01 · 当前权益 */
 .ms-benefit-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
@@ -904,7 +904,7 @@ function money(value) {
 }
 .ms-pending-cta { margin-top: auto; padding-top: 22px; }
 
-/* ═══ Text link ═══ */
+/* Text link */
 .text-link {
   display: inline-flex;
   align-items: center;
@@ -922,7 +922,7 @@ function money(value) {
 .tl-arrow { transition: transform 0.15s; }
 .text-link:hover .tl-arrow { transform: translateX(3px); }
 
-/* ═══ 02 · 选择套餐 ═══ */
+/* 02 · 选择套餐 */
 .ms-plans-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1025,7 +1025,7 @@ function money(value) {
   color: var(--ref-muted);
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .ms-empty {
   margin-top: 20px;
   padding: 56px 24px;
@@ -1050,7 +1050,7 @@ function money(value) {
   margin-top: 22px;
 }
 
-/* ═══ 03/04 · 列表 ═══ */
+/* 03/04 · 列表 */
 .ms-list {
   margin-top: 20px;
   border: 1px solid var(--ref-line);
@@ -1112,10 +1112,10 @@ function money(value) {
 .ms-row-amount.is-save { color: var(--color-success); }
 .ms-row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes ms-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 980px) {
   .ms-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ms-benefit-grid { grid-template-columns: 1fr; }

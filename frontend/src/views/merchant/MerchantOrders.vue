@@ -100,14 +100,32 @@
         <div class="money-row">
           <span>实付金额</span>
           <strong>￥{{ money(order.final_amount_wsh || order.total_amount_wsh) }}</strong>
-          <small v-if="order.price_per_day_wsh">￥{{ money(order.price_per_day_wsh) }}/天</small>
+          <small v-if="order.unit_price_wsh">￥{{ money(order.unit_price_wsh) }}/{{ unitLabel(order.billing_unit_wsh) }}</small>
         </div>
 
         <p v-if="order.remark_wsh" class="remark">{{ order.remark_wsh }}</p>
 
         <!-- 待分配订单可以就地指派；其余动作仍进详情页做 -->
         <footer class="order-actions">
-          <template v-if="isUnassigned(order)">
+          <template v-if="isReassignable(order)">
+            <select v-model="assignSelection[assignKey(order)]" class="assign-select">
+              <option value="">改派给…</option>
+              <option
+                v-for="keeper in reassignCandidates(order)"
+                :key="keeper.id_wsh"
+                :value="String(keeper.id_wsh)"
+              >
+                {{ keeper.name_wsh }}（在住 {{ keeper.current_pets_wsh || 0 }}/{{ keeper.max_pets_wsh || '-' }}）
+              </option>
+            </select>
+            <button
+              class="btn btn-sm btn-primary"
+              type="button"
+              :disabled="assigningOrderNo === order.order_no_wsh || !assignSelection[assignKey(order)]"
+              @click="handleAssign(order)"
+            >{{ assigningOrderNo === order.order_no_wsh ? '改派中...' : '改派' }}</button>
+          </template>
+          <template v-else-if="isUnassigned(order)">
             <select v-model="assignSelection[assignKey(order)]" class="assign-select">
               <option value="">选择看护人</option>
               <option v-for="keeper in assignableKeepers" :key="keeper.id_wsh" :value="String(keeper.id_wsh)">
@@ -138,7 +156,7 @@ import { assignOrder, getMerchantOrders } from '@/api/order'
 import { getKeepersByMerchant } from '@/api/keeper'
 import { OrderStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
 import { formatDate, formatDateTime, formatMoney as money } from '@/utils/format'
-import { billingText } from '@/domain/BookingUnit'
+import { billingText, unitLabel } from '@/domain/BookingUnit'
 import {
   PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS,
   formatPaymentTimeoutRemaining,
@@ -167,7 +185,6 @@ const tabs = [
   { key: 'all', label: '全部' },
   { key: 'pending', label: '待支付' },
   { key: 'unassigned', label: '待分配' },
-  { key: 'paid', label: '待接单' },
   { key: 'active', label: '服务中' },
   { key: 'completed', label: '已完成' },
   { key: 'cancelled', label: '已取消' },
@@ -189,10 +206,6 @@ const filteredOrders = computed(() => {
   if (activeTab.value === 'all') return orders.value
   if (activeTab.value === 'unassigned') {
     return orders.value.filter(order => orderStatus(order) === 'paid' && !order.keeper_id_wsh)
-  }
-  if (activeTab.value === 'paid') {
-    // 「待接单」只列已指派的单；没有负责人的在「待分配」里，避免两处重复
-    return orders.value.filter(order => orderStatus(order) === 'paid' && Boolean(order.keeper_id_wsh))
   }
   const statuses = tabStatusMap[activeTab.value] || [activeTab.value]
   return orders.value.filter(order => statuses.includes(orderStatus(order)))
@@ -264,12 +277,9 @@ function countByStatus(status) {
 // 页签上的小数字，跟筛选用的是同一套状态分组，不会出现数字和列表对不上
 function countByTab(key) {
   if (key === 'all') return orders.value.length
-  // 「待分配 / 待接单」按负责人有无拆开，计数必须和 filteredOrders 同一口径
+  // 「待分配」= 已支付且无负责人；计数必须和 filteredOrders 同一口径
   if (key === 'unassigned') {
     return orders.value.filter(order => orderStatus(order) === 'paid' && !order.keeper_id_wsh).length
-  }
-  if (key === 'paid') {
-    return orders.value.filter(order => orderStatus(order) === 'paid' && Boolean(order.keeper_id_wsh)).length
   }
   const statuses = tabStatusMap[key] || [key]
   return orders.value.filter(order => statuses.includes(orderStatus(order))).length
@@ -284,6 +294,19 @@ function assignKey(order) {
 /** 已支付但还没有负责人：需要商家指派或等待看护者抢单 */
 function isUnassigned(order) {
   return orderStatus(order) === 'paid' && !order.keeper_id_wsh
+}
+
+/**
+ * 已确认（已指派）且尚未开始服务的订单可以改派。
+ * 看护者临时请假 / 排班冲突时，商家把订单转给另一位看护者，不必让用户退款重下。
+ */
+function isReassignable(order) {
+  return orderStatus(order) === 'confirmed'
+}
+
+/** 改派候选人要排除当前负责人，否则等于没改 */
+function reassignCandidates(order) {
+  return assignableKeepers.value.filter(keeper => keeper.id_wsh !== order.keeper_id_wsh)
 }
 
 /** 加载本商家的在职看护人，供指派下拉使用 */

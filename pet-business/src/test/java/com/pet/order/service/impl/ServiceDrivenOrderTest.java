@@ -85,9 +85,15 @@ class ServiceDrivenOrderTest {
     }
 
     @Test
-    void legacyOrderReadDerivesNightFields() {
+    void legacyDayOrderSnapshotKeepsOriginalUnit() {
+        // 历史订单的计价单位一律以订单自身快照为准：day 保持 day，
+        // 不得静默推断为 night，也不得从 days_wsh / price_per_day_wsh 反推计价字段。
         PetOrder legacy = new PetOrder();
         legacy.setId_wsh(1L);
+        legacy.setBilling_unit_wsh("day");
+        legacy.setQuantity_wsh(3);
+        legacy.setUnit_price_wsh(new BigDecimal("120.00"));
+        legacy.setDuration_minutes_wsh(null);
         legacy.setDays_wsh(3);
         legacy.setPrice_per_day_wsh(new BigDecimal("120.00"));
         legacy.setTotal_amount_wsh(new BigDecimal("360.00"));
@@ -95,12 +101,33 @@ class ServiceDrivenOrderTest {
         legacy.setEnd_date_wsh(LocalDate.of(2026, 8, 15));
 
         OrderDTO dto = new OrderDTO();
+        dto.setBilling_unit_wsh(legacy.getBilling_unit_wsh());
+        dto.setQuantity_wsh(legacy.getQuantity_wsh());
+        dto.setUnit_price_wsh(legacy.getUnit_price_wsh());
+        dto.setDuration_minutes_wsh(legacy.getDuration_minutes_wsh());
+        dto.setDays_wsh(legacy.getDays_wsh());
+        dto.setPrice_per_day_wsh(legacy.getPrice_per_day_wsh());
         OrderServiceImpl.applyBillingReadCompat(dto, legacy);
 
-        assertEquals("night", dto.getBilling_unit_wsh());
+        assertEquals("day", dto.getBilling_unit_wsh());
         assertEquals(3, dto.getQuantity_wsh());
         assertEquals(0, dto.getUnit_price_wsh().compareTo(new BigDecimal("120.00")));
-        assertEquals(1440, dto.getDuration_minutes_wsh());
+        assertNull(dto.getDuration_minutes_wsh());
+    }
+
+    @Test
+    void blankBillingUnitIsNeverDerivedAsNight() {
+        PetOrder legacy = new PetOrder();
+        legacy.setDays_wsh(3);
+        legacy.setPrice_per_day_wsh(new BigDecimal("120.00"));
+
+        OrderDTO dto = new OrderDTO();
+        OrderServiceImpl.applyBillingReadCompat(dto, legacy);
+
+        assertNull(dto.getBilling_unit_wsh());
+        assertNull(dto.getQuantity_wsh());
+        assertNull(dto.getUnit_price_wsh());
+        assertNull(dto.getDuration_minutes_wsh());
     }
 
     @Test

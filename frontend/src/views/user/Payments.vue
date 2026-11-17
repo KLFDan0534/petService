@@ -292,7 +292,7 @@ function pendingPaymentHint(payment) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .pm-crumb {
   display: flex;
   align-items: center;
@@ -306,7 +306,7 @@ function pendingPaymentHint(payment) {
 .pm-crumb-sep { color: var(--ref-line); }
 .pm-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .pm-eyebrow {
   display: flex;
   align-items: center;
@@ -320,7 +320,7 @@ function pendingPaymentHint(payment) {
 .pm-idx { font-variant-numeric: tabular-nums; }
 .pm-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .pm-head {
   display: flex;
   flex-wrap: wrap;
@@ -349,7 +349,7 @@ function pendingPaymentHint(payment) {
 }
 .pm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -372,7 +372,7 @@ function pendingPaymentHint(payment) {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Badges (tone = script 的 paymentStatusBadge 输出类名) ═══ */
+/* Badges (tone = script 的 paymentStatusBadge 输出类名) */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -390,7 +390,7 @@ function pendingPaymentHint(payment) {
 .badge-danger { background: transparent; color: var(--ref-muted); border-color: var(--ref-line); }
 .badge-secondary { background: var(--ref-surface); color: var(--ref-ink); border-color: color-mix(in srgb, var(--ref-ink) 20%, transparent); }
 
-/* ═══ Section ═══ */
+/* Section */
 .pm-section { margin-top: 56px; }
 .pm-sec-head {
   display: flex;
@@ -416,7 +416,7 @@ function pendingPaymentHint(payment) {
   opacity: 0.8;
 }
 
-/* ═══ Create / Lookup cards ═══ */
+/* Create / Lookup cards */
 .pm-duo {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -493,7 +493,7 @@ function pendingPaymentHint(payment) {
 }
 .pm-quiet:hover { color: var(--ref-ink); }
 
-/* ═══ Lookup result ═══ */
+/* Lookup result */
 .pm-result {
   margin-top: 20px;
   overflow: hidden;
@@ -502,7 +502,7 @@ function pendingPaymentHint(payment) {
   background: var(--ref-surface);
 }
 
-/* ═══ Payment rows ═══ */
+/* Payment rows */
 .pm-list {
   margin-top: 20px;
   overflow: hidden;
@@ -559,7 +559,7 @@ function pendingPaymentHint(payment) {
 .pm-hint { flex-shrink: 0; font-size: 11.5px; color: var(--ref-muted); }
 .tabular { font-variant-numeric: tabular-nums; }
 
-/* ═══ Skeleton / Empty ═══ */
+/* Skeleton / Empty */
 .pm-skeleton {
   height: 120px;
   margin-top: 20px;
@@ -597,7 +597,7 @@ function pendingPaymentHint(payment) {
   to { background-position: -200% 0; }
 }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .pm-duo { grid-template-columns: 1fr; }
 }

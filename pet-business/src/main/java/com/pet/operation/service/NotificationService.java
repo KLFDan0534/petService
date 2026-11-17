@@ -50,8 +50,6 @@ public interface NotificationService {
      */
     Notification create(Notification notification);
 
-
-
 //    Integer createBatch(List<Notification> notifications, Notice notice);
 
     /**

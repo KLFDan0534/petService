@@ -35,25 +35,6 @@ public class UserController {
 
     private final UserService userService;
 
-    /**
-     * 【用户控制器构造器】
-     *
-     * 业务作用：注入用户服务，供用户信息查询与修改接口使用。
-     *
-     * 调用场景：Spring 容器启动时由依赖注入自动调用。
-     *
-     * 调用链：Spring IoC → 构造器 → 赋值 userService。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
     public UserController(UserService userService) {
         this.userService = userService;
     }
@@ -114,7 +95,15 @@ public class UserController {
     public Result<UserVO> updateCurrentUser(@AuthenticationPrincipal JwtAuthenticationToken token,
                                             @RequestBody UserVO vo) {
         log.info("调用 updateCurrentUser()");
-        return Result.success(userService.updateUser(token.getUserId(), vo));
+        // 用户只允许更改这些字段
+        UserVO userVO = new UserVO();
+        userVO.setNickname_wsh(vo.getNickname_wsh());
+        userVO.setAvatar_wsh(vo.getAvatar_wsh());
+        userVO.setGender_wsh(vo.getGender_wsh());
+        userVO.setAddress_wsh(vo.getAddress_wsh());
+        userVO.setLatitude_wsh(vo.getLatitude_wsh());
+        userVO.setLongitude_wsh(vo.getLongitude_wsh());
+        return Result.success(userService.updateUser(token.getUserId(), userVO));
     }
 
     /**

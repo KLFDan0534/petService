@@ -27,14 +27,10 @@ public interface MerchantCustomerServiceService {
     String STATUS_TERMINATED = "terminated";
 
     /**
-     * 【业务名称】申请成为客服
-     * 业务作用：用户申请成为指定商家的客服。
-     * 如果已存在被拒绝/辞职/终止的记录，会复用并重置为待审核状态。
-     * 调用场景：用户向商家提交客服申请。
-     * 调用链：apply() → 查重 → 构造/复用记录 → insert/update → 返回DTO。
-     * 数据处理：查重后创建或复用申请记录，状态设为 pending。
+     * 申请成为客服
+     *
+     * 业务作用：用户申请成为指定商家的客服。 如果已存在被拒绝/辞职/终止的记录，会复用并重置为待审核状态。
      * 业务规则：商家需存在且状态正常；用户不可重复申请已生效的客服。
-     * 状态影响：新增或更新一条申请记录（状态 pending）。
      * 异常情况：商家不存在或状态异常抛 BusinessException；用户已是该商家客服抛异常。
      * 注意事项：商家主人无需申请即可管理。
      *
@@ -45,14 +41,9 @@ public interface MerchantCustomerServiceService {
     MerchantCustomerServiceDTO apply(Long userId, MerchantCustomerServiceApplyRequestDTO request);
 
     /**
-     * 【业务名称】查询我的申请记录
+     * 查询我的申请记录
+     *
      * 业务作用：查询当前用户的所有客服申请记录，按创建时间倒序。
-     * 调用场景：用户查看自己的申请记录。
-     * 调用链：listMine() → Mapper.selectList()。
-     * 数据处理：按 user_id 匹配，按创建时间倒序。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：包含所有历史状态。
      *
      * @param userId 用户ID
@@ -61,15 +52,10 @@ public interface MerchantCustomerServiceService {
     List<MerchantCustomerServiceDTO> listMine(Long userId);
 
     /**
-     * 【业务名称】商家查询待审核申请
+     * 商家查询待审核申请
+     *
      * 业务作用：商家查询自己商铺待审核的客服申请列表。
-     * 调用场景：商家审核客服申请。
-     * 调用链：listPendingForMerchant() → Mapper.selectList()。
-     * 数据处理：按 merchant_user_id 和 status=pending 匹配。
      * 业务规则：仅商家主人可查询。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      *
      * @param merchantUserId 商家主人用户ID
      * @return 待审核申请记录DTO列表
@@ -77,15 +63,10 @@ public interface MerchantCustomerServiceService {
     List<MerchantCustomerServiceDTO> listPendingForMerchant(Long merchantUserId);
 
     /**
-     * 【业务名称】商家查询已通过客服
+     * 商家查询已通过客服
+     *
      * 业务作用：商家查询自己商铺已通过的客服列表。
-     * 调用场景：商家管理客服团队。
-     * 调用链：listApprovedForMerchant() → Mapper.selectList()。
-     * 数据处理：按 merchant_user_id 和 status=approved 匹配。
      * 业务规则：仅商家主人可查询。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      *
      * @param merchantUserId 商家主人用户ID
      * @return 已通过申请记录DTO列表
@@ -93,13 +74,10 @@ public interface MerchantCustomerServiceService {
     List<MerchantCustomerServiceDTO> listApprovedForMerchant(Long merchantUserId);
 
     /**
-     * 【业务名称】通过客服申请
+     * 通过客服申请
+     *
      * 业务作用：商家通过客服申请，自动为用户授予 CUSTOMER_SERVICE 角色。
-     * 调用场景：商家审批通过客服申请。
-     * 调用链：approve() → 查记录 → 校验 → update → 授予角色。
-     * 数据处理：更新状态为 approved，设置审核备注；授予 CUSTOMER_SERVICE 角色。
      * 业务规则：仅 pending 状态可审批；仅商家主人可操作。
-     * 状态影响：申请记录状态 approved；用户新增 CUSTOMER_SERVICE 角色。
      * 异常情况：申请不存在或状态不对抛异常。
      * 注意事项：附带角色授权。
      *
@@ -111,15 +89,11 @@ public interface MerchantCustomerServiceService {
     MerchantCustomerServiceDTO approve(Long id, Long merchantUserId, MerchantCustomerServiceReviewRequestDTO request);
 
     /**
-     * 【业务名称】拒绝客服申请
+     * 拒绝客服申请
+     *
      * 业务作用：商家拒绝客服申请。
-     * 调用场景：商家拒绝客服申请。
-     * 调用链：reject() → 查记录 → 校验 → update。
-     * 数据处理：更新状态为 rejected。
      * 业务规则：仅 pending 状态可拒绝；仅商家主人可操作。
-     * 状态影响：申请记录状态 rejected。
      * 异常情况：申请不存在或状态不对抛异常。
-     * 注意事项：无。
      *
      * @param id 申请记录ID
      * @param merchantUserId 商家主人用户ID
@@ -129,18 +103,13 @@ public interface MerchantCustomerServiceService {
     MerchantCustomerServiceDTO reject(Long id, Long merchantUserId, MerchantCustomerServiceReviewRequestDTO request);
 
     /**
-     * 【业务名称】超时自动拒绝客服申请
-     * 业务作用：为「商家长期不处理」提供平台兜底。客服申请的唯一审核人是被申请的商家，
+     * 超时自动拒绝客服申请
+     *
+     * 业务作用：
+     * 为「商家长期不处理」提供平台兜底。客服申请的唯一审核人是被申请的商家，
      * 商家若一直不处理，申请会永久停留在 pending，申请人拿不到结果。
      * 本方法把停留超过 timeoutDays 天的 pending 申请批量置为 rejected。
-     * 调用场景：由定时任务 {@code MerchantCustomerServiceTimeoutScheduler} 每日调用。
-     * 调用链：autoRejectStalePending() → Mapper.update() 批量更新。
-     * 数据处理：以 updated_at_wsh（pending 状态的起始时间）为基准，
-     * 早于 now - timeoutDays 的 pending 记录批量改为 rejected，
-     * 写入 review_note_wsh 说明为系统自动拒绝，reviewed_at_wsh 记为当前时间。
-     * 业务规则：仅 pending 可被自动拒绝；不校验商家归属（系统行为）；
-     * reviewer_id_wsh 保持为 null，表示无人工审核人。
-     * 状态影响：申请记录状态 pending → rejected；不涉及角色变更。
+     * 业务规则：仅 pending 可被自动拒绝；不校验商家归属（系统行为）； reviewer_id_wsh 保持为 null，表示无人工审核人。
      * 异常情况：timeoutDays 非正数抛 400。
      * 注意事项：申请人可重新提交申请（apply() 会复用该记录并重置为 pending）。
      *
@@ -150,13 +119,10 @@ public interface MerchantCustomerServiceService {
     int autoRejectStalePending(int timeoutDays);
 
     /**
-     * 【业务名称】客服辞职
+     * 客服辞职
+     *
      * 业务作用：客服自己申请辞职，自动回收 CUSTOMER_SERVICE 角色。
-     * 调用场景：客服主动辞职。
-     * 调用链：resign() → 查记录 → 校验 → update → 回收角色。
-     * 数据处理：更新状态为 resigned；如果该用户再无其他商家客服角色则回收 CUSTOMER_SERVICE。
      * 业务规则：仅申请者本人可操作。
-     * 状态影响：申请记录状态 resigned；可能回收 CUSTOMER_SERVICE 角色。
      * 异常情况：申请不存在或非本人抛异常。
      * 注意事项：自动判断是否回收角色。
      *
@@ -167,13 +133,10 @@ public interface MerchantCustomerServiceService {
     MerchantCustomerServiceDTO resign(Long id, Long userId);
 
     /**
-     * 【业务名称】商家终止客服
+     * 商家终止客服
+     *
      * 业务作用：商家终止客服的合作关系，自动回收 CUSTOMER_SERVICE 角色。
-     * 调用场景：商家终止客服。
-     * 调用链：terminateByMerchant() → 查记录 → 校验 → update → 回收角色。
-     * 数据处理：更新状态为 terminated；如果该用户再无其他商家客服角色则回收 CUSTOMER_SERVICE。
      * 业务规则：仅商家主人可操作。
-     * 状态影响：申请记录状态 terminated；可能回收 CUSTOMER_SERVICE 角色。
      * 异常情况：申请不存在或非商家主人抛异常。
      * 注意事项：自动判断是否回收角色。
      *
@@ -184,14 +147,9 @@ public interface MerchantCustomerServiceService {
     MerchantCustomerServiceDTO terminateByMerchant(Long id, Long merchantUserId);
 
     /**
-     * 【业务名称】获取用户已通过的商家ID
+     * 获取用户已通过的商家ID
+     *
      * 业务作用：获取用户所有已通过审核的商家ID列表。
-     * 调用场景：查询用户可管理的商家范围。
-     * 调用链：getApprovedMerchantIds() → Mapper.selectList()。
-     * 数据处理：按 user_id 和 status=approved 筛选。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：用于权限判断。
      *
      * @param userId 用户ID
@@ -200,14 +158,10 @@ public interface MerchantCustomerServiceService {
     Set<Long> getApprovedMerchantIds(Long userId);
 
     /**
-     * 【业务名称】判断是否指定商家的客服
+     * 判断是否指定商家的客服
+     *
      * 业务作用：判断用户是否为指定商家的已授权客服。
-     * 调用场景：权限校验。
-     * 调用链：isMerchantCustomerService() → Mapper.selectCount()。
-     * 数据处理：按 userId + merchantId + approved 统计。
      * 业务规则：只统计 approved 状态。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：用于权限判断。
      *
      * @param userId 用户ID
@@ -217,14 +171,9 @@ public interface MerchantCustomerServiceService {
     boolean isMerchantCustomerService(Long userId, Long merchantId);
 
     /**
-     * 【业务名称】查询指定商家的已授权客服用户ID集合
+     * 查询指定商家的已授权客服用户ID集合
+     *
      * 业务作用：获取服务指定商家的所有已通过审核客服的用户ID。
-     * 调用场景：新工单/新投诉创建时通知服务该商家的客服。
-     * 调用链：getApprovedCsUserIds() → Mapper.selectList()。
-     * 数据处理：按 merchant_id + approved 状态筛选。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
      * 注意事项：用于提醒推送。
      *
      * @param merchantId 商家ID
@@ -233,15 +182,10 @@ public interface MerchantCustomerServiceService {
     Set<Long> getApprovedCsUserIds(Long merchantId);
 
     /**
-     * 【业务名称】申请记录实体转DTO
+     * 申请记录实体转DTO
+     *
      * 业务作用：将单个申请记录实体转换为DTO，关联商家名称和用户信息。
-     * 调用场景：Controller 组装分页结果时批量转换。
-     * 调用链：toDTO()。
-     * 数据处理：字段拷贝，关联查询商家名称、用户名和昵称。
      * 业务规则：入参为 null 时返回 null。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      *
      * @param entity 申请记录实体
      * @return 申请记录DTO
@@ -249,15 +193,10 @@ public interface MerchantCustomerServiceService {
     MerchantCustomerServiceDTO toDTO(MerchantCustomerService entity);
 
     /**
-     * 【业务名称】申请记录实体列表转DTO列表
+     * 申请记录实体列表转DTO列表
+     *
      * 业务作用：将申请记录实体列表批量转换为DTO列表。
-     * 调用场景：Controller 组装分页结果。
-     * 调用链：toDTOList() → toDTO()。
-     * 数据处理：遍历转换。
      * 业务规则：入参为 null 时返回空列表。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      *
      * @param list 申请记录实体列表
      * @return 申请记录DTO列表

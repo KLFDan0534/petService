@@ -5,14 +5,16 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * 智能下单 confirm 阶段请求：凭方案 token 落单，可选自动支付。
+ * 智能下单 confirm 阶段请求：凭会话ID落单，可选自动支付。
+ * <p>
+ * 一个会话只能下一单：服务端用 status 的 CAS 占用会话，重复点击会被挡住。
  */
 @Data
 public class AgentConfirmRequestDTO {
 
-    @NotBlank(message = "方案 token 不能为空")
-    @Schema(description = "plan 阶段返回的方案 token")
-    private String plan_token_wsh;
+    @NotBlank(message = "会话ID不能为空")
+    @Schema(description = "会话ID（message 接口返回）")
+    private String session_id_wsh;
 
     @Schema(description = "是否自动支付")
     private Boolean auto_pay_wsh;

@@ -6,6 +6,7 @@ import com.pet.boarding.entity.ServiceItem;
 import com.pet.boarding.service.MerchantService;
 import com.pet.boarding.service.ServiceCategoryService;
 import com.pet.boarding.service.ServiceItemService;
+import com.pet.common.BookingUnit;
 import com.pet.common.FavoriteTargetType;
 import com.pet.operation.dto.FavoriteCardDTO;
 import com.pet.operation.service.FavoriteTargetResolver;
@@ -30,22 +31,7 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
     private final ServiceCategoryService serviceCategoryService;
 
     /**
-     * 【构造服务收藏解析器】
-     *
-     * 业务作用：注入服务项、商家、服务分类三个业务服务。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值三个 service 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖均为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：本解析器由收藏列表按目标类型路由调用。
      */
     public ServiceFavoriteTargetResolver(ServiceItemService serviceItemService,
@@ -83,6 +69,13 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
                 .collect(Collectors.toMap(ServiceCategory::getId_wsh, ServiceCategory::getName_wsh));
 
         for (ServiceItem item : items) {
+            // 用户公开收藏卡片不得展示非法计价单位服务（与 ServiceItemServiceImpl.queryPublic 同口径）：
+            // 单位必须是 BookingUnit 标准值且预约模式与单位匹配；仅隐藏展示，不删除、不默认转换。
+            String unit = BookingUnit.normalize(item.getUnit_wsh());
+            if (unit == null || !BookingUnit.isSupported(unit)
+                    || !java.util.Objects.equals(BookingUnit.bookingMode(unit), item.getBooking_mode_wsh())) {
+                continue;
+            }
             Merchant merchant = merchants.get(item.getMerchant_id_wsh());
             FavoriteCardDTO card = new FavoriteCardDTO();
             card.setTarget_id_wsh(item.getId_wsh());
@@ -103,22 +96,9 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
     }
 
     /**
-     * 【解析服务分类名称】
-     *
      * 业务作用：取服务项所属分类的名称，取不到时回退到服务的 type 字段。
-     *
-     * 调用场景：resolve 组装收藏卡片次要信息时。
-     *
-     * 调用链：resolve() → resolveCategoryName()。
-     *
      * 数据处理：先看 category_id_wsh 是否在已加载的分类名 Map 中，命中则返回分类名，否则返回 item.type_wsh。
-     *
      * 业务规则：只使用「已启用」分类构建的 Map，已下架分类查不到。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：回退值 type_wsh 存的是分类编码，与分类名称展示效果不一致。
      */
     private String resolveCategoryName(ServiceItem item, Map<Long, String> categoryNames) {
@@ -130,20 +110,8 @@ public class ServiceFavoriteTargetResolver implements FavoriteTargetResolver {
     }
 
     /**
-     * 【取首张图片地址】
-     *
      * 业务作用：从逗号分隔的图片串中取出第一张图片地址。
-     *
-     * 调用场景：resolve 设置收藏卡片封面图时。
-     *
-     * 调用链：resolve() → firstImage()。
-     *
      * 数据处理：空值或空白返回 null，否则按逗号切分后取第 0 段并 trim。
-     *
-     * 业务规则：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：未过滤空串，若图片串以逗号开头会返回空字符串而非 null。
      */
     private String firstImage(String images) {

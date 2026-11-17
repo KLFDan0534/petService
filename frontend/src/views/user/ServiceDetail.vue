@@ -2,7 +2,7 @@
   <div class="svc-detail">
     <div class="svc-shell">
       <template v-if="loading">
-        <div class="d-skeleton" aria-label="服务加载中">
+        <div class="d-skeleton" role="status" aria-label="服务加载中">
           <div class="d-skel-media" />
           <div class="d-skel-info" />
         </div>
@@ -39,8 +39,8 @@
                 type="button"
                 class="d-thumb"
                 :class="{ active: index === activeIndex }"
-                :aria-label="`查看第 ${index + 1} 张图片`"
-                @click="setActive(index)"
+                :aria-label="`查看第 ${index + 1} 张图片`" :aria-current="index === activeIndex ? 'true' : null"
+                @click="setActive(index)" @keydown.enter.prevent="setActive(index)" @keydown.space.prevent="setActive(index)"
               >
                 <MediaWithFallback
                   :src="media.url_wsh"
@@ -64,7 +64,7 @@
               <p class="d-price">
                 <span class="d-currency">¥</span>
                 <span class="d-amount">{{ money(service.price_wsh) }}</span>
-                <span class="d-unit">/ {{ unitLabel(service.unit_wsh) || '次' }}</span>
+                <span class="d-unit">/ {{ unitLabel(service.unit_wsh) }}</span>
               </p>
             </div>
 
@@ -366,11 +366,9 @@ function closeBookingDialog() {
 }
 
 function onBookingCreated(data) {
-  // 单笔：进入订单详情；批量（多宠物连续下单）：进入订单列表逐单支付
+  // 单笔下单：创建成功后进入该订单详情页
   if (data?.id_wsh) {
     router.push(`/orders/${data.id_wsh}`)
-  } else if (Array.isArray(data?.orders) && data.orders.length > 0) {
-    router.push('/orders')
   }
 }
 

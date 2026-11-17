@@ -26,22 +26,8 @@ public class ProductMediaMigrationReadiness implements ApplicationRunner {
     private final String requiredVersion;
 
     /**
-     * 【构造媒体迁移就绪检查】
-     *
      * 业务作用：注入 JdbcTemplate、数据源，以及要求存在的迁移版本号。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 jdbcTemplate / dataSource / requiredVersion 字段。
-     *
-     * 数据处理：requiredVersion 取自配置项 app.migration.product-media-version，默认 v6_service_product_media。
-     *
      * 业务规则：版本号必须与迁移台账中记录的版本一致。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：该类实现 ApplicationRunner，会在应用启动完成后自动执行 run。
      */
     public ProductMediaMigrationReadiness(JdbcTemplate jdbcTemplate, DataSource dataSource,
@@ -54,22 +40,9 @@ public class ProductMediaMigrationReadiness implements ApplicationRunner {
     }
 
     /**
-     * 【启动时执行迁移就绪检查】
-     *
      * 业务作用：应用启动后检查数据库是否为 MySQL，是则断言媒体表迁移已完成。
-     *
-     * 调用场景：Spring Boot 启动完成、ApplicationRunner 回调阶段。
-     *
-     * 调用链：Spring Boot 启动 → run() → databaseProductName() → isMysql() → assertMigrationReady()。
-     *
-     * 数据处理：读取数据库产品名，判断是否包含 mysql（忽略大小写）。
-     *
      * 业务规则：非 MySQL（如 H2 本地环境）直接跳过检查，只打 info 日志。
-     *
-     * 状态影响：无，只读数据库元信息与迁移台账。
-     *
      * 异常情况：MySQL 环境下迁移未就绪时抛 IllegalStateException，导致应用启动失败；读取数据库产品名失败同样抛 IllegalStateException。
-     *
      * 注意事项：这是有意的「启动即失败」设计，防止未迁移的代码先上线。
      */
     @Override
@@ -119,22 +92,8 @@ public class ProductMediaMigrationReadiness implements ApplicationRunner {
     }
 
     /**
-     * 【读取数据库产品名】
-     *
      * 业务作用：通过 JDBC 元数据获取当前数据库产品名称。
-     *
-     * 调用场景：run() 判断是否需要执行迁移检查。
-     *
-     * 调用链：run() → databaseProductName() → dataSource.getConnection().getMetaData()。
-     *
-     * 数据处理：从连接元数据读取 getDatabaseProductName()，连接使用 try-with-resources 自动关闭。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：获取连接或读取元数据失败时抛 IllegalStateException「Cannot read database product name for migration readiness」。
-     *
      * 注意事项：每次启动只调用一次，不缓存结果。
      */
     private String databaseProductName() {
@@ -146,22 +105,8 @@ public class ProductMediaMigrationReadiness implements ApplicationRunner {
     }
 
     /**
-     * 【判断是否MySQL】
-     *
      * 业务作用：根据数据库产品名判断当前是否运行在 MySQL 上。
-     *
-     * 调用场景：run() 决定是否执行迁移断言。
-     *
-     * 调用链：run() → isMysql()。
-     *
-     * 数据处理：产品名转小写后判断是否包含 "mysql"。
-     *
      * 业务规则：null 返回 false。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：用包含匹配而非等值匹配，可兼容 MariaDB 之外的 MySQL 变体命名。
      */
     private boolean isMysql(String productName) {

@@ -1,9 +1,9 @@
 // 下单后 15 分钟内必须付款，过了这个点订单会被系统自动取消
-export const ORDER_PAYMENT_TIMEOUT_MS = 15 * 60 * 1000
+const ORDER_PAYMENT_TIMEOUT_MS = 15 * 60 * 1000
 export const PAYMENT_TIMEOUT_REFRESH_INTERVAL_MS = 15 * 1000
 
 // 超时时间点 = 下单时间 + 15 分钟。注意算的是下单时间，不是打开页面的时间
-export function getPaymentDeadlineMs(order) {
+function getPaymentDeadlineMs(order) {
   const createdAt = parseOrderTime(order?.created_at_wsh)
   return createdAt ? createdAt + ORDER_PAYMENT_TIMEOUT_MS : null
 }

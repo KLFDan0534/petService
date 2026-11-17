@@ -3,99 +3,58 @@ import {
   NIGHT,
   SESSION,
   HOUR,
-  normalizeUnit,
-  isSupportedUnit,
   unitLabel,
-  bookingMode,
-  defaultDurationMinutes,
   durationText,
   billingText,
   standardCheckoutDate,
 } from '@/domain/BookingUnit'
 
-// 计费单位只允许 night/session/hour：过夜寄养统一按夜，不再有 day/boarding 两套口径
+// 全项目只允许 night/session/hour：唯一注册表在后端，前端只做展示、不校验、不归一、不算金额。
 describe('BookingUnit domain', () => {
-  it('normalizes canonical + aliases for night/session/hour', () => {
-    expect(normalizeUnit('night')).toBe('night')
-    expect(normalizeUnit('nights')).toBe('night')
-    expect(normalizeUnit('晚')).toBe('night')
-    expect(normalizeUnit('按夜')).toBe('night')
-    expect(normalizeUnit('过夜')).toBe('night')
-    expect(normalizeUnit('session')).toBe('session')
-    expect(normalizeUnit('次')).toBe('session')
-    expect(normalizeUnit('hour')).toBe('hour')
-    expect(normalizeUnit('小时')).toBe('hour')
+  it('renders Chinese labels for the three standard units', () => {
+    expect(unitLabel(NIGHT)).toBe('按夜')
+    expect(unitLabel(SESSION)).toBe('按次')
+    expect(unitLabel(HOUR)).toBe('按小时')
   })
 
-  // 旧单位一律不再识别：宁可报错也不要静默当成别的单位算钱
-  it('rejects legacy and unknown units', () => {
-    expect(normalizeUnit('day')).toBeNull()
-    expect(normalizeUnit('天')).toBeNull()
-    expect(normalizeUnit('boarding')).toBeNull()
-    expect(normalizeUnit('week')).toBeNull()
-    expect(normalizeUnit('')).toBeNull()
-    expect(normalizeUnit(null)).toBeNull()
-    expect(normalizeUnit(undefined)).toBeNull()
-    expect(isSupportedUnit('boarding')).toBe(false)
-    expect(isSupportedUnit('night')).toBe(true)
+  it('returns empty string for missing unit', () => {
+    expect(unitLabel('')).toBe('')
+    expect(unitLabel(null)).toBe('')
+    expect(unitLabel(undefined)).toBe('')
   })
 
-  it('renders Chinese unit labels', () => {
-    expect(unitLabel('night')).toBe('夜')
-    expect(unitLabel('session')).toBe('次')
-    expect(unitLabel('hour')).toBe('小时')
+  it('marks legacy units as historical without interpreting them as 24 hours or mapping to standard units', () => {
+    expect(unitLabel('day')).toBe('day（历史计价单位）')
+    expect(unitLabel('boarding')).toBe('boarding（历史计价单位）')
+    expect(unitLabel('time')).toBe('time（历史计价单位）')
+    expect(unitLabel('boarding')).not.toContain('24')
+    expect(unitLabel('boarding')).not.toContain('按夜')
+    expect(unitLabel('day')).not.toContain('按夜')
   })
 
-  it('derives booking mode from unit when absent', () => {
-    expect(bookingMode(null, 'night')).toBe('interval')
-    expect(bookingMode(null, 'session')).toBe('slot')
-    expect(bookingMode(null, 'hour')).toBe('slot')
-    expect(bookingMode('slot', 'night')).toBe('slot')
-  })
-
-  it('resolves default duration per unit', () => {
-    expect(defaultDurationMinutes('night')).toBe(1440)
-    expect(defaultDurationMinutes('session')).toBe(60)
-    expect(defaultDurationMinutes('hour')).toBe(60)
-    // 缺单位不再默认成 day
-    expect(defaultDurationMinutes(null)).toBe(60)
-  })
-
-  it('formats durations', () => {
-    expect(durationText(1440)).toBe('1 天')
+  it('formats durations without the legacy 天 wording', () => {
+    expect(durationText(1440)).toBe('24 小时')
     expect(durationText(60)).toBe('1 小时')
     expect(durationText(90)).toBe('90 分钟')
     expect(durationText(45)).toBe('45 分钟')
     expect(durationText(0)).toBe('')
   })
 
-  it('billing text: night quantity uses nights not checkout day', () => {
-    expect(billingText({ billing_unit_wsh: 'night', quantity_wsh: 3 })).toBe('3 夜')
-    expect(billingText({ billing_unit_wsh: 'night', quantity_wsh: 1 })).toBe('1 夜')
-  })
-
-  it('billing text: session with duration', () => {
-    expect(billingText({ billing_unit_wsh: 'session', quantity_wsh: 1, duration_minutes_wsh: 60 })).toBe('1 次（1 小时）')
-  })
-
-  it('billing text: hour quantity with duration', () => {
-    expect(billingText({ billing_unit_wsh: 'hour', quantity_wsh: 4, duration_minutes_wsh: 60 })).toBe('4 小时（1 小时）')
-  })
-
-  // 老订单只存了 days_wsh，展示时仍要能读出「2 天」（仅历史读取，不参与计价）
-  it('billing text: legacy projection when unit missing', () => {
-    expect(billingText({ days_wsh: 2 })).toBe('2 天')
-    expect(billingText({})).toBe('')
-  })
-
-  it('billing text: keeps null-safe on null order', () => {
+  it('billing text uses the order unit snapshot, never the days_wsh fallback', () => {
+    expect(billingText({ billing_unit_wsh: 'night', quantity_wsh: 3 })).toBe('3 按夜')
+    expect(billingText({ billing_unit_wsh: 'session', quantity_wsh: 1, duration_minutes_wsh: 60 })).toBe('1 按次（1 小时）')
+    expect(billingText({ billing_unit_wsh: 'hour', quantity_wsh: 4 })).toBe('4 按小时')
+    // 历史单位按原始值标注，绝不解释成按24小时
+    expect(billingText({ billing_unit_wsh: 'day', days_wsh: 2 })).toBe('day（历史计价单位）')
+    // 缺单位不再回退到 days_wsh 的「N 天」
+    expect(billingText({ days_wsh: 2 })).toBe('历史计价单位缺失')
+    expect(billingText({})).toBe('历史计价单位缺失')
     expect(billingText(null)).toBe('')
   })
 
   it('derives checkout date from checkin date plus nights', () => {
     expect(standardCheckoutDate('2026-06-01', 3)).toBe('2026-06-04')
     expect(standardCheckoutDate('2026-06-01', 1)).toBe('2026-06-02')
-    // 非法夜数按 1 夜兜底，空日期返回空串
     expect(standardCheckoutDate('2026-06-01', 0)).toBe('2026-06-02')
     expect(standardCheckoutDate('', 3)).toBe('')
   })

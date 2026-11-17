@@ -69,7 +69,7 @@ import { useAuthStore } from '@/stores/auth'
 import { resetDynamicRoutes } from '@/router'
 import MessageIndicator from '@/components/common/MessageIndicator.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
-import request from '@/utils/request'
+import { getCurrentUser } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -247,9 +247,9 @@ function toggleGroup(label) {
 // 进后台时再拉一次用户信息，主要是补上刚改过的头像
 onMounted(async () => {
   try {
-    const r = await request.get('/users/me')
-    if (r.data.code === 200 && r.data.data) {
-      const url = r.data.data.avatar_wsh || ''
+    const r = await getCurrentUser()
+    if (r.code === 200 && r.data) {
+      const url = r.data.avatar_wsh || ''
       if (authStore.user) {
         // 顺手写回本地，刷新页面时头像不会又变回旧的
         authStore.user = { ...authStore.user, avatar_wsh: url }

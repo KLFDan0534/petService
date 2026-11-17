@@ -312,7 +312,7 @@ function formatDate(dt) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .rg-crumb {
   display: flex;
   align-items: center;
@@ -326,7 +326,7 @@ function formatDate(dt) {
 .rg-crumb-sep { color: var(--ref-line); }
 .rg-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .rg-eyebrow {
   display: flex;
   align-items: center;
@@ -340,7 +340,7 @@ function formatDate(dt) {
 .rg-idx { font-variant-numeric: tabular-nums; }
 .rg-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .rg-head {
   display: flex;
   flex-wrap: wrap;
@@ -390,7 +390,7 @@ function formatDate(dt) {
 }
 .rg-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -414,7 +414,7 @@ function formatDate(dt) {
 .cta-outline:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 .cta-sm { height: 34px; padding: 0 13px; font-size: 12.5px; border-radius: 9px; }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -429,7 +429,7 @@ function formatDate(dt) {
 }
 .badge-info { background: color-mix(in srgb, var(--color-info) 12%, transparent); color: var(--color-info); border-color: color-mix(in srgb, var(--color-info) 30%, transparent); }
 
-/* ═══ Section ═══ */
+/* Section */
 .rg-section { margin-top: 56px; }
 .rg-sec-head {
   display: flex;
@@ -456,7 +456,7 @@ function formatDate(dt) {
   opacity: 0.8;
 }
 
-/* ═══ 01 · 提问 ═══ */
+/* 01 · 提问 */
 .rg-ask {
   margin-top: 20px;
   border: 1px solid var(--ref-line);
@@ -601,7 +601,7 @@ function formatDate(dt) {
 }
 .rg-sources-link:hover { text-decoration: underline; }
 
-/* ═══ 01b · 新增文档 ═══ */
+/* 01b · 新增文档 */
 .rg-form {
   margin-top: 20px;
   border: 1px solid var(--ref-line);
@@ -648,7 +648,7 @@ function formatDate(dt) {
   gap: 10px;
 }
 
-/* ═══ 02 · 收录文档 ═══ */
+/* 02 · 收录文档 */
 .rg-docs-note {
   display: flex;
   align-items: flex-start;
@@ -761,7 +761,7 @@ function formatDate(dt) {
 }
 .rg-docs-state .cta { margin-top: 18px; }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 640px) {
   .rg-shell { padding: 0 16px; }
   .rg-head { padding: 30px 0 22px; }

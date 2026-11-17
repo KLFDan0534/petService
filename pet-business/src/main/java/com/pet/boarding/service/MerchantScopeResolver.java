@@ -3,7 +3,6 @@ package com.pet.boarding.service;
 import com.pet.boarding.entity.Merchant;
 import com.pet.common.BusinessException;
 import com.pet.security.JwtAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,23 +17,8 @@ public class MerchantScopeResolver {
     private final MerchantService merchantService;
 
     /**
-     * 【构造商家作用域解析器】
-     *
      * 业务作用：注入商家业务服务，用于反查商家归属与校验商家存在性。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 merchantService 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
      */
     public MerchantScopeResolver(MerchantService merchantService) {
         this.merchantService = merchantService;
@@ -47,7 +31,7 @@ public class MerchantScopeResolver {
      * @throws BusinessException 无商家身份 403 / 管理员未指定 400 / 目标商家不存在 404
      */
     public Long resolve(Long requestedMerchantId, JwtAuthenticationToken token) {
-        if (isAdmin(token)) {
+        if (JwtAuthenticationToken.isAdmin(token)) {
             if (requestedMerchantId == null) {
                 throw new BusinessException(400, "管理员必须显式指定目标商家 merchantId");
             }
@@ -67,34 +51,4 @@ public class MerchantScopeResolver {
         return merchant.getId_wsh();
     }
 
-    /**
-     * 【判断是否管理员】
-     *
-     * 业务作用：检查认证信息中是否包含 ROLE_ADMIN 权限。
-     *
-     * 调用场景：resolve 决定走管理员分支还是商家分支。
-     *
-     * 调用链：resolve() → isAdmin() → token.getAuthorities() 遍历比对。
-     *
-     * 数据处理：token 或其权限集合为 null 时返回 false，否则逐个比对权限字符串。
-     *
-     * 业务规则：只有精确等于 ROLE_ADMIN 才返回 true。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无，对 null 做了防御。
-     *
-     * 注意事项：返回 false 后 resolve 会把调用方当作商家身份处理，未登录时最终会抛 403。
-     */
-    private boolean isAdmin(JwtAuthenticationToken token) {
-        if (token == null || token.getAuthorities() == null) {
-            return false;
-        }
-        for (GrantedAuthority authority : token.getAuthorities()) {
-            if ("ROLE_ADMIN".equals(authority.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

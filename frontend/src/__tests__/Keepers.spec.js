@@ -4,7 +4,7 @@ import Keepers from '@/views/user/Keepers.vue'
 
 const state = vi.hoisted(() => ({
   router: { push: vi.fn() },
-  keepers: { code: 200, data: [{ id_wsh: 1, merchant_id_wsh: 2, name_wsh: '小王', price_per_day_wsh: 50 }] },
+  keepers: { code: 200, data: [{ id_wsh: 1, merchant_id_wsh: 2, name_wsh: '小王', unit_price_wsh: 50 }] },
 }))
 
 vi.mock('vue-router', () => ({

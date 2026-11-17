@@ -1,19 +1,20 @@
 package com.pet.admin;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.ai.dto.AgentExecuteResult;
-import com.pet.ai.dto.AgentPlanResult;
+import com.pet.ai.dto.AgentMessageRequestDTO;
+import com.pet.ai.dto.AgentTurnResult;
+import com.pet.ai.service.AiChatHistoryService;
 import com.pet.ai.service.LlmChatService;
-import com.pet.ai.service.PlanTokenStore;
+import com.pet.ai.service.RagService;
 import com.pet.ai.service.impl.AgentServiceImpl;
+import com.pet.boarding.dto.MerchantDTO;
 import com.pet.boarding.entity.Merchant;
+import com.pet.boarding.service.MerchantService;
+import com.pet.boarding.service.ServiceItemService;
 import com.pet.boarding.entity.ServiceItem;
-import com.pet.boarding.mapper.MerchantMapper;
-import com.pet.boarding.mapper.ServiceItemMapper;
 import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.vo.KeeperVO;
-import com.pet.common.BusinessException;
 import com.pet.common.StatusCode;
 import com.pet.mq.MessageSender;
 import com.pet.order.dto.OrderCreateRequestDTO;
@@ -23,12 +24,12 @@ import com.pet.order.dto.OrderQuoteDTO;
 import com.pet.order.entity.Payment;
 import com.pet.order.service.OrderService;
 import com.pet.order.service.PaymentService;
-import com.pet.pet.entity.Pet;
-import com.pet.pet.mapper.PetMapper;
+import com.pet.pet.dto.PetDTO;
+import com.pet.pet.service.PetService;
 import com.pet.system.entity.User;
-import com.pet.system.mapper.UserMapper;
 import com.pet.system.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,7 +42,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -51,12 +52,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 智能下单按夜规划契约（U9）。
+ * 智能下单按夜规划契约（会话式）。
  * <p>
  * 覆盖：AI 只选 night 服务、夜数 N 直接作为预订夜数、离店日 = 入住日 + N、
  * 默认 14:00 送达 / 14:30 接走、金额取自后端 previewOrder（不由模型生成）。
  */
 @ExtendWith(MockitoExtension.class)
+@DisplayName("智能下单 · 按夜契约")
 class AgentNightBookingTest {
 
     private static final Long USER_ID = 7L;
@@ -68,107 +70,120 @@ class AgentNightBookingTest {
     private static final String LLM_JSON = """
             {"pet_name":"团团","pet_type":"金毛","service_type":"BOARDING","start_date":null,"nights":3,"merchant_keyword":null,"max_price_per_night":null,"unit":"night"}""";
 
-    @Mock private PetMapper petMapper;
-    @Mock private MerchantMapper merchantMapper;
+    @Mock private PetService petService;
+    @Mock private MerchantService merchantService;
     @Mock private KeeperService keeperService;
-    @Mock private ServiceItemMapper serviceItemMapper;
-    @Mock private UserMapper userMapper;
+    @Mock private ServiceItemService serviceItemService;
+    @Mock private RagService ragService;
     @Mock private UserService userService;
     @Mock private OrderService orderService;
     @Mock private PaymentService paymentService;
     @Mock private MessageSender messageSender;
     @Mock private LlmChatService aiChatService;
+    @Mock private AiChatHistoryService chatHistoryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final PlanTokenStore planTokenStore = new PlanTokenStore();
-
+    private InMemoryAgentSessionStore sessionStore;
     private AgentServiceImpl agentService;
 
     @BeforeEach
     void setUp() {
+        sessionStore = new InMemoryAgentSessionStore();
         agentService = new AgentServiceImpl(
-                petMapper, merchantMapper, keeperService, serviceItemMapper, userMapper, userService,
-                orderService, paymentService, messageSender, aiChatService, objectMapper, planTokenStore);
-    }
-
-    private void stubPlanFlow() {
-        when(petMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(pet()));
-        when(merchantMapper.searchNearby(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(merchant()));
-        when(keeperService.searchNearby(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(keeper()));
-        when(serviceItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(serviceItem()));
-        when(aiChatService.chat(anyList())).thenReturn(LLM_JSON);
-        // 后端报价：3 夜 × 150 = 450（不含晚接，晚接实际接走时结算）
-        when(orderService.previewOrder(eq(USER_ID), any())).thenReturn(quote(new BigDecimal("450.00")));
+                petService, merchantService, keeperService, serviceItemService, userService,
+                orderService, paymentService, messageSender, aiChatService, ragService, objectMapper,
+                sessionStore, chatHistoryService, null);
     }
 
     @Test
+    @DisplayName("3 夜 → 离店日是入住日 + 3，而不是含首尾的第 3 天")
     void threeNightsCheckOutOnTheFourthDay() {
         stubPlanFlow();
+        when(aiChatService.chat(anyList())).thenReturn(LLM_JSON);
 
-        AgentPlanResult plan = agentService.plan(USER_ID, "帮团团订 3 晚寄养", 30.0, 120.0, null);
+        AgentTurnResult turn = agentService.message(USER_ID, request("帮团团订 3 晚寄养"));
 
-        assertEquals("plan_generated", plan.getStatus_wsh());
-        assertEquals("night", plan.getUnit_wsh());
-        assertEquals(Integer.valueOf(3), plan.getDays_wsh());
-        LocalDate checkin = plan.getStart_date_wsh();
-        // 3 夜 → 离店日是第 4 天（入住日 + 3），不是「含首尾的第 3 天」
-        assertEquals(checkin.plusDays(3), plan.getEnd_date_wsh());
+        assertEquals("await_confirm", turn.getStatus_wsh());
+        assertEquals("night", turn.getPlan_card().getUnit_wsh());
+        assertEquals(Integer.valueOf(3), turn.getPlan_card().getDays_wsh());
+        LocalDate checkin = turn.getPlan_card().getStart_date_wsh();
+        assertEquals(checkin.plusDays(3), turn.getPlan_card().getEnd_date_wsh());
     }
 
     @Test
+    @DisplayName("金额等于后端报价，模型只给夜数与预算")
     void planUsesBackendQuoteInsteadOfModelArithmetic() {
         stubPlanFlow();
+        when(aiChatService.chat(anyList())).thenReturn(LLM_JSON);
 
-        AgentPlanResult plan = agentService.plan(USER_ID, "帮团团订 3 晚寄养", 30.0, 120.0, null);
+        AgentTurnResult turn = agentService.message(USER_ID, request("帮团团订 3 晚寄养"));
 
-        // 模型只给夜数与预算，金额必须等于 previewOrder 的结果
-        assertEquals(new BigDecimal("450.00"), plan.getTotal_price_wsh());
+        assertEquals(new BigDecimal("450.00"), turn.getPlan_card().getTotal_price_wsh());
         ArgumentCaptor<OrderPreviewRequestDTO> captor = ArgumentCaptor.forClass(OrderPreviewRequestDTO.class);
         verify(orderService).previewOrder(eq(USER_ID), captor.capture());
-        OrderPreviewRequestDTO request = captor.getValue();
-        assertEquals("night", request.getBilling_unit_wsh());
-        assertEquals(Integer.valueOf(3), request.getQuantity_wsh());
-        assertEquals(request.getStart_date_wsh().plusDays(3), request.getEnd_date_wsh());
+        OrderPreviewRequestDTO preview = captor.getValue();
+        assertEquals("night", preview.getBilling_unit_wsh());
+        assertEquals(Integer.valueOf(3), preview.getQuantity_wsh());
+        assertEquals(preview.getStart_date_wsh().plusDays(3), preview.getEnd_date_wsh());
     }
 
     @Test
+    @DisplayName("确认下单沿用 14:00 送达 / 14:30 接走，并二次校验单价")
     void confirmSendsNightRequestWithDefaultAnchors() {
         stubPlanFlow();
-        when(userMapper.selectById(USER_ID)).thenReturn(user());
+        when(aiChatService.chat(anyList())).thenReturn(LLM_JSON);
+        when(userService.getById(USER_ID)).thenReturn(user());
         when(orderService.createOrder(eq(USER_ID), any(OrderCreateRequestDTO.class))).thenReturn(orderDto());
         when(paymentService.createPayment(eq(USER_ID), eq("ORD-AI-NIGHT"), eq("balance"))).thenReturn(payment());
 
-        AgentPlanResult plan = agentService.plan(USER_ID, "帮团团订 3 晚寄养", 30.0, 120.0, null);
-        AgentExecuteResult result = agentService.confirm(USER_ID, plan.getPlan_token_wsh(), false, null);
+        AgentTurnResult turn = agentService.message(USER_ID, request("帮团团订 3 晚寄养"));
+        AgentExecuteResult result = agentService.confirm(USER_ID, turn.getSession_id_wsh(), false, null);
 
         assertEquals("pending_payment", result.getStatus());
         ArgumentCaptor<OrderCreateRequestDTO> captor = ArgumentCaptor.forClass(OrderCreateRequestDTO.class);
         verify(orderService).createOrder(eq(USER_ID), captor.capture());
-        OrderCreateRequestDTO request = captor.getValue();
-        LocalDate checkin = plan.getStart_date_wsh();
-        assertEquals("night", request.getBilling_unit_wsh());
-        assertEquals(Integer.valueOf(3), request.getQuantity_wsh());
-        assertEquals(checkin, request.getStart_date_wsh());
-        assertEquals(checkin.plusDays(3), request.getEnd_date_wsh());
-        // 平台固定锚点：入住日 14:00 送达，离店日 14:30 接走
-        assertEquals(LocalDateTime.of(checkin, java.time.LocalTime.of(14, 0)), request.getDelivery_time_wsh());
-        assertEquals(LocalDateTime.of(checkin.plusDays(3), java.time.LocalTime.of(14, 30)), request.getPickup_time_wsh());
-        // 下单价格仍按服务单价二次校验
-        assertEquals(new BigDecimal("150"), request.getExpected_unit_price_wsh());
+        OrderCreateRequestDTO order = captor.getValue();
+        LocalDate checkin = turn.getPlan_card().getStart_date_wsh();
+        assertEquals("night", order.getBilling_unit_wsh());
+        assertEquals(Integer.valueOf(3), order.getQuantity_wsh());
+        assertEquals(checkin, order.getStart_date_wsh());
+        assertEquals(checkin.plusDays(3), order.getEnd_date_wsh());
+        assertEquals(LocalDateTime.of(checkin, java.time.LocalTime.of(14, 0)), order.getDelivery_time_wsh());
+        assertEquals(LocalDateTime.of(checkin.plusDays(3), java.time.LocalTime.of(14, 30)), order.getPickup_time_wsh());
+        assertEquals(new BigDecimal("150"), order.getExpected_unit_price_wsh());
     }
 
     @Test
+    @DisplayName("非 night 单位直接拒绝，不产生报价也不产生订单")
     void rejectsNonNightUnitRequest() {
         when(aiChatService.chat(anyList())).thenReturn("""
                 {"pet_name":"团团","service_type":"BOARDING","nights":3,"unit":"hour"}""");
 
-        // 按小时不属于按夜寄养：plan 阶段直接要求用户改用手动下单，不生成方案
-        AgentPlanResult result = agentService.plan(USER_ID, "按小时订", 30.0, 120.0, null);
+        AgentTurnResult turn = agentService.message(USER_ID, request("按小时订"));
 
-        assertEquals("needs_user_input", result.getStatus_wsh());
-        assertEquals("unsupported_service_type", result.getNext_action_wsh());
+        assertEquals("collecting", turn.getStatus_wsh());
+        assertEquals("unsupported_service_type", turn.getNext_action_wsh());
+        assertNull(turn.getPlan_card());
         verify(orderService, never()).previewOrder(any(), any());
         verify(orderService, never()).createOrder(any(), any());
+    }
+
+    // ── 工具 ────────────────────────────────────────────────
+
+    private AgentMessageRequestDTO request(String content) {
+        AgentMessageRequestDTO dto = new AgentMessageRequestDTO();
+        dto.setContent_wsh(content);
+        dto.setLatitude_wsh(30.0);
+        dto.setLongitude_wsh(120.0);
+        return dto;
+    }
+
+    private void stubPlanFlow() {
+        when(petService.getPetsByOwner(USER_ID)).thenReturn(List.of(pet()));
+        when(merchantService.searchNearby(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(merchant()));
+        when(keeperService.searchNearby(anyDouble(), anyDouble(), anyDouble())).thenReturn(List.of(keeper()));
+        when(serviceItemService.listEnabledByMerchant(any())).thenReturn(List.of(serviceItem()));
+        when(orderService.previewOrder(eq(USER_ID), any())).thenReturn(quote(new BigDecimal("450.00")));
     }
 
     private OrderQuoteDTO quote(BigDecimal finalAmount) {
@@ -192,8 +207,8 @@ class AgentNightBookingTest {
         return user;
     }
 
-    private Pet pet() {
-        Pet pet = new Pet();
+    private PetDTO pet() {
+        PetDTO pet = new PetDTO();
         pet.setId_wsh(PET_ID);
         pet.setOwner_id_wsh(USER_ID);
         pet.setName_wsh("团团");
@@ -202,8 +217,8 @@ class AgentNightBookingTest {
         return pet;
     }
 
-    private Merchant merchant() {
-        Merchant merchant = new Merchant();
+    private MerchantDTO merchant() {
+        MerchantDTO merchant = new MerchantDTO();
         merchant.setId_wsh(MERCHANT_ID);
         merchant.setName_wsh("安心寄养");
         merchant.setAddress_wsh("测试地址");

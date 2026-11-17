@@ -32,26 +32,7 @@ public class NoticeController {
 
     private final NoticeService noticeService;
 
-    /**
-     * 【公告控制器构造注入】
-     *
-     * 业务作用：注入公告业务服务。
-     *
-     * 调用场景：Spring 容器创建 NoticeController 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 noticeService。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public NoticeController(NoticeService noticeService) {
+        public NoticeController(NoticeService noticeService) {
         this.noticeService = noticeService;
     }
 
@@ -285,22 +266,8 @@ public class NoticeController {
     }
 
     /**
-     * 【公告实体转 DTO】
-     *
      * 业务作用：把 Notice 实体转换为 NoticeDTO 供前端展示。
-     *
-     * 调用场景：listAll、listActive、listUnread、create、update、getById、listPopup 返回前。
-     *
-     * 调用链：各接口方法 → toDTO()。
-     *
-     * 数据处理：逐字段拷贝 id、标题、内容、类型、投递方式、图片、跳转链接、排序号、状态与创建时间。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：entity 为 null 时抛 NullPointerException（未做空判断）。
-     *
      * 注意事项：不返回已读状态字段，未读信息由 listUnread/listPopup 的查询结果本身表达。
      */
     private NoticeDTO toDTO(Notice entity) {

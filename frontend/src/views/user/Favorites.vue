@@ -291,7 +291,7 @@ onMounted(async () => {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .fv-crumb {
   display: flex;
   align-items: center;
@@ -305,7 +305,7 @@ onMounted(async () => {
 .fv-crumb-sep { color: var(--ref-line); }
 .fv-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .fv-eyebrow {
   display: flex;
   align-items: center;
@@ -319,7 +319,7 @@ onMounted(async () => {
 .fv-idx { font-variant-numeric: tabular-nums; }
 .fv-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .fv-head {
   display: flex;
   flex-wrap: wrap;
@@ -347,7 +347,7 @@ onMounted(async () => {
   color: color-mix(in srgb, var(--ref-ink-soft) 82%, transparent);
 }
 
-/* ═══ Facts ═══ */
+/* Facts */
 .fv-facts { margin: 0; }
 .fv-fact {
   min-width: 150px;
@@ -377,7 +377,7 @@ onMounted(async () => {
   color: var(--ref-muted);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .fv-section { margin-top: 56px; }
 .fv-sec-head {
   display: flex;
@@ -404,7 +404,7 @@ onMounted(async () => {
   opacity: 0.8;
 }
 
-/* ═══ Type tabs ═══ */
+/* Type tabs */
 .fv-tabs {
   display: flex;
   gap: 8px;
@@ -440,7 +440,7 @@ onMounted(async () => {
   color: var(--ref-cream);
 }
 
-/* ═══ Grid ═══ */
+/* Grid */
 .fv-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -448,7 +448,7 @@ onMounted(async () => {
   margin-top: 22px;
 }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .fv-skeleton {
   height: 320px;
   border: 1px solid var(--ref-line);
@@ -458,7 +458,7 @@ onMounted(async () => {
   animation: fv-shimmer 1.3s linear infinite;
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .fv-empty {
   margin-top: 22px;
   padding: 56px 24px;
@@ -483,7 +483,7 @@ onMounted(async () => {
   margin-top: 22px;
 }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -506,7 +506,7 @@ onMounted(async () => {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Favorite card ═══ */
+/* Favorite card */
 .fv-card {
   display: flex;
   flex-direction: column;
@@ -669,7 +669,7 @@ onMounted(async () => {
 .fv-view:hover { color: var(--ref-brand-deep); }
 .fv-remove { height: 36px; padding: 0 14px; font-size: 12.5px; flex: 0 0 auto; margin-left: auto; }
 
-/* ═══ Pagination ═══ */
+/* Pagination */
 .fv-pagination {
   display: flex;
   flex-wrap: wrap;
@@ -727,10 +727,10 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes fv-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .fv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

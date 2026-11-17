@@ -41,25 +41,6 @@ public class NoticeServiceImpl implements NoticeService {
     private final UserMapper userMapper;
     private final MessageSender messageSender;
 
-    /**
-     * 【公告服务实现的构造注入】
-     *
-     * 业务作用：注入公告、公告已读、通知、用户 Mapper 与消息发送器。
-     *
-     * 调用场景：Spring 容器创建 NoticeServiceImpl 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 5 个 final 成员。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
     public NoticeServiceImpl(NoticeMapper noticeMapper, NoticeReadMapper noticeReadMapper,
                              NotificationService notificationService, UserMapper userMapper,
                              MessageSender messageSender) {
@@ -178,22 +159,9 @@ public class NoticeServiceImpl implements NoticeService {
 
 //    TODO 需要区分公告是否有选择消息通知,如果没选择应该是不需要清空通知的缓存的
     /**
-     * 【创建公告】
-     *
      * 业务作用：按类型与投递方式校验后落库，并按需异步生成用户通知。
-     *
-     * 调用场景：后台运营发布公告、banner、弹窗。
-     *
-     * 调用链：NoticeController → create() → normalizeTypeOrDefault() → normalizeDeliveryType() → validateDeliveryTypeForNotice() → noticeMapper.insert() → shouldCreateNotifications() → messageSender.sendNoticeNotification()。
-     *
-     * 数据处理：type 归一化，缺省为 notice；notice 类型要求内容非空且投递方式合法；非 notice 类型（如 banner）内容为空时置空串、投递方式清空；排序号缺省 0，状态缺省为启用。
-     *
      * 业务规则：notice 类型必须至少选择一种投递方式且取值只能是 popup/notification/broadcast。
-     *
-     * 状态影响：新增 notice 表记录；符合条件时投递 MQ 消息由消费者批量生成通知；同时清空 notice、notification、notificationUnreadCount 三个缓存。
-     *
      * 异常情况：内容为空抛 BusinessException；投递方式缺失或不合法抛 BusinessException。
-     *
      * 注意事项：源码中保留了一条 TODO 注释，指出未选择消息通知时其实不需要清空通知缓存。
      */
     @Transactional
@@ -332,22 +300,8 @@ public class NoticeServiceImpl implements NoticeService {
 
 //    通知状态验证
     /**
-     * 【判断是否需要生成通知】
-     *
      * 业务作用：判断某公告是否需要向用户批量生成站内通知。
-     *
-     * 调用场景：create() 落库后与 syncNoticeNotifications() 更新后调用。
-     *
-     * 调用链：create()/syncNoticeNotifications() → shouldCreateNotifications() → deliveryIncludes()。
-     *
-     * 数据处理：同时满足三个条件才返回 true。
-     *
      * 业务规则：类型必须为 notice、状态必须为启用、投递方式包含 notification 或 broadcast。
-     *
-     * 状态影响：无（仅判定，实际投递由调用方完成）。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：状态比较用 Integer.valueOf(StatusCode.NOTICE_ACTIVE.getValue()) 包装后 equals，依赖值不为 null。
      */
     private boolean shouldCreateNotifications(Notice notice) {

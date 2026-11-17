@@ -46,10 +46,10 @@ public class OrderPreviewRequestDTO {
     @Schema(description = "用户优惠券ID（可选；有值时预览该券的抵扣效果）")
     private Long user_coupon_id_wsh;
 
-    @Schema(description = "开始日期（day 模式必填）")
+    @Schema(description = "开始日期（night 模式必填）")
     private LocalDate start_date_wsh;
 
-    @Schema(description = "结束日期（day 模式必填；最后一个服务日，含当日）")
+    @Schema(description = "结束日期（night 模式必填；最后一个服务日，含当日）")
     private LocalDate end_date_wsh;
 
     @Schema(description = "服务开始时间（session/hour 模式必填）")
@@ -58,16 +58,16 @@ public class OrderPreviewRequestDTO {
     @Schema(description = "客户端提交的服务结束时间（可选；仅做一致性校验）")
     private LocalDateTime end_time_wsh;
 
-    @Schema(description = "计费单位（可选；规范化后必须与服务单位一致）")
+    @Schema(description = "仅 night/session/hour，服务端以服务记录为准")
     @Size(max = 20, message = "计费单位不能超过20个字符")
     private String billing_unit_wsh;
 
-    @Schema(description = "计费数量（可选；day=天数、session=1、hour=小时数）")
+    @Schema(description = "计费数量（可选；night=夜数、session=1、hour=槽位数）")
     private Integer quantity_wsh;
 
-    @Schema(description = "服务开始时间/送达时间（day 与 boarding 均使用）")
+    @Schema(description = "服务开始时间/送达时间（night 模式使用）")
     private LocalDateTime delivery_time_wsh;
 
-    @Schema(description = "服务结束时间/接回时间（day 与 boarding 均使用）")
+    @Schema(description = "服务结束时间/接回时间（night 模式使用）")
     private LocalDateTime pickup_time_wsh;
 }

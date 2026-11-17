@@ -3,7 +3,6 @@ package com.pet.boarding.dto;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.math.BigDecimal;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Getter

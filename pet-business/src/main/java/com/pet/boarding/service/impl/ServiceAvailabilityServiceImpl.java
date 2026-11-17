@@ -39,7 +39,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -83,22 +82,8 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     private final int maxBookingDays;
 
     /**
-     * 【构造可预约性查询服务】
-     *
      * 业务作用：注入服务项、商家、分类、看护者、订单五个 Mapper，以及营业时间、看护者休假、资质三个服务，并读取槽位粒度与预约窗口配置。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值各依赖字段与 slotMinutes / maxBookingDays。
-     *
-     * 数据处理：slotMinutes 取自 booking.slot-minutes（默认 30），maxBookingDays 取自 booking.max-booking-days（默认 91）；配置值不大于 0 时回退为 DEFAULT_MAX_BOOKING_DAYS。
-     *
      * 业务规则：预约窗口天数必须为正，否则使用常量默认值 91。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：该类为只读实现，不调用任何写方法。
      */
     public ServiceAvailabilityServiceImpl(ServiceItemMapper serviceItemMapper,
@@ -126,22 +111,9 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     }
 
     /**
-     * 【查询服务动态可预约性】
-     *
      * 业务作用：按日期范围逐日返回服务的可预约窗口与可选起始槽位，可叠加看护者维度。
-     *
-     * 调用场景：用户在服务详情页选择日期/看护员后查询档期。
-     *
-     * 调用链：ServiceItemController.availability() → getAvailability() → clampRange() / requireVisibleService() / requireEnabledCategory() / requireFutureBookingEligibleMerchant() / requireQualifiedKeeper() → businessHoursService.getByMerchantId() → loadCapacityCountByDate() → buildDay()。
-     *
-     * 数据处理：先收敛日期范围，再校验服务/分类/商家/看护者，读取营业时间后逐日生成 DayAvailabilityVO，并汇总服务版本、计费单位、时区、槽位粒度等元信息。
-     *
      * 业务规则：serviceId 必须为正数；日期范围不合法直接抛异常；无营业时间配置时按 legacy_unrestricted 全天可约；看护者容量按窗口一次性加载后在内存按天累加。
-     *
-     * 状态影响：无，只读接口。
-     *
      * 异常情况：服务ID非法、服务下架、分类下架、商家未审核、商家未开放未来预约、看护者不可接单或资质未通过，均抛 BusinessException(400/404)。
-     *
      * 注意事项：容量统计口径与 OrderServiceImpl 下单校验保持一致，修改任一侧需同步。
      */
     @Override
@@ -217,22 +189,9 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     }
 
     /**
-     * 【校验服务存在且上架】
-     *
      * 业务作用：查询服务项并校验其处于启用状态。
-     *
-     * 调用场景：getAvailability 校验链第一步。
-     *
-     * 调用链：getAvailability() → requireVisibleService() → serviceItemMapper.selectById()。
-     *
-     * 数据处理：按主键查询服务项，比对 status_wsh 与 StatusCode.SERVICE_ENABLED。
-     *
      * 业务规则：服务不存在或已下架都不可预约。
-     *
-     * 状态影响：无，只读。
-     *
      * 异常情况：服务不存在抛 BusinessException(404, SERVICE_NOT_FOUND)；已下架抛 400, SERVICE_OFF_SHELF。
-     *
      * 注意事项：错误码取自 BookingErrorCode，前端据此做提示映射。
      */
     private ServiceItem requireVisibleService(Long serviceId) {
@@ -240,30 +199,17 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         if (service == null) {
             throw new BusinessException(404, BookingErrorCode.SERVICE_NOT_FOUND, "服务不存在");
         }
-        if (service.getStatus_wsh() == null
-                || service.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+        if (!ServiceItemServiceImpl.isServiceEnabled(service)) {
             throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务已下架");
         }
         return service;
     }
 
     /**
-     * 【校验服务分类上架】
-     *
      * 业务作用：校验服务所属分类存在且处于启用状态。
-     *
-     * 调用场景：getAvailability 校验链第二步。
-     *
-     * 调用链：getAvailability() → requireEnabledCategory() → categoryMapper.selectById()。
-     *
      * 数据处理：服务未配置分类时直接返回；否则按分类 ID 查询并比对状态。
-     *
      * 业务规则：分类缺失或下架时该服务不可预约。
-     *
-     * 状态影响：无，只读。
-     *
      * 异常情况：分类不存在或已下架抛 BusinessException(400, SERVICE_OFF_SHELF)「服务所属分类已下架」。
-     *
      * 注意事项：category_id_wsh 为空的历史服务会跳过本校验。
      */
     private void requireEnabledCategory(ServiceItem service) {
@@ -271,64 +217,31 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
             return;
         }
         ServiceCategory category = categoryMapper.selectById(service.getCategory_id_wsh());
-        if (category == null || category.getStatus_wsh() == null
-                || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+        if (!ServiceItemServiceImpl.isCategoryEnabled(category)) {
             throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务所属分类已下架");
         }
     }
 
     /**
-     * 【校验商家可开放未来预约】
-     *
      * 业务作用：校验商家存在、已审核通过且已开启未来预约开关。
-     *
-     * 调用场景：getAvailability 校验链第三步。
-     *
-     * 调用链：getAvailability() → requireFutureBookingEligibleMerchant() → merchantMapper.selectById()。
-     *
-     * 数据处理：按商家 ID 查询后依次校验 status_wsh 与 future_booking_enabled_wsh。
-     *
      * 业务规则：状态必须为 MERCHANT_APPROVED，future_booking_enabled_wsh 必须等于 1。
-     *
-     * 状态影响：无，只读。
-     *
      * 异常情况：商家不存在抛 404；未通过审核抛 400, MERCHANT_NOT_APPROVED；未开放未来预约抛 400, FUTURE_BOOKING_DISABLED。
-     *
-     * 注意事项：OrderServiceImpl 下单时复用同一套判定，两处口径必须一致。
+     * 注意事项：审核状态与未来预约开关的判定统一委托 MerchantServiceImpl.assertFutureBookingEligible， 本方法只保留可用性接口自身的「商户不存在」错误码映射。
      */
     private Merchant requireFutureBookingEligibleMerchant(Long merchantId) {
         Merchant merchant = merchantMapper.selectById(merchantId);
         if (merchant == null) {
             throw new BusinessException(404, BookingErrorCode.SERVICE_NOT_FOUND, "商户不存在");
         }
-        if (merchant.getStatus_wsh() == null
-                || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
-            throw new BusinessException(400, BookingErrorCode.MERCHANT_NOT_APPROVED, "商家未通过审核");
-        }
-        if (merchant.getFuture_booking_enabled_wsh() == null
-                || merchant.getFuture_booking_enabled_wsh() != 1) {
-            throw new BusinessException(400, BookingErrorCode.FUTURE_BOOKING_DISABLED, "商家未开放未来预约");
-        }
+        MerchantServiceImpl.assertFutureBookingEligible(merchant);
         return merchant;
     }
 
     /**
-     * 【校验看护者可接单】
-     *
      * 业务作用：校验看护者存在、归属该商家、处于可接单状态且资质已通过。
-     *
-     * 调用场景：getAvailability 传入 keeperId 时。
-     *
-     * 调用链：getAvailability() → requireQualifiedKeeper() → keeperMapper.selectById() → qualificationService.listByOwner()。
-     *
-     * 数据处理：比对 keeper.merchant_id_wsh 与服务所属商家；状态需为 ACTIVE / OFFLINE / BUSY 之一；资质列表中存在 APPROVED 记录才算合格。
-     *
      * 业务规则：看护者必须属于该商家，且至少有一条已通过资质。
-     *
-     * 状态影响：无，只读。
-     *
-     * 异常情况：看护者不存在或不可接单抛 400, KEEPER_NOT_BOOKABLE；归属不符抛 400, KEEPER_MERCHANT_MISMATCH；资质未通过抛 400, KEEPER_NOT_QUALIFIED。
-     *
+     * 异常情况：
+     * 看护者不存在或不可接单抛 400, KEEPER_NOT_BOOKABLE；归属不符抛 400, KEEPER_MERCHANT_MISMATCH；资质未通过抛 400, KEEPER_NOT_QUALIFIED。
      * 注意事项：OFFLINE 与 BUSY 也算可接单状态，只有离职/停用等状态才拒绝。
      */
     private Keeper requireQualifiedKeeper(Long keeperId, Long merchantId) {
@@ -339,11 +252,8 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         if (!merchantId.equals(keeper.getMerchant_id_wsh())) {
             throw new BusinessException(400, BookingErrorCode.KEEPER_MERCHANT_MISMATCH, "看护者不属于服务所属商家");
         }
-        Integer status = keeper.getStatus_wsh();
-        boolean inService = status != null
-                && (status == StatusCode.KEEPER_ACTIVE.getValue()
-                || status == StatusCode.KEEPER_OFFLINE.getValue()
-                || status == StatusCode.KEEPER_BUSY.getValue());
+        boolean inService = keeper.getStatus_wsh() != null
+                && StatusCode.KEEPER_BOOKABLE_STATUSES.contains(keeper.getStatus_wsh());
         if (!inService) {
             throw new BusinessException(400, BookingErrorCode.KEEPER_NOT_BOOKABLE, "看护者当前不可接单");
         }
@@ -358,22 +268,8 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     }
 
     /**
-     * 【构建单日可预约结果】
-     *
      * 业务作用：计算某一天的营业窗口、是否可约以及不可约原因，并生成对应槽位。
-     *
-     * 调用场景：getAvailability 逐日循环。
-     *
-     * 调用链：getAvailability() → buildDay() → resolver.windowsForDate() / keeperLeaveService.isKeeperOnLeave() / isDayAtCapacity() → toWindowVOs()。
-     *
-     * 数据处理：无营业配置时构造 00:00~次日 00:00 的全天窗口；有配置时按日期解析营业窗口；再叠加看护者休假与容量判定。
-     *
      * 业务规则：窗口为空即休息日；看护者休假或满容量时清空窗口并把 bookable 置为 false。
-     *
-     * 状态影响：无，只读。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：reason_code 优先级为休息日 < 休假 < 容量超限，后判定者会覆盖前者。
      */
     private DayAvailabilityVO buildDay(LocalDate date, List<BusinessHours> hours, String scheduleSource,
@@ -465,22 +361,8 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     }
 
     /**
-     * 【营业窗口转VO】
-     *
      * 业务作用：把内部营业窗口对象转换为前端可用的窗口 VO，并生成每个窗口的起始槽位。
-     *
-     * 调用场景：buildDay 生成 DayAvailabilityVO 时。
-     *
-     * 调用链：buildDay() → toWindowVOs() → generateSlots()。
-     *
-     * 数据处理：逐窗口复制起止时间，并调用 generateSlots 生成槽位字符串列表。
-     *
      * 业务规则：按窗口数量预分配列表容量。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：槽位生成规则由 generateSlots 决定，本方法只做结构转换。
      */
     private List<AvailabilityWindowVO> toWindowVOs(List<BusinessHoursTargetResolver.BusinessWindow> windows,
@@ -515,10 +397,12 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
     /**
      * 生成可选起始时间。slot 模式（session/hour）只暴露“完整服务时长能落进
      * 该窗口”的起始槽位：仅当 start + duration <= end 才可选，避免选择后才发现
-     * 时长覆盖不完整。day 模式保持与旧接口一致的槽位列表。
+     * 时长覆盖不完整。night 模式保持与旧接口一致的槽位列表。
      * hour 单位的起始槽位对齐到步长网格，步长 = min(60, 计费粒度)：
      * - 粒度 60 / 120 分钟：整点开始（与历史行为一致）
      * - 粒度 30 分钟：整点或半点开始，否则半小时粒度的服务永远选不到 :30
+     * 当天已过去的起始槽位一律不返回：下单校验会拒绝早于当前时间的开始时刻，
+     * 可用性接口继续暴露只会让用户选了又被拒（与 OrderServiceImpl 口径一致）。
      */
     private List<String> generateSlots(LocalDateTime windowStart, LocalDateTime windowEnd,
                                        String unit, int durationMinutes) {
@@ -536,8 +420,10 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
             }
             t = aligned;
         }
+        LocalDateTime now = LocalDateTime.now(BusinessHoursTargetResolver.ZONE);
         while (t.isBefore(windowEnd)) {
-            if (!slotMode || !t.plusMinutes(durationMinutes).isAfter(windowEnd)) {
+            if (!t.isBefore(now)
+                    && (!slotMode || !t.plusMinutes(durationMinutes).isAfter(windowEnd))) {
                 slots.add(t.format(SLOT_FORMATTER));
             }
             t = t.plusMinutes(stepMinutes);
@@ -545,37 +431,20 @@ public class ServiceAvailabilityServiceImpl implements ServiceAvailabilityServic
         return slots;
     }
 
-    /** 服务单位归属校验：未知/无法解析的单位不允许参与预约；历史空单位按按夜兜底。 */
+    /** 服务单位归属校验：空值/旧单位/未知单位一律拒绝，不允许参与预约；不做任何按夜兜底。 */
     private String normalizeServiceUnit(ServiceItem service) {
         String unit = BookingUnit.normalize(service.getUnit_wsh());
         if (unit == null) {
-            if (service.getUnit_wsh() == null || service.getUnit_wsh().isBlank()) {
-                // 历史数据 unit_wsh 为空 → 按夜兜底（与 OrderServiceImpl 保持一致）
-                return BookingUnit.NIGHT;
-            }
             throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
-                    "服务计费单位不受支持，无法预约");
+                    "服务计费单位不受支持，无法预约：" + service.getUnit_wsh());
         }
+        BookingUnit.validateUnitSupported(unit);
         return unit;
     }
 
     /**
-     * 【格式化服务版本号】
-     *
      * 业务作用：把服务项的更新时间格式化为版本字符串，供前端做版本比对。
-     *
-     * 调用场景：getAvailability 组装返回 VO 时。
-     *
-     * 调用链：getAvailability() → formatVersion() → ServiceVersions.format()。
-     *
-     * 数据处理：直接委托 ServiceVersions.format 处理 updated_at_wsh。
-     *
      * 业务规则：格式规则由 ServiceVersions 统一定义。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：下单时的服务版本校验依赖同一套格式化规则，不可单独改动。
      */
     private String formatVersion(LocalDateTime updatedAt) {

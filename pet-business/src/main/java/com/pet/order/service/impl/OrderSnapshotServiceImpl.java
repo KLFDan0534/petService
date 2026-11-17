@@ -45,22 +45,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     private final ObjectMapper objectMapper;
 
     /**
-     * 【订单快照服务构造器】
-     *
      * 业务作用：注入快照 Mapper 与 JSON 序列化器，供快照读写使用。
-     *
-     * 调用场景：Spring 容器启动时由依赖注入自动调用。
-     *
-     * 调用链：Spring IoC → 构造器 → 赋值 orderSnapshotMapper / objectMapper。
-     *
-     * 数据处理：仅字段赋值，不处理业务数据。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：无；依赖缺失时由 Spring 启动期报错。
-     *
      * 注意事项：ObjectMapper 为全局共享实例，序列化行为受全局 Jackson 配置影响。
      */
     public OrderSnapshotServiceImpl(OrderSnapshotMapper orderSnapshotMapper, ObjectMapper objectMapper) {
@@ -155,22 +141,9 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【快照实体转 DTO】
-     *
      * 业务作用：把 order_snapshot 表记录转换为 OrderSnapshotDTO，并将 7 个 JSON 字段还原为 Map。
-     *
-     * 调用场景：查询单个快照或批量查询快照后转换结果时调用。
-     *
-     * 调用链：getByOrderId → toDTO；findDTOMapByOrderIds → stream.map(this::toDTO)。
-     *
-     * 数据处理：逐字段拷贝主键、订单号、创建时间；owner/pet/merchant/keeper/service/address/price 七个字段经 fromJson 转 Map。
-     *
      * 业务规则：入参为 null 时直接返回 null，不构造空对象。
-     *
-     * 状态影响：无（只读转换）。
-     *
      * 异常情况：无；JSON 解析失败由 fromJson 内部吞掉并返回空 Map。
-     *
      * 注意事项：DTO 中快照字段为 Map 类型，与实体的 String 存储结构不同。
      */
     private OrderSnapshotDTO toDTO(OrderSnapshot snapshot) {
@@ -193,22 +166,9 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【构建下单人快照】
-     *
      * 业务作用：提取下单用户的关键字段，作为订单快照中的下单人信息留存。
-     *
-     * 调用场景：createForOrder 组装快照时调用。
-     *
-     * 调用链：createForOrder → ownerSnapshot → toJson。
-     *
      * 数据处理：取 id_wsh / username_wsh / nickname_wsh；phone_wsh 经 maskPhone 脱敏后写入。
-     *
      * 业务规则：owner 为 null 时返回空 Map，不抛异常。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：手机号脱敏后入库，快照中不保留完整号码。
      */
     private Map<String, Object> ownerSnapshot(User owner) {
@@ -223,22 +183,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【构建宠物快照】
-     *
      * 业务作用：留存下单时宠物的档案信息，供历史订单回显。
-     *
-     * 调用场景：createForOrder 组装快照时调用。
-     *
-     * 调用链：createForOrder → petSnapshot → toJson。
-     *
-     * 数据处理：拷贝 id、名称、类型、品种、年龄、体重、性别、绝育、免疫、过敏、习性共 11 个字段。
-     *
      * 业务规则：pet 为 null 时返回空 Map。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：为全量快照，之后修改宠物档案不影响已生成的订单。
      */
     private Map<String, Object> petSnapshot(Pet pet) {
@@ -260,22 +206,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【构建商家快照】
-     *
      * 业务作用：留存下单时商家的名称、电话、地址、营业执照与评分。
-     *
-     * 调用场景：createForOrder 组装快照时调用。
-     *
-     * 调用链：createForOrder → merchantSnapshot → toJson。
-     *
-     * 数据处理：拷贝 id_wsh / name_wsh / phone_wsh / address_wsh / business_license_wsh / rating_wsh。
-     *
      * 业务规则：merchant 为 null（平台自营或未归属）时返回空 Map。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：商家电话未脱敏，与 owner 快照的处理方式不一致。
      */
     private Map<String, Object> merchantSnapshot(Merchant merchant) {
@@ -292,22 +224,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【构建看护者快照】
-     *
      * 业务作用：留存下单时看护者的经验年限、评分、单价、接单上限与简介。
-     *
-     * 调用场景：createForOrder 组装快照时调用。
-     *
-     * 调用链：createForOrder → keeperSnapshot → toJson。
-     *
-     * 数据处理：拷贝 8 个字段，含 price_per_day_wsh 与 max_pets_wsh。
-     *
      * 业务规则：keeper 为 null（商家自营或尚未分配）时返回空 Map。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：单价以快照为准，看护者后续调价不影响历史订单。
      */
     private Map<String, Object> keeperSnapshot(Keeper keeper) {
@@ -325,22 +243,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【构建服务产品快照】
-     *
      * 业务作用：留存下单时服务产品的价格、计价单位、预约模式与图片。
-     *
-     * 调用场景：createForOrder 组装快照时调用。
-     *
-     * 调用链：createForOrder → serviceSnapshot → toJson。
-     *
-     * 数据处理：拷贝 8 个业务字段，并额外写入 version_wsh = ServiceVersions.format(updated_at_wsh)。
-     *
      * 业务规则：service 为 null 时返回空 Map。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：version_wsh 由更新时间派生，可用于比对产品是否在下单后发生变更。
      */
     private Map<String, Object> serviceSnapshot(ServiceItem service) {
@@ -360,22 +264,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【构建地址与时间快照】
-     *
      * 业务作用：留存送接地址、时间窗与紧急联系人等履约信息。
-     *
-     * 调用场景：createForOrder 组装快照时调用。
-     *
-     * 调用链：createForOrder → addressSnapshot → toJson。
-     *
-     * 数据处理：送/接地址经 firstText 回落到商家地址；时间窗与联系人字段直接取请求值。
-     *
      * 业务规则：请求未填地址时使用商家默认地址；紧急联系人字段不做格式校验。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：request 不可为 null（上游 createOrder 已保证）；merchant 为 null 时回落值为 null。
      */
     private Map<String, Object> addressSnapshot(OrderCreateRequestDTO request, Merchant merchant) {
@@ -393,22 +283,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【构建价格快照】
-     *
      * 业务作用：留存下单时的计费口径、优惠明细与结算金额，作为后续对账依据。
-     *
-     * 调用场景：createForOrder 组装快照时调用。
-     *
-     * 调用链：createForOrder → priceSnapshot → toJson。
-     *
-     * 数据处理：共 21 个字段，金额类字段统一经 defaultMoney 把 null 归一为 0。
-     *
      * 业务规则：优惠券、会员、平台补贴、结算金额分别独立记录，互不覆盖。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：final_amount_wsh 为实付金额，退款核算应以本快照为准。
      */
     private Map<String, Object> priceSnapshot(PetOrder order) {
@@ -513,22 +389,8 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【金额空值归一】
-     *
      * 业务作用：把可能为 null 的金额统一转换为 0，避免快照中出现 null。
-     *
-     * 调用场景：priceSnapshot 组装各金额字段时调用。
-     *
-     * 调用链：priceSnapshot → defaultMoney。
-     *
-     * 数据处理：null → BigDecimal.ZERO，其余原样返回。
-     *
      * 业务规则：仅处理 null，不做精度调整或舍入。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：返回的是常量 ZERO 实例，调用方不应修改其值。
      */
     private BigDecimal defaultMoney(BigDecimal amount) {
@@ -536,22 +398,9 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【Map 序列化为 JSON】
-     *
      * 业务作用：把快照 Map 序列化为字符串，写入数据库的 text 字段。
-     *
-     * 调用场景：createForOrder 写入各 snapshot 字段前调用。
-     *
-     * 调用链：createForOrder → toJson → objectMapper.writeValueAsString。
-     *
-     * 数据处理：Map → JSON 字符串，字段顺序由 LinkedHashMap 保证。
-     *
      * 业务规则：序列化失败直接抛异常，不写入半成品快照。
-     *
-     * 状态影响：无（尚未落库）。
-     *
      * 异常情况：序列化失败 → IllegalStateException，事务回滚。
-     *
      * 注意事项：异常未携带原始数据内容，排查时需结合上下文日志。
      */
     private String toJson(Map<String, Object> data) {
@@ -563,22 +412,9 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【JSON 反序列化为 Map】
-     *
      * 业务作用：把数据库中的快照 JSON 还原为 Map，供 DTO 使用。
-     *
-     * 调用场景：toDTO 转换各快照字段时调用。
-     *
-     * 调用链：toDTO → fromJson → objectMapper.readValue。
-     *
-     * 数据处理：null 或空白串返回 Map.of()；解析失败同样返回 Map.of()。
-     *
      * 业务规则：解析异常静默吞掉，保证订单详情不因历史脏数据整体失败。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：解析失败不抛异常，返回空 Map。
-     *
      * 注意事项：返回的空 Map 为不可变对象，调用方不可写入。
      */
     private Map<String, Object> fromJson(String json) {
@@ -594,22 +430,9 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
     }
 
     /**
-     * 【取首个非空文本】
-     *
      * 业务作用：在请求值与兜底值之间取第一个非空白文本。
-     *
-     * 调用场景：addressSnapshot 处理送/接地址时调用。
-     *
-     * 调用链：addressSnapshot → firstText。
-     *
      * 数据处理：value 为 null 或空白返回 fallback，否则返回 value。
-     *
      * 业务规则：仅判断空白，不做格式校验。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：fallback 也可能为 null，调用方需自行判空。
      */
     private String firstText(String value, String fallback) {

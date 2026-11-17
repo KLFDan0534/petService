@@ -13,46 +13,15 @@ public class UserProfileRequirementService {
 
     private final UserMapper userMapper;
 
-    /**
-     * 【资料前置条件服务构造器】
-     *
-     * 业务作用：注入用户 Mapper，供读取用户资料状态使用。
-     *
-     * 调用场景：Spring 容器启动时由依赖注入自动调用。
-     *
-     * 调用链：Spring IoC → 构造器 → 赋值 userMapper。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
     public UserProfileRequirementService(UserMapper userMapper) {
         this.userMapper = userMapper;
     }
 
     /**
-     * 【确保用户具备操作所需资料】
-     *
      * 业务作用：在执行需要实名认证或手机绑定的操作前进行前置条件检查
-     *
-     * 调用场景：发起发帖、接单等需要实名/手机绑定的业务操作前
-     *
-     * 调用链：XxxController/bizService ↓ ensureAllowed() → UserMapper.selectById → 判读action是否需要实名认证(且用户是否已完成) → 判读是否需要手机绑定(且用户是否已绑定)
-     *
-     * 数据处理：userId + action(UserProfileAction枚举) → 查询用户 → 若action.requireRealName且用户未实名 → 403 → 若action.requireBoundPhone且用户无手机号 → 403
-     *
      * 业务规则：动作是否需要实名/手机绑定由UserProfileAction枚举定义；认证状态必须为REAL_NAME_VERIFIED才算已认证
-     *
-     * 状态影响：无
-     *
-     * 异常情况：用户不存在/未登录 → 401 BusinessException；需要实名但未认证 → 403 BusinessException(action.label + "前需要先完成实名认证")；需要手机但未绑定 → 403 BusinessException(action.label + "前需要先绑定手机号")
-     *
+     * 异常情况：
+     * 用户不存在/未登录 → 401 BusinessException；需要实名但未认证 → 403 BusinessException(action.label + "前需要先完成实名认证")；需要手机但未绑定 → 403 BusinessException(action.label + "前需要先绑定手机号")
      * 注意事项：后续新增需要前置条件的操作只需在UserProfileAction枚举中添加并设置相应标志即可
      */
     public void ensureAllowed(Long userId, UserProfileAction action) {
@@ -71,22 +40,9 @@ public class UserProfileRequirementService {
     }
 
     /**
-     * 【判断是否已实名】
-     *
      * 业务作用：判断用户的实名审核状态是否为已通过。
-     *
-     * 调用场景：ensureAllowed 校验实名前置条件时调用。
-     *
-     * 调用链：ensureAllowed → isRealNameVerified → 比对 real_name_status_wsh。
-     *
      * 数据处理：状态为 null 视为未实名，否则与 REAL_NAME_VERIFIED 比较。
-     *
      * 业务规则：仅审核通过状态算已实名，审核中与驳回均不算。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：状态值为 Integer，比较使用拆箱，null 已提前排除。
      */
     private boolean isRealNameVerified(User user) {

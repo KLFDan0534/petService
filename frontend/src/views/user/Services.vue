@@ -570,7 +570,7 @@ onMounted(() => {
   color: var(--ref-muted);
 }
 
-/* ===== 服务卡片（覆盖共享 ServiceGrid 的外观，保持功能不变）===== */
+/* 服务卡片（覆盖共享 ServiceGrid 的外观，保持功能不变） */
 :deep(.service-card) {
   background: var(--ref-surface);
   border: 1px solid var(--ref-line);

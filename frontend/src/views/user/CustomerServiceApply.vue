@@ -17,7 +17,7 @@
             <span class="csa-eyebrow-line"></span>
             <span>客服申请</span>
           </div>
-          <h1 class="csa-title">申请成为平台客服</h1>
+          <h1 class="csa-title">申请成为商家客服</h1>
           <p class="csa-sub">客服负责处理某个商家的用户工单与投诉。通过审核后，你会获得该商家的客服工作台权限。</p>
           <dl class="csa-facts" aria-label="申请概览">
             <div class="csa-fact">

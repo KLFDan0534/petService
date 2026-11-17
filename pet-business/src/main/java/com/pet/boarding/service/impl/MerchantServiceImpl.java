@@ -13,6 +13,7 @@ import com.pet.boarding.service.MerchantService;
 import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.constant.MerchantStoreConstants;
 import com.pet.common.BusinessException;
+import com.pet.common.BookingErrorCode;
 import com.pet.common.StatusCode;
 import com.pet.common.geo.GeoDistanceUtils;
 import com.pet.qualification.service.QualificationService;
@@ -45,22 +46,7 @@ public class MerchantServiceImpl implements MerchantService {
     private final UserMapper userMapper;
 
     /**
-     * 【构造函数：注入商家相关依赖】
-     *
      * 业务作用：注入商家 Mapper、资质服务、营业时间 Mapper、看护者服务与用户 Mapper。
-     *
-     * 调用场景：容器启动创建 MerchantServiceImpl Bean 时自动调用。
-     *
-     * 调用链：Spring IoC → MerchantServiceImpl(构造) → 五个依赖字段赋值。
-     *
-     * 数据处理：仅做字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：营业状态由审核状态、营业模式与营业时间三者共同决定，构造阶段不加载任何配置。
      */
     public MerchantServiceImpl(MerchantMapper merchantMapper,
@@ -76,35 +62,34 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【查询商家列表】
-     *
-     * 业务作用：
-     * 获取系统中所有商家的全量列表。
-     *
-     * 调用场景：
-     * 管理后台的商家管理页面加载时调用。
-     *
-     * 调用链：
-     * MerchantController
-     * ↓
-     * listAll
-     * ↓
-     * MerchantMapper.selectList（按创建时间倒序）
-     *
-     * 数据处理：
-     * 直接查询 merchant 表全部数据，按 created_at_wsh 字段倒序排列。
-     *
-     * 业务规则：
-     * 返回所有状态的商家（含待审核、已驳回、已通过），不做状态过滤。
-     *
-     * 状态影响：
-     * 只读操作。
-     *
-     * 异常情况：
-     * 无特殊异常。
-     *
-     * 注意事项：
-     * 数据量大时需要考虑分页。
+     * 【未来预约资格判定（唯一业务实现）】
+     * 只判定「审核通过」与「开放未来预约」两条规则，不查库、不处理商家不存在。
+     * 调用方（OrderServiceImpl / ServiceAvailabilityServiceImpl）各自保留
+     * 「商家不存在」的 HTTP 码 / 错误码 / 文案差异，本方法统一后两条判定。
+     */
+    public static void assertFutureBookingEligible(Merchant merchant) {
+        assertMerchantApproved(merchant);
+        if (merchant.getFuture_booking_enabled_wsh() == null
+                || merchant.getFuture_booking_enabled_wsh() != 1) {
+            throw new BusinessException(400, BookingErrorCode.FUTURE_BOOKING_DISABLED, "商家未开放未来预约");
+        }
+    }
+
+    /**
+     * 【商家审核状态判定】新订单准入与存量订单履约共用。
+     * 只校验审核状态，不含未来预约开关——开关只约束新订单准入（规则 A）。
+     */
+    public static void assertMerchantApproved(Merchant merchant) {
+        if (merchant == null || merchant.getStatus_wsh() == null
+                || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
+            throw new BusinessException(400, BookingErrorCode.MERCHANT_NOT_APPROVED, "商家未通过审核");
+        }
+    }
+
+    /**
+     * 业务作用：获取系统中所有商家的全量列表。
+     * 业务规则：返回所有状态的商家（含待审核、已驳回、已通过），不做状态过滤。
+     * 注意事项：数据量大时需要考虑分页。
      */
     @Override
     public List<Merchant> listAll() {
@@ -114,32 +99,9 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【根据ID查询商家】
-     *
-     * 业务作用：
-     * 根据主键ID查询商家信息，是其他业务方法的底层依赖。
-     *
-     * 调用场景：
-     * 被 update、approve、reject、updateStoreMode 等业务方法内部调用。
-     *
-     * 调用链：
-     * 上层业务方法
-     * ↓
-     * getById
-     * ↓
-     * MerchantMapper.selectById
-     *
-     * 数据处理：
-     * 按主键ID从 merchant 表查询单条记录。
-     *
-     * 业务规则：
-     * 查询结果为 null 时抛出 BusinessException，确保调用方获得有效的商家实体。
-     *
-     * 状态影响：
-     * 只读操作。
-     *
-     * 异常情况：
-     * 商家不存在时抛出 BusinessException("商家不存在")。
+     * 业务作用：根据主键ID查询商家信息，是其他业务方法的底层依赖。
+     * 业务规则：查询结果为 null 时抛出 BusinessException，确保调用方获得有效的商家实体。
+     * 异常情况：商家不存在时抛出 BusinessException("商家不存在")。
      */
     @Override
     public Merchant getById(Long id) {
@@ -152,29 +114,8 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【批量查询商家】
-     *
-     * 业务作用：
-     * 根据多个商家ID批量查询，减少数据库查询次数。
-     *
-     * 调用场景：
-     * 需要一次展示多个商家详情的场景。
-     *
-     * 调用链：
-     * 上层业务方法
-     * ↓
-     * listByIds
-     * ↓
-     * MerchantMapper.selectBatchIds
-     *
-     * 数据处理：
-     * 按ID集合从 merchant 表批量查询，入参为空时直接返回空列表。
-     *
-     * 业务规则：
-     * ids 为 null 或空集合时返回空列表，不做数据库查询。
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：根据多个商家ID批量查询，减少数据库查询次数。
+     * 业务规则：ids 为 null 或空集合时返回空列表，不做数据库查询。
      */
     @Override
     public List<Merchant> listByIds(Collection<Long> ids) {
@@ -186,29 +127,8 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【搜索附近商家】
-     *
-     * 业务作用：
-     * 基于用户地理位置和半径搜索附近已审核通过的商家。
-     *
-     * 调用场景：
-     * 用户端首页或地图模式搜索附近宠物寄养商家时调用。
-     *
-     * 调用链：
-     * MerchantController
-     * ↓
-     * searchNearby
-     * ↓
-     * MerchantMapper.searchNearby（SQL Haversine） + calculateDistance（Java精确计算）
-     *
-     * 数据处理：
-     * SQL 层使用 Haversine 公式过滤附近商家，Java 层再次精确计算距离并保留两位小数。
-     *
-     * 业务规则：
-     * 仅搜索已审核通过且未逻辑删除的商家；radius 单位为公里。
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：基于用户地理位置和半径搜索附近已审核通过的商家。
+     * 业务规则：仅搜索已审核通过且未逻辑删除的商家；radius 单位为公里。
      */
     @Override
     public List<MerchantDTO> searchNearby(double lat, double lng, double radius) {
@@ -224,29 +144,8 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【根据用户ID查找商家】
-     *
-     * 业务作用：
-     * 查询用户是否已入驻成为商家。
-     *
-     * 调用场景：
-     * 用户登录成功后查询商家身份；商家后台校验时调用。
-     *
-     * 调用链：
-     * 身份校验模块
-     * ↓
-     * findByUserId
-     * ↓
-     * MerchantMapper.selectOne（按 user_id）
-     *
-     * 数据处理：
-     * 按 user_id 字段从 merchant 表查询单条记录。
-     *
-     * 业务规则：
-     * 一个用户最多拥有一个商家账号；未找到时返回 null 而非抛异常。
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：查询用户是否已入驻成为商家。
+     * 业务规则：一个用户最多拥有一个商家账号；未找到时返回 null 而非抛异常。
      */
     @Override
     public Merchant findByUserId(Long userId) {
@@ -256,33 +155,11 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【创建商家入驻申请】
-     *
-     * 业务作用：
-     * 提交商家入驻申请，新建商家记录并同步创建资质审核记录。
-     *
-     * 调用场景：
-     * 用户填写入驻信息并提交时调用。
-     *
-     * 调用链：
-     * MerchantController
-     * ↓
-     * create @Transactional
-     * ↓
-     * MerchantMapper.insert + QualificationService.createPending
-     *
-     * 数据处理：
-     * 将 DTO 字段映射到商家实体，初始状态 MERCHANT_PENDING，自动模式 MODE_AUTO，店铺状态 STATUS_CLOSED。
-     * 资质图片从 business_license 和 qualification_image 中取第一个非空值。
-     *
-     * 业务规则：
-     * 创建后必须经 admin 审核才能营业；创建即提交资质审核。
-     *
-     * 状态影响：
-     * 新增商家记录（MERCHANT_PENDING）；新增资质审核记录。
-     *
      * 事务边界：
      * 商家写入 + 资质创建在同一 @Transactional 事务中。
+     *
+     * 业务作用：提交商家入驻申请，新建商家记录并同步创建资质审核记录。
+     * 业务规则：创建后必须经 admin 审核才能营业；创建即提交资质审核。
      */
     @Override
     @Transactional
@@ -316,32 +193,11 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【更新商家基础信息】
-     *
-     * 业务作用：
-     * 修改商家的基础信息（名称、电话、地址、描述等）。
-     *
-     * 调用场景：
-     * 商家在后台管理页面编辑基本信息时调用。
-     *
-     * 调用链：
-     * MerchantController
-     * ↓
-     * update @Transactional
-     * ↓
-     * MerchantMapper.updateById
-     *
-     * 数据处理：
-     * 仅更新 DTO 中非 null 的字段，null 字段保持原值。
-     *
-     * 业务规则：
-     * 仅更新非 null 字段，不修改审核状态或营业模式。
-     *
-     * 状态影响：
-     * 仅影响商家基础信息字段。
-     *
      * 事务边界：
      * 查询 + 更新在同一事务中。
+     *
+     * 业务作用：修改商家的基础信息（名称、电话、地址、描述等）。
+     * 业务规则：仅更新非 null 字段，不修改审核状态或营业模式。
      */
     @Override
     @Transactional
@@ -367,29 +223,8 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【商家实体转DTO】
-     *
-     * 业务作用：
-     * 将商家实体转换为前端展示所需的 DTO（含资质信息和实时店铺状态）。
-     *
-     * 调用场景：
-     * Controller 层返回商家信息前调用。
-     *
-     * 调用链：
-     * 各查询 Controller
-     * ↓
-     * toDTO
-     * ↓
-     * resolveStoreStatus + qualificationService.listByOwner
-     *
-     * 数据处理：
-     * 字段拷贝；实时计算店铺状态写入 store_status_wsh；加载资质列表。
-     *
-     * 业务规则：
-     * 店铺状态实时计算而非直接使用 DB 值；仅返回启用状态的资质记录。
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：将商家实体转换为前端展示所需的 DTO（含资质信息和实时店铺状态）。
+     * 业务规则：店铺状态实时计算而非直接使用 DB 值；仅返回启用状态的资质记录。
      */
     @Override
     public MerchantDTO toDTO(Merchant entity) {
@@ -451,32 +286,11 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【审核通过商家入驻申请】
-     *
-     * 业务作用：
-     * 平台管理员审核通过商家入驻申请。
-     *
-     * 调用场景：
-     * 管理员后台审核通过时调用。
-     *
-     * 调用链：
-     * AdminController
-     * ↓
-     * approve @Transactional
-     * ↓
-     * MerchantMapper.updateById + refreshStoreState（私有方法）
-     *
-     * 数据处理：
-     * 状态从 PENDING 更新为 MERCHANT_APPROVED，营业模式设为 MODE_AUTO，然后刷新店铺营业状态。
-     *
-     * 业务规则：
-     * 审核通过后进入自动模式；立即根据当前时间计算店铺是否应该开门。
-     *
-     * 状态影响：
-     * status: PENDING → MERCHANT_APPROVED；store_mode → MODE_AUTO；store_status 可能变化。
-     *
      * 事务边界：
      * 状态更新 + 店铺刷新在同一事务中。
+     *
+     * 业务作用：平台管理员审核通过商家入驻申请。
+     * 业务规则：审核通过后进入自动模式；立即根据当前时间计算店铺是否应该开门。
      */
     @Override
     @Transactional
@@ -491,34 +305,11 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【驳回商家入驻申请】
-     *
-     * 业务作用：
-     * 平台管理员驳回商家入驻申请，强制关店并通知旗下看护者下线。
-     *
-     * 调用场景：
-     * 管理员后台驳回商家申请时调用。
-     *
-     * 调用链：
-     * AdminController
-     * ↓
-     * reject @Transactional
-     * ↓
-     * MerchantMapper.updateById + KeeperService.syncMerchantStoreStatus
-     *
-     * 数据处理：
-     * 状态更新为 MERCHANT_REJECTED，模式设为 MODE_MANUAL_CLOSED，店铺状态设为 STATUS_CLOSED，
-     * 同步通知旗下所有看护者下线。
-     *
-     * 业务规则：
-     * 驳回后商家强制关店，旗下所有看护者自动下线（storeOpen=false）。
-     *
-     * 状态影响：
-     * status: PENDING → MERCHANT_REJECTED；store_mode → MODE_MANUAL_CLOSED；
-     * store_status → STATUS_CLOSED；旗下看护者状态同步下线。
-     *
      * 事务边界：
      * 状态更新 + 看护者同步通知在同一事务中。
+     *
+     * 业务作用：平台管理员驳回商家入驻申请，强制关店并通知旗下看护者下线。
+     * 业务规则：驳回后商家强制关店，旗下所有看护者自动下线（storeOpen=false）。
      */
     @Override
     @Transactional
@@ -534,31 +325,9 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【更新商家审核状态（实现）】
-     *
-     * 业务作用：
-     * 管理员直接指定商家审核状态，复用既有 approve/reject 的联动逻辑，
-     * 避免为同一状态字段再建第二套状态机。
-     *
-     * 调用链：
-     * MerchantController.updateStatus()
-     * ↓
-     * updateStatus @Transactional
-     * ↓
-     * approve() | reject() | MerchantMapper.updateById
-     *
-     * 数据处理：
-     * 校验 status 合法性后，已通过复用 approve()、已拒绝复用 reject()、
-     * 待审核仅重置 status_wsh。
-     *
-     * 业务规则：
-     * 仅支持 0（待审核）/1（已通过）/2（已拒绝）。
-     *
-     * 状态影响：
-     * status_wsh 更新；1/2 时联动 store_mode 与 store_status。
-     *
-     * 异常情况：
-     * status 为 null 或非法值时抛 BusinessException(400)。
+     * 业务作用：管理员直接指定商家审核状态，复用既有 approve/reject 的联动逻辑， 避免为同一状态字段再建第二套状态机。
+     * 业务规则：仅支持 0（待审核）/1（已通过）/2（已拒绝）。
+     * 异常情况：status 为 null 或非法值时抛 BusinessException(400)。
      */
     @Override
     @Transactional
@@ -586,30 +355,9 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【删除商家（逻辑删除实现）】
-     *
-     * 业务作用：
-     * 管理员删除违规商家，复用 @TableLogic 逻辑删除，不物理删除记录。
-     *
-     * 调用链：
-     * MerchantController.delete()
-     * ↓
-     * delete @Transactional
-     * ↓
-     * getById → 关店同步看护者 → MerchantMapper.deleteById
-     *
-     * 数据处理：
-     * 校验商家存在；若当前处于营业中，先置为强制关店并同步旗下看护者下线；
-     * 最后 deleteById 由 @TableLogic 转为 UPDATE deleted_wsh=1。
-     *
-     * 业务规则：
-     * 不物理删除；营业中的商家先关店避免删除后仍接单。
-     *
-     * 状态影响：
-     * deleted_wsh 置 1；必要时 store_mode/store_status 联动更新。
-     *
-     * 异常情况：
-     * 商家不存在时 getById 抛 BusinessException。
+     * 业务作用：管理员删除违规商家，复用 @TableLogic 逻辑删除，不物理删除记录。
+     * 业务规则：不物理删除；营业中的商家先关店避免删除后仍接单。
+     * 异常情况：商家不存在时 getById 抛 BusinessException。
      */
     @Override
     @Transactional
@@ -628,35 +376,12 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【更新商家营业模式】
-     *
-     * 业务作用：
-     * 切换商家店铺的营业模式（自动/手动开门/手动关店）。
-     *
-     * 调用场景：
-     * 商家后台管理页面切换营业模式时调用。
-     *
-     * 调用链：
-     * MerchantController
-     * ↓
-     * updateStoreMode @Transactional
-     * ↓
-     * MerchantMapper.updateById + refreshStoreState（私有方法）
-     *
-     * 数据处理：
-     * 校验模式参数合法性（null 检查 + 枚举值校验），更新 store_mode，触发店铺状态重新计算。
-     *
-     * 业务规则：
-     * 仅支持 MODE_AUTO、MODE_MANUAL_OPEN、MODE_MANUAL_CLOSED 三种；非法参数直接抛异常。
-     *
-     * 状态影响：
-     * store_mode 更新；store_status 根据新模式重新计算。
-     *
      * 事务边界：
      * 模式更新 + 店铺刷新在同一事务中。
      *
-     * 异常情况：
-     * storeMode 为 null 或无效枚举值时抛 BusinessException。
+     * 业务作用：切换商家店铺的营业模式（自动/手动开门/手动关店）。
+     * 业务规则：仅支持 MODE_AUTO、MODE_MANUAL_OPEN、MODE_MANUAL_CLOSED 三种；非法参数直接抛异常。
+     * 异常情况：storeMode 为 null 或无效枚举值时抛 BusinessException。
      */
     @Override
     @Transactional
@@ -678,32 +403,11 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【刷新指定商家店铺营业状态】
-     *
-     * 业务作用：
-     * 根据商家审核状态、营业模式、营业时间配置重新计算当前店铺营业状态。
-     *
-     * 调用场景：
-     * BusinessHoursService 在营业时间变更时触发；审核通过/驳回后调用。
-     *
-     * 调用链：
-     * BusinessHoursService / 审核方法
-     * ↓
-     * refreshStoreState @Transactional
-     * ↓
-     * refreshStoreState(merchant, now) → resolveStoreStatus → keeperService.syncMerchantStoreStatus
-     *
-     * 数据处理：
-     * 查询商家信息，计算营业状态，若不一致则更新 DB 并同步看护者。
-     *
-     * 业务规则：
-     * 状态变化时才更新 DB；变化时同步通知旗下所有看护者上线/下线。
-     *
-     * 状态影响：
-     * 可能更新 store_status；可能同步变更旗下看护者在线状态。
-     *
      * 事务边界：
      * DB 更新 + 看护者同步在同一事务中。
+     *
+     * 业务作用：根据商家审核状态、营业模式、营业时间配置重新计算当前店铺营业状态。
+     * 业务规则：状态变化时才更新 DB；变化时同步通知旗下所有看护者上线/下线。
      */
     @Override
     @Transactional
@@ -713,32 +417,9 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【批量刷新所有商家店铺营业状态】
-     *
-     * 业务作用：
-     * 遍历所有已审核通过的商家，逐个计算当前时间点的营业状态。
-     *
-     * 调用场景：
-     * MerchantStoreSyncScheduler 定时任务每分钟执行一次。
-     *
-     * 调用链：
-     * MerchantStoreSyncScheduler
-     * ↓
-     * refreshAllStoreStates @Transactional
-     * ↓
-     * 循环 → refreshStoreState(merchant, now)
-     *
-     * 数据处理：
-     * 查询所有已审核通过且未逻辑删除的商家，逐个调用 refreshStoreState。
-     *
-     * 业务规则：
-     * 仅处理已审核通过且未删除的商家；仅当状态变更时才更新 DB。
-     *
-     * 状态影响：
-     * 每个状态变化的商家都会触发 store_status 更新和看护者状态同步。
-     *
-     * 注意事项：
-     * 商家数量多时可能耗时较长，注意定时任务频率。
+     * 业务作用：遍历所有已审核通过的商家，逐个计算当前时间点的营业状态。
+     * 业务规则：仅处理已审核通过且未删除的商家；仅当状态变更时才更新 DB。
+     * 注意事项：商家数量多时可能耗时较长，注意定时任务频率。
      */
     @Override
     @Transactional
@@ -754,29 +435,8 @@ public class MerchantServiceImpl implements MerchantService {
     }
 
     /**
-     * 【校验商家所有者】
-     *
-     * 业务作用：
-     * 校验指定用户是否为指定商家的所有者，用于权限判断。
-     *
-     * 调用场景：
-     * 各业务方法中校验当前操作人是否有权管理该商家时调用。
-     *
-     * 调用链：
-     * 各业务方法
-     * ↓
-     * isOwner
-     * ↓
-     * MerchantMapper.selectOne（按 id + user_id 联合查询）
-     *
-     * 数据处理：
-     * 按 merchantId 和 userId 联合查询，存在匹配记录返回 true。
-     *
-     * 业务规则：
-     * 一个商家只能有一个 owner；查询不到返回 false。
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：校验指定用户是否为指定商家的所有者，用于权限判断。
+     * 业务规则：一个商家只能有一个 owner；查询不到返回 false。
      */
     @Override
     public boolean isOwner(Long merchantId, Long userId) {

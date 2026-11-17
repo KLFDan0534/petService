@@ -193,7 +193,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
-import request from '@/utils/request'
+import { getCurrentUser, updatePhone, updateEmail, updateRealName, updatePaymentPassword } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -222,11 +222,12 @@ const errors = reactive({
 })
 
 const type = computed(() => route.meta.accountType || 'phone')
+// 每一项自带提交函数：端点不同但都是 PUT /users/me/xxx，用具名 API 而不是在页面拼路径
 const configMap = {
-  phone: { en: 'Phone', title: '更改手机号', lede: '手机号将用于订单联系和账号安全通知，修改后请使用新号码登录。', endpoint: '/users/me/phone' },
-  email: { en: 'Email', title: '更改邮箱', lede: '邮箱将用于账号通知和找回密码。', endpoint: '/users/me/email' },
-  realName: { en: 'Real name', title: '实名认证', lede: '实名信息单独提交，避免在个人资料页误改。', endpoint: '/users/me/real-name' },
-  paymentPassword: { en: 'Payment password', title: '设置支付密码', lede: '支付密码仅用于你明确授权 Agent 自动支付时校验，请在支付前妥善保管。', endpoint: '/users/me/payment-password' },
+  phone: { en: 'Phone', title: '更改手机号', lede: '手机号将用于订单联系和账号安全通知，修改后请使用新号码登录。', submit: updatePhone },
+  email: { en: 'Email', title: '更改邮箱', lede: '邮箱将用于账号通知和找回密码。', submit: updateEmail },
+  realName: { en: 'Real name', title: '实名认证', lede: '实名信息单独提交，避免在个人资料页误改。', submit: updateRealName },
+  paymentPassword: { en: 'Payment password', title: '设置支付密码', lede: '支付密码仅用于你明确授权 Agent 自动支付时校验，请在支付前妥善保管。', submit: updatePaymentPassword },
 }
 const config = computed(() => configMap[type.value] || configMap.phone)
 
@@ -255,15 +256,15 @@ const current = computed(() => {
 onMounted(async () => {
   if (type.value !== 'paymentPassword') {
     try {
-      const r = await request.get('/users/me')
-      if (r.data.code === 200 && r.data.data) {
-        profile.value = r.data.data
+      const r = await getCurrentUser()
+      if (r.code === 200 && r.data) {
+        profile.value = r.data
         Object.assign(form, {
           // 手机号/邮箱都是“新号码/新邮箱”输入框，不回填旧值；后端返回的也已是脱敏值。
           phone_wsh: '',
           email_wsh: '',
-          real_name_wsh: r.data.data.real_name_wsh || '',
-          id_card_no_wsh: r.data.data.id_card_no_wsh || '',
+          real_name_wsh: r.data.real_name_wsh || '',
+          id_card_no_wsh: r.data.id_card_no_wsh || '',
         })
       }
     } catch (e) {
@@ -308,15 +309,15 @@ async function submit() {
   if (submitting.value || !validate()) return
   submitting.value = true
   try {
-    const r = await request.put(config.value.endpoint, buildPayload())
-    if (r.data.code === 200) {
+    const r = await config.value.submit(buildPayload())
+    if (r.code === 200) {
       if (type.value === 'paymentPassword') {
         if (authStore.user) {
           authStore.user = { ...authStore.user, payment_password_set_wsh: true }
           localStorage.setItem('user', JSON.stringify(authStore.user))
         }
       } else if (authStore.user) {
-        authStore.user = { ...authStore.user, ...r.data.data }
+        authStore.user = { ...authStore.user, ...r.data }
         localStorage.setItem('user', JSON.stringify(authStore.user))
       }
       form.payment_password_wsh = ''
@@ -324,7 +325,8 @@ async function submit() {
       appStore.addToast('保存成功', 'success')
       done.value = true
     } else {
-      appStore.addToast(r.data.message || '保存失败', 'error')
+      // r 是 Result 信封，业务错误文案在 r.message（不是 r.data.message）
+      appStore.addToast(r.message || '保存失败', 'error')
     }
   } catch (e) {
     appStore.addToast(e.response?.data?.message || '保存失败', 'error')
@@ -348,7 +350,7 @@ async function submit() {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ae-crumb {
   display: flex;
   align-items: center;
@@ -362,7 +364,7 @@ async function submit() {
 .ae-crumb-sep { color: var(--ref-line); }
 .ae-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .ae-eyebrow {
   display: flex;
   align-items: center;
@@ -376,7 +378,7 @@ async function submit() {
 .ae-idx { font-variant-numeric: tabular-nums; }
 .ae-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .ae-head { padding: 40px 0 8px; }
 .ae-head-copy { min-width: 0; }
 .ae-title {
@@ -397,7 +399,7 @@ async function submit() {
   color: color-mix(in srgb, var(--ref-ink-soft) 82%, transparent);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .ae-section { margin-top: 40px; }
 .ae-sec-eyebrow { font-size: 10px; letter-spacing: 0.22em; }
 .ae-sec-title {
@@ -410,7 +412,7 @@ async function submit() {
   color: var(--ref-ink);
 }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .ae-skel {
   margin-top: 20px;
   max-width: 620px;
@@ -422,7 +424,7 @@ async function submit() {
   animation: ae-shimmer 1.3s linear infinite;
 }
 
-/* ═══ Success ═══ */
+/* Success */
 .ae-success {
   margin-top: 20px;
   max-width: 620px;
@@ -459,7 +461,7 @@ async function submit() {
 }
 .ae-success-actions { margin-top: 26px; }
 
-/* ═══ Panel ═══ */
+/* Panel */
 .ae-panel {
   margin-top: 20px;
   max-width: 620px;
@@ -506,7 +508,7 @@ async function submit() {
   color: var(--ref-muted);
 }
 
-/* ═══ Fields ═══ */
+/* Fields */
 .ae-fields { display: grid; gap: 20px; }
 .ae-field { display: grid; gap: 8px; }
 .ae-label {
@@ -536,7 +538,7 @@ async function submit() {
 .ae-hint { margin: 0; font-size: 12px; color: var(--ref-muted); }
 .ae-error { margin: 0; font-size: 12px; color: var(--color-danger, #ef4444); }
 
-/* ═══ Actions ═══ */
+/* Actions */
 .ae-actions {
   display: flex;
   flex-wrap: wrap;
@@ -547,7 +549,7 @@ async function submit() {
   border-top: 1px solid var(--ref-line);
 }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -574,10 +576,10 @@ async function submit() {
 }
 .cta-quiet:hover { color: var(--ref-ink); }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes ae-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 520px) {
   .ae-shell { padding: 0 16px; }
   .ae-head { padding: 30px 0 4px; }

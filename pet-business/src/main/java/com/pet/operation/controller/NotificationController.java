@@ -1,6 +1,5 @@
 package com.pet.operation.controller;
 
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,22 +35,7 @@ public class NotificationController {
     private final UserMapper userMapper;
 
     /**
-     * 【构造通知控制器】
-     *
-     * 业务作用：注入通知业务服务与用户 Mapper。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 notificationService / userMapper 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖均为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：userMapper 仅用于管理员列表批量回填用户昵称。
      */
     public NotificationController(NotificationService notificationService, UserMapper userMapper) {
@@ -210,22 +194,8 @@ public class NotificationController {
     }
 
     /**
-     * 【通知实体转DTO】
-     *
      * 业务作用：把通知实体转换为对外 DTO。
-     *
-     * 调用场景：list 与 adminList 返回前。
-     *
-     * 调用链：list() / adminList() → toDTO()。
-     *
-     * 数据处理：拷贝 ID、接收用户 ID、标题、内容、类型、已读标记、关联业务 ID、创建时间。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：入参为 null 时会空指针，调用方均保证非空。
-     *
      * 注意事项：user_name_wsh 不在本方法填充，管理员列表由 fillUserName 单独补齐。
      */
     private NotificationDTO toDTO(Notification entity) {

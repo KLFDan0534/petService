@@ -39,47 +39,14 @@ import java.util.List;
 public class CouponController {
     private final CouponService couponService;
 
-    /**
-     * 【优惠券控制器构造注入】
-     *
-     * 业务作用：注入优惠券业务服务。
-     *
-     * 调用场景：Spring 容器创建 CouponController 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 couponService。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public CouponController(CouponService couponService) {
+        public CouponController(CouponService couponService) {
         this.couponService = couponService;
     }
 
     /**
-     * 【管理员查询全部优惠券模板】
-     *
      * 业务作用：返回所有优惠券模板，供后台管理。
-     *
-     * 调用场景：后台优惠券模板管理页。
-     *
-     * 调用链：GET /api/coupons/templates → listTemplates() → couponService.listTemplates(false)。
-     *
-     * 数据处理：以 activeOnly=false 调用服务层查询全部模板并包装为 Result。
-     *
      * 业务规则：需 ADMIN 角色。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：无权限由 @PreAuthorize 拦截返回 403。
-     *
-     * 注意事项：无。
      */
     @GetMapping("/templates")
     @PreAuthorize("hasRole('ADMIN')")
@@ -94,22 +61,9 @@ public class CouponController {
     }
 
     /**
-     * 【查询可领取的优惠券模板】
-     *
      * 业务作用：返回当前生效可领取的模板列表，供用户领取页展示。
-     *
-     * 调用场景：用户进入领券中心。
-     *
-     * 调用链：GET /api/coupons/templates/active → listActiveTemplates() → couponService.listTemplates(true)。
-     *
-     * 数据处理：以 activeOnly=true 调用服务层过滤后包装为 Result。
-     *
      * 业务规则：需登录。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：未登录返回 401，无权限返回 403。
-     *
      * 注意事项：生效判定在服务层实现，控制器不做额外过滤。
      */
     @GetMapping("/templates/active")
@@ -125,22 +79,9 @@ public class CouponController {
     }
 
     /**
-     * 【管理员创建优惠券模板】
-     *
      * 业务作用：创建新的优惠券模板并返回模板详情。
-     *
-     * 调用场景：后台新增优惠券活动。
-     *
-     * 调用链：POST /api/coupons/templates → createTemplate() → couponService.createTemplate() → toTemplateDTO()。
-     *
-     * 数据处理：取当前登录用户 ID 作为创建人，交给服务层落库后把实体转换为 DTO。
-     *
      * 业务规则：需 ADMIN 角色；请求体经 @Valid 校验。
-     *
-     * 状态影响：新增优惠券模板记录（由服务层写入）。
-     *
      * 异常情况：参数校验失败返回 400；无权限返回 403。
-     *
      * 注意事项：控制器只做参数透传与 DTO 转换，业务校验在服务层。
      */
     @PostMapping("/templates")
@@ -158,22 +99,9 @@ public class CouponController {
     }
 
     /**
-     * 【管理员更新模板状态】
-     *
      * 业务作用：启用或禁用指定优惠券模板，并回查最新模板信息返回。
-     *
-     * 调用场景：后台上下线优惠券活动。
-     *
-     * 调用链：POST /api/coupons/templates/{id}/status → updateStatus() → couponService.updateTemplateStatus() → couponService.listTemplates(false)。
-     *
-     * 数据处理：从请求体取 status_wsh 交给服务层更新，然后拉取全部模板并筛出该 ID 返回。
-     *
      * 业务规则：需 ADMIN 角色；请求体为空时 status 传 null 交由服务层判定。
-     *
-     * 状态影响：更新模板状态（由服务层写入）。
-     *
      * 异常情况：状态值非法由服务层抛 400；无权限返回 403。
-     *
      * 注意事项：更新后为拿到最新数据重新全量查询模板再过滤，属低效写法，且找不到时返回 null。
      */
     @PostMapping("/templates/{id}/status")
@@ -196,23 +124,9 @@ public class CouponController {
     }
 
     /**
-     * 【管理员向指定用户发券】
-     *
      * 业务作用：给指定用户发放某模板的优惠券，返回发放数量。
-     *
-     * 调用场景：后台定向发券。
-     *
-     * 调用链：POST /api/coupons/templates/{id}/grant → grantToUser() → couponService.grantToUser()。
-     *
-     * 数据处理：把操作人 ID、模板 ID 与请求体透传给服务层，返回发放条数。
-     *
      * 业务规则：需 ADMIN 角色。
-     *
-     * 状态影响：新增用户优惠券记录（由服务层写入）。
-     *
      * 异常情况：参数错误由服务层抛 400；无权限返回 403。
-     *
-     * 注意事项：无。
      */
     @PostMapping("/templates/{id}/grant")
     @PreAuthorize("hasRole('ADMIN')")
@@ -230,22 +144,9 @@ public class CouponController {
     }
 
     /**
-     * 【管理员向全部用户发券】
-     *
      * 业务作用：向所有用户发放指定模板的优惠券，返回发放数量。
-     *
-     * 调用场景：后台全量营销发券。
-     *
-     * 调用链：POST /api/coupons/templates/{id}/grant-all → grantToAll() → couponService.grantToAllUsers()。
-     *
-     * 数据处理：请求体可选，直接透传给服务层。
-     *
      * 业务规则：需 ADMIN 角色；请求体允许为空。
-     *
-     * 状态影响：批量新增用户优惠券记录（由服务层写入）。
-     *
      * 异常情况：无权限返回 403；服务层校验失败抛 400。
-     *
      * 注意事项：全量发放数据量大，耗时可能较长，注意接口超时设置。
      */
     @PostMapping("/templates/{id}/grant-all")
@@ -264,22 +165,9 @@ public class CouponController {
     }
 
     /**
-     * 【管理员按条件发券】
-     *
      * 业务作用：按注册时间、消费、订单、宠物数等条件筛选用户后定向发券。
-     *
-     * 调用场景：后台精准营销。
-     *
-     * 调用链：POST /api/coupons/templates/{id}/grant-condition → grantByCondition() → couponService.grantByCondition()。
-     *
-     * 数据处理：请求体可选，原样透传给服务层做条件筛选与发放。
-     *
      * 业务规则：需 ADMIN 角色；具体条件字段与组合规则在服务层实现。
-     *
-     * 状态影响：批量新增用户优惠券记录（由服务层写入）。
-     *
      * 异常情况：无权限返回 403；条件非法由服务层抛 400。
-     *
      * 注意事项：本方法未加 @ApiResponses 声明，接口文档中错误码不完整。
      */
     @PostMapping("/templates/{id}/grant-condition")
@@ -292,22 +180,9 @@ public class CouponController {
     }
 
     /**
-     * 【用户领取优惠券】
-     *
      * 业务作用：当前登录用户领取指定模板的优惠券并返回券详情。
-     *
-     * 调用场景：用户在领券中心点击领取。
-     *
-     * 调用链：POST /api/coupons/templates/{id}/claim → claim() → couponService.claim() → couponService.listMyCoupons()。
-     *
-     * 数据处理：服务层创建用户券后，重新查询我的优惠券列表并筛出刚领取的那条返回。
-     *
      * 业务规则：需登录；每人限领等规则由服务层校验。
-     *
-     * 状态影响：新增用户优惠券记录（由服务层写入）。
-     *
      * 异常情况：已领完/重复领取等由服务层抛 400。
-     *
      * 注意事项：领取后重新全量查询我的券再过滤，效率不高，找不到时返回 null。
      */
     @PostMapping("/templates/{id}/claim")
@@ -330,23 +205,9 @@ public class CouponController {
     }
 
     /**
-     * 【查询我的优惠券】
-     *
      * 业务作用：返回当前用户拥有的全部优惠券。
-     *
-     * 调用场景：用户「我的优惠券」页面。
-     *
-     * 调用链：GET /api/coupons/my → myCoupons() → couponService.listMyCoupons()。
-     *
-     * 数据处理：以登录用户 ID 查询后包装为 Result。
-     *
      * 业务规则：需登录。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：未登录返回 401。
-     *
-     * 注意事项：无。
      */
     @GetMapping("/my")
     @PreAuthorize("isAuthenticated()")
@@ -361,22 +222,9 @@ public class CouponController {
     }
 
     /**
-     * 【查询可用优惠券】
-     *
      * 业务作用：按商家与订单金额筛选当前用户可用的优惠券。
-     *
-     * 调用场景：下单页计算可用券。
-     *
-     * 调用链：GET /api/coupons/available → availableCoupons() → couponService.listAvailableCoupons()。
-     *
-     * 数据处理：把用户 ID、商家 ID 与订单金额透传给服务层做适用性过滤。
-     *
      * 业务规则：需登录；merchant_id_wsh 与 order_amount_wsh 为可选参数。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：未登录返回 401。
-     *
      * 注意事项：金额为空时服务层无法做门槛判断，具体降级策略在服务层。
      */
     @GetMapping("/available")
@@ -394,22 +242,9 @@ public class CouponController {
     }
 
     /**
-     * 【优惠券报价】
-     *
      * 业务作用：根据订单信息计算最优优惠券方案并返回报价。
-     *
-     * 调用场景：下单页选择优惠券后试算价格。
-     *
-     * 调用链：POST /api/coupons/quote → quote() → couponService.quote()。
-     *
-     * 数据处理：把用户 ID 与报价请求体交给服务层计算最优券与折扣。
-     *
      * 业务规则：需登录；最优券选择规则在服务层实现。
-     *
-     * 状态影响：无（纯计算，不核销券）。
-     *
      * 异常情况：未登录返回 401；参数非法由服务层抛 400。
-     *
      * 注意事项：仅试算不占用优惠券，真正核销发生在下单流程。
      */
     @PostMapping("/quote")
@@ -427,22 +262,7 @@ public class CouponController {
     }
 
     /**
-     * 【模板实体转 DTO】
-     *
      * 业务作用：把 CouponTemplate 实体按同名属性拷贝为 CouponTemplateDTO。
-     *
-     * 调用场景：createTemplate() 返回创建结果时。
-     *
-     * 调用链：createTemplate() → toTemplateDTO() → BeanUtils.copyProperties()。
-     *
-     * 数据处理：按属性名自动拷贝，不做字段裁剪或加工。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：依赖实体与 DTO 字段同名，字段改名会导致拷贝静默失效。
      */
     private CouponTemplateDTO toTemplateDTO(CouponTemplate template) {

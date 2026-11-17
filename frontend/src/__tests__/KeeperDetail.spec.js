@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
       merchant_id_wsh: 2,
       merchant_name_wsh: '测试商家',
       avatar_wsh: '',
-      price_per_day_wsh: 50,
+      unit_price_wsh: 50,
       experience_years_wsh: 3,
       current_pets_wsh: 1,
       max_pets_wsh: 3,
@@ -106,8 +106,8 @@ describe('KeeperDetail page (F-NAV-004)', () => {
     const wrapper = mountDetail()
     await flushPromises()
 
-    const button = wrapper.findAll('button').find(b => b.text().includes('查看商家'))
-    await button.trigger('click')
+    const merchantLink = wrapper.find('.kd-merchant-tag')
+    await merchantLink.trigger('click')
 
     expect(state.router.push).toHaveBeenCalledWith('/merchants/2')
   })
@@ -117,6 +117,6 @@ describe('KeeperDetail page (F-NAV-004)', () => {
     const wrapper = mountDetail()
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('联系')
+    expect(wrapper.findAll('button, a, [role="button"], [role="link"]').filter(el => el.text().includes('联系'))).toHaveLength(0)
   })
 })

@@ -5,7 +5,6 @@ import {
   type AvailabilityDay,
   type Coupon,
   type CreateOrderPayload,
-  type CreateOrdersBatchPayload,
   type Keeper,
   type Merchant,
   type Pet,
@@ -132,7 +131,7 @@ function Harness({
 }: HarnessProps) {
   const [visible, setVisible] = useState(true);
   const [message, setMessage] = useState('');
-  const [payload, setPayload] = useState<CreateOrderPayload | CreateOrdersBatchPayload | null>(null);
+  const [payload, setPayload] = useState<CreateOrderPayload | null>(null);
 
   return (
     <div className="min-h-[520px] w-full bg-canvas p-4">
@@ -186,9 +185,9 @@ const previews: ComponentPreviewModule = {
   importPath: 'components/CreateOrderDialog',
   previews: [
   {
-    name: '服务驱动 · 按天批量',
+    name: '服务驱动 · 按天单笔',
     description:
-    '按天计费的服务会进入批量模式：先选看护人解锁可预约日期，再为每只宠物排送达/接回时间。',
+    '按天计费的服务走单宠物、单订单流程：一次下单只创建一个订单、只关联一只宠物，多只宠物需分别下单；选好宠物与看护人后安排送达/接回时间。',
     render: () =>
     <Harness
       service={dayService}

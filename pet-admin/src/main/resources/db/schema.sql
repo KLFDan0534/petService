@@ -144,9 +144,9 @@ CREATE TABLE IF NOT EXISTS `pet_service_wsh` (
     `category_id_wsh` BIGINT DEFAULT NULL COMMENT '关联service_category_wsh.id_wsh',
     `description_wsh` TEXT,
     `price_wsh` DECIMAL(10, 2) NOT NULL,
-    `unit_wsh` VARCHAR(20) DEFAULT 'day' COMMENT '计费单位 day/session/hour',
-    `duration_minutes_wsh` INT COMMENT 'session/hour 单次时长(分钟)，day 为 1440',
-    `booking_mode_wsh` VARCHAR(20) DEFAULT 'date_range' COMMENT 'date_range(day)/slot(session,hour)/interval(boarding)',
+    `unit_wsh` VARCHAR(20) COMMENT 'Billing unit night/session/hour; set explicitly by application code',
+    `duration_minutes_wsh` INT COMMENT 'session/hour 单次时长(分钟)，night 为 1440',
+    `booking_mode_wsh` VARCHAR(20) COMMENT 'interval(night)/slot(session, hour); derived from BookingUnit.bookingMode()',
     `images_wsh` TEXT,
     `status_wsh` TINYINT DEFAULT 1 COMMENT '0-offline 1-online',
     `deleted_wsh` TINYINT DEFAULT 0,
@@ -167,10 +167,10 @@ CREATE TABLE IF NOT EXISTS `pet_order_wsh` (
     `service_id_wsh` BIGINT,
     `start_date_wsh` DATE NOT NULL,
     `end_date_wsh` DATE NOT NULL COMMENT '最后一个服务日期（含离店日，非排他边界）',
-    `days_wsh` INT NOT NULL COMMENT '按天显示数量：day=计费数量（含离店日），session/hour=1',
+    `days_wsh` INT NOT NULL COMMENT '兼容展示投影：night=夜数，session/hour=1；不参与计价',
     `price_per_day_wsh` DECIMAL(10, 2) NOT NULL COMMENT '兼容投影，= unit_price_wsh',
-    `billing_unit_wsh` VARCHAR(20) DEFAULT 'day' COMMENT '计费单位快照 day/session/hour/boarding',
-    `quantity_wsh` INT DEFAULT 1 COMMENT '计费数量：day=天数，session/hour=槽位数',
+    `billing_unit_wsh` VARCHAR(20) COMMENT 'Billing unit frozen at order creation; historical orders may keep confirmed legacy snapshot values',
+    `quantity_wsh` INT DEFAULT 1 COMMENT 'Billing quantity: night = nights / session = 1 / hour = slot count',
     `unit_price_wsh` DECIMAL(10, 2) COMMENT '单价快照(每个计费单位)',
     `duration_minutes_wsh` INT COMMENT '下单时单个单位时长快照(分钟)',
     `total_amount_wsh` DECIMAL(10, 2) NOT NULL,
@@ -908,6 +908,20 @@ CREATE TABLE IF NOT EXISTS `ai_chat_history_wsh` (
     INDEX `idx_aichat_user_session` (`user_id_wsh`, `session_id_wsh`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 聊天记录';
 
+-- 智能下单多轮会话状态：一行一个会话，state_json_wsh 存完整结构化状态（意图/方案/状态/日志）
+-- 空会话不入库：首条消息处理成功后才会插入本表
+CREATE TABLE IF NOT EXISTS `agent_session_wsh` (
+    `session_id_wsh` VARCHAR(64) NOT NULL COMMENT '会话ID（复用 ai_chat_history_wsh.session_id_wsh）',
+    `user_id_wsh` BIGINT NOT NULL COMMENT '用户ID',
+    `title_wsh` VARCHAR(200) COMMENT '会话标题（首条用户输入截断）',
+    `state_json_wsh` TEXT COMMENT '结构化会话状态 JSON',
+    `status_wsh` VARCHAR(20) NOT NULL DEFAULT 'COLLECTING' COMMENT 'COLLECTING/AWAIT_CONFIRM/CONFIRMED',
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`session_id_wsh`),
+    INDEX `idx_agent_session_user` (`user_id_wsh`, `updated_at_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='智能下单会话状态';
+
 CREATE TABLE IF NOT EXISTS `ai_config_wsh` (
     `id_wsh` BIGINT AUTO_INCREMENT PRIMARY KEY,
     `name_wsh` VARCHAR(100) COMMENT '配置名称',
@@ -929,3 +943,61 @@ ALTER TABLE `keeper_leave_wsh` ADD COLUMN `status_wsh` VARCHAR(20) NOT NULL DEFA
 ALTER TABLE `ticket_message_wsh` ADD COLUMN `file_url_wsh` VARCHAR(500) COMMENT '图片附件URL' AFTER `content_wsh`;
 ALTER TABLE `ticket_message_wsh` ADD COLUMN `is_read_wsh` TINYINT COMMENT '是否已读 0-否 1-是' AFTER `file_url_wsh`;
 ALTER TABLE `wallet_transaction_wsh` ADD COLUMN `operator_id_wsh` BIGINT COMMENT '操作人用户ID，仅管理员调账时记录' AFTER `request_id_wsh`;
+
+-- ===========================================================================
+-- 迁移台账 + v6 商品媒体表基线
+--
+-- 为什么必须放在初始化脚本里：
+--   ProductMediaMigrationReadiness 在 MySQL 环境下断言
+--   「migration_ledger_wsh 记录了 v6_service_product_media」且「pet_service_media_wsh 存在」，
+--   任一不满足即抛 IllegalStateException 阻止启动（有意的 fail-fast）。
+--   本文件是 compose 挂载的唯一初始化脚本，它必须自带这两个对象的最终结构，
+--   否则全新环境初始化后后端必然启动失败。
+--
+-- 幂等性：
+--   CREATE TABLE IF NOT EXISTS + INSERT IGNORE，重复执行不会报错、不会覆盖已有台账记录。
+--   注意 MySQL 的 docker-entrypoint-initdb.d 只在数据目录为空时执行，
+--   因此本段对已存在的数据库不会产生任何影响。
+-- ===========================================================================
+
+-- 数据库迁移台账：一行一个已应用的迁移版本
+CREATE TABLE IF NOT EXISTS `migration_ledger_wsh` (
+    `version_wsh` VARCHAR(100) NOT NULL COMMENT '迁移版本号',
+    `applied_at_wsh` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '应用时间',
+    `summary_wsh` VARCHAR(1000) DEFAULT NULL COMMENT '迁移摘要',
+    PRIMARY KEY (`version_wsh`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据库迁移台账';
+
+-- 服务产品图片表（v6 迁移的结构结果）
+CREATE TABLE IF NOT EXISTS `pet_service_media_wsh` (
+    `id_wsh` BIGINT NOT NULL AUTO_INCREMENT COMMENT '图片ID',
+    `service_id_wsh` BIGINT NOT NULL COMMENT '服务产品ID(pet_service_wsh.id_wsh)',
+    `file_id_wsh` BIGINT NOT NULL COMMENT '文件记录ID(file_record_wsh.id_wsh)',
+    `sort_order_wsh` INT NOT NULL DEFAULT 0 COMMENT '排序序号(0..N 连续)',
+    `is_cover_wsh` TINYINT NOT NULL DEFAULT 0 COMMENT '是否封面: 0-否 1-是',
+    `created_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at_wsh` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id_wsh`),
+    UNIQUE KEY `uk_service_file` (`service_id_wsh`, `file_id_wsh`) COMMENT '同一服务不重复引用同一文件',
+    UNIQUE KEY `uk_service_sort` (`service_id_wsh`, `sort_order_wsh`) COMMENT '同一服务内排序唯一',
+    KEY `idx_media_file` (`file_id_wsh`) COMMENT '文件索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='服务产品图片表';
+
+-- 台账基线：本脚本已直接建出 v6 的最终结构，等价于 v6 迁移已应用。
+-- 只记录代码真正断言的这一个版本，不虚构其他迁移已应用。
+INSERT IGNORE INTO `migration_ledger_wsh` (`version_wsh`, `summary_wsh`)
+VALUES ('v6_service_product_media', '服务产品媒体表与迁移台账基线（由 schema.sql 初始化脚本直接建出）');
+
+-- ---------------------------------------------------------------------------
+-- MQ 消费幂等台账
+-- 消费端「先写通知、再 basicAck」，进程若在两步之间崩溃，Broker 会重投消息导致通知重复。
+-- (consumer_wsh, event_key_wsh) 唯一，抢占成功才处理，冲突即视为重复消费。
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `mq_consume_log_wsh` (
+    `id_wsh` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `consumer_wsh` VARCHAR(64) NOT NULL COMMENT '消费者标识，如 complaint-process',
+    `event_key_wsh` VARCHAR(128) NOT NULL COMMENT '业务事件唯一键，如 12:resolved',
+    `created_at_wsh` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '消费时间',
+    PRIMARY KEY (`id_wsh`),
+    UNIQUE KEY `uk_consumer_event` (`consumer_wsh`, `event_key_wsh`) COMMENT '同一消费者同一事件只处理一次'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MQ 消费幂等台账';

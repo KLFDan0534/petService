@@ -3,10 +3,12 @@ package com.pet.customer.mq;
 import com.pet.common.mq.ComplaintProcessHandler;
 import com.pet.customer.entity.Complaint;
 import com.pet.customer.mapper.ComplaintMapper;
+import com.pet.customer.mapper.MqConsumeLogMapper;
 import com.pet.operation.entity.Notification;
 import com.pet.operation.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,42 +21,33 @@ public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ComplaintProcessHandlerImpl.class);
 
+    /** 消费台账里的消费者标识，与队列语义对齐 */
+    private static final String CONSUMER = "complaint-process";
+
     private final ComplaintMapper complaintMapper;
     private final NotificationService notificationService;
+    private final MqConsumeLogMapper consumeLogMapper;
 
     /**
      * 【构造方法】注入投诉 Mapper 与通知服务
      *
      * 业务作用：由 Spring 注入 ComplaintMapper 与 NotificationService，供消费投诉处理消息时查询投诉并发送通知。
-     *
-     * 调用场景：Spring 容器启动创建该 MQ 消费组件时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 两个 final 字段赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段；本类未使用 @Slf4j，而是手工声明 LoggerFactory 日志对象。
      */
     public ComplaintProcessHandlerImpl(ComplaintMapper complaintMapper,
-                                       NotificationService notificationService) {
+                                       NotificationService notificationService,
+                                       MqConsumeLogMapper consumeLogMapper) {
         this.complaintMapper = complaintMapper;
         this.notificationService = notificationService;
+        this.consumeLogMapper = consumeLogMapper;
     }
 
     /**
-     * 【业务名称】处理投诉事件
+     * 处理投诉事件
+     *
      * 业务作用：处理投诉记录，向投诉人发送站内通知。
-     * 调用场景：RabbitMQ 异步消费投诉处理消息。
-     * 调用链：handle() → selectById() → create() 通知。
-     * 数据处理：查询投诉记录 → 创建站内通知写入。
      * 业务规则：投诉ID为空或投诉不存在时静默跳过；投诉无主人时跳过。
-     * 状态影响：新增一条站内通知记录。
      * 异常情况：通知创建失败仅记录日志，不影响主流程。
      * 注意事项：异步处理，不抛异常。
      */
@@ -80,21 +73,73 @@ public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
             return;
         }
 
-        // 通知失败只记日志，不影响消息消费
+        // 幂等闸门：同一条投诉的同一个终态只允许发一次通知。
+        // 事件键用「投诉ID + 终态」，而不是单纯的投诉ID —— 万一将来允许一条投诉多次流转，
+        // 不同终态仍然各发一条，不会被误判成重复。
+        String eventKey = complaintId + ":" + complaint.getStatus_wsh();
+        if (!tryClaim(eventKey)) {
+            log.info("投诉 {} 状态 {} 的通知已发送过，跳过重复消费", complaintId, complaint.getStatus_wsh());
+            return;
+        }
+
+        // 通知失败只记日志，不影响消息消费；同时释放台账，让下次投递还能重试
         try {
             Notification notification = new Notification();
             notification.setUser_id_wsh(complaint.getOwner_id_wsh());
-            notification.setTitle_wsh("Complaint processed");
-            notification.setContent_wsh("Complaint \"" + complaint.getTitle_wsh()
-                    + "\" has been " + complaint.getStatus_wsh()
-                    + (complaint.getResult_wsh() != null ? ": " + complaint.getResult_wsh() : ""));
+            notification.setTitle_wsh("投诉处理通知");
+            notification.setContent_wsh("您的投诉「" + complaint.getTitle_wsh() + "」"
+                    + statusText(complaint.getStatus_wsh())
+                    + (complaint.getResult_wsh() != null ? "，处理结果：" + complaint.getResult_wsh() : "。"));
             notification.setType_wsh("complaint");
             notification.setRelated_id_wsh(complaintId);
             notification.setIs_read_wsh(0);
             notificationService.create(notification);
             log.info("投诉 {} 的通知已发送", complaintId);
         } catch (Exception e) {
-            log.warn("为投诉 {} 发送通知失败", complaintId, e);
+            releaseClaim(eventKey);
+            log.warn("为投诉 {} 发送通知失败，已释放幂等占位以便重投", complaintId, e);
         }
+    }
+
+    /**
+     * 抢占幂等占位。
+     *
+     * @param eventKey 业务事件键
+     * @return true 表示首次处理；false 表示已处理过
+     */
+    private boolean tryClaim(String eventKey) {
+        try {
+            consumeLogMapper.insertClaim(CONSUMER, eventKey);
+            return true;
+        } catch (DuplicateKeyException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 释放幂等占位（业务处理失败时调用，避免事件被永久判为已处理）。
+     *
+     * @param eventKey 业务事件键
+     */
+    private void releaseClaim(String eventKey) {
+        try {
+            consumeLogMapper.releaseClaim(CONSUMER, eventKey);
+        } catch (Exception e) {
+            log.warn("释放消费台账失败: consumer={}, eventKey={}", CONSUMER, eventKey, e);
+        }
+    }
+
+    /** 状态转用户可读文案；未知状态回退为「已更新」，不把内部枚举暴露给用户。 */
+    private String statusText(String status) {
+        if (status == null) {
+            return "已更新";
+        }
+        return switch (status) {
+            case "resolved" -> "已处理完成";
+            case "rejected" -> "已驳回";
+            case "processing" -> "正在处理中";
+            case "pending" -> "已受理";
+            default -> "已更新";
+        };
     }
 }

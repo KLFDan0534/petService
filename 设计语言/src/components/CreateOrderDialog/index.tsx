@@ -36,7 +36,6 @@ export function normalizeUnit(value: unknown): BookingUnit | null {
 
 /** src/domain/BookingWindow.js */
 export const AVAILABILITY_REQUEST_WINDOW_DAYS = 365;
-export const BATCH_MAX_PETS = 10;
 
 /* ---------------------------------- types --------------------------------- */
 
@@ -118,14 +117,6 @@ export interface Estimate {
   final: string;
 }
 
-export interface BatchOrderItem {
-  pet_id_wsh: number;
-  start_date_wsh: string;
-  end_date_wsh: string;
-  delivery_time_wsh: string | null;
-  pickup_time_wsh: string | null;
-}
-
 export interface CreateOrderPayload {
   pet_id_wsh: number;
   merchant_id_wsh: number;
@@ -150,24 +141,6 @@ export interface CreateOrderPayload {
   pickup_time_wsh?: string | null;
 }
 
-export interface CreateOrdersBatchPayload {
-  keeper_id_wsh: number;
-  merchant_id_wsh: number;
-  service_id_wsh: number;
-  service_version_wsh: string | null;
-  billing_unit_wsh: BookingUnit;
-  expected_unit_price_wsh: number;
-  user_coupon_id_wsh: number | null;
-  delivery_address_wsh: string;
-  delivery_location_source_wsh: string;
-  pickup_address_wsh: string;
-  pickup_location_source_wsh: string;
-  emergency_contact_name_wsh: string;
-  emergency_contact_phone_wsh: string;
-  remark_wsh: string;
-  items: BatchOrderItem[];
-}
-
 export interface OrderForm {
   pet_id_wsh: string;
   merchant_id_wsh: string;
@@ -186,14 +159,6 @@ export interface OrderForm {
   emergency_contact_phone_wsh: string;
   user_coupon_id_wsh: string;
   remark_wsh: string;
-}
-
-export interface PetRow {
-  pet_id_wsh: string;
-  delivery_date_wsh: string;
-  delivery_slot_wsh: string;
-  pickup_date_wsh: string;
-  pickup_slot_wsh: string;
 }
 
 export interface CreateOrderDialogProps {
@@ -223,7 +188,7 @@ export interface CreateOrderDialogProps {
   /** Slot for the real AmapAddressPicker; a plain text field is used otherwise. */
   addressPicker?: ReactNode;
   onClose: () => void;
-  onSubmit: (payload: CreateOrderPayload | CreateOrdersBatchPayload) => void;
+  onSubmit: (payload: CreateOrderPayload) => void;
   onNotify?: (message: string, level: 'warning' | 'error') => void;
   onMerchantChange?: (merchantId: string) => void;
   onKeeperChange?: (keeperId: string) => void;
@@ -252,16 +217,6 @@ export const EMPTY_FORM: OrderForm = {
   user_coupon_id_wsh: '',
   remark_wsh: ''
 };
-
-export function createPetRow(): PetRow {
-  return {
-    pet_id_wsh: '',
-    delivery_date_wsh: '',
-    delivery_slot_wsh: '',
-    pickup_date_wsh: '',
-    pickup_slot_wsh: ''
-  };
-}
 
 const ZERO_ESTIMATE: Estimate = {
   total: '0.00',
@@ -327,15 +282,7 @@ export function formatDistanceMeters(meters: number | null | undefined): string 
   return `${(value / 1000).toFixed(1)} 公里`;
 }
 
-function fmtAmount(value: number | string): string {
-  return Math.max(0, Number(value || 0)).toFixed(2);
-}
-
-function sumAmounts(rows: Estimate[], key: keyof Estimate): number {
-  return rows.reduce((sum, item) => sum + Number(item[key] || 0), 0);
-}
-
-/** 单只宠物按天计费的估算（含长住折扣），供单笔与批量行共用 */
+/** 单只宠物按天计费的估算（含长住折扣），供单笔下单使用 */
 export function dayEstimate(
 deliveryTime: string,
 pickupTime: string,
@@ -458,7 +405,6 @@ export function CreateOrderDialog({
   onRetryDistance
 }: CreateOrderDialogProps) {
   const [form, setForm] = useState<OrderForm>(EMPTY_FORM);
-  const [petRows, setPetRows] = useState<PetRow[]>([createPetRow()]);
   const [slotQuantity, setSlotQuantity] = useState(1);
   const [couponTouched, setCouponTouched] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -491,7 +437,6 @@ export function CreateOrderDialog({
       merchant_id_wsh: String(initialMerchantId || service?.merchant_id_wsh || ''),
       keeper_id_wsh: String(initialKeeperId || '')
     });
-    setPetRows([createPetRow()]);
     setSlotQuantity(1);
     setCouponTouched(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -508,8 +453,6 @@ export function CreateOrderDialog({
     const unit = normalizeUnit(service?.unit_wsh);
     return unit === 'session' || unit === 'hour';
   }, [availabilityEnabled, service?.booking_mode_wsh, service?.unit_wsh]);
-  /** 批量模式：服务驱动 + 按天计费（date_range）；session/hour 保持单笔 */
-  const isBatchMode = availabilityEnabled && !slotMode;
   const isHourUnit = normalizedUnit === 'hour';
 
   const unitLabel = normalizedUnit === 'hour' ? '小时' : normalizedUnit === 'session' ? '次' : '天';
@@ -564,59 +507,9 @@ export function CreateOrderDialog({
     return slots;
   }, [slotsForDate, form.pickup_date_wsh, form.delivery_date_wsh, form.delivery_slot_wsh]);
 
-  const rowPickupSlotOptions = useCallback(
-    (row: PetRow) => {
-      const slots = slotsForDate(row.pickup_date_wsh);
-      if (String(row.pickup_date_wsh) === String(row.delivery_date_wsh) && row.delivery_slot_wsh) {
-        return slots.filter((slot) => slot > row.delivery_slot_wsh);
-      }
-      return slots;
-    },
-    [slotsForDate]
-  );
-
-  const rowSlotPlaceholder = useCallback(
-    (dateValue: string) => {
-      if (!dateValue) return '请先选择送达日期';
-      if (availabilityLoading) return '正在加载时间槽位...';
-      if (slotsForDate(dateValue).length === 0) return '该日暂无可约时间';
-      return '请选择送达时间';
-    },
-    [availabilityLoading, slotsForDate]
-  );
-
   /* ------------------------------- estimates ------------------------------- */
 
-  const rowEstimate = useCallback(
-    (row: PetRow) =>
-    dayEstimate(
-      slotToDateTime(row.delivery_date_wsh, row.delivery_slot_wsh),
-      slotToDateTime(row.pickup_date_wsh, row.pickup_slot_wsh),
-      Number(price || 0)
-    ),
-    [price]
-  );
-
-  const batchBase = useMemo(
-    () => petRows.map(rowEstimate).filter((item) => Number(item.total) > 0),
-    [petRows, rowEstimate]
-  );
-
-  const batchBaseEstimate = useMemo<Estimate>(() => {
-    const total = sumAmounts(batchBase, 'total');
-    const discount = sumAmounts(batchBase, 'discount');
-    return {
-      total: fmtAmount(total),
-      discount: fmtAmount(discount),
-      couponDiscount: '0.00',
-      membershipDiscount: '0.00',
-      platformSubsidy: '0.00',
-      final: fmtAmount(total - discount)
-    };
-  }, [batchBase]);
-
   const baseEstimate = useMemo<Estimate>(() => {
-    if (isBatchMode) return batchBaseEstimate;
     if (slotMode) {
       const startDt = slotToDateTime(form.delivery_date_wsh, form.delivery_slot_wsh);
       if (!startDt) return ZERO_ESTIMATE;
@@ -644,8 +537,6 @@ export function CreateOrderDialog({
     Number(keeper?.price_per_day_wsh || price || 0);
     return dayEstimate(deliveryTime, pickupTime, dayPrice);
   }, [
-  isBatchMode,
-  batchBaseEstimate,
   slotMode,
   availabilityEnabled,
   normalizedUnit,
@@ -661,44 +552,7 @@ export function CreateOrderDialog({
   form.keeper_id_wsh]
   );
 
-  /** 优惠券报价基准：批量 = 金额最大的单（与后端券归属规则一致）；单笔 = 整单 */
-  const couponQuoteBase = useMemo(() => {
-    if (isBatchMode) {
-      if (batchBase.length === 0) return { total: 0, discount: 0 };
-      const largest = batchBase.reduce((a, b) => Number(a.total) >= Number(b.total) ? a : b);
-      return { total: Number(largest.total), discount: Number(largest.discount) };
-    }
-    return { total: Number(baseEstimate.total), discount: Number(baseEstimate.discount) };
-  }, [isBatchMode, batchBase, baseEstimate]);
-
   const estimatedAmount = useMemo<Estimate>(() => {
-    if (isBatchMode) {
-      const total = Number(batchBaseEstimate.total);
-      const discount = Number(batchBaseEstimate.discount);
-      let couponDiscount = 0;
-      if (
-      couponQuote &&
-      Number(couponQuote.total_amount_wsh || 0).toFixed(2) === couponQuoteBase.total.toFixed(2))
-      {
-        couponDiscount = Number(couponQuote.coupon_discount_wsh || 0);
-      }
-      const afterCoupon = Math.max(0, total - discount - couponDiscount);
-      let memberDiscount = 0;
-      if (
-      membershipQuote &&
-      Number(membershipQuote.base_amount_wsh || 0).toFixed(2) === afterCoupon.toFixed(2))
-      {
-        memberDiscount = Number(membershipQuote.membership_discount_wsh || 0);
-      }
-      return {
-        total: fmtAmount(total),
-        discount: fmtAmount(discount),
-        couponDiscount: fmtAmount(couponDiscount),
-        membershipDiscount: fmtAmount(memberDiscount),
-        platformSubsidy: fmtAmount(Number(couponQuote?.platform_subsidy_wsh || 0) + memberDiscount),
-        final: fmtAmount(afterCoupon - memberDiscount)
-      };
-    }
     let current = baseEstimate;
     if (
     couponQuote &&
@@ -728,7 +582,7 @@ export function CreateOrderDialog({
       };
     }
     return current;
-  }, [isBatchMode, batchBaseEstimate, couponQuoteBase, baseEstimate, couponQuote, membershipQuote]);
+  }, [baseEstimate, couponQuote, membershipQuote]);
 
   /* --------------------------------- hints --------------------------------- */
 
@@ -828,7 +682,7 @@ export function CreateOrderDialog({
     }
     // 用户未手动选择过时，自动勾选当前订单金额下最优惠的一张券
     if (!couponTouched && !form.user_coupon_id_wsh && availableCoupons.length > 0) {
-      const listingAmount = isBatchMode ? couponQuoteBase.total : Number(baseEstimate.final);
+      const listingAmount = Number(baseEstimate.final);
       const best = pickBestCoupon(availableCoupons, listingAmount);
       if (best) patch({ user_coupon_id_wsh: String(best.id_wsh) });
     }
@@ -897,7 +751,7 @@ export function CreateOrderDialog({
   };
 
   const handleKeeperSelect = (keeperId: string) => {
-    // 换看护人时清空日期槽位（可预约日期需要按看护人重新查询），保留宠物选择与行数
+    // 换看护人时清空日期槽位（可预约日期需要按看护人重新查询），保留宠物选择
     setForm((current) => ({
       ...current,
       keeper_id_wsh: keeperId,
@@ -906,15 +760,6 @@ export function CreateOrderDialog({
       pickup_date_wsh: '',
       pickup_slot_wsh: ''
     }));
-    setPetRows((rows) =>
-    rows.map((row) => ({
-      ...row,
-      delivery_date_wsh: '',
-      delivery_slot_wsh: '',
-      pickup_date_wsh: '',
-      pickup_slot_wsh: ''
-    }))
-    );
     onKeeperChange?.(keeperId);
   };
 
@@ -931,32 +776,6 @@ export function CreateOrderDialog({
 
   const handleDeliverySlotChange = (value: string) => {
     patch({ delivery_slot_wsh: value, pickup_date_wsh: '', pickup_slot_wsh: '' });
-  };
-
-  const updateRow = (index: number, next: Partial<PetRow>) => {
-    setPetRows((rows) => rows.map((row, i) => i === index ? { ...row, ...next } : row));
-  };
-
-  const handleRowDeliveryDateChange = (index: number, value: string) => {
-    setPetRows((rows) =>
-    rows.map((row, i) => {
-      if (i !== index) return row;
-      const next = { ...row, delivery_date_wsh: value, delivery_slot_wsh: '' };
-      if (next.pickup_date_wsh && next.pickup_date_wsh < value) {
-        next.pickup_date_wsh = '';
-        next.pickup_slot_wsh = '';
-      }
-      return next;
-    })
-    );
-  };
-
-  const addPetRow = () => {
-    setPetRows((rows) => rows.length >= BATCH_MAX_PETS ? rows : [...rows, createPetRow()]);
-  };
-
-  const removePetRow = (index: number) => {
-    setPetRows((rows) => rows.length <= 1 ? rows : rows.filter((_, i) => i !== index));
   };
 
   const handleCouponSelect = (value: string) => {
@@ -988,88 +807,6 @@ export function CreateOrderDialog({
     setNowTick(now);
     if (merchantLoading || keeperLoading || availabilityLoading) {
       notify('接单信息正在加载，请稍后再提交', 'warning');
-      return;
-    }
-
-    // ============ 批量模式（多宠物连续下单） ============
-    if (isBatchMode) {
-      const location = resolveDeliveryLocation();
-      if (!location) return;
-      const items: BatchOrderItem[] = [];
-      for (const row of petRows) {
-        if (
-        !row.pet_id_wsh ||
-        !row.delivery_date_wsh ||
-        !row.delivery_slot_wsh ||
-        !row.pickup_date_wsh ||
-        !row.pickup_slot_wsh)
-        {
-          notify('请为每只宠物补全送达/接回日期与时间', 'warning');
-          return;
-        }
-        if (
-        !bookableDates.includes(row.delivery_date_wsh) ||
-        !bookableDates.includes(row.pickup_date_wsh))
-        {
-          notify('所选日期不可预约，请重新选择', 'warning');
-          return;
-        }
-        const deliveryTime = new Date(slotToDateTime(row.delivery_date_wsh, row.delivery_slot_wsh));
-        const pickupTime = new Date(slotToDateTime(row.pickup_date_wsh, row.pickup_slot_wsh));
-        if (Number.isNaN(deliveryTime.getTime()) || Number.isNaN(pickupTime.getTime())) {
-          notify('请选择有效的送达/接回时间', 'warning');
-          return;
-        }
-        if (deliveryTime.getTime() < now) {
-          notify('送达时间不能早于当前时间', 'warning');
-          return;
-        }
-        if (pickupTime.getTime() <= deliveryTime.getTime()) {
-          notify('接回时间必须晚于送达时间', 'warning');
-          return;
-        }
-        const serviceDates = buildServiceDates(deliveryTime, pickupTime);
-        items.push({
-          pet_id_wsh: Number(row.pet_id_wsh),
-          start_date_wsh: serviceDates.startDate,
-          end_date_wsh: serviceDates.endDate,
-          delivery_time_wsh: toApiDateTime(
-            slotToDateTime(row.delivery_date_wsh, row.delivery_slot_wsh)
-          ),
-          pickup_time_wsh: toApiDateTime(slotToDateTime(row.pickup_date_wsh, row.pickup_slot_wsh))
-        });
-      }
-      const shared = {
-        keeper_id_wsh: Number(form.keeper_id_wsh),
-        merchant_id_wsh: Number(form.merchant_id_wsh),
-        service_id_wsh: Number(serviceId),
-        service_version_wsh: serviceVersion || null,
-        billing_unit_wsh: normalizedUnit,
-        expected_unit_price_wsh: Number(price || 0),
-        user_coupon_id_wsh: form.user_coupon_id_wsh ? Number(form.user_coupon_id_wsh) : null,
-        delivery_address_wsh: location.delivery_address_wsh,
-        delivery_location_source_wsh: location.delivery_location_source_wsh || 'amap',
-        pickup_address_wsh: location.delivery_address_wsh,
-        pickup_location_source_wsh: location.delivery_location_source_wsh || 'amap',
-        emergency_contact_name_wsh: form.emergency_contact_name_wsh,
-        emergency_contact_phone_wsh: form.emergency_contact_phone_wsh,
-        remark_wsh: form.remark_wsh
-      };
-      // 单只宠物：走单笔接口（与旧路径完全一致）；多只：批量接口
-      if (items.length === 1) {
-        const item = items[0];
-        onSubmit({
-          ...shared,
-          pet_id_wsh: item.pet_id_wsh,
-          quantity_wsh: Math.max(0, diffDays(item.start_date_wsh, item.end_date_wsh)),
-          start_date_wsh: item.start_date_wsh,
-          end_date_wsh: item.end_date_wsh,
-          delivery_time_wsh: item.delivery_time_wsh,
-          pickup_time_wsh: item.pickup_time_wsh
-        } as CreateOrderPayload);
-        return;
-      }
-      onSubmit({ ...shared, items } as CreateOrdersBatchPayload);
       return;
     }
 
@@ -1242,26 +979,7 @@ export function CreateOrderDialog({
           {/* ============ 第一步：宠物与看护人 ============ */}
           {stepTitle(1, '宠物与看护人')}
 
-          {/* 批量模式：看护人优先选择（解锁后续日期），宠物在每行内选择 */}
-          {isBatchMode ?
-          <label className={FIELD}>
-              看护人
-              <select
-              className={CONTROL}
-              value={form.keeper_id_wsh}
-              disabled={!form.merchant_id_wsh || keeperLoading || keepers.length === 0}
-              onChange={(event) => handleKeeperSelect(event.target.value)}>
-              
-                <option value="">{keeperSelectPlaceholder}</option>
-                {keepers.map((keeper) =>
-              <option key={String(keeper.id_wsh)} value={String(keeper.id_wsh)}>
-                    {keeperOptionLabel(keeper)}
-                  </option>
-              )}
-              </select>
-              <span className={HINT}>{keeperHint}</span>
-            </label> :
-
+          {/* 单宠物、单订单：一次下单只创建一个订单、只关联一只宠物 */}
           <label className={FIELD}>
               宠物
               <select
@@ -1273,7 +991,6 @@ export function CreateOrderDialog({
                 {petOptions}
               </select>
             </label>
-          }
 
           {/* 服务模式：商家只读展示 / 非服务模式：商家可选 */}
           {serviceId ?
@@ -1308,8 +1025,7 @@ export function CreateOrderDialog({
             </label>
           }
 
-          {/* 单宠物模式：看护人 */}
-          {!isBatchMode ?
+          {/* 看护人 */}
           <label className={FIELD}>
               看护人
               <select
@@ -1326,132 +1042,12 @@ export function CreateOrderDialog({
               )}
               </select>
               <span className={HINT}>{keeperHint}</span>
-            </label> :
-          null}
+            </label>
 
           {/* ============ 第二步：预约时间 ============ */}
           {stepTitle(2, '预约时间')}
 
-          {isBatchMode ?
-          <>
-              {petRows.map((row, index) =>
-            <div
-              key={index}
-              className="col-span-full grid grid-cols-1 gap-3.5 rounded-card border border-line bg-surface p-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              
-                  <div className="col-span-full flex items-center justify-between text-meta font-semibold text-muted">
-                    <span>
-                      宠物 <span data-numeric="true">{index + 1}</span>
-                    </span>
-                    {petRows.length > 1 ?
-                <button
-                  type="button"
-                  className={`${BTN_OUTLINE} font-normal`}
-                  onClick={() => removePetRow(index)}>
-                  
-                        移除
-                      </button> :
-                null}
-                  </div>
-                  <label className={FIELD}>
-                    宠物
-                    <select
-                  className={CONTROL}
-                  value={row.pet_id_wsh}
-                  onChange={(event) => updateRow(index, { pet_id_wsh: event.target.value })}>
-                  
-                      <option value="">请选择宠物</option>
-                      {petOptions}
-                    </select>
-                  </label>
-                  <label className={FIELD}>
-                    送达日期
-                    <input
-                  type="date"
-                  className={CONTROL}
-                  value={row.delivery_date_wsh}
-                  min={minDate()}
-                  max={maxDate()}
-                  disabled={availabilityLoading || bookableDates.length === 0}
-                  onChange={(event) => handleRowDeliveryDateChange(index, event.target.value)} />
-                
-                  </label>
-                  <label className={FIELD}>
-                    送达时间
-                    <select
-                  className={CONTROL}
-                  value={row.delivery_slot_wsh}
-                  disabled={
-                  !row.delivery_date_wsh || slotsForDate(row.delivery_date_wsh).length === 0
-                  }
-                  onChange={(event) =>
-                  updateRow(index, {
-                    delivery_slot_wsh: event.target.value,
-                    pickup_date_wsh: '',
-                    pickup_slot_wsh: ''
-                  })
-                  }>
-                  
-                      <option value="">{rowSlotPlaceholder(row.delivery_date_wsh)}</option>
-                      {slotsForDate(row.delivery_date_wsh).map((slot) =>
-                  <option key={slot} value={slot}>
-                          {displaySlot(slot)}
-                        </option>
-                  )}
-                    </select>
-                  </label>
-                  <label className={FIELD}>
-                    接回日期
-                    <input
-                  type="date"
-                  className={CONTROL}
-                  value={row.pickup_date_wsh}
-                  min={row.delivery_date_wsh || minDate()}
-                  max={maxDate()}
-                  disabled={
-                  !row.delivery_date_wsh || availabilityLoading || bookableDates.length === 0
-                  }
-                  onChange={(event) =>
-                  updateRow(index, {
-                    pickup_date_wsh: event.target.value,
-                    pickup_slot_wsh: ''
-                  })
-                  } />
-                
-                  </label>
-                  <label className={FIELD}>
-                    接回时间
-                    <select
-                  className={CONTROL}
-                  value={row.pickup_slot_wsh}
-                  disabled={!row.pickup_date_wsh || rowPickupSlotOptions(row).length === 0}
-                  onChange={(event) => updateRow(index, { pickup_slot_wsh: event.target.value })}>
-                  
-                      <option value="">{rowSlotPlaceholder(row.pickup_date_wsh)}</option>
-                      {rowPickupSlotOptions(row).map((slot) =>
-                  <option key={slot} value={slot}>
-                          {displaySlot(slot)}
-                        </option>
-                  )}
-                    </select>
-                  </label>
-                </div>
-            )}
-              <div className="col-span-full flex flex-wrap items-center gap-3">
-                <button
-                type="button"
-                className={BTN_OUTLINE}
-                disabled={petRows.length >= BATCH_MAX_PETS}
-                onClick={addPetRow}>
-                
-                  {petRows.length >= BATCH_MAX_PETS ?
-                `最多可添加 ${BATCH_MAX_PETS} 只宠物` :
-                '+ 添加宠物'}
-                </button>
-                <span className={HINT}>{availabilityHint}</span>
-              </div>
-            </> :
-          availabilityEnabled ?
+          {availabilityEnabled ?
           <>
               <label className={FIELD}>
                 送达日期

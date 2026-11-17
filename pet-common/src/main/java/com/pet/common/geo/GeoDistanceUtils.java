@@ -3,51 +3,16 @@ package com.pet.common.geo;
 import java.math.BigDecimal;
 
 /**
- * 【地理坐标距离计算工具】
- *
- * 业务作用：
- * 基于 Haversine 公式计算两个 GPS 坐标点之间的球面距离。
- * 用于商家/看护者位置搜索中按距离排序和筛选。
- *
- * 调用场景：
- * 用户搜索附近商家时，计算用户位置与商家位置的距离。
- *
- * 调用链：
- * MerchantService.searchNearby()
- *   ↓
- * GeoDistanceUtils.distanceMeters()
- *
- * 数据处理：
- * - 输入：两个坐标点的经纬度（支持 BigDecimal 和 double 两种入参）
- * - 输出：两点之间的球面距离，单位为米
- * - 算法：Haversine 公式，地球半径 6371km
- *
- * 注意事项：
- * - 适用于短距离和中距离计算，精度约 0.5%
- * - 不适合极地地区的距离计算
- * - 计算前建议先用 isValidCoordinate 校验坐标合法性
+ * 业务作用：基于 Haversine 公式计算两个 GPS 坐标点之间的球面距离。 用于商家/看护者位置搜索中按距离排序和筛选。
+ * 注意事项：- 适用于短距离和中距离计算，精度约 0.5% - 不适合极地地区的距离计算 - 计算前建议先用 isValidCoordinate 校验坐标合法性
  */
 public final class GeoDistanceUtils {
 
     private static final double EARTH_RADIUS_METERS = 6371000.0;
 
     /**
-     * 【地理距离工具类私有构造器】
-     *
      * 业务作用：阻止实例化，保证该类只以静态方法形式使用。
-     *
-     * 调用场景：无；工具类不会被实例化。
-     *
-     * 调用链：无。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：工具类不允许创建实例。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：地球半径常量固定为 6371000 米，与 Haversine 公式配套。
      */
     private GeoDistanceUtils() {

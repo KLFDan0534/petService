@@ -29,7 +29,7 @@
             </span>
             <span class="oc-meta-item oc-tabular">
               {{ formatDayRange(order.start_date_wsh, order.end_date_wsh) }}
-              <span v-if="nights > 0" class="oc-muted">· {{ nights }} 晚</span>
+              <span v-if="nights > 0" class="oc-muted">· {{ nights }} 夜</span>
             </span>
           </div>
 
@@ -133,7 +133,7 @@ import { useRouter } from 'vue-router'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 import { formatPaymentTimeoutRemaining, getPaymentTimeoutRemaining } from '@/utils/orderPaymentTimeout'
 import { billingText } from '@/domain/BookingUnit'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, formatMoney } from '@/utils/format'
 
 const props = defineProps({
   order: { type: Object, required: true },
@@ -144,7 +144,7 @@ defineEmits(['cancel', 'pay', 'review', 'tip', 'viewDetail'])
 
 const router = useRouter()
 
-/* ── 状态与语气 ── */
+/* 状态与语气 */
 // 每个状态配一句中文和一个语气色，语气色决定徽章长什么样
 const STATUS_META = {
   pending: { label: '待付款', tone: 'action' },
@@ -182,7 +182,7 @@ function statusToneClass(tone) {
   }[tone] || 'oc-tone-closed'
 }
 
-/* ── 展示字段 ── */
+/* 展示字段 */
 const serviceName = computed(() => props.order.service_name_wsh || '宠物寄养服务')
 const petName = computed(() => props.order.pet_name_wsh || `宠物 #${props.order.pet_id_wsh ?? '-'}`)
 const merchantName = computed(() => props.order.merchant_name_wsh || `商家 #${props.order.merchant_id_wsh ?? '-'}`)
@@ -223,7 +223,7 @@ function parseImages(raw) {
   return trimmed.split(',').map(s => s.trim()).filter(Boolean)
 }
 
-/* ── 支付倒计时 ── */
+/* 支付倒计时 */
 // 只有待付款订单才算剩余时间，其它状态给 null，倒计时那一块就不显示
 const paymentRemaining = computed(() => props.order.status_wsh === 'pending' ? getPaymentTimeoutRemaining(props.order, props.nowMs) : null)
 const showPaymentCountdown = computed(() => paymentRemaining.value != null)
@@ -237,11 +237,7 @@ function rebook() {
   }
 }
 
-/* ── 工具 ── */
-function formatMoney(value) {
-  const n = Number(value || 0)
-  return Number.isFinite(n) ? n.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : '0.00'
-}
+/* 工具 */
 // 为什么把年份截掉？列表里的订单都是近期的，带上年份一行就放不下了
 function formatDayRange(start, end) {
   const compact = (value) => {

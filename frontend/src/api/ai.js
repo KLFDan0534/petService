@@ -12,12 +12,6 @@ export async function getBoardingReport(data) {
   return res.data
 }
 
-// 按订单号取这份寄养报告，用户端详情页展示用
-export async function getAIReprot(orderId) {
-  const res = await request.get(`/ai/reports/order/${orderId}`)
-  return res.data
-}
-
 // 拿问题去知识库问答，回答里会带上引用的原文
 export async function askRag(data) {
   const res = await request.post('/api/rag/ask', data)
@@ -67,13 +61,31 @@ export async function aiChat(data) {
   return res.data
 }
 
-// 让 AI 先出一份办事计划，这一步只是商量，还不会真动手
-export async function executeAgentPlan(data) {
-  const res = await request.post('/api/agent/plan', data)
+// 智能下单：发一句话。不带 session_id 就是首轮，服务端成功后才会建会话
+export async function sendAgentMessage(data) {
+  const res = await request.post('/api/agent/message', data)
   return res.data
 }
 
-// 用户点了确认才走这个，上一步那份计划这时才真的执行
+// 智能下单：我聊过的会话（只含说过话的会话，空会话不入库）
+export async function listAgentSessions() {
+  const res = await request.get('/api/agent/sessions')
+  return res.data
+}
+
+// 智能下单：恢复一个会话的消息与当前方案卡片
+export async function getAgentSession(sessionId) {
+  const res = await request.get(`/api/agent/sessions/${sessionId}`)
+  return res.data
+}
+
+// 智能下单：删掉一个会话（不影响已创建的订单）
+export async function deleteAgentSession(sessionId) {
+  const res = await request.delete(`/api/agent/sessions/${sessionId}`)
+  return res.data
+}
+
+// 用户点了确认才走这个，这时才真的建订单（可选自动支付）
 export async function executeAgentConfirm(data) {
   const res = await request.post('/api/agent/confirm', data)
   return res.data
@@ -138,6 +150,3 @@ export async function clearAiChatSession(sessionId) {
   const res = await request.delete(`/ai/history/sessions/${sessionId}`)
   return res.data
 }
-
-
-

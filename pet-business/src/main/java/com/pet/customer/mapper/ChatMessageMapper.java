@@ -17,10 +17,9 @@ import java.util.Map;
 public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     /**
-     * 【业务名称】查询会话列表（每个对端最近一条消息）
+     * 查询会话列表（每个对端最近一条消息）
+     *
      * 业务作用：为当前用户列出所有会话，返回每个对端的最近一条消息。
-     * 调用场景：聊天会话列表页/客服工作台。
-     * 数据处理：按对端用户分组取最新一条消息，按消息ID倒序。
      */
     @Select("SELECT cm.* FROM chat_message_wsh cm "
             + "WHERE cm.deleted_wsh = 0 AND cm.id_wsh IN ( "
@@ -31,7 +30,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     List<ChatMessage> selectConversations(@Param("userId") Long userId);
 
     /**
-     * 【业务名称】按发送方统计未读数
+     * 按发送方统计未读数
      * 业务作用：统计当前用户从每个对端收到的未读消息数。
      * 调用场景：会话列表展示未读角标。
      * 返回：Map 包含 from_user_id_wsh 与 unread_count 两个键。

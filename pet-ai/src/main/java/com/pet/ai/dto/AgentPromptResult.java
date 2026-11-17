@@ -32,7 +32,7 @@ public class AgentPromptResult {
     @JsonProperty("nights")
     private Integer nights;
 
-    /** 旧字段：寄养天数。仅为兼容旧提示词保留，读取时优先使用 nights */
+    /** 旧提示词兼容字段（寄养天数），不参与计价；服务端优先使用 nights / max_price_per_night */
     @JsonProperty("days")
     private Integer days;
 
@@ -44,11 +44,11 @@ public class AgentPromptResult {
     @JsonProperty("max_price_per_night")
     private BigDecimal maxPricePerNight;
 
-    /** 旧字段：每日价格上限。仅为兼容旧提示词保留 */
+    /** 旧提示词兼容字段（每日价格上限），不参与计价；服务端优先使用 max_price_per_night */
     @JsonProperty("max_price_per_day")
     private BigDecimal maxPricePerDay;
 
-    /** 计费单位：night / session / hour，未明确为 null（服务端默认按 night 处理） */
+    /** 计费单位：night / session / hour，未明确为 null；服务端必须用 BookingUnit 校验，不接受静默默认值 */
     @JsonProperty("unit")
     private String unit;
 }

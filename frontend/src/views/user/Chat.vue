@@ -447,7 +447,7 @@ onBeforeUnmount(() => {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ch-crumb {
   display: flex;
   align-items: center;
@@ -461,7 +461,7 @@ onBeforeUnmount(() => {
 .ch-crumb-sep { color: var(--ref-line); }
 .ch-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .ch-eyebrow {
   display: flex;
   align-items: center;
@@ -475,7 +475,7 @@ onBeforeUnmount(() => {
 .ch-idx { font-variant-numeric: tabular-nums; }
 .ch-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .ch-head {
   display: flex;
   flex-wrap: wrap;
@@ -525,7 +525,7 @@ onBeforeUnmount(() => {
 }
 .ch-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -549,7 +549,7 @@ onBeforeUnmount(() => {
 .cta-outline:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 .cta.ch-send { height: 40px; padding: 0 16px; flex: 0 0 auto; }
 
-/* ═══ Section ═══ */
+/* Section */
 .ch-section { margin-top: 40px; }
 .ch-sec-head {
   display: flex;
@@ -576,7 +576,7 @@ onBeforeUnmount(() => {
   opacity: 0.8;
 }
 
-/* ═══ 两栏布局 ═══ */
+/* 两栏布局 */
 .ch-grid {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -664,7 +664,7 @@ onBeforeUnmount(() => {
   color: var(--ref-muted);
 }
 
-/* ═══ 对话面板 ═══ */
+/* 对话面板 */
 .ch-pane {
   border: 1px solid var(--ref-line);
   border-radius: var(--radius-lg);
@@ -775,7 +775,7 @@ onBeforeUnmount(() => {
   color: var(--ref-muted);
 }
 
-/* ═══ 输入区 ═══ */
+/* 输入区 */
 .ch-composer {
   border-top: 1px solid var(--ref-line);
   background: color-mix(in srgb, var(--ref-cream) 40%, transparent);
@@ -861,7 +861,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ref-brand) 14%, transparent);
 }
 
-/* ═══ 加载 / 空状态 ═══ */
+/* 加载 / 空状态 */
 .ch-skeletons {
   display: grid;
   gap: 12px;
@@ -921,7 +921,7 @@ onBeforeUnmount(() => {
   color: var(--ref-muted);
 }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .ch-grid { grid-template-columns: 1fr; }
   .ch-side {

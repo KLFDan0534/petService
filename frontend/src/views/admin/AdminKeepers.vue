@@ -29,9 +29,8 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { getKeepers, approveKeeper, rejectKeeper } from '@/api/keeper'
+import { getKeepers, approveKeeper, rejectKeeper, updateKeeper } from '@/api/keeper'
 import DataTable from '@/components/common/DataTable.vue'
-import request from '@/utils/request'
 
 const appStore = useAppStore()
 const keepers = ref([])
@@ -85,7 +84,7 @@ async function changeStatus(row, newStatus) {
     } else if (target === 2) {
       r = await rejectKeeper(row.id_wsh)
     } else {
-      r = await request.put(`/api/keepers/${row.id_wsh}`, { status_wsh: target })
+      r = await updateKeeper(row.id_wsh, { status_wsh: target })
     }
     if (r.code === 200) { appStore.addToast(`状态已改为${statusMap[target]}`, 'success'); loadKeepers() }
   } catch (e) { appStore.addToast('操作失败', 'error') }

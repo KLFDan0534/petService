@@ -1,5 +1,5 @@
 import axios from 'axios'
-import request from '@/utils/request'
+import { getGeoConfig } from '@/api/geo'
 
 const amapRest = axios.create({
   baseURL: 'https://restapi.amap.com/v3',
@@ -11,8 +11,8 @@ let loaderPromise
 
 async function loadGeoConfig() {
   if (!configPromise) {
-    configPromise = request.get('/api/geo/config').then(response => {
-      const data = response.data?.data || {}
+    configPromise = getGeoConfig().then(envelope => {
+      const data = envelope.data || {}
       const apiKey = data.apiKey || ''
       if (!apiKey) {
         throw new Error('未配置高德地图 key，请在 .env 写入 GAO_MAP_API_KEY')
@@ -164,7 +164,7 @@ export async function searchAmapAddress(keyword, options = {}) {
   return rankSearchResults(results, text).slice(0, limit)
 }
 
-export async function reverseGeocode(longitude, latitude) {
+async function reverseGeocode(longitude, latitude) {
   const detail = await reverseGeocodeDetail(longitude, latitude)
   return detail.address_wsh
 }

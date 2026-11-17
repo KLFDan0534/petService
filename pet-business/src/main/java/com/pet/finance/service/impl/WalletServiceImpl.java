@@ -1,6 +1,5 @@
 package com.pet.finance.service.impl;
 
-
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.finance.dto.WalletDTO;
@@ -25,22 +24,7 @@ public class WalletServiceImpl implements WalletService {
     private final WalletMapper walletMapper;
 
     /**
-     * 【构造钱包服务】
-     *
-     * 业务作用：注入钱包 Mapper。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 walletMapper 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：本类中加余额、扣余额、冻结等方法均已标记 @Deprecated，新代码应改用 AccountingService。
      */
     public WalletServiceImpl(WalletMapper walletMapper) {
@@ -48,14 +32,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】获取用户钱包（实现-自动创建）
+     * 获取用户钱包（实现-自动创建）
+     *
      * 业务作用：获取用户钱包，不存在则自动创建（余额 0，冻结金额 0）。
-     * 调用场景：用户进入钱包页、资金操作前置调用。
-     * 调用链：getByUserId() → WalletMapper.selectOne() → createWallet() → 递归调用自身 → selectOne()。
-     * 数据处理：按 user_id 精确匹配。
      * 业务规则：钱包不存在则自动创建后再次查询。
-     * 状态影响：若钱包不存在则新增一条钱包记录。
-     * 异常情况：无。
      * 注意事项：创建后再查询确保获取到完整数据。
      */
     @Override
@@ -72,15 +52,11 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】按 ID 查询钱包（实现）
+     * 按 ID 查询钱包（实现）
+     *
      * 业务作用：根据钱包 ID 查询钱包。
-     * 调用场景：后台管理查询。
-     * 调用链：getById() → WalletMapper.selectById()。
-     * 数据处理：主键查询。
      * 业务规则：不存在则抛异常。
-     * 状态影响：无。
      * 异常情况：不存在时抛出 BusinessException("钱包不存在")。
-     * 注意事项：无。
      */
     @Override
     public Wallet getById(Long id) {
@@ -91,14 +67,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】增加余额（实现-已废弃）
+     * 增加余额（实现-已废弃）
+     *
      * 业务作用：直接增加钱包余额（无流水记录）。
-     * 调用场景：已废弃。
-     * 调用链：addBalance() → WalletMapper.addBalance()。
-     * 数据处理：直接 SQL 增加 balance。
      * 业务规则：已废弃，请使用 AccountingService.credit()。
-     * 状态影响：增加钱包余额。
-     * 异常情况：无。
      * 注意事项：@Deprecated，无流水记录，不幂等。
      */
     @Transactional
@@ -110,13 +82,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】扣除余额（实现-已废弃）
+     * 扣除余额（实现-已废弃）
+     *
      * 业务作用：直接扣除钱包余额（含可用余额校验）。
-     * 调用场景：已废弃。
-     * 调用链：deductBalance() → WalletMapper.deductBalance()。
-     * 数据处理：直接 SQL 扣减 balance，校验影响行数。
      * 业务规则：已废弃，请使用 AccountingService.debit()。
-     * 状态影响：减少钱包余额。
      * 异常情况：余额不足时抛出 BusinessException("余额不足")；扣款失败时抛 BusinessException("扣款失败")。
      * 注意事项：@Deprecated，无流水记录，不幂等。
      */
@@ -136,13 +105,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】冻结金额（实现-已废弃）
+     * 冻结金额（实现-已废弃）
+     *
      * 业务作用：冻结钱包金额，将 balance 中的一部分转入 frozen_amount。
-     * 调用场景：已废弃。
-     * 调用链：freeze() → WalletMapper.freeze()。
-     * 数据处理：SQL 更新 balance 和 frozen_amount。
      * 业务规则：可用余额需足够。
-     * 状态影响：增加冻结金额，可用余额减少。
      * 异常情况：可用余额不足时抛出 BusinessException("可用余额不足")。
      * 注意事项：@Deprecated，无流水记录，不幂等。
      */
@@ -162,14 +128,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】解冻金额（实现-已废弃）
+     * 解冻金额（实现-已废弃）
+     *
      * 业务作用：解冻钱包金额，将 frozen_amount 中的指定金额释放回可用余额。
-     * 调用场景：已废弃。
-     * 调用链：unfreeze() → WalletMapper.unfreeze()。
-     * 数据处理：SQL 更新 balance 和 frozen_amount。
      * 业务规则：已废弃，请使用 AccountingService.unfreeze()。
-     * 状态影响：减少冻结金额，可用余额恢复。
-     * 异常情况：无。
      * 注意事项：@Deprecated，无流水记录，不幂等。
      */
     @Transactional
@@ -181,14 +143,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】消耗冻结金额（实现-已废弃）
+     * 消耗冻结金额（实现-已废弃）
+     *
      * 业务作用：将冻结金额从冻结区扣除，同时扣减 balance 和 frozen_amount。
-     * 调用场景：已废弃，用于提现审核通过后的最终扣款。
-     * 调用链：transferFrozenToBalance() → WalletMapper.transferFrozenToBalance()。
-     * 数据处理：SQL 同时扣减 balance 和 frozen_amount。
      * 业务规则：已废弃，请使用 AccountingService.consumeFrozen()。
-     * 状态影响：冻结金额和余额同时减少。
-     * 异常情况：无。
      * 注意事项：@Deprecated，无流水记录，不幂等。
      */
     @Transactional
@@ -200,15 +158,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】钱包转 DTO（实现）
+     * 钱包转 DTO（实现）
+     *
      * 业务作用：将钱包实体转换为 DTO，仅暴露 ID、用户 ID、余额、冻结金额、创建时间。
-     * 调用场景：对外暴露钱包信息。
-     * 调用链：toDTO() → 字段拷贝。
-     * 数据处理：字段逐一拷贝。
      * 业务规则：入参为 null 时返回 null。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public WalletDTO toDTO(Wallet entity) {
@@ -223,15 +176,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】获取所有钱包（实现）
+     * 获取所有钱包（实现）
+     *
      * 业务作用：获取所有钱包列表（按创建时间倒序，最多 1000 条）。
-     * 调用场景：管理后台查看所有用户钱包概览。
-     * 调用链：listAll() → WalletMapper.selectList()。
-     * 数据处理：按创建时间倒序，限制 1000 条。
      * 业务规则：最多返回 1000 条。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public List<Wallet> listAll() {
@@ -243,15 +191,10 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【业务名称】分页获取钱包列表（实现）
+     * 分页获取钱包列表（实现）
+     *
      * 业务作用：分页获取所有钱包，关联用户名，支持按 id / balance / created 动态排序。
-     * 调用场景：管理后台钱包列表分页。
-     * 调用链：listPage() → WalletMapper.selectWalletPage()。
-     * 数据处理：按白名单排序字段与方向分页。
      * 业务规则：支持分页参数（page/size）与排序参数（sort_by_wsh / order_wsh）；排序字段/方向均经白名单校验。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public IPage<WalletDTO> listPage(PageRequestDTO pageParam) {
@@ -264,22 +207,9 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【解析钱包排序字段】
-     *
      * 业务作用：把前端传入的排序字段名映射为 SQL 中带表别名的列名，防止 SQL 注入。
-     *
-     * 调用场景：listPage 组装分页查询参数时。
-     *
-     * 调用链：listPage() → resolveOrderColumn() → walletMapper.selectWalletPage()。
-     *
-     * 数据处理：空值或空白返回 w.created_at_wsh；id、user_id、balance 分别映射为对应列；其他未知值一律回退到 w.created_at_wsh。
-     *
      * 业务规则：只接受白名单内的四个取值。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：无，非法值静默回退而不是抛异常。
-     *
      * 注意事项：返回值直接拼进 SQL，新增排序字段时必须在此同步维护白名单。
      */
     private String resolveOrderColumn(String sortBy) {
@@ -295,22 +225,9 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * 【解析排序方向】
-     *
      * 业务作用：把前端传入的排序方向规范化为 ASC 或 DESC。
-     *
-     * 调用场景：listPage 组装分页查询参数时。
-     *
-     * 调用链：listPage() → resolveOrderDirection() → walletMapper.selectWalletPage()。
-     *
-     * 数据处理：忽略大小写比较是否为 asc，是则返回 ASC，其余一律 DESC。
-     *
      * 业务规则：默认降序。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：无，非法值静默按降序处理。
-     *
      * 注意事项：返回值直接拼进 SQL，因此只能返回两个固定字面量。
      */
     private String resolveOrderDirection(String order) {

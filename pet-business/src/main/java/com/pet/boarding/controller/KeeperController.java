@@ -13,7 +13,6 @@ import com.pet.boarding.vo.KeeperVO;
 import com.pet.common.BusinessException;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -56,22 +55,7 @@ public class KeeperController {
     private final MerchantService merchantService;
 
     /**
-     * 【构造函数：注入看护者与商家服务】
-     *
      * 业务作用：注入 KeeperService（业务）、KeeperMapper（/me 直接查实体）与 MerchantService（归属校验）。
-     *
-     * 调用场景：容器启动创建 KeeperController Bean 时自动调用。
-     *
-     * 调用链：Spring IoC → KeeperController(构造) → keeperService/keeperMapper/merchantService 字段赋值。
-     *
-     * 数据处理：仅做字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：getCurrentKeeper 绕过服务层直接用 Mapper 查询，是与其他接口不一致的地方。
      */
     public KeeperController(KeeperService keeperService, KeeperMapper keeperMapper, MerchantService merchantService) {
@@ -600,29 +584,17 @@ public class KeeperController {
     }
 
     /**
-     * 【校验当前用户是否有权修改看护者】
-     *
      * 业务作用：更新看护者前做三重身份校验：平台管理员、看护者本人、或所属商家负责人。
-     *
-     * 调用场景：update 接口在调用服务层之前调用。
-     *
-     * 调用链：KeeperController.update → assertKeeperEditable → currentToken / isAdmin / KeeperService.getById / MerchantService.isOwner。
-     *
-     * 数据处理：先取看护者实体，再依次判断管理员、本人（token.userId 与 keeper.user_id_wsh 相等）、商家负责人（merchantService.isOwner(keeper.merchant_id_wsh, token.userId)）。
-     *
      * 业务规则：三种身份满足任一即放行；token 为 null 时只能靠管理员分支（但该分支也会因 token 为 null 返回 false）。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：三种身份都不满足时抛 BusinessException(403, "No permission to update this keeper")；看护者不存在时由 keeperService.getById 抛异常。
-     *
+     * 异常情况：
+     * 三种身份都不满足时抛 BusinessException(403, "No permission to update this keeper")；看护者不存在时由 keeperService.getById 抛异常。
      * 注意事项：从 SecurityContext 重新取令牌而不是用方法参数，若安全上下文缺失会直接判为无权限。
      */
     private void assertKeeperEditable(Long keeperId) {
         JwtAuthenticationToken token = currentToken();
         var keeper = keeperService.getById(keeperId);
         // 管理员、看护者本人、所属商家负责人均可修改
-        if (isAdmin(token)) {
+        if (JwtAuthenticationToken.isAdmin(token)) {
             return;
         }
         if (token != null && token.getUserId().equals(keeper.getUser_id_wsh())) {
@@ -635,22 +607,9 @@ public class KeeperController {
     }
 
     /**
-     * 【获取当前请求的认证令牌】
-     *
      * 业务作用：从 SecurityContextHolder 取出当前认证对象，并转换为 JwtAuthenticationToken。
-     *
-     * 调用场景：assertKeeperEditable 内部调用。
-     *
-     * 调用链：assertKeeperEditable → currentToken → SecurityContextHolder.getContext().getAuthentication。
-     *
      * 数据处理：用 instanceof 模式匹配，是 JwtAuthenticationToken 则返回，否则返回 null。
-     *
      * 业务规则：匿名认证或其它认证类型统一返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：返回 null 由调用方判空，方法本身不抛异常。
      */
     private JwtAuthenticationToken currentToken() {
@@ -658,32 +617,4 @@ public class KeeperController {
         return authentication instanceof JwtAuthenticationToken jwtToken ? jwtToken : null;
     }
 
-    /**
-     * 【判断是否为平台管理员】
-     *
-     * 业务作用：遍历令牌权限，判断是否包含 ROLE_ADMIN。
-     *
-     * 调用场景：assertKeeperEditable 身份校验第一步。
-     *
-     * 调用链：assertKeeperEditable → isAdmin → JwtAuthenticationToken.getAuthorities。
-     *
-     * 数据处理：逐个比较 authority 字符串是否等于 ROLE_ADMIN，命中即返回 true。
-     *
-     * 业务规则：token 为 null 时返回 false。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：只认 ROLE_ADMIN 精确值，不做前缀或通配匹配。
-     */
-    private boolean isAdmin(JwtAuthenticationToken token) {
-        if (token == null) return false;
-        for (GrantedAuthority authority : token.getAuthorities()) {
-            if ("ROLE_ADMIN".equals(authority.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

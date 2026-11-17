@@ -42,19 +42,7 @@ public class TipController {
      * 【构造方法】注入小费服务与用户 Mapper
      *
      * 业务作用：由 Spring 注入 TipService 与 UserMapper，后者用于管理端列表填充打赏人与收款人昵称。
-     *
-     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 两个 final 字段赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段；控制器直接依赖 UserMapper 属于跨层查询，与其它控制器只依赖 Service 的写法不一致。
      */
     public TipController(TipService tipService, UserMapper userMapper) {

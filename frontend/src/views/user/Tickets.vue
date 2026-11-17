@@ -312,7 +312,7 @@ function cancelEvidence() {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .tk-crumb {
   display: flex;
   align-items: center;
@@ -326,7 +326,7 @@ function cancelEvidence() {
 .tk-crumb-sep { color: var(--ref-line); }
 .tk-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .tk-eyebrow {
   display: flex;
   align-items: center;
@@ -340,7 +340,7 @@ function cancelEvidence() {
 .tk-idx { font-variant-numeric: tabular-nums; }
 .tk-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Header ═══ */
+/* Header */
 .tk-head {
   display: flex;
   flex-wrap: wrap;
@@ -393,7 +393,7 @@ function cancelEvidence() {
 }
 .tk-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -416,7 +416,7 @@ function cancelEvidence() {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Text link ═══ */
+/* Text link */
 .text-link {
   display: inline-flex;
   align-items: center;
@@ -434,7 +434,7 @@ function cancelEvidence() {
 .tl-arrow { transition: transform 0.15s; }
 .text-link:hover .tl-arrow { transform: translateX(4px); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -466,7 +466,7 @@ function cancelEvidence() {
   border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .tk-section { margin-top: 44px; }
 .tk-sec-head {
   display: flex;
@@ -494,7 +494,7 @@ function cancelEvidence() {
   opacity: 0.8;
 }
 
-/* ═══ Body / skeleton / empty ═══ */
+/* Body / skeleton / empty */
 .tk-body { margin-top: 24px; }
 .tk-skel-stack { display: grid; gap: 14px; }
 .tk-skeleton {
@@ -523,7 +523,7 @@ function cancelEvidence() {
 .tk-empty-desc { margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: var(--ref-muted); }
 .tk-empty .cta { margin-top: 22px; }
 
-/* ═══ Cards ═══ */
+/* Cards */
 .tk-list { display: grid; gap: 14px; }
 .tk-card {
   padding: 22px 24px;
@@ -626,7 +626,7 @@ function cancelEvidence() {
   border-top: 1px solid var(--ref-line);
 }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed;
   inset: 0;
@@ -732,7 +732,7 @@ function cancelEvidence() {
 }
 .dlg-cancel:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); }
 
-/* ═══ Ticket detail ═══ */
+/* Ticket detail */
 .tk-detail-badges { display: flex; flex-wrap: wrap; gap: 8px; }
 .tk-detail-content {
   margin: 0;
@@ -793,12 +793,12 @@ function cancelEvidence() {
 .tk-evidence { display: grid; gap: 8px; }
 .tk-evidence-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes tk-shimmer { to { background-position: -200% 0; } }
 @keyframes tk-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tk-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 760px) {
   .tk-card-top { flex-direction: column; }
 }

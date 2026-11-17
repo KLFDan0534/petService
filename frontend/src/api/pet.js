@@ -27,12 +27,6 @@ export async function deletePet(id) {
   return res.data
 }
 
-// 传宠物头像，借用通用上传接口，靠 directory 参数归到 pets 目录
-export async function uploadPetAvatar(data) {
-  const res = await request.post('/api/files/upload?directory=pets', data)
-  return res.data
-}
-
 // 商家这边服务过的宠物档案，分页拉
 export async function getMerchantPets(page = 1, size = 100) {
   const res = await request.get(`/pets/merchant?page=${page}&size=${size}`)
@@ -44,6 +38,3 @@ export async function getAdminPets() {
   const res = await request.get('/api/pets/admin/all')
   return res.data
 }
-
-
-

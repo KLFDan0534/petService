@@ -86,12 +86,6 @@ export const ReviewStatus = {
   rejected: { label: '已拒绝', badge: 'badge-danger' },
 }
 
-export const ReviewSubStatus = {
-  pending: { label: '待审核', badge: 'badge-warning' },
-  approved: { label: '已通过', badge: 'badge-success' },
-  rejected: { label: '已驳回', badge: 'badge-error' },
-}
-
 // 轮播图挂不挂；下面两组是实名认证进度和账号有没有被封
 export const BannerStatus = {
   0: { label: '下架', badge: 'badge-secondary' },
@@ -123,12 +117,6 @@ export const WithdrawalStatus = {
   approved: { label: '已通过', badge: 'badge-success' },
   rejected: { label: '已拒绝', badge: 'badge-danger' },
   completed: { label: '已完成', badge: 'badge-success' },
-}
-
-// 服务项目有没有在售
-export const ServiceStatus = {
-  0: { label: '已下架', badge: 'badge-secondary' },
-  1: { label: '上架中', badge: 'badge-success' },
 }
 
 export const PaymentStatus = {

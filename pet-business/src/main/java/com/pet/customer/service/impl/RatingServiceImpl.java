@@ -43,26 +43,7 @@ public class RatingServiceImpl implements RatingService {
     private final KeeperMapper keeperMapper;
     private final ServiceItemMapper serviceItemMapper;
 
-    /**
-     * 【评价服务实现的构造注入】
-     *
-     * 业务作用：注入评价、订单、商家、寄养师与服务项 Mapper。
-     *
-     * 调用场景：Spring 容器创建 RatingServiceImpl 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 5 个 final 成员。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public RatingServiceImpl(RatingMapper ratingMapper,
+        public RatingServiceImpl(RatingMapper ratingMapper,
                              OrderMapper orderMapper,
                              MerchantMapper merchantMapper,
                              KeeperMapper keeperMapper,
@@ -75,15 +56,9 @@ public class RatingServiceImpl implements RatingService {
     }
 
     /**
-     * 【业务名称】按目标查询评价列表（实现）
+     * 按目标查询评价列表（实现）
+     *
      * 业务作用：根据目标对象 ID 和类型查询评价列表。
-     * 调用场景：用户或商家查看某目标的评价。
-     * 调用链：getRatingsByTarget() → RatingMapper.selectList()。
-     * 数据处理：按 targetId + targetType 匹配，按创建时间倒序。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public List<RatingDTO> getRatingsByTarget(Long targetId, String targetType) {
@@ -96,22 +71,8 @@ public class RatingServiceImpl implements RatingService {
     }
 
     /**
-     * 【查询我对某订单的评价】
-     *
      * 业务作用：返回当前用户针对指定订单提交的评价列表。
-     *
-     * 调用场景：订单详情页回显评价状态，判断是否已评价。
-     *
-     * 调用链：RatingController → getMyRatingsByOrder() → ratingMapper.selectList() → toDTOList()。
-     *
-     * 数据处理：按 order_id_wsh 与 user_id_wsh 同时过滤，不做排序。
-     *
      * 业务规则：orderId 为空时直接返回空列表，不查库。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：一个订单可能有 merchant/keeper/service 多条不同维度的评价，因此返回的是列表而非单条。
      */
     @Override
@@ -127,20 +88,16 @@ public class RatingServiceImpl implements RatingService {
     }
 
     /**
-     * 【业务名称】创建评价（实现）
+     * 创建评价（实现）
+     *
      * 业务作用：用户为指定订单或服务创建评价。
-     * 调用场景：订单完成后用户评价。
-     * 调用链：createRating() → 校验订单状态、归属与重复评价 → insert()。
-     * 数据处理：校验订单已完成、属于当前用户、评价目标与订单归属一致，且未重复评价 → 插入评价记录。
      * 业务规则：
      * - service 类型允许不带订单ID，自动归属到当前用户最近一次使用该服务的已完成订单；
      * - 评分 1-5；
      * - 评价目标必须与订单归属一致（merchant/keeper/service 分别对应订单的 merchant/keeper/service）；
      * - 同一订单同一维度（order_id + user_id + target_type）仅允许一条评价；
      * - 订单必须属于当前用户，禁止利用他人订单刷评。
-     * 状态影响：新增一条评价记录。
-     * 异常情况：目标为空抛异常；评分越界抛异常；订单未完成抛异常；订单不属于当前用户抛异常；
-     * 目标与订单归属不一致抛异常；重复评价抛异常。
+     * 异常情况：目标为空抛异常；评分越界抛异常；订单未完成抛异常；订单不属于当前用户抛异常； 目标与订单归属不一致抛异常；重复评价抛异常。
      * 注意事项：@Transactional 保证事务一致性。
      */
     @Transactional
@@ -241,13 +198,10 @@ public class RatingServiceImpl implements RatingService {
     }
 
     /**
-     * 【业务名称】回复评价（实现）
+     * 回复评价（实现）
+     *
      * 业务作用：商家或照看者回复一条评价。
-     * 调用场景：商家/照看者回复用户评价。
-     * 调用链：replyRating() → 权限校验 → updateById()。
-     * 数据处理：更新 reply 和 reply_at。
      * 业务规则：商家只能回复 merchant 类型且归属自己商家的评价；照看者只能回复 keeper 类型且属于自己的评价。
-     * 状态影响：评价的 reply 和 reply_at 字段更新。
      * 异常情况：评价不存在抛异常；无权回复抛 BusinessException(403)。
      * 注意事项：@Transactional 保证事务一致性。
      */
@@ -287,15 +241,10 @@ public class RatingServiceImpl implements RatingService {
     }
 
     /**
-     * 【业务名称】评价实体转DTO
+     * 评价实体转DTO
+     *
      * 业务作用：将评价实体转换为DTO。
-     * 调用场景：对外暴露评价信息。
-     * 调用链：toDTO()。
-     * 数据处理：字段拷贝。
      * 业务规则：入参为null时返回null。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     private RatingDTO toDTO(Rating rating) {
         if (rating == null) return null;
@@ -315,22 +264,8 @@ public class RatingServiceImpl implements RatingService {
     }
 
     /**
-     * 【评价列表转 DTO】
-     *
      * 业务作用：批量把 Rating 列表转换为 RatingDTO 列表。
-     *
-     * 调用场景：getRatingsByTarget() 与 getMyRatingsByOrder() 返回前。
-     *
-     * 调用链：getRatingsByTarget()/getMyRatingsByOrder() → toDTOList() → toDTO()。
-     *
      * 数据处理：入参为 null 时返回空列表，否则逐条转换。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：不补全用户昵称与头像等展示信息。
      */
     private List<RatingDTO> toDTOList(List<Rating> list) {

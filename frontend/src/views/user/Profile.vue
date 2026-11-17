@@ -612,21 +612,23 @@ import {
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
-import { deleteCurrentUser } from '@/api/auth'
+import { deleteCurrentUser, getCurrentUser, updateCurrentUser } from '@/api/auth'
+import { getMyMerchant } from '@/api/merchant'
+import { getMyKeeperApplication } from '@/api/keeper'
+import { uploadFileToDirectory } from '@/api/file'
 import { getMyCustomerServiceApplications } from '@/api/merchantCustomerService'
 import { getMyWallet, getMyTransactions, getMyWithdrawals, createWithdrawal, rechargeWallet, getMyTips } from '@/api/wallet'
 import { getUserStatistics } from '@/api/statistics'
 import { getPets } from '@/api/pet'
 import { getOrders } from '@/api/order'
 import { TransactionStatus, WithdrawalStatus, enrichWithStatus } from '@/constants/statusMaps'
-import request from '@/utils/request'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
-/* ── status vocabulary (mirrors Orders/orderMeta) ── */
+/* status vocabulary (mirrors Orders/orderMeta) */
 const ORDER_STATUS_LABEL = {
   pending: '待付款', paid: '已支付', confirmed: '待接收', received: '已接收',
   in_progress: '服务中', completed: '已完成', cancelled: '已取消', refunding: '退款中', refunded: '已退款',
@@ -655,7 +657,7 @@ function orderBadgeTone(status) {
   return 'queued'
 }
 
-/* ── presentation helpers ── */
+/* presentation helpers */
 const TYPE_MAP = {
   recharge: '充值', admin_adjust: '管理员调整', order_pay: '订单支付',
   order_refund: '退款', withdrawal: '提现', membership: '会员', tip: '打赏',
@@ -717,7 +719,7 @@ function normalizeList(data) {
   return []
 }
 
-/* ── state ── */
+/* state */
 const loading = ref(true)
 const loadError = ref('')
 const submitting = ref(false)
@@ -764,7 +766,7 @@ const withdrawAmount = ref('')
 const withdrawAccount = ref('')
 const withdrawSubmitting = ref(false)
 
-/* ── computed ── */
+/* computed */
 const avatarUrl = computed(() => profile.avatar_wsh || authStore.user?.avatar_wsh || '')
 const displayName = computed(() => profile.nickname_wsh || authStore.user?.nickname_wsh || authStore.user?.username_wsh || '宠物家长')
 const avatarInitial = computed(() => displayName.value.slice(0, 1).toUpperCase())
@@ -897,17 +899,17 @@ const accountRows = computed(() => {
   ]
 })
 
-/* ── data loading ── */
+/* data loading */
 async function loadDashboard() {
   loading.value = true
   loadError.value = ''
   try {
     await Promise.all([
-      request.get('/users/me'),
-      request.get('/statistics/user'),
+      getCurrentUser(),
+      getUserStatistics(),
     ]).then(([ur, sr]) => {
-      if (ur.data.code === 200) syncUser(ur.data.data)
-      if (sr.data.code === 200) stats.value = sr.data.data
+      if (ur.code === 200) syncUser(ur.data)
+      if (sr.code === 200) stats.value = sr.data
     })
   } catch (e) {
     loadError.value = '无法连接账户服务，请稍后重试。'
@@ -1026,15 +1028,15 @@ function petLine(pet) {
 
 async function loadMerchantStatus() {
   try {
-    const r = await request.get('/merchants/my')
-    if (r.data.code === 200 && r.data.data) merchantStatus.value = r.data.data.status_wsh
+    const r = await getMyMerchant()
+    if (r.code === 200 && r.data) merchantStatus.value = r.data.status_wsh
   } catch (e) {}
 }
 async function loadKeeperStatus() {
   keeperLoading.value = true
   try {
-    const r = await request.get('/api/keepers/my-application')
-    if (r.data.code === 200 && r.data.data) keeperStatus.value = r.data.data.status_wsh
+    const r = await getMyKeeperApplication()
+    if (r.code === 200 && r.data) keeperStatus.value = r.data.status_wsh
     else keeperStatus.value = null
   } catch (e) { keeperStatus.value = null } finally { keeperLoading.value = false }
 }
@@ -1073,7 +1075,7 @@ async function reloadAll() {
   await loadDashboard()
 }
 
-/* ── actions ── */
+/* actions */
 function openEditDialog() {
   editDraft.nickname_wsh = profile.nickname_wsh || ''
   editDraft.gender_wsh = Number(profile.gender_wsh || 0)
@@ -1093,11 +1095,11 @@ async function uploadAvatar(file) {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const r = await request.post('/files/upload?directory=avatars', formData)
-    if (r.data.code === 200 && r.data.data?.url_wsh) {
-      profile.avatar_wsh = r.data.data.url_wsh
-      const updateRes = await request.put('/users/me', { avatar_wsh: profile.avatar_wsh })
-      if (updateRes.data.code === 200) syncUser(updateRes.data.data || { avatar_wsh: profile.avatar_wsh })
+    const r = await uploadFileToDirectory('avatars', formData)
+    if (r.code === 200 && r.data?.url_wsh) {
+      profile.avatar_wsh = r.data.url_wsh
+      const updateRes = await updateCurrentUser({ avatar_wsh: profile.avatar_wsh })
+      if (updateRes.code === 200) syncUser(updateRes.data || { avatar_wsh: profile.avatar_wsh })
       appStore.addToast('头像上传成功', 'success')
     }
   } catch (error) { appStore.addToast('头像上传失败', 'error') } finally { avatarUploading.value = false }
@@ -1112,10 +1114,10 @@ async function submitProfileEdit() {
       avatar_wsh: profile.avatar_wsh,
       gender_wsh: editDraft.gender_wsh,
     }
-    const r = await request.put('/users/me', payload)
-    if (r.data.code === 200) {
+    const r = await updateCurrentUser(payload)
+    if (r.code === 200) {
       appStore.addToast('保存成功', 'success')
-      syncUser(r.data.data || { ...profile, ...payload })
+      syncUser(r.data || { ...profile, ...payload })
       editDialogOpen.value = false
     }
   } catch (e) { appStore.addToast('保存失败', 'error') } finally { submitting.value = false }
@@ -1227,7 +1229,7 @@ onMounted(() => {
 
 .pr-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .pr-crumb {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -1237,7 +1239,7 @@ onMounted(() => {
 .pr-crumb-sep { color: var(--ref-line); }
 .pr-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: var(--r-tag); border: 1px solid transparent;
@@ -1255,7 +1257,7 @@ onMounted(() => {
   padding: 4px 10px; font-size: 11px; font-weight: 500; line-height: 1; color: var(--ref-ink-soft);
 }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -1281,7 +1283,7 @@ onMounted(() => {
 .tl-arrow { transition: transform 0.15s; }
 .text-link:hover .tl-arrow { transform: translateX(4px); }
 
-/* ═══ PROFILE HERO ═══ */
+/* PROFILE HERO */
 .ph-card {
   position: relative; overflow: hidden;
   border: 1px solid var(--ref-line); border-radius: var(--r-frame);
@@ -1389,7 +1391,7 @@ onMounted(() => {
 .ph-m-value-brand { color: var(--ref-brand); font-size: 30px; }
 .ph-m-yen { font-size: 12px; margin-right: 4px; color: color-mix(in srgb, var(--ref-brand) 70%, transparent); }
 
-/* ═══ SECTION SHELL ═══ */
+/* SECTION SHELL */
 .ps-section { margin-top: 48px; }
 .ps-scroll-target { scroll-margin-top: 32px; }
 .ps-head {
@@ -1411,7 +1413,7 @@ onMounted(() => {
 .ps-action { padding-bottom: 4px; flex-shrink: 0; }
 .ps-duo { display: grid; grid-template-columns: 1.55fr 1fr; gap: 24px 40px; }
 
-/* ═══ PETS ═══ */
+/* PETS */
 .pets-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px;
 }
@@ -1459,7 +1461,7 @@ onMounted(() => {
 }
 .pet-num { color: var(--ref-ink-soft); font-variant-numeric: tabular-nums; font-weight: 500; }
 
-/* ═══ RECENT ORDERS ═══ */
+/* RECENT ORDERS */
 .orders-list {
   margin-top: 20px; overflow: hidden;
   border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface);
@@ -1493,7 +1495,7 @@ onMounted(() => {
 .or-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
 .or-price { font-size: 13.5px; font-weight: 500; color: var(--ref-ink); font-variant-numeric: tabular-nums; }
 
-/* ═══ QUICK ACTIONS ═══ */
+/* QUICK ACTIONS */
 .quick-nav { margin-top: 20px; overflow: hidden; border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface); }
 .quick-nav ul { margin: 0; padding: 0; list-style: none; }
 .quick-row {
@@ -1517,7 +1519,7 @@ onMounted(() => {
 .quick-arrow { flex-shrink: 0; font-size: 14px; color: var(--ref-muted); transition: transform 0.15s, color 0.15s; }
 .quick-row:hover .quick-arrow { transform: translateX(3px); color: var(--ref-brand); }
 
-/* ═══ WALLET ═══ */
+/* WALLET */
 .wp-grid { display: grid; grid-template-columns: minmax(0, 320px) 1fr; gap: 16px; margin-top: 20px; }
 .wp-balance {
   display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
@@ -1598,7 +1600,7 @@ onMounted(() => {
 .ledger-more { margin: 0; padding: 12px 20px; border-top: 1px solid var(--ref-line); font-size: 11px; color: var(--ref-muted); }
 .ledger-more b { color: var(--ref-ink-soft); font-variant-numeric: tabular-nums; }
 
-/* ═══ ROLES ═══ */
+/* ROLES */
 .rr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
 .rr-card {
   display: flex; align-items: center; gap: 14px;
@@ -1622,7 +1624,7 @@ a.rr-card:hover {
 .rr-arrow { flex-shrink: 0; font-size: 14px; color: var(--ref-muted); }
 a.rr-card:hover .rr-arrow { transform: translateX(3px); color: var(--ref-brand); }
 
-/* ═══ ACCOUNT PANEL ═══ */
+/* ACCOUNT PANEL */
 .ap-panel { margin-top: 20px; overflow: hidden; border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface); }
 .ap-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
 .ap-row {
@@ -1663,7 +1665,7 @@ a.rr-card:hover .rr-arrow { transform: translateX(3px); color: var(--ref-brand);
 .ap-delete-btn:hover:not(:disabled) { background: color-mix(in srgb, #b3402a 10%, transparent); transform: translateY(-1px); }
 .ap-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ═══ EMPTY / ERROR / SKELETON ═══ */
+/* EMPTY / ERROR / SKELETON */
 .ps-empty {
   margin-top: 20px; padding: 48px 24px;
   border: 1px dashed var(--ref-line); border-radius: var(--r-card);
@@ -1689,7 +1691,7 @@ a.rr-card:hover .rr-arrow { transform: translateX(3px); color: var(--ref-brand);
 .ps-skeleton-stack { display: grid; gap: 20px; margin-top: 32px; }
 .ps-skeleton { height: 180px; border-radius: var(--r-card); border: 1px solid var(--ref-line); background: var(--ref-sand); animation: pr-pulse 1.4s ease-in-out infinite; }
 
-/* ═══ DIALOG ═══ */
+/* DIALOG */
 .dlg-overlay {
   position: fixed; inset: 0; z-index: 2000;
   display: flex; align-items: center; justify-content: center;
@@ -1762,14 +1764,14 @@ a.rr-card:hover .rr-arrow { transform: translateX(3px); color: var(--ref-brand);
 }
 .dlg-cancel:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); }
 
-/* ═══ ANIMATIONS ═══ */
+/* ANIMATIONS */
 @keyframes pr-spin { to { transform: rotate(360deg); } }
 @keyframes pr-shimmer { to { background-position: -200% 0; } }
 @keyframes pr-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 @keyframes pr-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pr-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* ═══ RESPONSIVE ═══ */
+/* RESPONSIVE */
 @media (max-width: 1100px) {
   .ps-duo { grid-template-columns: 1fr; gap: 0; }
   .rr-grid { grid-template-columns: 1fr; }

@@ -40,23 +40,7 @@ public class ChatServiceImpl implements ChatService {
     private final UserMapper userMapper;
 
     /**
-     * 【构造聊天服务】
-     *
-     * 业务作用：注入聊天消息、用户角色、用户三个 Mapper。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 chatMessageMapper / userRoleMapper / userMapper 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖均为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
      */
     public ChatServiceImpl(ChatMessageMapper chatMessageMapper,
                            UserRoleMapper userRoleMapper,
@@ -67,13 +51,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】获取历史会话记录（实现）
+     * 获取历史会话记录（实现）
+     *
      * 业务作用：获取两个用户之间的历史会话记录，支持游标分页。
-     * 调用场景：聊天窗口上拉加载更多。
-     * 调用链：getConversation() → chatMessageMapper.selectList()。
-     * 数据处理：双方互为收发方，按订单维度过滤，按ID游标分页倒序查询，结果按时间正序返回。
      * 业务规则：双方ID不可为空；orderId为空时查非订单维度的通用聊天；受 MAX_PAGE_SIZE 约束。
-     * 状态影响：无。
      * 异常情况：双方用户ID为空抛 BusinessException(400)。
      * 注意事项：limit 受 MAX_PAGE_SIZE 约束。
      */
@@ -111,13 +92,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】查询未读消息（实现）
+     * 查询未读消息（实现）
+     *
      * 业务作用：查询指定用户所有未读消息。
-     * 调用场景：用户查看未读消息列表。
-     * 调用链：getUnreadMessages() → chatMessageMapper.selectList()。
-     * 数据处理：按接收方查询未读消息，按时间倒序，最多200条。
      * 业务规则：用户ID不可为空。
-     * 状态影响：无。
      * 异常情况：用户ID为空抛 BusinessException(400)。
      * 注意事项：不改变已读状态。
      */
@@ -135,15 +113,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】统计未读消息总数（实现）
+     * 统计未读消息总数（实现）
+     *
      * 业务作用：统计指定用户的未读消息总数。
-     * 调用场景：用户首页显示未读消息角标。
-     * 调用链：countUnreadMessages() → chatMessageMapper.selectCount()。
-     * 数据处理：统计接收方未读消息数。
      * 业务规则：用户ID为空时返回0。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public long countUnreadMessages(Long userId) {
@@ -158,13 +131,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】发送消息（实现）
+     * 发送消息（实现）
+     *
      * 业务作用：发送一条聊天消息，校验合法性并进行规范化处理。
-     * 调用场景：用户发送消息。
-     * 调用链：sendMessage() → 参数校验 → 内容裁剪 → 类型规范化 → insert()。
-     * 数据处理：校验发送方/接收方/内容 → 内容裁剪 → 类型规范化 → 插入未读消息。
      * 业务规则：发送方和接收方不可相同；内容或附件不可同时为空；内容长度 ≤ 2000字符；类型仅支持 text/image/video/file。
-     * 状态影响：新增一条未读消息记录。
      * 异常情况：参数不合法时抛 BusinessException(400)。
      * 注意事项：@Transactional 保证事务一致性。
      */
@@ -203,14 +173,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】标记单条消息已读（实现）
+     * 标记单条消息已读（实现）
+     *
      * 业务作用：将指定消息标记为已读。
-     * 调用场景：用户已读取某条消息。
-     * 调用链：markAsRead() → chatMessageMapper.update()。
-     * 数据处理：更新 is_read = 1，校验接收方身份和当前未读状态。
      * 业务规则：仅接收方可标记已读，仅当前未读的消息会被更新。
-     * 状态影响：消息 marked as read。
-     * 异常情况：无。
      * 注意事项：入参为空时静默跳过。
      */
     @Transactional
@@ -230,14 +196,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】标记会话已读（实现）
+     * 标记会话已读（实现）
+     *
      * 业务作用：将两个用户之间指定订单维度的全部未读消息标记为已读。
-     * 调用场景：用户进入聊天窗口时。
-     * 调用链：markConversationAsRead() → chatMessageMapper.update()。
-     * 数据处理：批量更新未读消息为已读。
      * 业务规则：orderId为空时标记非订单维度的会话。
-     * 状态影响：该会话的所有未读消息标记为已读。
-     * 异常情况：无。
      * 注意事项：@Transactional 保证事务一致性；入参为空时静默跳过。
      */
     @Transactional
@@ -261,15 +223,11 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】随机分配人工客服（实现）
+     * 随机分配人工客服（实现）
+     *
      * 业务作用：从拥有客服角色的有效用户中随机挑选一名（排除当前用户），返回其用户ID、名称与头像。
-     * 调用场景：智能客服页面点击“转人工客服”按钮。
-     * 调用链：assignCustomerServiceAgent() → userRoleMapper.selectActiveUserIdsByRoleCode() → userMapper.selectById()。
-     * 数据处理：角色编码查询客服ID列表 → 排除当前用户 → ThreadLocalRandom随机取一名 → 组装昵称/头像。
      * 业务规则：候选为空时抛 BusinessException(400) 提示暂无在线客服。
-     * 状态影响：无。
      * 异常情况：无可用客服时抛 BusinessException(400)。
-     * 注意事项：无。
      */
     @Override
     public ChatAgentAssignDTO assignCustomerServiceAgent(Long userId) {
@@ -295,15 +253,10 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【业务名称】消息实体转DTO
+     * 消息实体转DTO
+     *
      * 业务作用：将消息实体转换为DTO。
-     * 调用场景：对外暴露消息信息。
-     * 调用链：toDTO()。
-     * 数据处理：字段拷贝。
      * 业务规则：入参为null时返回null。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     private ChatMessageDTO toDTO(ChatMessage msg) {
         if (msg == null) {
@@ -323,22 +276,9 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【消息列表转DTO列表】
-     *
      * 业务作用：批量把聊天消息实体转换为 DTO。
-     *
-     * 调用场景：getUnreadMessages 查询结果转换。
-     *
-     * 调用链：getUnreadMessages() → toDTOList() → toDTO()。
-     *
      * 数据处理：入参为 null 时返回空列表，否则流式逐条转换。
-     *
      * 业务规则：保证不返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：与 toDTO 不同，这里对 null 列表做了兜底。
      */
     private List<ChatMessageDTO> toDTOList(List<ChatMessage> list) {
@@ -349,22 +289,8 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【分页大小归一】
-     *
      * 业务作用：把请求的分页条数收敛到合法区间。
-     *
-     * 调用场景：getConversation 拼装 LIMIT 前。
-     *
-     * 调用链：getConversation() → normalizeSize() → 与 DEFAULT_PAGE_SIZE / MAX_PAGE_SIZE 比较。
-     *
-     * 数据处理：null 或非正数取 DEFAULT_PAGE_SIZE，超过上限取 MAX_PAGE_SIZE。
-     *
      * 业务规则：分页条数上限由 MAX_PAGE_SIZE 决定。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：返回值为 int，直接拼进 SQL 的 LIMIT 子句，因此必须保证是受控整数。
      */
     private int normalizeSize(Integer size) {
@@ -375,22 +301,9 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【消息类型归一】
-     *
      * 业务作用：把消息类型规范化为受支持的小写取值。
-     *
-     * 调用场景：sendMessage 落库前。
-     *
-     * 调用链：sendMessage() → normalizeType() → ALLOWED_TYPES 白名单校验。
-     *
-     * 数据处理：类型为空时，有附件按 image、无附件按 text；非空时 trim 后转小写。
-     *
      * 业务规则：仅允许 text / image / video / file。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：类型不在白名单内抛 BusinessException(400)「unsupported message type」。
-     *
      * 注意事项：类型为空但有附件时默认按 image 处理，不会按附件扩展名推断。
      */
     private String normalizeType(String type, String fileUrl) {
@@ -406,22 +319,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【去空白转null】
-     *
      * 业务作用：把字符串 trim 后，空串统一转成 null。
-     *
-     * 调用场景：sendMessage 清洗消息内容与附件地址。
-     *
-     * 调用链：sendMessage() → trimToNull()。
-     *
-     * 数据处理：null 返回 null，trim 后为空串也返回 null。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：该方法只判空串不判 isBlank，全空白字符会被 trim 成空串后转 null。
      */
     private String trimToNull(String value) {
@@ -433,22 +331,8 @@ public class ChatServiceImpl implements ChatService {
     }
 
     /**
-     * 【消息ID空值兜底】
-     *
      * 业务作用：取出消息 ID，null 时返回 0 用于排序比较。
-     *
-     * 调用场景：getConversation 对查询结果按 ID 正序排序。
-     *
-     * 调用链：getConversation() → nullSafeId()。
-     *
      * 数据处理：id 为 null 返回 0L，否则返回原值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：数据库自增主键不会为 null，兜底仅防御性处理。
      */
     private long nullSafeId(ChatMessage message) {

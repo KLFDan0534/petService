@@ -35,45 +35,17 @@ public class WithdrawalController {
     private final WithdrawalService withdrawalService;
 
     /**
-     * 【构造提现控制器】
-     *
      * 业务作用：注入提现业务服务，供各 REST 接口调用。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 withdrawalService 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
      */
     public WithdrawalController(WithdrawalService withdrawalService) {
         this.withdrawalService = withdrawalService;
     }
 
     /**
-     * 【查询我的提现记录】
-     *
      * 业务作用：返回当前登录用户的提现申请记录。
-     *
-     * 调用场景：用户在钱包页查看提现历史。
-     *
-     * 调用链：GET /api/withdrawals/me → listMyWithdrawals() → withdrawalService.listByUser() → withdrawalService.toDTO()。
-     *
-     * 数据处理：以当前用户 ID 查询提现实体列表，逐条转换为 DTO 后返回。
-     *
      * 业务规则：需登录（isAuthenticated）。
-     *
-     * 状态影响：无，只读。
-     *
      * 异常情况：未登录返回 401。
-     *
      * 注意事项：不做分页，返回该用户全部提现记录。
      */
     @GetMapping("/me")
@@ -94,22 +66,9 @@ public class WithdrawalController {
     }
 
     /**
-     * 【管理端分页查询提现记录】
-     *
      * 业务作用：管理员分页查看所有提现申请。
-     *
-     * 调用场景：后台提现审核列表页。
-     *
-     * 调用链：GET /api/withdrawals → listAll() → withdrawalService.listPage() → withdrawalService.toDTO() → PageResult.copyPageInfo()。
-     *
-     * 数据处理：先按分页参数查询实体分页对象，把记录逐条转 DTO 后组装成 PageResult 并复制分页信息。
-     *
      * 业务规则：仅 ADMIN 角色可访问。
-     *
-     * 状态影响：无，只读。
-     *
      * 异常情况：非管理员由 @PreAuthorize 拦截返回 403。
-     *
      * 注意事项：分页信息通过 copyPageInfo 从原分页对象复制，不要手工赋值总数。
      */
     @GetMapping
@@ -136,22 +95,9 @@ public class WithdrawalController {
     }
 
     /**
-     * 【申请提现】
-     *
      * 业务作用：用户提交一笔提现申请，指定金额与收款银行卡信息。
-     *
-     * 调用场景：用户在钱包页发起提现。
-     *
-     * 调用链：POST /api/withdrawals → apply() → withdrawalService.apply() → withdrawalService.toDTO()。
-     *
-     * 数据处理：取请求体中的金额、开户行、卡号、户名，连同当前用户 ID 一起交给服务层。
-     *
      * 业务规则：需登录；金额与卡信息由服务层校验。
-     *
-     * 状态影响：由服务层新增提现记录并冻结相应金额。
-     *
      * 异常情况：金额非法、可用余额不足等由服务层抛 BusinessException(400)。
-     *
      * 注意事项：申请人身份取自 token，不接受请求体传入。
      */
     @PostMapping
@@ -176,22 +122,9 @@ public class WithdrawalController {
     }
 
     /**
-     * 【审批通过提现】
-     *
      * 业务作用：管理员把提现申请审核为通过。
-     *
-     * 调用场景：财务核对收款信息后在后台点击通过。
-     *
-     * 调用链：POST /api/withdrawals/{id}/approve → approve() → withdrawalService.approve() → withdrawalService.toDTO()。
-     *
-     * 数据处理：请求体可选，存在时取其 remark_wsh 作为审核备注。
-     *
      * 业务规则：仅 ADMIN 可操作；状态机由服务层校验。
-     *
-     * 状态影响：提现记录状态推进为已通过。
-     *
      * 异常情况：提现不存在抛 404；状态不允许由服务层抛 400。
-     *
      * 注意事项：请求体为 null 时备注传 null，不会报错。
      */
     @PostMapping("/{id}/approve")
@@ -213,22 +146,9 @@ public class WithdrawalController {
     }
 
     /**
-     * 【驳回提现】
-     *
      * 业务作用：管理员驳回提现申请。
-     *
-     * 调用场景：收款信息有误或风控拦截时。
-     *
-     * 调用链：POST /api/withdrawals/{id}/reject → reject() → withdrawalService.reject() → withdrawalService.toDTO()。
-     *
-     * 数据处理：请求体可选，存在时取其 remark_wsh 作为驳回原因。
-     *
      * 业务规则：仅 ADMIN 可操作。
-     *
-     * 状态影响：提现记录状态变为已驳回，服务层会解冻对应金额。
-     *
      * 异常情况：提现不存在抛 404；状态不允许由服务层抛 400。
-     *
      * 注意事项：与 approve 结构完全对称，仅调用的服务方法不同。
      */
     @PostMapping("/{id}/reject")
@@ -250,22 +170,9 @@ public class WithdrawalController {
     }
 
     /**
-     * 【完成提现】
-     *
      * 业务作用：管理员把已通过的提现标记为已完成（打款结束）。
-     *
-     * 调用场景：线下转账完成后在后台确认。
-     *
-     * 调用链：POST /api/withdrawals/{id}/complete → complete() → withdrawalService.complete() → withdrawalService.toDTO()。
-     *
-     * 数据处理：仅需提现 ID，无请求体。
-     *
      * 业务规则：仅 ADMIN 可操作。
-     *
-     * 状态影响：提现记录状态变为已完成，服务层扣减冻结金额。
-     *
      * 异常情况：提现不存在抛 404；状态不允许由服务层抛 400。
-     *
      * 注意事项：该方法不做实际打款，仅做账务状态流转。
      */
     @PostMapping("/{id}/complete")

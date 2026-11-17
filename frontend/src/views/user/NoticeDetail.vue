@@ -89,7 +89,7 @@ onMounted(async () => {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .nd-crumb {
   display: flex;
   align-items: center;
@@ -103,7 +103,7 @@ onMounted(async () => {
 .nd-crumb-sep { color: var(--ref-line); }
 .nd-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Article ═══ */
+/* Article */
 .nd-article {
   max-width: 720px;
   margin: 0 auto;
@@ -148,7 +148,7 @@ onMounted(async () => {
   border-top: 1px solid var(--ref-line);
 }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -171,7 +171,7 @@ onMounted(async () => {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .nd-skeleton {
   max-width: 720px;
   margin: 40px auto 0;
@@ -196,7 +196,7 @@ onMounted(async () => {
 .nd-skel-line-80 { width: 80%; }
 .nd-skel-line-60 { width: 60%; }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .nd-empty {
   max-width: 640px;
   margin: 40px auto 0;
@@ -222,10 +222,10 @@ onMounted(async () => {
 .nd-empty p { margin: 10px 0 0; font-size: 14px; color: var(--ref-muted); }
 .nd-empty .cta { margin-top: 22px; }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes nd-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 520px) {
   .nd-shell { padding: 0 16px; }
   .nd-article { padding: 30px 0 0; }

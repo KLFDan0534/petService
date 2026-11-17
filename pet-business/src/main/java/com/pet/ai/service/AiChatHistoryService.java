@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * AI 聊天记录持久化服务。
@@ -22,22 +21,7 @@ public class AiChatHistoryService {
     private final AiChatHistoryMapper mapper;
 
     /**
-     * 【构造AI聊天记录服务】
-     *
-     * 业务作用：注入 AI 聊天记录的 Mapper。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 mapper 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：本类提供保存、会话列表、会话消息、清空会话四类能力，会话 ID 由 newSessionId 生成。
      */
     public AiChatHistoryService(AiChatHistoryMapper mapper) {
@@ -77,13 +61,18 @@ public class AiChatHistoryService {
     }
 
     /**
-     * 获取某个会话的所有消息（按时间正序）
+     * 获取某个会话的所有消息（按时间正序，同一时刻按自增主键兜底）
+     * <p>
+     * 用户消息与助手回复在同一事务内连续插入，{@code created_at_wsh} 精度只到秒，
+     * 只按时间排序时两者的先后顺序不确定（气泡会错位）。加自增主键做第二排序键后，
+     * 「先插的在前」始终成立。
      */
     public List<AiChatHistory> getSessionMessages(Long userId, String sessionId) {
         LambdaQueryWrapper<AiChatHistory> wrapper = Wrappers.<AiChatHistory>lambdaQuery()
                 .eq(AiChatHistory::getUser_id_wsh, userId)
                 .eq(AiChatHistory::getSession_id_wsh, sessionId)
-                .orderByAsc(AiChatHistory::getCreated_at_wsh);
+                .orderByAsc(AiChatHistory::getCreated_at_wsh)
+                .orderByAsc(AiChatHistory::getId_wsh);
         return mapper.selectList(wrapper);
     }
 

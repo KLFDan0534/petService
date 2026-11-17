@@ -94,6 +94,7 @@ class OrderCheckoutIntegrationTest {
     private static final String ORDER_NO = "ORD-IT-CHECKOUT";
 
     @Mock private OrderMapper orderMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private PaymentMapper paymentMapper;
     @Mock private PetMapper petMapper;
     @Mock private KeeperMapper keeperMapper;
@@ -135,7 +136,7 @@ class OrderCheckoutIntegrationTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper, serviceCategoryMapper);
     }
 
     private PaymentServiceImpl paymentService(OrderServiceImpl orderService) {

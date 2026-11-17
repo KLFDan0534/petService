@@ -22,7 +22,7 @@ export const mockKeeper = {
   merchant_id_wsh: 1,
   merchant_name_wsh: 'PetCare宠物生活馆',
   experience_years_wsh: 5,
-  price_per_day_wsh: 200,
+  unit_price_wsh: 200,
   current_pets_wsh: 2,
   max_pets_wsh: 4,
   completion_rate_wsh: 98,
@@ -57,8 +57,8 @@ export const mockRatings = [
 ]
 
 export const mockServices = [
-  { id_wsh: 1, name_wsh: '日间寄养', type_wsh: 'boarding', category_name_wsh: '寄养服务', description_wsh: '日间专业寄养', price_wsh: 80, unit_wsh: '天', images_wsh: '/img/svc1.jpg', status_wsh: 1 },
-  { id_wsh: 2, name_wsh: '宠物美容', type_wsh: 'grooming', category_name_wsh: '美容服务', description_wsh: '全宠物美容', price_wsh: 150, unit_wsh: '次', images_wsh: null, status_wsh: 1 },
+  { id_wsh: 1, name_wsh: '日间寄养', type_wsh: 'boarding', category_name_wsh: '寄养服务', description_wsh: '日间专业寄养', price_wsh: 80, unit_wsh: 'night', images_wsh: '/img/svc1.jpg', status_wsh: 1 },
+  { id_wsh: 2, name_wsh: '宠物美容', type_wsh: 'grooming', category_name_wsh: '美容服务', description_wsh: '全宠物美容', price_wsh: 150, unit_wsh: 'session', images_wsh: null, status_wsh: 1 },
 ]
 
 export const mockBusinessHours = [

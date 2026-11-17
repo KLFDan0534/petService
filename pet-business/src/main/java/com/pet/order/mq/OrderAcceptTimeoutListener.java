@@ -24,19 +24,7 @@ public class OrderAcceptTimeoutListener {
      * 【构造方法】注入订单服务
      *
      * 业务作用：由 Spring 注入 OrderService，供接单超时消息消费时调用自动接单逻辑。
-     *
-     * 调用场景：Spring 容器启动创建该 MQ 监听器 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → orderService 赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段；类上的 Javadoc 被放在 @Component 与 @Slf4j 之后、class 关键字之前，注释位置不规范但语法合法。
      */
     public OrderAcceptTimeoutListener(OrderService orderService) {
@@ -53,32 +41,14 @@ public class OrderAcceptTimeoutListener {
      * @param channel the RabbitMQ channel
      */
     /**
-     * 【处理接单超时消息】
-     *
-     * 业务作用：
-     * 消费接单超时延迟队列（QUEUE_ORDER_ACCEPT_TIMEOUT），在支付后指定时间窗口内
-     * 看护者未手动接单时自动接单。
-     *
      * 消费队列：
      * RabbitMQConfig.QUEUE_ORDER_ACCEPT_TIMEOUT
-     *
      * 触发时机：
      * 订单支付成功后，PaymentServiceImpl.scheduleAcceptTimeoutCheck()发送延迟消息，
      * 到达TTL后投递到本队列。
      *
-     * 调用链：
-     * MQ Broker
-     * ↓
-     * handleAcceptTimeout(orderNo, message, channel)
-     * ↓
-     * orderService.autoAcceptPaidOrderIfTimeout(orderNo) → basicAck/Nack
-     *
-     * 数据处理：
-     * 手动ACK模式，处理成功basicAck，异常时basicNack(requeue=false)防止死循环。
-     *
-     * 业务规则：
-     * 1. 自动接单成功记录info日志，忽略时记录debug日志
-     * 2. 消费异常时记录error日志并Nack，不重试
+     * 业务作用：消费接单超时延迟队列（QUEUE_ORDER_ACCEPT_TIMEOUT），在支付后指定时间窗口内 看护者未手动接单时自动接单。
+     * 业务规则：1. 自动接单成功记录info日志，忽略时记录debug日志 2. 消费异常时记录error日志并Nack，不重试
      *
      * @param orderNo 订单编号（消息体）
      * @param message AMQP消息

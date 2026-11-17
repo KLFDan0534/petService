@@ -31,19 +31,7 @@ public class MinIoService {
      * 【构造方法】注入 MinIO 客户端
      *
      * 业务作用：由 Spring 注入 MinioClient，bucket、endpoint、publicUrl 三个参数则通过 @Value 从配置注入到字段。
-     *
-     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → minioClient 赋值（@Value 字段由容器另行注入）。
-     *
-     * 数据处理：仅字段赋值，不发起远程调用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：bucket 是否存在的检查推迟到首次 uploadFile 时才做；@Value 注入的字段在构造方法执行时尚未赋值，因此构造方法内不能使用它们。
      */
     public MinIoService(MinioClient minioClient) {

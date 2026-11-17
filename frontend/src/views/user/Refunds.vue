@@ -135,7 +135,7 @@
                 <span class="rf-step-label">退款到账</span>
               </div>
             </div>
-            <p v-if="r.status_wsh === 'rejected'" class="rf-fail-note">该申请未通过审核，如有疑问可联系平台客服。</p>
+            <p v-if="r.status_wsh === 'rejected'" class="rf-fail-note">该申请未通过审核，如有疑问可联系商家客服。</p>
           </article>
         </div>
       </section>
@@ -218,7 +218,7 @@ async function submitRefund() {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .rf-crumb {
   display: flex;
   align-items: center;
@@ -232,7 +232,7 @@ async function submitRefund() {
 .rf-crumb-sep { color: var(--ref-line); }
 .rf-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .rf-eyebrow {
   display: flex;
   align-items: center;
@@ -246,7 +246,7 @@ async function submitRefund() {
 .rf-idx { font-variant-numeric: tabular-nums; }
 .rf-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .rf-head {
   display: flex;
   flex-wrap: wrap;
@@ -275,7 +275,7 @@ async function submitRefund() {
 }
 .rf-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -298,7 +298,7 @@ async function submitRefund() {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -317,7 +317,7 @@ async function submitRefund() {
 .badge-closed { background: transparent; color: var(--ref-muted); border-color: var(--ref-line); }
 .badge-danger { background: color-mix(in srgb, var(--color-danger) 10%, transparent); color: var(--color-danger); border-color: color-mix(in srgb, var(--color-danger) 28%, transparent); }
 
-/* ═══ Facts ═══ */
+/* Facts */
 .rf-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -351,7 +351,7 @@ async function submitRefund() {
   color: var(--ref-muted);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .rf-section { margin-top: 56px; }
 .rf-sec-head {
   display: flex;
@@ -378,7 +378,7 @@ async function submitRefund() {
   opacity: 0.8;
 }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .rf-skeleton {
   margin-top: 20px;
   height: 172px;
@@ -389,7 +389,7 @@ async function submitRefund() {
   animation: rf-shimmer 1.3s linear infinite;
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .rf-empty {
   margin-top: 20px;
   padding: 56px 24px;
@@ -414,7 +414,7 @@ async function submitRefund() {
   margin-top: 22px;
 }
 
-/* ═══ Refund cards ═══ */
+/* Refund cards */
 .rf-list { margin-top: 20px; display: grid; gap: 14px; }
 .rf-card {
   padding: 20px;
@@ -483,7 +483,7 @@ async function submitRefund() {
   overflow-wrap: anywhere;
 }
 
-/* ═══ 进度 track ═══ */
+/* 进度 track */
 .rf-track {
   display: flex;
   align-items: flex-start;
@@ -554,7 +554,7 @@ async function submitRefund() {
   color: color-mix(in srgb, var(--color-danger) 80%, transparent);
 }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed;
   inset: 0;
@@ -642,12 +642,12 @@ async function submitRefund() {
 }
 .dlg-cancel:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes rf-shimmer { to { background-position: -200% 0; } }
 @keyframes rf-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rf-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .rf-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

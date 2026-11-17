@@ -55,22 +55,10 @@ public class TurnstileVerifyService {
     private final boolean failOpenOnError;
 
     /**
-     * 【Turnstile 校验服务构造器】
-     *
      * 业务作用：读取密钥、域名白名单、代理与降级开关，并构建带超时的 HttpClient。
-     *
-     * 调用场景：Spring 容器启动时由依赖注入自动调用。
-     *
-     * 调用链：Spring IoC → 读取 turnstile.* 配置 → 解析白名单 → 构建 ProxySelector → 构建 HttpClient。
-     *
      * 数据处理：密钥 trim 后保存；白名单按逗号切分并去空；连接超时固定 5 秒。
-     *
      * 业务规则：代理配置为空时直连；配置格式非法时记 warn 并退回直连。
-     *
-     * 状态影响：创建一个 HttpClient 实例，生命周期与应用一致。
-     *
      * 异常情况：配置解析异常不会中断启动，代理非法仅降级为直连。
-     *
      * 注意事项：Java HttpClient 不读取系统代理，必须显式配置 turnstile.proxy 才能走代理。
      */
     public TurnstileVerifyService(
@@ -254,22 +242,8 @@ public class TurnstileVerifyService {
     }
 
     /**
-     * 【URL 编码】
-     *
      * 业务作用：对表单参数做 UTF-8 的 URL 编码，避免特殊字符破坏请求体。
-     *
-     * 调用场景：verify 拼接 siteverify 表单时对 secret、token、remoteip 编码。
-     *
-     * 调用链：verify → enc → URLEncoder.encode。
-     *
-     * 数据处理：统一使用 UTF-8 字符集。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：无；URLEncoder 对 UTF-8 不会抛 UnsupportedEncodingException。
-     *
      * 注意事项：空格会被编码为加号，符合表单编码规范。
      */
     private static String enc(String value) {

@@ -467,7 +467,7 @@ async function onReviewed({ orderId, targetType, targetId, score, content }) {
   } catch (e) { appStore.addToast('评价失败', 'error') }
 }
 
-/* ── 工具 ── */
+/* 工具 */
 function activeStayLabel(order) {
   return STATUS_LABELS[order.status_wsh] || '寄养中'
 }

@@ -34,10 +34,10 @@ public class OrderCreateRequestDTO {
     @Schema(description = "用户优惠券ID")
     private Long user_coupon_id_wsh;
 
-    @Schema(description = "开始日期（day 模式必填；session/hour 可省略，由服务端根据开始时间推导）")
+    @Schema(description = "开始日期（night 模式必填；session/hour 可省略，由服务端根据开始时间推导）")
     private LocalDate start_date_wsh;
 
-    @Schema(description = "结束日期（day 模式必填；session/hour 由服务端按开始时间+时长计算，客户端可提交做一致性校验）")
+    @Schema(description = "结束日期（night 模式必填；session/hour 由服务端按开始时间+时长计算，客户端可提交做一致性校验）")
     private LocalDate end_date_wsh;
 
     @Schema(description = "服务开始时间（session/hour 模式必填，来自可用性槽位；服务端据此计算结束时间）")
@@ -46,11 +46,11 @@ public class OrderCreateRequestDTO {
     @Schema(description = "客户端提交的服务结束时间（可选；仅做一致性校验，最终以服务端计算为准）")
     private LocalDateTime end_time_wsh;
 
-    @Schema(description = "计费单位（可选；规范化后必须与服务单位一致，不一致返回 UNIT_MISMATCH）")
+    @Schema(description = "仅 night/session/hour，服务端以服务记录为准")
     @Size(max = 20, message = "计费单位不能超过20个字符")
     private String billing_unit_wsh;
 
-    @Schema(description = "计费数量（可选；day=服务天数、session=1、hour=连续小时数，服务端重算校验）")
+    @Schema(description = "计费数量（可选；night=夜数、session=1、hour=槽位数，服务端重算校验）")
     private Integer quantity_wsh;
 
     @Schema(description = "配送地址")

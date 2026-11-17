@@ -28,22 +28,7 @@ public class RecycleBinServiceImpl implements RecycleBinService {
     private final RecycleBinMapper recycleBinMapper;
 
     /**
-     * 【构造函数：注入回收站 Mapper】
-     *
      * 业务作用：注入 RecycleBinMapper 供软删除记录的查询、恢复与删除使用。
-     *
-     * 调用场景：容器启动创建 RecycleBinServiceImpl Bean 时自动调用。
-     *
-     * 调用链：Spring IoC → RecycleBinServiceImpl(构造) → recycleBinMapper 字段赋值。
-     *
-     * 数据处理：仅做字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：允许操作的表由静态常量白名单控制，不在白名单内的一律拒绝。
      */
     public RecycleBinServiceImpl(RecycleBinMapper recycleBinMapper) {
@@ -100,22 +85,9 @@ public class RecycleBinServiceImpl implements RecycleBinService {
     }
 
     /**
-     * 【校验表名是否支持回收站操作】
-     *
      * 业务作用：防止把任意表名拼进 SQL，只允许白名单内的表。
-     *
-     * 调用场景：listDeleted、restore、softDelete 的入口校验。
-     *
-     * 调用链：listDeleted / restore / softDelete → validateTable → SOFT_DELETABLE_TABLES.contains。
-     *
-     * 数据处理：精确匹配白名单列表。
-     *
      * 业务规则：只允许 SOFT_DELETABLE_TABLES 中列出的表。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：表名不在白名单时抛 BusinessException("不支持该表的回收站操作")。
-     *
      * 注意事项：这是防 SQL 注入的关键校验；新增可回收表时必须同步维护白名单常量。
      */
     private void validateTable(String tableName) {

@@ -30,19 +30,7 @@ public class KeeperFavoriteTargetResolver implements FavoriteTargetResolver {
      * 【构造方法】注入看护人与商家服务
      *
      * 业务作用：由 Spring 注入 KeeperService 与 MerchantService，供收藏卡片解析使用。
-     *
-     * 调用场景：Spring 容器启动创建该 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 两个 final 字段赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段。
      */
     public KeeperFavoriteTargetResolver(KeeperService keeperService, MerchantService merchantService) {
@@ -95,19 +83,7 @@ public class KeeperFavoriteTargetResolver implements FavoriteTargetResolver {
      * 【拼装看护人描述】组合商家名、从业年限与每日价格
      *
      * 业务作用：为收藏卡片生成一段综合描述文案。
-     *
-     * 调用场景：resolve 组装 FavoriteCardDTO 时调用。
-     *
-     * 调用链：resolve → 本方法 → joinParts。
-     *
-     * 数据处理：商家名为空时置 null，年限拼成 "N years"，价格拼成 "Price N/day"，再由 joinParts 拼接。
-     *
      * 业务规则：任一字段为空则不参与拼接；全部为空时返回 null。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：文案为英文（years / Price /day），与项目其它中文提示不一致；价格未做格式化，可能直接暴露原始小数位。
      */
     private String buildDescription(Keeper keeper, Merchant merchant) {
@@ -120,19 +96,7 @@ public class KeeperFavoriteTargetResolver implements FavoriteTargetResolver {
      * 【拼接文本片段】用竖线连接非空片段
      *
      * 业务作用：把多个可选文案片段拼成一条描述。
-     *
-     * 调用场景：buildDescription 中调用。
-     *
-     * 调用链：buildDescription → 本方法。
-     *
-     * 数据处理：跳过 null 与空白片段，其余用 " | " 连接。
-     *
      * 业务规则：所有片段都为空时返回 null 而非空串。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：不做 trim，片段自带首尾空格时会被保留在分隔符两侧。
      */
     private String joinParts(String... parts) {

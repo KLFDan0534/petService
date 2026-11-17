@@ -216,7 +216,7 @@
                 </div>
               </div>
               <div class="md-service-action">
-                <span class="md-price"><span class="md-price-symbol">¥</span>{{ money(svc.price_wsh) }}<small>/{{ unitLabel(svc.unit_wsh) || '次' }}</small></span>
+                <span class="md-price"><span class="md-price-symbol">¥</span>{{ money(svc.price_wsh) }}<small>/{{ unitLabel(svc.unit_wsh) }}</small></span>
                 <button type="button" class="cta cta-primary cta-sm" :disabled="bookDisabled" @click="bookService(svc)">
                   {{ isOpen ? '预约' : '休息中·可预约' }}
                 </button>
@@ -409,7 +409,7 @@ onMounted(load)
 
 .md-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .md-crumb {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -420,7 +420,7 @@ onMounted(load)
 .md-crumb-sep { color: var(--ref-line); }
 .md-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: var(--r-tag); border: 1px solid transparent;
@@ -433,7 +433,7 @@ onMounted(load)
 .badge-closed { background: transparent; color: var(--ref-muted); border-color: var(--ref-line); }
 .badge-danger { background: color-mix(in srgb, var(--ref-brand-deep) 10%, transparent); color: var(--ref-brand-deep); border-color: color-mix(in srgb, var(--ref-brand-deep) 24%, transparent); }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -448,7 +448,7 @@ onMounted(load)
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Header ═══ */
+/* Header */
 .md-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
   gap: 20px 24px; padding: 20px 0 8px;
@@ -471,7 +471,7 @@ onMounted(load)
 .md-star-on { color: var(--ref-brand); }
 .md-star-off { color: var(--ref-muted); }
 
-/* ═══ Facts ═══ */
+/* Facts */
 .md-facts {
   display: flex; flex-wrap: wrap; gap: 0; margin: 22px 0 0;
   border: 1px solid var(--ref-line); border-radius: var(--r-card);
@@ -487,7 +487,7 @@ onMounted(load)
 .md-fact-rating { display: inline-flex; align-items: center; gap: 6px; }
 .md-star { color: var(--ref-brand); font-size: 16px; }
 
-/* ═══ Section ═══ */
+/* Section */
 .md-section { margin-top: 40px; }
 .md-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 24px; }
 .md-section-title {
@@ -496,7 +496,7 @@ onMounted(load)
 }
 .md-section-desc { margin: 8px 0 0; max-width: 640px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 
-/* ═══ 01 门店概况 ═══ */
+/* 01 门店概况 */
 .md-overview {
   display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; margin-top: 22px;
 }
@@ -535,7 +535,7 @@ onMounted(load)
 }
 .md-link-btn:hover { color: var(--ref-brand-deep); }
 
-/* ═══ 02 资质核验 ═══ */
+/* 02 资质核验 */
 .md-qual-list {
   margin: 22px 0 0; padding: 0; list-style: none;
   border: 1px solid var(--ref-line); border-radius: var(--r-card);
@@ -559,7 +559,7 @@ onMounted(load)
   border: 1px solid var(--ref-line);
 }
 
-/* ═══ 03 营业时间 ═══ */
+/* 03 营业时间 */
 .md-hours-card {
   margin: 22px 0 0; padding: 6px 22px;
   border: 1px solid var(--ref-line); border-radius: var(--r-card);
@@ -574,7 +574,7 @@ onMounted(load)
 .md-hour-closed { font-size: 12.5px; color: var(--ref-muted); }
 .md-hour-time { font-size: 12.5px; color: var(--ref-ink-soft); font-variant-numeric: tabular-nums; }
 
-/* ═══ 04 服务项目 ═══ */
+/* 04 服务项目 */
 .md-service-list { display: grid; gap: 12px; margin-top: 22px; }
 .md-service-item {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -603,7 +603,7 @@ onMounted(load)
 .md-price-symbol { font-size: 13px; vertical-align: top; margin-right: 1px; }
 .md-price small { font-size: 12px; font-weight: 400; color: var(--ref-muted); margin-left: 2px; }
 
-/* ═══ 05 用户评价 ═══ */
+/* 05 用户评价 */
 .md-rating-list { display: grid; gap: 0; margin-top: 22px; }
 .md-rating-item {
   padding: 18px 2px; border-top: 1px solid var(--ref-line);
@@ -626,7 +626,7 @@ onMounted(load)
   color: var(--ref-muted); margin-bottom: 2px;
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .md-empty {
   margin-top: 22px; padding: 40px 24px;
   border: 1px dashed var(--ref-line); border-radius: var(--r-card);
@@ -637,7 +637,7 @@ onMounted(load)
 .md-empty-page { padding: 72px 24px; }
 .md-empty-page .cta { margin-top: 22px; }
 
-/* ═══ Loading skeleton ═══ */
+/* Loading skeleton */
 .md-loading { display: grid; gap: 16px; padding: 24px 0 0; }
 .md-skel {
   border-radius: 10px;
@@ -649,10 +649,10 @@ onMounted(load)
 .md-skel-lede { width: 70%; max-width: 460px; height: 14px; }
 .md-skel-cover { width: 100%; height: 300px; }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes md-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .md-overview { grid-template-columns: 1fr; }
   .md-cover { min-height: 240px; aspect-ratio: 16 / 9; }

@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 
+// 用户后台首页的统计信息
 export async function getUserStatistics() {
   const res = await request.get('/api/statistics/user')
   return res.data

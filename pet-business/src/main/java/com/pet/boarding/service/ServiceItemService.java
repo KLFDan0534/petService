@@ -15,20 +15,14 @@ import java.util.List;
 /**
  * 服务项目管理接口。
  * <p>
- * 服务项目是商家提供的具体宠物服务（如：狗狗洗澡 80元/次、猫咪寄养 100元/天等）。
+ * 服务项目是商家提供的具体宠物服务（如：狗狗洗澡 80元/次、猫咪寄养 100元/夜等）。
  * 每个服务项目归属于一个商家和一个服务分类，支持启用/禁用切换。
  * 客户可通过此接口浏览商家上架的服务项目并下单。
  */
 public interface ServiceItemService {
 
     /**
-     * 【查询商家下所有服务项目（含禁用）】
-     *
      * 业务作用：查询某个商家下所有服务项目（含已禁用的），商家管理后台用。
-     * 调用场景：商家在后台管理服务项目列表时调用。
-     * 调用链：ServiceItemController → listByMerchantForManage → ServiceItemMapper.selectList（按 merchant_id）
-     * 数据处理：按 merchant_id 查询全部记录，按创建时间倒序排列。
-     * 状态影响：只读操作。
      *
      * @param merchantId 商家ID
      * @return 所有服务项目列表（按创建时间倒序）
@@ -36,14 +30,8 @@ public interface ServiceItemService {
     List<ServiceItem> listByMerchantForManage(Long merchantId);
 
     /**
-     * 【根据ID查询服务项目】
-     *
      * 业务作用：根据主键ID查询服务项目信息。
-     * 调用场景：被 update、delete、toggleStatus 等业务方法内部调用。
-     * 调用链：上层业务方法 → getById → ServiceItemMapper.selectById
-     * 数据处理：按主键ID查询单条记录。
      * 业务规则：查询结果为 null 时抛出 BusinessException。
-     * 状态影响：只读操作。
      *
      * @param id 服务项目ID
      * @return 服务项目实体
@@ -52,13 +40,7 @@ public interface ServiceItemService {
     ServiceItem getById(Long id);
 
     /**
-     * 【批量查询服务项目】
-     *
      * 业务作用：根据多个服务项目ID批量查询。
-     * 调用场景：需要一次展示多个服务项目详情的场景。
-     * 调用链：上层业务方法 → listByIds → ServiceItemMapper.selectBatchIds
-     * 数据处理：按ID集合批量查询，入参为空时返回空列表。
-     * 状态影响：只读操作。
      *
      * @param ids 服务项目ID集合
      * @return 服务项目列表
@@ -66,14 +48,17 @@ public interface ServiceItemService {
     List<ServiceItem> listByIds(Collection<Long> ids);
 
     /**
-     * 【创建服务项目】
+     * 业务作用：按商家ID查询状态为「已上架」的服务项目，供需要从可售服务中挑选的场景使用。
+     * 业务规则：只返回已上架服务，已下架/未审核的不参与下单。
      *
+     * @param merchantId 商家ID
+     * @return 已上架服务项目列表，无匹配时返回空列表
+     */
+    List<ServiceItem> listEnabledByMerchant(Long merchantId);
+
+    /**
      * 业务作用：商家新增一个服务项目，自动关联分类编码。
-     * 调用场景：商家在后台新增服务项目时调用。
-     * 调用链：ServiceItemController → create @Transactional → ServiceItemMapper.insert
-     * 数据处理：根据 DTO 构建实体；如果指定分类ID则自动获取分类编码填入 type 字段；默认状态为已启用。
      * 业务规则：分类编码自动同步；默认启用。
-     * 状态影响：新增服务项目记录。
      *
      * @param merchantId 服务端派生的归属商家ID（MERCHANT 自动派生，ADMIN 显式指定）
      * @param dto 服务项目创建请求DTO
@@ -82,14 +67,8 @@ public interface ServiceItemService {
     ServiceItem create(Long merchantId, ServiceItemCreateRequestDTO dto);
 
     /**
-     * 【更新服务项目】
-     *
      * 业务作用：修改服务项目信息，更新分类时同步更新 type 编码。
-     * 调用场景：商家在后台编辑服务项目时调用。
-     * 调用链：ServiceItemController → update @Transactional → ServiceItemMapper.updateById
-     * 数据处理：仅更新非 null 字段；如果更新 category_id 则同步从分类表读取 code 更新 type 字段。
      * 业务规则：仅更新非 null 字段；更新分类时同步更新 type。
-     * 状态影响：更新服务项目字段。
      *
      * @param id  服务项目ID
      * @param dto 服务项目更新请求DTO
@@ -99,13 +78,7 @@ public interface ServiceItemService {
     ServiceItem update(Long id, ServiceItemUpdateRequestDTO dto);
 
     /**
-     * 【删除服务项目】
-     *
      * 业务作用：物理删除服务项目。
-     * 调用场景：商家在后台删除服务项目时调用。
-     * 调用链：ServiceItemController → delete @Transactional → ServiceItemMapper.deleteById
-     * 数据处理：先查询存在性，再物理删除。
-     * 状态影响：物理删除服务项目记录。
      *
      * @param id 服务项目ID
      * @throws BusinessException 如果服务项目不存在
@@ -113,13 +86,7 @@ public interface ServiceItemService {
     void delete(Long id);
 
     /**
-     * 【切换服务项目启用/禁用状态】
-     *
      * 业务作用：切换服务项目的上架/下架状态。
-     * 调用场景：商家在后台启用或禁用服务项目时调用。
-     * 调用链：ServiceItemController → toggleStatus @Transactional → ServiceItemMapper.updateById
-     * 数据处理：ENABLED → DISABLED 或 DISABLED → ENABLED 相互切换。
-     * 状态影响：更新服务项目的 status 字段。
      *
      * @param id 服务项目ID
      * @throws BusinessException 如果服务项目不存在
@@ -127,13 +94,7 @@ public interface ServiceItemService {
     void toggleStatus(Long id);
 
     /**
-     * 【服务项目实体转DTO】
-     *
      * 业务作用：将服务项目实体转换为前端展示所需的 DTO（含分类名称）。
-     * 调用场景：Controller 层返回服务项目信息前调用。
-     * 调用链：各查询 Controller → toDTO → ServiceCategoryMapper.selectById（查询分类名称）
-     * 数据处理：字段拷贝 + 根据 category_id 查询分类名称填入 category_name。
-     * 状态影响：只读操作。
      *
      * @param entity 服务项目实体
      * @return 服务项目DTO（含分类名称），入参为 null 时返回 null
@@ -169,7 +130,7 @@ public interface ServiceItemService {
      * 【服务产品公开详情投影】
      *
      * 业务作用：详情页权威数据源。白名单字段 + 有序可信图册 + 评分聚合 +
-     * 服务版本 + 可预约性标记（仅 day/天 单位且商家开放未来预约）。
+     * 服务版本 + 可预约性标记（仅 night 单位且商家开放未来预约）。
      *
      * @param id 服务产品ID
      * @return 公开详情投影

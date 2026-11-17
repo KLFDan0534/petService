@@ -1,45 +1,50 @@
 package com.pet.ai.service;
 
 import com.pet.ai.dto.AgentExecuteResult;
-import com.pet.ai.dto.AgentPlanResult;
+import com.pet.ai.dto.AgentMessageRequestDTO;
+import com.pet.ai.dto.AgentSessionDetail;
+import com.pet.ai.dto.AgentSessionSummaryVO;
+import com.pet.ai.dto.AgentTurnResult;
+
+import java.util.List;
 
 /**
- * AI 代理服务接口，用户通过自然语言描述需求，Agent 自动完成宠物寄养下单。
+ * 智能下单服务：把「一句话 → 一张方案卡片 → 确认」升级为「一个能记住的会话」。
  * <p>
- * 两阶段流程：
- * 1. plan：LLM 结构化提取需求 → 匹配宠物/商家/看护人 → 生成推荐方案（不落库）→ 返回方案 token
- * 2. confirm：凭方案 token 创建订单/支付（可选自动支付）
+ * 三层职责：
+ * 1. 对话层：每轮 user / assistant 消息落 {@code ai_chat_history_wsh}（复用现有聊天记录服务）；
+ * 2. 状态层：结构化状态（意图 / 方案 / 状态 / 日志）落 {@code agent_session_wsh}，多轮 = 状态被 patch；
+ * 3. 业务层：匹配、校验、报价、落单仍在本服务的私有方法里，LLM 只做语义增量。
  * <p>
- * 当前仅支持按夜寄养（night 计费、interval 预约）。
+ * 红线：金额只来自后端报价（orderService.previewOrder）、只支持按夜寄养、
+ * 副作用（建单 / 支付）只能由 confirm 这个显式事件触发。
  */
 public interface AgentService {
 
     /**
-     * 【业务名称】智能下单 plan 阶段
-     * <p>业务作用：用 LLM 将用户自然语言需求解析为结构化字段（宠物、服务类型、日期、天数、门店偏好、预算），匹配宠物档案与附近看护人，生成推荐方案但不落单，返回方案 token 供用户确认。</p>
-     * <p>业务规则：LLM 不可用/解析失败返回 failed 状态，不做规则兜底；非寄养服务类型（洗护/遛宠/训练/医疗）明确提示不支持；日期需晚于今天且天数 1..365；无坐标时回退用户档案坐标。</p>
-     * <p>状态影响：无（纯只读 + 内存缓存）。</p>
-     *
-     * @param userId     当前用户ID
-     * @param userInput  用户自然语言需求
-     * @param latitude   纬度（可空）
-     * @param longitude  经度（可空）
-     * @param address    定位地址（可空）
-     * @return 推荐方案（plan_generated / needs_user_input / failed）
+     * 处理一轮对话。
+     * <p>
+     * {@code session_id_wsh} 为空 = 首轮：先在内存里跑完整轮，成功后才建会话入库，
+     * 因此「点开页面没发消息」不会产生任何记录。
+     * <p>
+     * 返回 status：{@code await_confirm} / {@code collecting} / {@code failed}。
      */
-    AgentPlanResult plan(Long userId, String userInput, Double latitude, Double longitude, String address);
+    AgentTurnResult message(Long userId, AgentMessageRequestDTO request);
+
+    /** 历史会话列表（按最后活动时间倒序，只含有消息的会话）。 */
+    List<AgentSessionSummaryVO> listSessions(Long userId);
+
+    /** 会话详情：消息 + 当前方案卡片，用于刷新页面或切换历史会话。 */
+    AgentSessionDetail getSession(Long userId, String sessionId);
+
+    /** 删除会话：状态行 + 消息一起清。 */
+    void deleteSession(Long userId, String sessionId);
 
     /**
-     * 【业务名称】智能下单 confirm 阶段
-     * <p>业务作用：凭 plan 阶段返回的方案 token 创建订单与支付记录，autoPay=true 时校验支付密码并直接支付。事务内完成，失败回滚并释放方案 token 供重试。</p>
-     * <p>业务规则：token 原子认领防重复下单；支付密码校验失败不创建订单；成功后才消费 token（afterCommit）。</p>
-     * <p>状态影响：新增订单与支付记录。</p>
-     *
-     * @param userId          当前用户ID
-     * @param planToken       plan 阶段返回的方案 token
-     * @param autoPay         是否自动支付
-     * @param paymentPassword 支付密码（autoPay=true 时必填）
-     * @return 执行结果（success / pending_payment / needs_user_input / failed）
+     * 确认下单：凭会话ID创建订单与支付记录，autoPay=true 时校验支付密码并直接支付。
+     * <p>
+     * 幂等由 status 的 CAS 保证：只有 AWAIT_CONFIRM 能迁移到 CONFIRMED，
+     * 影响行数为 1 才允许建单；事务失败整体回滚，状态自动退回，天然可重试。
      */
-    AgentExecuteResult confirm(Long userId, String planToken, Boolean autoPay, String paymentPassword);
+    AgentExecuteResult confirm(Long userId, String sessionId, Boolean autoPay, String paymentPassword);
 }

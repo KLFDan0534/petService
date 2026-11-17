@@ -18,29 +18,8 @@ import java.util.List;
 public interface TipService {
 
     /**
-     * 【创建打赏】
-     *
-     * 业务作用：
-     * 宠物主人在订单完成后打赏看护者，金额通过财务系统从主人账户实时转账到接收人账户。
-     *
-     * 调用场景：
-     * 宠物主人在已完成的订单中点击"打赏"。
-     *
-     * 调用链：
-     * 主人端/Controller
-     * ↓
-     * create(userId, request)
-     * ↓
-     * 校验订单归属/状态 → insert打赏记录 → accountingService.transfer(主人→接收人)
-     *
-     * 业务规则：
-     * 1. 仅订单主人可打赏
-     * 2. 仅COMPLETED状态的订单可打赏
-     * 3. 未指定接收人时默认看护者关联的用户
-     * 4. 实时转账到接收人账户
-     *
-     * 状态影响：
-     * 创建打赏记录并执行实时转账。
+     * 业务作用：宠物主人在订单完成后打赏看护者，金额通过财务系统从主人账户实时转账到接收人账户。
+     * 业务规则：1. 仅订单主人可打赏 2. 仅COMPLETED状态的订单可打赏 3. 未指定接收人时默认看护者关联的用户 4. 实时转账到接收人账户
      *
      * @param userId  宠物主人用户ID
      * @param request 打赏请求
@@ -70,23 +49,7 @@ public interface TipService {
     List<Tip> listMyTips(Long userId);
 
     /**
-     * 【管理员分页查询打赏记录】
-     *
-     * 业务作用：
-     * 分页查询打赏记录，按创建时间倒序排列。
-     *
-     * 调用场景：
-     * 管理员后台打赏记录列表。
-     *
-     * 调用链：
-     * Controller
-     * ↓
-     * pageAll(pageParam)
-     * ↓
-     * tipMapper.selectPage(Page, LambdaQueryWrapper)
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：分页查询打赏记录，按创建时间倒序排列。
      *
      * @param pageParam 分页参数
      * @return 分页的打赏记录

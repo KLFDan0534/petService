@@ -333,7 +333,7 @@ onMounted(reload)
 
 .kpr-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .kpr-crumb {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -343,7 +343,7 @@ onMounted(reload)
 .kpr-crumb-sep { color: var(--ref-line); }
 .kpr-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: 6px; border: 1px solid transparent;
@@ -356,7 +356,7 @@ onMounted(reload)
 .badge-closed { background: transparent; color: var(--ref-muted); border-color: var(--ref-line); }
 .badge-danger { background: color-mix(in srgb, var(--ref-brand-deep) 10%, transparent); color: var(--ref-brand-deep); border-color: color-mix(in srgb, var(--ref-brand-deep) 24%, transparent); }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -372,7 +372,7 @@ onMounted(reload)
 .cta-ghost { background: transparent; color: var(--ref-ink-soft); }
 .cta-ghost:hover { color: var(--ref-brand); background: transparent; }
 
-/* ═══ Header ═══ */
+/* Header */
 .kpr-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
   gap: 20px 24px; padding: 20px 0 8px;
@@ -392,7 +392,7 @@ onMounted(reload)
 .kpr-desc { margin: 10px 0 0; max-width: 560px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 .kpr-head-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ Section ═══ */
+/* Section */
 .kpr-section { margin-top: 44px; }
 .kpr-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 24px; }
 .kpr-section-title {
@@ -401,13 +401,13 @@ onMounted(reload)
 }
 .kpr-section-desc { margin: 8px 0 0; max-width: 640px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 
-/* ═══ Cards ═══ */
+/* Cards */
 .kpr-card {
   margin-top: 20px; padding: 24px;
   border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface);
 }
 
-/* ═══ 01 身份与状态 ═══ */
+/* 01 身份与状态 */
 .kpr-identity {
   margin-top: 20px; overflow: hidden;
   border: 1px solid var(--ref-line); border-radius: var(--r-panel); background: var(--ref-surface);
@@ -456,7 +456,7 @@ onMounted(reload)
 }
 .kpr-stat-hint { font-size: 10.5px; font-weight: 400; color: var(--ref-muted); font-variant-numeric: normal; }
 
-/* ═══ 02 服务能力 ═══ */
+/* 02 服务能力 */
 .kpr-capacity {
   display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 20px;
 }
@@ -478,14 +478,14 @@ onMounted(reload)
 .kpr-price-symbol { font-size: 17px; color: var(--ref-muted); }
 .kpr-price-caption { margin: 12px 0 0; font-size: 11px; line-height: 1.7; color: var(--ref-muted); }
 
-/* ═══ 03 简介 ═══ */
+/* 03 简介 */
 .kpr-bio {
   margin: 0; max-width: 760px; white-space: pre-line;
   font-size: 14px; line-height: 1.85; color: var(--ref-ink-soft);
 }
 .kpr-bio-empty { margin: 0; font-size: 13px; color: var(--ref-muted); }
 
-/* ═══ 04 资质 ═══ */
+/* 04 资质 */
 .kpr-qual-list {
   margin: 20px 0 0; padding: 0; list-style: none;
   border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface); overflow: hidden;
@@ -505,7 +505,7 @@ onMounted(reload)
 .kpr-qual-thumbs { display: flex; flex-wrap: wrap; gap: 6px; }
 .kpr-qual-thumbs img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; border: 1px solid var(--ref-line); }
 
-/* ═══ 05 评价 ═══ */
+/* 05 评价 */
 .kpr-rating-list {
   margin: 20px 0 0; padding: 0; list-style: none;
   display: grid; grid-template-columns: 1fr; gap: 16px;
@@ -519,7 +519,7 @@ onMounted(reload)
 .kpr-rating-date { font-size: 11px; color: var(--ref-muted); }
 .kpr-rating-content { margin: 12px 0 0; font-size: 13.5px; line-height: 1.7; color: var(--ref-ink-soft); }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .kpr-empty {
   margin-top: 20px; padding: 72px 24px;
   border: 1px dashed var(--ref-line); border-radius: var(--r-card);
@@ -530,7 +530,7 @@ onMounted(reload)
 .kpr-empty-desc { margin: 8px 0 0; font-size: 13px; color: var(--ref-muted); }
 .kpr-empty-actions { margin-top: 22px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
 
-/* ═══ Loading skeleton ═══ */
+/* Loading skeleton */
 .kpr-skel {
   border-radius: var(--r-card);
   background: linear-gradient(90deg, var(--ref-sand) 25%, var(--ref-surface) 50%, var(--ref-sand) 75%);
@@ -539,10 +539,10 @@ onMounted(reload)
 .kpr-skel-hero { height: 180px; margin-top: 24px; }
 .kpr-skel-block { height: 220px; margin-top: 24px; }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes kpr-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (min-width: 720px) {
   .kpr-identity-top { flex-direction: row; align-items: center; }
   .kpr-stats { grid-template-columns: repeat(4, 1fr); }

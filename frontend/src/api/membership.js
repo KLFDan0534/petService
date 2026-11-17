@@ -24,11 +24,6 @@ export async function getMyMembershipOrders() {
   return res.data
 }
 
-export async function getMembershipOrder(orderNo) {
-  const res = await request.get(`/api/membership/orders/${orderNo}`)
-  return res.data
-}
-
 // 付这笔会员订单的钱，付完会员立刻生效
 export async function payMembershipOrder(orderNo) {
   const res = await request.post(`/api/membership/orders/${orderNo}/pay`)
@@ -105,10 +100,5 @@ export async function updateMemberPlanStatus(id, status) {
 
 export async function deleteMemberPlan(id) {
   const res = await request.delete(`/api/membership/admin/plans/${id}`)
-  return res.data
-}
-
-export async function getAdminMemberPlan(id) {
-  const res = await request.get(`/api/membership/admin/plans/${id}`)
   return res.data
 }

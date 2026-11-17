@@ -31,19 +31,7 @@ public class AddressServiceImpl implements AddressService {
      * 【构造方法】注入地址 Mapper
      *
      * 业务作用：由 Spring 注入 AddressMapper，供用户地址的增删改查与默认地址切换使用。
-     *
-     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → addressMapper 赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段。
      */
     public AddressServiceImpl(AddressMapper addressMapper) {
@@ -51,14 +39,8 @@ public class AddressServiceImpl implements AddressService {
     }
 
     /**
-     * 【查询用户地址列表】
-     *
      * 业务作用：获取指定用户的所有地址，默认地址排在首位。
-     * 调用场景：用户在地址管理页面查看地址列表时调用。
-     * 调用链：AddressController → listByUser → AddressMapper.selectList（按 is_default 降序 + 创建时间降序）
-     * 数据处理：按 user_id 查询，按 is_default 降序、创建时间降序排列。
      * 业务规则：排序确保默认地址始终在列表首位。
-     * 状态影响：只读操作。
      */
     @Override
     public List<Address> listByUser(Long userId) {
@@ -71,14 +53,8 @@ public class AddressServiceImpl implements AddressService {
     }
 
     /**
-     * 【根据ID查询地址】
-     *
      * 业务作用：根据主键ID查询地址信息，不存在则抛异常。
-     * 调用场景：被 update、delete、setDefault 方法内部调用。
-     * 调用链：上层业务方法 → getById → AddressMapper.selectById
-     * 数据处理：按主键ID查询单条记录。
      * 业务规则：查询结果为 null 时抛出 BusinessException。
-     * 状态影响：只读操作。
      * 异常情况：地址不存在抛 BusinessException("地址不存在")。
      */
     @Override
@@ -90,15 +66,9 @@ public class AddressServiceImpl implements AddressService {
     }
 
     /**
-     * 【创建地址】
-     *
      * 业务作用：为用户新增一条地址记录，自动管理默认地址标志。
-     * 调用场景：用户在地址管理页面添加新地址时调用。
-     * 调用链：AddressController → create @Transactional → AddressMapper（批量取消默认 + insert + 检查默认）
-     * 数据处理：根据 DTO 构建地址实体；若设为默认则先清除其他地址的默认标志；插入后检查用户是否还有默认地址，若无则自动设为默认。
      * 业务规则：设为默认时先清除其他地址默认标志；确保用户始终有一个默认地址。
-     * 状态影响：新增地址记录；可能修改其他地址的 is_default 标志。
-     * 事务边界：批量更新 + 插入 + 可能再次更新在同一事务中。
+     * 状态影响：新增地址记录；可能修改其他地址的 is_default 标志。 事务边界：批量更新 + 插入 + 可能再次更新在同一事务中。
      */
     @Override
     @Transactional
@@ -135,15 +105,9 @@ public class AddressServiceImpl implements AddressService {
     }
 
     /**
-     * 【更新地址信息】
-     *
      * 业务作用：修改用户已有的地址信息，支持默认标志变更。
-     * 调用场景：用户在地址管理页面编辑地址时调用。
-     * 调用链：AddressController → update @Transactional → AddressMapper.updateById
-     * 数据处理：先校验地址归属权；仅更新非 null 字段；若设为默认则取消其他地址默认标志（使用 ne 排除自身）。
      * 业务规则：操作人必须是该地址的所属用户；设为默认时排除自身，避免将自己取消默认。
-     * 状态影响：更新地址字段；可能修改其他地址的 is_default 标志。
-     * 事务边界：权限校验 + 批量更新 + 单条更新在同一事务中。
+     * 状态影响：更新地址字段；可能修改其他地址的 is_default 标志。 事务边界：权限校验 + 批量更新 + 单条更新在同一事务中。
      * 异常情况：用户无权操作时抛 BusinessException。
      */
     @Override
@@ -174,15 +138,9 @@ public class AddressServiceImpl implements AddressService {
     }
 
     /**
-     * 【删除地址】
-     *
      * 业务作用：删除用户指定的地址记录。
-     * 调用场景：用户在地址管理页面删除地址时调用。
-     * 调用链：AddressController → delete @Transactional → AddressMapper.deleteById
-     * 数据处理：先校验地址归属权，然后物理删除。
      * 业务规则：仅地址的所属用户可以删除。
-     * 状态影响：物理删除地址记录。
-     * 事务边界：权限校验 + 删除在同一事务中。
+     * 状态影响：物理删除地址记录。 事务边界：权限校验 + 删除在同一事务中。
      * 异常情况：用户无权操作时抛 BusinessException。
      */
     @Override
@@ -195,13 +153,7 @@ public class AddressServiceImpl implements AddressService {
     }
 
     /**
-     * 【地址实体转DTO】
-     *
      * 业务作用：将地址实体转换为前端展示所需的 DTO。
-     * 调用场景：Controller 层返回地址信息前调用。
-     * 调用链：各查询 Controller → toDTO
-     * 数据处理：字段拷贝。
-     * 状态影响：只读操作。
      */
     @Override
     public AddressDTO toDTO(Address entity) {
@@ -221,15 +173,9 @@ public class AddressServiceImpl implements AddressService {
     }
 
     /**
-     * 【设置默认地址】
-     *
      * 业务作用：将指定地址设为当前用户的默认地址。
-     * 调用场景：用户在地址管理页面设置默认地址时调用。
-     * 调用链：AddressController → setDefault @Transactional → AddressMapper（批量取消 + 单独设置）
-     * 数据处理：两步更新——先将该用户所有地址的 is_default 置为 0，再将指定地址的 is_default 置为 1。
      * 业务规则：一个用户最多只有一个默认地址。
-     * 状态影响：修改该用户所有地址的 is_default 标志。
-     * 事务边界：两次更新在同一事务中。
+     * 状态影响：修改该用户所有地址的 is_default 标志。 事务边界：两次更新在同一事务中。
      */
     @Override
     @Transactional

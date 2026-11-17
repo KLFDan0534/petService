@@ -1,6 +1,5 @@
 package com.pet.boarding.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -34,11 +33,11 @@ public class ServiceItemCreateRequestDTO {
     @DecimalMax(value = "1000000.00", message = "价格不能超过上限")
     private BigDecimal price_wsh;
 
-    @Schema(description = "单位（day/session/hour；天/days、次/sessions、小时/hours 自动归一）")
+    @Schema(description = "单位（night/session/hour；夜/晚、次/课时、小时 自动归一）")
     @Size(max = 20, message = "计费单位不能超过20个字符")
     private String unit_wsh;
 
-    @Schema(description = "单次服务时长（分钟），必填：day=1440；session 默认60；hour 须为60的整数倍，范围15..1440")
+    @Schema(description = "单次服务时长（分钟），必填：night=1440；session 默认60；hour 须为60的整数倍，范围15..1440")
     private Integer duration_minutes_wsh;
 
     @Schema(description = "图片(逗号分隔，历史兼容字段)")

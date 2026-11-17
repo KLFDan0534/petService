@@ -272,7 +272,7 @@ onMounted(loadKeepers)
 
 .kp-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .kp-crumb {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -282,7 +282,7 @@ onMounted(loadKeepers)
 .kp-crumb-sep { color: var(--ref-line); }
 .kp-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -297,7 +297,7 @@ onMounted(loadKeepers)
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Tag pill ═══ */
+/* Tag pill */
 .tag-pill {
   display: inline-flex; align-items: center;
   border-radius: var(--r-tag); border: 1px solid var(--ref-line);
@@ -314,7 +314,7 @@ onMounted(loadKeepers)
   background: transparent; color: var(--ref-muted); border-color: var(--ref-line);
 }
 
-/* ═══ Header ═══ */
+/* Header */
 .kp-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
   gap: 20px 40px; padding: 20px 0 8px;
@@ -346,7 +346,7 @@ onMounted(loadKeepers)
   font-size: 26px; font-weight: 400; line-height: 1; color: var(--ref-ink); font-variant-numeric: tabular-nums;
 }
 
-/* ═══ Toolbar ═══ */
+/* Toolbar */
 .kp-toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
   margin-top: 24px; padding: 14px 16px;
@@ -377,7 +377,7 @@ onMounted(loadKeepers)
 .kp-pill-active { background: var(--ref-ink); border-color: var(--ref-ink); color: var(--ref-cream); }
 .kp-pill-brand { background: var(--ref-brand); border-color: var(--ref-brand); color: #fff; }
 
-/* ═══ Section ═══ */
+/* Section */
 .kp-section { margin-top: 40px; }
 .kp-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 24px; }
 .kp-section-title {
@@ -386,7 +386,7 @@ onMounted(loadKeepers)
 }
 .kp-section-desc { margin: 8px 0 0; max-width: 640px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 
-/* ═══ Cards ═══ */
+/* Cards */
 .kp-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 22px;
 }
@@ -451,7 +451,7 @@ onMounted(loadKeepers)
 .kp-price small { font-size: 11.5px; font-weight: 400; color: var(--ref-muted); margin-left: 2px; }
 .kp-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 
-/* ═══ Loading / Empty ═══ */
+/* Loading / Empty */
 .kp-skeleton-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 22px;
 }
@@ -469,10 +469,10 @@ onMounted(loadKeepers)
 .kp-empty-desc { margin: 8px 0 0; font-size: 13px; color: var(--ref-muted); }
 .kp-empty .cta { margin-top: 20px; }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes kp-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .kp-grid, .kp-skeleton-grid { grid-template-columns: repeat(2, 1fr); }
 }

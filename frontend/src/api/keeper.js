@@ -61,25 +61,9 @@ export async function getMyKeeperApplication() {
   return res.data
 }
 
-// 按经纬度找附近的宠托师，下单时选人用
-export async function getNearbyKeepers(params) {
-  const res = await request.get('/api/keepers/nearby', { params })
-  return res.data
-}
-
-export async function getPendingKeepers() {
-  const res = await request.get('/api/keepers/pending')
-  return res.data
-}
-
 // 商家名下还没审的人，商家自己得先过一遍
 export async function getMerchantPendingKeepers() {
   const res = await request.get('/api/keepers/merchant/pending')
-  return res.data
-}
-
-export async function resignKeeper(id) {
-  const res = await request.post(`/api/keepers/${id}/resign`, {})
   return res.data
 }
 
@@ -93,12 +77,3 @@ export async function merchantRejectKeeper(id) {
   const res = await request.post(`/api/keepers/${id}/merchant-reject`, {})
   return res.data
 }
-
-// 商家跟人解约，解完这人在该商家就接不了单
-export async function merchantTerminateKeeper(id) {
-  const res = await request.post(`/api/keepers/${id}/merchant-terminate`, {})
-  return res.data
-}
-
-
-

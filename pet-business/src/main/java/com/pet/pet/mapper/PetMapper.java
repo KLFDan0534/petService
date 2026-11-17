@@ -3,6 +3,7 @@ package com.pet.pet.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.pet.pet.entity.Pet;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -32,4 +33,22 @@ public interface PetMapper extends BaseMapper<Pet> {
             GROUP BY owner_id_wsh
             """)
     List<Map<String, Object>> selectCouponGrantPetCounts();
+
+    /**
+     * 查询在本商家下过单的宠物，按 pet_id 去重。
+     * 商家端「宠物管理」用：宠物归主人所有，商家没有宠物池，
+     * 只能查看在本店履约过的宠物档案。
+     *
+     * @param merchantId 商家 ID
+     * @return 该商家订单涉及的去重宠物，按 id 倒序
+     */
+    @Select("""
+            SELECT DISTINCT p.*
+            FROM pet_wsh p
+            INNER JOIN pet_order_wsh o ON o.pet_id_wsh = p.id_wsh
+            WHERE o.merchant_id_wsh = #{merchantId}
+              AND p.deleted_wsh = 0
+            ORDER BY p.id_wsh DESC
+            """)
+    List<Pet> selectServedByMerchant(@Param("merchantId") Long merchantId);
 }

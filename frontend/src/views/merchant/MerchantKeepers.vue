@@ -57,7 +57,12 @@ import { ref, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
 import MerchantAttendanceLeavePanel from '@/components/merchant/MerchantAttendanceLeavePanel.vue'
 import { getMyMerchant } from '@/api/merchant'
-import request from '@/utils/request'
+import {
+  getMerchantPendingKeepers,
+  getKeepersByMerchant,
+  merchantApproveKeeper,
+  merchantRejectKeeper,
+} from '@/api/keeper'
 
 const appStore = useAppStore()
 
@@ -80,8 +85,8 @@ onMounted(async () => {
 
 // 待审核的申请，接口按当前登录的商家给，不用自己传 id
 async function loadPendingKeepers() {
-  const r = await request.get('/api/keepers/merchant/pending')
-  if (r.data.code === 200) keepers.value = r.data.data || []
+  const r = await getMerchantPendingKeepers()
+  if (r.code === 200) keepers.value = r.data || []
 }
 
 // 已通过的寄养员要先知道自己属于哪家商家，所以得先取商家资料
@@ -89,22 +94,22 @@ async function loadAllKeepers() {
   const merchantRes = await getMyMerchant()
   const merchantId = merchantRes?.data?.id_wsh
   if (!merchantId) return
-  const r = await request.get(`/api/keepers/merchant/${merchantId}`)
-  if (r.data.code === 200) allKeepers.value = r.data.data || []
+  const r = await getKeepersByMerchant(merchantId)
+  if (r.code === 200) allKeepers.value = r.data || []
 }
 
 // 通过之后这条就从待审核里拿掉，再刷一遍已通过列表让人数跟上
 async function approve(id) {
   operating.value = id
   try {
-    const r = await request.post(`/api/keepers/${id}/merchant-approve`)
-    if (r.data.code === 200) {
+    const r = await merchantApproveKeeper(id)
+    if (r.code === 200) {
       // 先在本地删掉，列表立刻少一条，不用干等重新请求
       keepers.value = keepers.value.filter(k => k.id_wsh !== id)
       await loadAllKeepers()
       appStore.addToast('已审核通过', 'success')
     } else {
-      appStore.addToast(r.data.message || '操作失败', 'error')
+      appStore.addToast(r.message || '操作失败', 'error')
     }
   } catch (e) {
     appStore.addToast('操作失败', 'error')
@@ -117,13 +122,13 @@ async function approve(id) {
 async function reject(id) {
   operating.value = id
   try {
-    const r = await request.post(`/api/keepers/${id}/merchant-reject`)
-    if (r.data.code === 200) {
+    const r = await merchantRejectKeeper(id)
+    if (r.code === 200) {
       // 驳回的这条直接没了，不用去刷已通过列表
       keepers.value = keepers.value.filter(k => k.id_wsh !== id)
       appStore.addToast('已驳回', 'success')
     } else {
-      appStore.addToast(r.data.message || '操作失败', 'error')
+      appStore.addToast(r.message || '操作失败', 'error')
     }
   } catch (e) {
     appStore.addToast('操作失败', 'error')

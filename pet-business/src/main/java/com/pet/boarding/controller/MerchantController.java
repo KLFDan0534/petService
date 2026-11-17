@@ -10,8 +10,6 @@ import com.pet.boarding.dto.MerchantStatusRequestDTO;
 import com.pet.boarding.dto.MerchantUpdateRequestDTO;
 import com.pet.security.JwtAuthenticationToken;
 import com.pet.boarding.service.MerchantService;
-import jakarta.validation.Valid;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -48,26 +46,7 @@ public class MerchantController {
 
     private final MerchantService merchantService;
 
-    /**
-     * 【商家控制器构造注入】
-     *
-     * 业务作用：注入商家业务服务。
-     *
-     * 调用场景：Spring 容器创建 MerchantController 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 merchantService。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public MerchantController(MerchantService merchantService) {
+        public MerchantController(MerchantService merchantService) {
         this.merchantService = merchantService;
     }
 
@@ -252,7 +231,7 @@ public class MerchantController {
                                     @RequestBody MerchantUpdateRequestDTO dto) {
         log.info("调用 update()");
         // 管理员或商家本人才可修改
-        if (!isAdmin(token) && !merchantService.isOwner(id, token.getUserId())) {
+        if (!JwtAuthenticationToken.isAdmin(token) && !merchantService.isOwner(id, token.getUserId())) {
             return Result.error(403, "无权修改此商家");
         }
         return Result.success(merchantService.toDTO(merchantService.update(id, dto)));
@@ -354,7 +333,7 @@ public class MerchantController {
                                                @RequestBody MerchantStoreModeRequestDTO dto) {
         log.info("调用 updateStoreMode()");
         // 管理员或商家本人才可切换营业模式
-        if (!isAdmin(token) && !merchantService.isOwner(id, token.getUserId())) {
+        if (!JwtAuthenticationToken.isAdmin(token) && !merchantService.isOwner(id, token.getUserId())) {
             return Result.error(403, "无权修改此商家");
         }
         return Result.success(merchantService.toDTO(merchantService.updateStoreMode(id, dto.getStore_mode_wsh())));
@@ -419,33 +398,4 @@ public class MerchantController {
         return Result.success();
     }
 
-    /**
-     * 【判断是否管理员】
-     *
-     * 业务作用：从登录凭证中判断当前用户是否具备 ROLE_ADMIN 权限。
-     *
-     * 调用场景：update() 与 updateStoreMode() 在注解鉴权之外做二次归属判断时。
-     *
-     * 调用链：update()/updateStoreMode() → isAdmin()。
-     *
-     * 数据处理：遍历 token 权限集合，比对 "ROLE_ADMIN"。
-     *
-     * 业务规则：token 为空时返回 false。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：管理员在此处被放行，实际是否可调用仍由 @PreAuthorize 决定，例如 updateStoreMode 仅允许 MERCHANT/ADMIN。
-     */
-    private boolean isAdmin(JwtAuthenticationToken token) {
-        if (token == null) return false;
-        // 遍历权限集合，命中 ADMIN 即放行
-        for (GrantedAuthority authority : token.getAuthorities()) {
-            if ("ROLE_ADMIN".equals(authority.getAuthority())) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

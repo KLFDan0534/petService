@@ -101,16 +101,7 @@ public class User {
     private LocalDateTime updated_at_wsh;
 
     /**
-     * 【用户实体转VO】
-     *
      * 业务作用：将User实体对象转换为UserVO视图对象，并注入角色编码列表
-     *
-     * 调用场景：在Service层组装用户数据返回给Controller时调用
-     *
-     * 调用链：UserServiceImpl.listAll/listPage/xxx ↓ user.toVO(roles) → BeanUtil.copyProperties → setRoles → UserVO
-     *
-     * 数据处理：this(User实体) + roles(角色编码列表) → BeanUtil.copyProperties属性拷贝 → setRoles注入角色 → VO返回
-     *
      * 注意事项：使用hutool的BeanUtil进行属性拷贝，字段名需一一对应；密码等@JsonIgnore字段不会被拷贝
      */
     public UserVO toVO(List<String> roles) {

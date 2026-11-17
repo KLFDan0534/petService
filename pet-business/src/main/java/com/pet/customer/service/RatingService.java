@@ -2,7 +2,6 @@ package com.pet.customer.service;
 
 import com.pet.customer.dto.RatingCreateRequestDTO;
 import com.pet.customer.dto.RatingDTO;
-import com.pet.customer.entity.Rating;
 
 import java.util.List;
 
@@ -13,15 +12,9 @@ import java.util.List;
  */
 public interface RatingService {
     /**
-     * 【业务名称】按目标查询评价列表
+     * 按目标查询评价列表
+     *
      * 业务作用：根据目标对象 ID 和类型查询评价列表。
-     * 调用场景：用户或商家查看某目标的评价。
-     * 调用链：getRatingsByTarget() → RatingMapper.selectList()。
-     * 数据处理：按 targetId + targetType 匹配，按创建时间倒序。
-     * 业务规则：无。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      *
      * @param targetId   目标对象 ID（商家ID/照看者ID/服务ID）
      * @param targetType 目标类型（merchant/keeper/service）
@@ -30,13 +23,10 @@ public interface RatingService {
     List<RatingDTO> getRatingsByTarget(Long targetId, String targetType);
 
     /**
-     * 【业务名称】创建评价
+     * 创建评价
+     *
      * 业务作用：用户为指定订单或服务创建评价。
-     * 调用场景：订单完成后用户评价。
-     * 调用链：createRating() → 校验 → RatingMapper.insert()。
-     * 数据处理：校验订单完成状态和重复评价 → 插入评价记录。
      * 业务规则：同一订单不可重复评价；订单需已完成。
-     * 状态影响：新增评价记录。
      * 异常情况：目标为空抛异常；评分越界抛异常；订单未完成抛异常；重复评价抛异常。
      * 注意事项：服务维度评价自动查找最近已完成订单。
      *
@@ -47,15 +37,11 @@ public interface RatingService {
     RatingDTO createRating(Long userId, RatingCreateRequestDTO request);
 
     /**
-     * 【业务名称】回复评价
+     * 回复评价
+     *
      * 业务作用：商家或照看者回复一条评价。
-     * 调用场景：商家/照看者回复用户评价。
-     * 调用链：replyRating() → 权限校验 → RatingMapper.updateById()。
-     * 数据处理：更新评价的 reply 和 reply_at 字段。
      * 业务规则：商家只能回复 merchant 类型评价；照看者只能回复 keeper 类型评价。
-     * 状态影响：评价的 reply 字段更新。
      * 异常情况：评价不存在抛异常；无权回复抛 BusinessException(403)。
-     * 注意事项：无。
      *
      * @param id     评价 ID
      * @param reply  回复内容
@@ -65,9 +51,9 @@ public interface RatingService {
     RatingDTO replyRating(Long id, String reply, Long userId);
 
     /**
-     * 【业务名称】查询当前用户对指定订单的评价
+     * 查询当前用户对指定订单的评价
+     *
      * 业务作用：返回当前用户对某订单已提交的所有评价维度，用于前端展示已评价状态。
-     * 调用场景：订单完成后的三维评价面板。
      * 业务规则：仅返回当前用户自己的评价。
      */
     List<RatingDTO> getMyRatingsByOrder(Long userId, Long orderId);

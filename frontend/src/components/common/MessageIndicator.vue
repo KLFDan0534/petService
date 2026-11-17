@@ -117,7 +117,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* --- 悬浮预览下拉 --- */
+/* 悬浮预览下拉 */
 .msg-dropdown-wrapper {
   position: relative;
 }

@@ -202,8 +202,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
-import request from '@/utils/request'
-import { getMyKeeperInfo } from '@/api/keeper'
+import { getMyKeeperInfo, createKeeper } from '@/api/keeper'
+import { getMerchants } from '@/api/merchant'
+import { getCurrentUser } from '@/api/auth'
+import { uploadFileToDirectory } from '@/api/file'
 import { formatDate as utilFormatDate } from '@/utils/format'
 
 const router = useRouter()
@@ -260,14 +262,14 @@ const form = reactive({
 onMounted(async () => {
   try {
     const [mr, ur, er] = await Promise.all([
-      request.get('/api/merchants'),
-      request.get('/users/me'),
+      getMerchants(),
+      getCurrentUser(),
       getMyKeeperInfo().catch(() => null),
     ])
-    if (mr.data.code === 200) {
-      merchants.value = mr.data.data || []
+    if (mr.code === 200) {
+      merchants.value = mr.data || []
     }
-    if (ur.data.code === 200 && ur.data.data) {
+    if (ur.code === 200 && ur.data) {
       const u = ur.data.data
       form.name_wsh = u.real_name_wsh || u.nickname_wsh || u.username_wsh || ''
       form.phone_wsh = u.phone_wsh || ''
@@ -289,9 +291,9 @@ async function uploadQualImage(index, e) {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const r = await request.post('/files/upload?directory=qualifications', formData)
-    if (r.data.code === 200 && r.data.data?.url_wsh) {
-      qualImages.value[index] = r.data.data.url_wsh
+    const r = await uploadFileToDirectory('qualifications', formData)
+    if (r.code === 200 && r.data?.url_wsh) {
+      qualImages.value[index] = r.data.url_wsh
     } else {
       appStore.addToast('图片上传失败', 'error')
     }
@@ -321,8 +323,8 @@ async function submitApplication() {
       bio_wsh: form.bio_wsh || '',
       qualification_image_wsh: validImages.join(','),
     }
-    const r = await request.post('/api/keepers', payload)
-    if (r.data.code === 200) {
+    const r = await createKeeper(payload)
+    if (r.code === 200) {
       appStore.addToast('申请提交成功，请等待商户审核', 'success')
       router.push('/profile')
     } else {
@@ -355,7 +357,7 @@ async function submitApplication() {
 
 .ka-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ka-crumb {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -365,7 +367,7 @@ async function submitApplication() {
 .ka-crumb-sep { color: var(--ref-line); }
 .ka-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Page header ═══ */
+/* Page header */
 .ka-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
   gap: 20px 32px; padding: 22px 0 8px;
@@ -383,7 +385,7 @@ async function submitApplication() {
 }
 .ka-sub { margin: 12px 0 0; max-width: 620px; font-size: 13px; line-height: 1.8; color: var(--ref-ink-soft); opacity: 0.85; }
 
-/* ═══ Sections ═══ */
+/* Sections */
 .ka-section { margin-top: 48px; }
 .ka-sec-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
 .ka-idx { font-variant-numeric: tabular-nums; }
@@ -394,7 +396,7 @@ async function submitApplication() {
 }
 .ka-sec-desc { margin: 8px 0 0; max-width: 560px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 
-/* ═══ Card ═══ */
+/* Card */
 .ka-card {
   margin-top: 20px; padding: 28px;
   border: 1px solid var(--ref-line); border-radius: var(--r-panel);
@@ -402,7 +404,7 @@ async function submitApplication() {
   box-shadow: 0 2px 4px -2px rgba(13, 33, 26, 0.06);
 }
 
-/* ═══ Form grid ═══ */
+/* Form grid */
 .ka-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px 24px; }
 .ka-field { display: grid; gap: 8px; min-width: 0; }
 .ka-field--wide { grid-column: 1 / -1; }
@@ -438,7 +440,7 @@ async function submitApplication() {
 }
 .ka-hint { margin: 0; font-size: 11.5px; line-height: 1.6; color: var(--ref-muted); }
 
-/* ═══ Qualifications ═══ */
+/* Qualifications */
 .ka-qual-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .ka-qual { display: grid; gap: 8px; min-width: 0; }
 .ka-qual-label { margin: 0; font-size: 12px; font-weight: 500; color: var(--ref-ink-soft); }
@@ -474,7 +476,7 @@ async function submitApplication() {
 .ka-qual-note { margin: 18px 0 0; font-size: 12px; color: var(--ref-muted); }
 .ka-num { color: var(--ref-ink-soft); font-variant-numeric: tabular-nums; font-weight: 600; }
 
-/* ═══ Badges (progress) ═══ */
+/* Badges (progress) */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -491,7 +493,7 @@ async function submitApplication() {
 .badge-danger { background: color-mix(in srgb, #b3402a 10%, transparent); color: color-mix(in srgb, #b3402a 90%, transparent); }
 .badge-info { background: color-mix(in srgb, var(--ref-brand) 11%, transparent); color: var(--ref-brand-deep); }
 
-/* ═══ Progress (已有申请) ═══ */
+/* Progress (已有申请) */
 .ka-progress {
   margin-top: 20px;
   padding: 28px;
@@ -557,7 +559,7 @@ async function submitApplication() {
   .ka-progress-grid { grid-template-columns: 1fr; }
 }
 
-/* ═══ Error ═══ */
+/* Error */
 .ka-error {
   margin-top: 18px; padding: 12px 14px;
   border: 1px solid color-mix(in srgb, #b3402a 30%, transparent); border-radius: var(--r-btn);
@@ -565,7 +567,7 @@ async function submitApplication() {
   color: color-mix(in srgb, #b3402a 85%, transparent); font-size: 13px; line-height: 1.6;
 }
 
-/* ═══ Footer / CTA ═══ */
+/* Footer / CTA */
 .ka-footer {
   display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px;
   margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--ref-line);
@@ -583,7 +585,7 @@ async function submitApplication() {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .ka-skeleton-stack { display: grid; gap: 20px; margin-top: 32px; }
 .ka-skeleton {
   border-radius: var(--r-panel); border: 1px solid var(--ref-line);
@@ -591,10 +593,10 @@ async function submitApplication() {
   background-size: 200% 100%; animation: ka-shimmer 1.3s linear infinite;
 }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes ka-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 760px) {
   .ka-grid { grid-template-columns: 1fr; }
   .ka-qual-grid { grid-template-columns: 1fr; }

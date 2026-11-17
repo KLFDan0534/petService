@@ -31,7 +31,7 @@
           <div><span>宠物</span>{{ order.pet_name_wsh || '#' + order.pet_id_wsh }}</div>
           <div><span>主人</span>{{ order.owner_name_wsh || '#' + order.owner_id_wsh }}</div>
           <div><span>服务时间</span>{{ order.start_date_wsh }} 至 {{ order.end_date_wsh }}</div>
-          <div><span>送达地点</span>{{ order.delivery_address_wsh || order.merchant_address_wsh || '-' }}</div>
+          <div><span>送达门店</span>{{ order.merchant_address_wsh || order.delivery_address_wsh || '-' }}</div>
           <div><span>送养时间</span>{{ formatDateTime(order.delivery_time_wsh) }}</div>
           <div><span>接收截止</span>{{ formatDateTime(order.receiver_available_end_wsh) }}</div>
         </div>
@@ -71,7 +71,7 @@
         <p class="modal-hint" :style="{ color: receiveForm.received_latitude_wsh ? '#2e7d32' : '#c62828' }">
           <template v-if="locating">正在获取当前位置…</template>
           <template v-else-if="receiveForm.received_latitude_wsh">已获取当前位置，可确认接收</template>
-          <template v-else>未获取到定位，请允许浏览器定位后重试</template>
+          <template v-else>未获取到定位（不影响接收）</template>
           <button
             v-if="!locating"
             type="button"
@@ -79,10 +79,6 @@
             @click="locateForReceive"
           >重新定位</button>
         </p>
-        <label v-if="isDevBuild" class="modal-hint" style="display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input v-model="receiveForm.skip_distance_check_wsh" type="checkbox">
-          调试：跳过距离校验
-        </label>
       </div>
       <template #footer>
         <button class="btn btn-secondary btn-sm" @click="closeReceiveModal">取消</button>
@@ -140,7 +136,6 @@ import { formatPaymentTimeoutRemaining, getPaymentTimeoutRemaining } from '@/uti
 import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 
 // 生产构建不渲染调试开关：避免有人勾一下绕过 500 米交接围栏
-const isDevBuild = import.meta.env.DEV
 
 const props = defineProps({
   poolOrders: { type: Array, default: () => [] },
@@ -195,7 +190,6 @@ const receiveForm = reactive({
   received_latitude_wsh: null,
   received_longitude_wsh: null,
   received_accuracy_wsh: null,
-  skip_distance_check_wsh: false,
 })
 const locating = ref(false)
 const startPhotoInput = ref(null)
@@ -210,7 +204,6 @@ onUnmounted(() => {
 async function openReceiveModal(order) {
   receivingOrder.value = order
   receiveForm.handover_code_wsh = ''
-  receiveForm.skip_distance_check_wsh = false
   receiveForm.received_address_wsh = ''
   receiveForm.received_latitude_wsh = null
   receiveForm.received_longitude_wsh = null
@@ -286,7 +279,6 @@ function submitReceive() {
     received_latitude_wsh: receiveForm.received_latitude_wsh,
     received_longitude_wsh: receiveForm.received_longitude_wsh,
     received_accuracy_wsh: receiveForm.received_accuracy_wsh,
-    skip_distance_check_wsh: receiveForm.skip_distance_check_wsh,
   })
 }
 

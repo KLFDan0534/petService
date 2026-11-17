@@ -23,8 +23,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/wallet")
 @Tag(name = "【用户端】钱包管理", description = "用户钱包和余额管理（用户查询/管理员调整）")
@@ -34,48 +32,15 @@ public class WalletController {
     private final WalletService walletService;
     private final AccountingService accountingService;
 
-    /**
-     * 【钱包控制器构造注入】
-     *
-     * 业务作用：注入钱包服务与记账服务。
-     *
-     * 调用场景：Spring 容器创建 WalletController 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 walletService 与 accountingService。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
-    public WalletController(WalletService walletService, AccountingService accountingService) {
+        public WalletController(WalletService walletService, AccountingService accountingService) {
         this.walletService = walletService;
         this.accountingService = accountingService;
     }
 
     /**
-     * 【查询我的钱包】
-     *
      * 业务作用：返回当前登录用户的钱包余额信息。
-     *
-     * 调用场景：用户进入钱包页面。
-     *
-     * 调用链：GET /api/wallet/me → getMyWallet() → walletService.getByUserId() → walletService.toDTO()。
-     *
-     * 数据处理：按登录用户 ID 查询钱包并转换为 DTO。
-     *
      * 业务规则：需登录；钱包不存在时由服务层决定是否自动创建。
-     *
-     * 状态影响：无（是否初始化钱包由服务层决定）。
-     *
      * 异常情况：未登录返回 401。
-     *
-     * 注意事项：无。
      */
     @GetMapping("/me")
     @Operation(summary = "获取我的钱包", description = "获取当前用户的钱包信息")
@@ -119,22 +84,9 @@ public class WalletController {
     }
 
     /**
-     * 【校验请求体非空】
-     *
      * 业务作用：请求体为 null 时抛 400，避免后续空指针。
-     *
-     * 调用场景：recharge() 解析充值参数前。
-     *
-     * 调用链：recharge() → requireBody()。
-     *
-     * 数据处理：原样返回非空请求体。
-     *
      * 业务规则：请求体必填。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：body 为 null 抛 BusinessException(400, "Request body cannot be empty")。
-     *
      * 注意事项：泛型方法，当前仅被 recharge() 使用；adjustBalance() 未做同样的空体校验。
      */
     private <T> T requireBody(T body) {
@@ -145,23 +97,9 @@ public class WalletController {
     }
 
     /**
-     * 【管理员分页查询全部钱包】
-     *
      * 业务作用：分页返回所有用户的钱包信息。
-     *
-     * 调用场景：后台钱包管理列表。
-     *
-     * 调用链：GET /api/wallet → listAll() → walletService.listPage() → PageResult 组装。
-     *
-     * 数据处理：服务层返回 IPage，取出记录并复制分页信息到 PageResult。
-     *
      * 业务规则：需 ADMIN 角色。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：无权限由 @PreAuthorize 拦截返回 403。
-     *
-     * 注意事项：无。
      */
     @GetMapping
     @Operation(summary = "获取钱包列表", description = "管理员获取全部用户钱包信息")
@@ -181,22 +119,10 @@ public class WalletController {
     }
 
     /**
-     * 【管理员调整用户余额】
-     *
      * 业务作用：按 set/add/subtract 三种方式调整指定用户的钱包余额。
-     *
-     * 调用场景：后台人工补偿或扣减用户余额。
-     *
-     * 调用链：POST /api/wallet/admin/adjust → adjustBalance() → accountingService.setBalanceByAdmin() / credit() / debit() → walletService.toDTO()。
-     *
      * 数据处理：优先使用请求中的 request_id_wsh 作为幂等键，为空时用操作人+目标用户+纳秒时间戳生成；按 mode 分流到对应记账方法。
-     *
      * 业务规则：mode 仅支持 set、add、subtract，其余抛 400；需 ADMIN 角色。
-     *
-     * 状态影响：更新钱包余额并写入资金流水（由 AccountingService 完成）。
-     *
      * 异常情况：mode 不支持抛 BusinessException(400, "不支持的调整方式")；余额不足等由记账服务抛出。
-     *
      * 注意事项：未对请求体做 requireBody 空校验，body 为 null 会抛 NullPointerException；自动生成的幂等键含时间戳，重试时无法真正幂等。
      */
     @PostMapping("/admin/adjust")

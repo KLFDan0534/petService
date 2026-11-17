@@ -32,7 +32,7 @@ public final class OrderPricing {
     private OrderPricing() {
     }
 
-    // ==================== 按小时 HOUR ====================
+    // 按小时 HOUR
 
     /** 小时的分钟数：单价语义是「每小时」，所有折算都以它为分母。 */
     public static final int HOUR_MINUTES = 60;
@@ -57,7 +57,7 @@ public final class OrderPricing {
                 .divide(BigDecimal.valueOf(HOUR_MINUTES), 2, RoundingMode.HALF_UP);
     }
 
-    // ==================== 按夜 NIGHT ====================
+    // 按夜 NIGHT
 
     /** 一夜的小时数：夜价 ÷ 24 得到派生小时价（只用于计算，不作为独立配置项）。 */
     public static final int NIGHT_HOURS = 24;

@@ -22,19 +22,7 @@ public class QualificationServiceImpl implements QualificationService {
      * 【构造方法】注入资质 Mapper
      *
      * 业务作用：由 Spring 注入 QualificationMapper，供资质读写使用。
-     *
-     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → qualificationMapper 赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段。
      */
     public QualificationServiceImpl(QualificationMapper qualificationMapper) {
@@ -248,19 +236,8 @@ public class QualificationServiceImpl implements QualificationService {
      * 【资质实体转DTO】按可见性参数决定是否脱敏文件地址
      *
      * 业务作用：统一把 Qualification 实体转换为对外 DTO，publicView 时对 file_url_wsh 调用 maskUrl。
-     *
-     * 调用场景：createPending、listByOwner、listMapByOwnerIds、listPending、approve、reject、createOrUpdatePending 中调用。
-     *
-     * 调用链：上述方法 → 本方法 → maskUrl。
-     *
-     * 数据处理：拷贝 id_wsh、owner_type_wsh、owner_id_wsh、user_id_wsh、qual_type_wsh、title_wsh、file_url_wsh、summary_wsh、status_wsh、visibility_wsh、created_at_wsh、updated_at_wsh；不返回 reviewer_id_wsh 与 review_remark_wsh。
-     *
      * 业务规则：publicView=true 时文件地址走 maskUrl 处理。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：入参为 null 时抛 NullPointerException，未判空。
-     *
      * 注意事项：DTO 中不含审核人、审核备注与驳回原因，后台审核页无法从该 DTO 读取审核意见。
      */
     private QualificationDTO toDTO(Qualification q, boolean publicView) {
@@ -285,19 +262,7 @@ public class QualificationServiceImpl implements QualificationService {
      * 【生成默认标题】按资质类型给出中文标题
      *
      * 业务作用：提交资质时未填标题则按类型自动生成展示标题。
-     *
-     * 调用场景：createPending 与 createOrUpdatePending 在 title 为空时调用。
-     *
-     * 调用链：createPending / createOrUpdatePending → 本方法。
-     *
-     * 数据处理：营业执照类型返回「营业执照」，看护资质类型返回「看护资质」，其它返回「资质证明」。
-     *
      * 业务规则：按常量 QUAL_TYPE_BUSINESS_LICENSE 与 QUAL_TYPE_KEEPER_CERTIFICATE 精确匹配。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：新增资质类型时需同步扩充本方法，否则一律落到「资质证明」。
      */
     private String defaultTitle(String qualType) {
@@ -314,19 +279,8 @@ public class QualificationServiceImpl implements QualificationService {
      * 【脱敏文件地址】对公开视图下的资质文件地址做处理
      *
      * 业务作用：名义上用于公开视图隐藏原始文件地址。
-     *
-     * 调用场景：toDTO 在 publicView=true 时调用。
-     *
-     * 调用链：toDTO → 本方法。
-     *
      * 数据处理：空值原样返回，非空值也原样返回（当前实现未做任何脱敏）。
-     *
      * 业务规则：无实际脱敏规则。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：方法名为 maskUrl 但实现直接返回原地址，公开接口实际上会暴露资质原图 URL，与 visibility_wsh=masked_public 的语义不一致，属待实现/遗留问题。
      */
     private String maskUrl(String fileUrl) {

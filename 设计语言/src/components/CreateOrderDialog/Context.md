@@ -8,11 +8,11 @@ The Vue original called `@/api/*` directly. This port keeps **all** booking logi
 
 | Condition | Mode |
 | --- | --- |
-| `service` present, unit `day` / `booking_mode_wsh: 'date_range'` | **批量模式** — keeper first, then one row per pet (max `BATCH_MAX_PETS` = 10), each with delivery/pickup date + slot |
+| `service` present, unit `day` / `booking_mode_wsh: 'date_range'` | **单笔连续区间** — one pet, one order; delivery/pickup date + slot |
 | `service` present, unit `session` / `hour` (`booking_mode_wsh: 'slot'`) | **单笔时段** — start slot only; `hour` also shows 服务数量（小时） |
 | no `service` | **非服务模式** — merchant is selectable, times fall back to `datetime-local` |
 
-Batch submits with a single pet reuse the single-order endpoint payload (identical to the legacy path); two or more pets produce `{ ...shared, items }`.
+下单模型：**单宠物、单订单** —— 一次下单只创建一个订单、只关联一只宠物，多只宠物需分别下单；批量下单能力已下线，`onSubmit` 始终只发出一个 `CreateOrderPayload`。
 
 ## Props
 
@@ -30,14 +30,14 @@ Batch submits with a single pet reuse the single-order endpoint payload (identic
 | `deliveryDistanceMeters`, `distanceLoading`, `distanceError` | distance chip | Shown once the address has coordinates. |
 | `addressPicker` | `ReactNode` | Slot for the real Amap picker; a plain text field is used otherwise. |
 | `onClose` | `() => void` | Backdrop mousedown and 取消. |
-| `onSubmit` | `(payload) => void` | Receives `CreateOrderPayload` or `CreateOrdersBatchPayload`. |
+| `onSubmit` | `(payload) => void` | Receives a single `CreateOrderPayload` (单宠物、单订单). |
 | `onNotify` | `(message, 'warning' \| 'error') => void` | Every validation message the Vue version sent to the toast store. |
 | `onMerchantChange`, `onKeeperChange`, `onCouponChange` | `(id: string) => void` | Hooks to refetch keepers / availability / quotes. |
 | `onRetryDistance` | `() => void` | 重试定位 button. |
 
 ## Exported helpers
 
-`normalizeUnit`, `dayEstimate`, `buildServiceDates`, `slotToDateTime`, `toApiDateTime`, `toDateOnly`, `diffDays`, `addDays`, `isSameDate`, `displaySlot`, `formatDistanceMeters`, `couponText`, `couponDiscountEstimate`, `pickBestCoupon`, `createPetRow`, `EMPTY_FORM`, `BATCH_MAX_PETS`, `AVAILABILITY_REQUEST_WINDOW_DAYS`.
+`normalizeUnit`, `dayEstimate`, `buildServiceDates`, `slotToDateTime`, `toApiDateTime`, `toDateOnly`, `diffDays`, `addDays`, `isSameDate`, `displaySlot`, `formatDistanceMeters`, `couponText`, `couponDiscountEstimate`, `pickBestCoupon`, `EMPTY_FORM`, `AVAILABILITY_REQUEST_WINDOW_DAYS`.
 
 ## Usage
 
@@ -59,7 +59,7 @@ Batch submits with a single pet reuse the single-order endpoint payload (identic
   onNotify={(message, level) => addToast(message, level)}
   onKeeperChange={keeperId => loadAvailability(keeperId)}
   onSubmit={async payload => {
-    const res = 'items' in payload ? await createOrdersBatch(payload) : await createOrder(payload)
+    const res = await createOrder(payload)
     if (res.code === 200) onCreated(res.data)
   }}
 />

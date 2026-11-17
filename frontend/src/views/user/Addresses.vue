@@ -223,7 +223,7 @@ async function setDefault(id) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ad-crumb {
   display: flex;
   align-items: center;
@@ -237,7 +237,7 @@ async function setDefault(id) {
 .ad-crumb-sep { color: var(--ref-line); }
 .ad-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .ad-eyebrow {
   display: flex;
   align-items: center;
@@ -251,7 +251,7 @@ async function setDefault(id) {
 .ad-idx { font-variant-numeric: tabular-nums; }
 .ad-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .ad-head {
   display: flex;
   flex-wrap: wrap;
@@ -280,7 +280,7 @@ async function setDefault(id) {
 }
 .ad-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -303,7 +303,7 @@ async function setDefault(id) {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -318,7 +318,7 @@ async function setDefault(id) {
 }
 .badge-action { background: var(--ref-brand); color: #fff; }
 
-/* ═══ Section ═══ */
+/* Section */
 .ad-section { margin-top: 56px; }
 .ad-sec-head {
   display: flex;
@@ -345,7 +345,7 @@ async function setDefault(id) {
   opacity: 0.8;
 }
 
-/* ═══ Grid ═══ */
+/* Grid */
 .ad-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -353,7 +353,7 @@ async function setDefault(id) {
   margin-top: 20px;
 }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .ad-skeleton {
   height: 208px;
   border: 1px solid var(--ref-line);
@@ -363,7 +363,7 @@ async function setDefault(id) {
   animation: ad-shimmer 1.3s linear infinite;
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .ad-empty {
   margin-top: 20px;
   padding: 56px 24px;
@@ -382,7 +382,7 @@ async function setDefault(id) {
 .ad-empty-desc { margin: 10px 0 0; font-size: 13px; color: var(--ref-muted); }
 .ad-empty .cta { margin-top: 22px; }
 
-/* ═══ Address card ═══ */
+/* Address card */
 .ad-card {
   display: flex;
   flex-direction: column;
@@ -470,7 +470,7 @@ async function setDefault(id) {
 .ad-danger { color: var(--color-danger); }
 .ad-danger:hover { color: var(--color-danger); opacity: 0.75; }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed;
   inset: 0;
@@ -559,7 +559,7 @@ async function setDefault(id) {
 }
 .dlg-cancel:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); }
 
-/* ═══ AmapAddressPicker warm override ═══ */
+/* AmapAddressPicker warm override */
 .dlg-panel :deep(.amap-address-picker .form-control) {
   height: 42px;
   border: 1px solid var(--ref-line);
@@ -603,12 +603,12 @@ async function setDefault(id) {
   color: var(--ref-brand);
 }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes ad-shimmer { to { background-position: -200% 0; } }
 @keyframes ad-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ad-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .ad-grid { grid-template-columns: 1fr; }
 }

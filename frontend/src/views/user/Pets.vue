@@ -166,6 +166,7 @@ import { useAppStore } from '@/stores/app'
 import PetList from '@/components/pet/PetList.vue'
 import PetFormDialog from '@/components/pet/PetFormDialog.vue'
 import { ensureProfileRequirement, PROFILE_ACTIONS } from '@/utils/profileRequirements'
+import { getPets, createPet, updatePet, deletePet as deletePetApi } from '@/api/pet'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -219,7 +220,7 @@ async function loadPets(silent = false) {
   if (silent) refreshing.value = true
   else loading.value = true
   try {
-    const r = await authStore.apiGet('/api/pets')
+    const r = await getPets()
     if (r.code === 200) pets.value = Array.isArray(r.data) ? r.data : []
   } catch (e) {
     appStore.addToast(e.message || '加载宠物失败', 'error')
@@ -258,8 +259,8 @@ async function handleSave(payload) {
   serverError.value = ''
   try {
     const r = editingPet.value
-      ? await authStore.apiPut(`/api/pets/${editingPet.value.id_wsh}`, payload)
-      : await authStore.apiPost('/api/pets', payload)
+      ? await updatePet(editingPet.value.id_wsh, payload)
+      : await createPet(payload)
 
     if (r.code !== 200) {
       serverError.value = r.message || '保存失败'
@@ -286,7 +287,7 @@ async function doDelete() {
   const id = confirmDelete.value
   confirmDelete.value = null
   try {
-    const r = await authStore.apiDelete(`/api/pets/${id}`)
+    const r = await deletePetApi(id)
     if (r.code !== 200) return
     appStore.addToast('删除成功', 'success')
     await loadPets(true)
@@ -323,7 +324,7 @@ onMounted(() => loadPets())
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .pt-crumb {
   display: flex;
   align-items: center;
@@ -337,7 +338,7 @@ onMounted(() => loadPets())
 .pt-crumb-sep { color: var(--ref-line); }
 .pt-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Header ═══ */
+/* Header */
 .pt-head {
   display: flex;
   flex-wrap: wrap;
@@ -381,7 +382,7 @@ onMounted(() => loadPets())
 .pt-refresh-icon.spinning { animation: pt-spin 0.9s linear infinite; }
 .pt-plus-icon { width: 15px; height: 15px; }
 
-/* ═══ Facts ═══ */
+/* Facts */
 .pt-facts {
   display: flex;
   flex-wrap: wrap;
@@ -401,7 +402,7 @@ onMounted(() => loadPets())
 }
 .pt-facts dt { margin-top: 8px; font-size: 12px; color: var(--ref-muted); }
 
-/* ═══ Type rail ═══ */
+/* Type rail */
 .pt-rail {
   display: flex;
   gap: 8px;
@@ -442,10 +443,10 @@ onMounted(() => loadPets())
   font-variant-numeric: tabular-nums;
 }
 
-/* ═══ Content ═══ */
+/* Content */
 .pt-content { margin-top: 28px; }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .pt-skel-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -484,7 +485,7 @@ onMounted(() => loadPets())
   border-top: 1px solid var(--ref-line);
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .pt-empty {
   padding: 56px 24px;
   border: 1px dashed var(--ref-line);
@@ -514,7 +515,7 @@ onMounted(() => loadPets())
   margin-top: 22px;
 }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -547,7 +548,7 @@ onMounted(() => loadPets())
 }
 .cta-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 15%, transparent); }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed;
   inset: 0;
@@ -744,7 +745,7 @@ onMounted(() => loadPets())
   color: var(--color-danger);
 }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes pt-spin { to { transform: rotate(360deg); } }
 @keyframes pt-shimmer { to { background-position: -200% 0; } }
 @keyframes pt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
@@ -754,7 +755,7 @@ onMounted(() => loadPets())
   to { opacity: 1; transform: none; }
 }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   :deep(.pet-grid.pet-grid) { grid-template-columns: repeat(2, 1fr); }
   .pt-skel-grid { grid-template-columns: repeat(2, 1fr); }

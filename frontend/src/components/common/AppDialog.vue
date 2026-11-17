@@ -124,7 +124,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ==== 弹窗基础样式（设计系统 anatomy，统一集中在此） ==== */
+/* 弹窗基础样式（设计系统 anatomy，统一集中在此） */
 .app-dialog-overlay {
   position: fixed;
   inset: 0;

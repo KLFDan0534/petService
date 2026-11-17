@@ -70,19 +70,7 @@ public class KeeperServiceImpl implements KeeperService {
      * 【构造方法】注入看护者管理所需依赖
      *
      * 业务作用：由 Spring 注入看护者、商家、角色、用户角色、资质与订单六类依赖，支撑看护者全生命周期管理。
-     *
-     * 调用场景：Spring 容器启动创建该 Service Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 各 final 字段赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段；类中还定义了 BLOCKING_ORDER_STATUSES 静态集合（待付款/已付款/已确认/已接单/进行中/退款中），离职与解雇前会用它判断是否存在进行中订单。
      */
     public KeeperServiceImpl(KeeperMapper keeperMapper, MerchantMapper merchantMapper,
@@ -101,14 +89,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【查询看护者列表】
-     *
      * 业务作用：获取系统中所有看护者的全量列表。
-     * 调用场景：管理后台看护者管理页面加载时调用。
-     * 调用链：KeeperController → listAll → KeeperMapper.selectList（按创建时间倒序）
-     * 数据处理：直接查询 keeper 表全部数据，按创建时间倒序。
      * 业务规则：返回所有状态的看护者（含待审核、已通过、已驳回等）。
-     * 状态影响：只读操作。
      */
     @Override
     public List<Keeper> listAll() {
@@ -118,14 +100,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【查询待审核看护者列表】
-     *
      * 业务作用：查询所有待审核的看护者申请。
-     * 调用场景：平台管理员后台查看待审核看护者申请时调用。
-     * 调用链：AdminController → listPending → KeeperMapper.selectList（按 KEEPER_PENDING 过滤）
-     * 数据处理：查询 keeper 表中 status == KEEPER_PENDING 的所有记录。
      * 业务规则：仅返回待审核状态的看护者。
-     * 状态影响：只读操作。
      */
     @Override
     public List<Keeper> listPending() {
@@ -135,14 +111,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【根据ID查询看护者】
-     *
      * 业务作用：根据主键ID查询看护者信息，是其他业务方法的底层依赖。
-     * 调用场景：被 update、delete、resign 等业务方法内部调用。
-     * 调用链：上层业务方法 → getById → KeeperMapper.selectById
-     * 数据处理：按主键ID从 keeper 表查询单条记录。
      * 业务规则：查询结果为 null 时抛出 BusinessException。
-     * 状态影响：只读操作。
      * 异常情况：看护者不存在时抛 BusinessException("看护者不存在")。
      */
     @Override
@@ -156,14 +126,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【批量查询看护者】
-     *
      * 业务作用：根据多个看护者ID批量查询。
-     * 调用场景：需要一次展示多个看护者详情的场景。
-     * 调用链：上层业务方法 → listByIds → KeeperMapper.selectBatchIds
-     * 数据处理：按ID集合批量查询，入参为空时返回空列表。
      * 业务规则：ids 为 null 或空集合时返回空列表。
-     * 状态影响：只读操作。
      */
     @Override
     public List<Keeper> listByIds(Collection<Long> ids) {
@@ -175,14 +139,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【根据商家ID查询看护者】
-     *
      * 业务作用：查询指定商家旗下所有未逻辑删除的看护者。
-     * 调用场景：商家在后台查看自己名下的看护者列表时调用。
-     * 调用链：MerchantKeeperController → findByMerchantId → KeeperMapper.selectList（按 merchant_id + deleted=0）
-     * 数据处理：按 merchant_id 查询 keeper 表，过滤已逻辑删除的记录。
      * 业务规则：仅返回未逻辑删除（deleted=0）的看护者。
-     * 状态影响：只读操作。
      */
     @Override
     public List<Keeper> findByMerchantId(Long merchantId) {
@@ -194,14 +152,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【搜索附近活跃看护者】
-     *
      * 业务作用：基于用户地理位置搜索附近商家下的活跃看护者。
-     * 调用场景：用户端搜索附近可提供服务的看护者时调用。
-     * 调用链：KeeperController → searchNearby → MerchantMapper.searchNearby → KeeperMapper.selectList
-     * 数据处理：两阶段查询——先搜附近商家，再查这些商家下 KEEPER_ACTIVE 的看护者，附上距离。
      * 业务规则：仅搜索已审核通过商家下的活跃看护者；距离使用 Haversine 公式。
-     * 状态影响：只读操作。
      */
     @Override
     public List<KeeperVO> searchNearby(double lat, double lng, double radius) {
@@ -234,15 +186,10 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【创建看护者入驻申请】
-     *
      * 业务作用：提交看护者入驻申请，创建或复用看护者记录并同步提交资质审核材料。
-     * 调用场景：用户在看护者入驻页面提交时调用。
-     * 调用链：KeeperController → create @Transactional → KeeperMapper.insert/updateById + QualificationService.createOrUpdatePending
      * 数据处理：校验商家存在；若用户已有被驳回/离职/解雇的历史记录则复用并更新，否则新建。初始状态 KEEPER_PENDING，评分 5.0。
      * 业务规则：一个用户不可同时拥有多个待审核/已通过申请；创建后需审核才能 ACTIVE。
-     * 状态影响：新增/更新看护者记录（KEEPER_PENDING）；创建/更新资质审核记录。
-     * 事务边界：看护者写入 + 资质创建在同一 @Transactional 事务中。
+     * 状态影响：新增/更新看护者记录（KEEPER_PENDING）；创建/更新资质审核记录。 事务边界：看护者写入 + 资质创建在同一 @Transactional 事务中。
      */
     @Override
     @Transactional
@@ -328,15 +275,9 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【更新看护者基础信息】
-     *
      * 业务作用：修改看护者的基础信息（姓名、电话、头像、经验、定价等）。
-     * 调用场景：看护者在个人中心编辑基本信息时调用。
-     * 调用链：KeeperController → update @Transactional → KeeperMapper.updateById
-     * 数据处理：仅更新 DTO 中非 null 的字段，null 字段保持原值。
      * 业务规则：仅更新非 null 字段，不修改审核状态。
-     * 状态影响：仅影响看护者基础信息字段。
-     * 事务边界：查询 + 更新在同一事务中。
+     * 状态影响：仅影响看护者基础信息字段。 事务边界：查询 + 更新在同一事务中。
      */
     @Override
     @Transactional
@@ -354,15 +295,9 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【物理删除看护者】
-     *
      * 业务作用：物理删除看护者记录并回收 KEEPER 角色。
-     * 调用场景：管理后台强制删除看护者时调用。
-     * 调用链：AdminController → delete @Transactional → KeeperMapper.deleteById + revokeKeeperRole
-     * 数据处理：先查询看护者存在，然后物理删除，最后回收 KEEPER 角色。
      * 业务规则：物理删除不可恢复；删除后同步回收角色权限。
-     * 状态影响：删除 keeper 记录；删除 user_role 关联。
-     * 事务边界：删除 + 角色回收在同一事务中。
+     * 状态影响：删除 keeper 记录；删除 user_role 关联。 事务边界：删除 + 角色回收在同一事务中。
      */
     @Override
     @Transactional
@@ -374,14 +309,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【看护者主动辞职】
-     *
      * 业务作用：看护者主动申请离职，状态变为辞职并回收 KEEPER 角色。
-     * 调用场景：看护者在个人中心点击辞职时调用。
-     * 调用链：KeeperController → resign @Transactional → assertEmploymentActionAllowed → KeeperMapper.updateById → revokeKeeperRole
-     * 数据处理：校验操作人须为本人；校验状态允许（ACTIVE/OFFLINE/BUSY）；校验无未完成订单；更新状态为 KEEPER_RESIGNED 并回收角色。
-     * 状态影响：status → KEEPER_RESIGNED；回收 KEEPER 角色。
-     * 事务边界：状态变更 + 角色回收在同一事务中。
+     * 状态影响：status → KEEPER_RESIGNED；回收 KEEPER 角色。 事务边界：状态变更 + 角色回收在同一事务中。
      * 异常情况：非本人抛 403；状态不允许抛 400；有未完成订单抛 400。
      */
     @Override
@@ -399,14 +328,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【商家解雇看护者】
-     *
      * 业务作用：商家 owner 解雇旗下看护者，状态变为解雇并回收 KEEPER 角色。
-     * 调用场景：商家在后台管理看护者时执行解雇操作。
-     * 调用链：MerchantKeeperController → terminateByMerchant @Transactional → requireMerchantByUserId → assertEmploymentActionAllowed → KeeperMapper.updateById → revokeKeeperRole
-     * 数据处理：校验商家身份和归属权；校验状态允许（ACTIVE/OFFLINE/BUSY）；校验无未完成订单；更新为 KEEPER_TERMINATED 并回收角色。
-     * 状态影响：status → KEEPER_TERMINATED；回收 KEEPER 角色。
-     * 事务边界：状态变更 + 角色回收在同一事务中。
+     * 状态影响：status → KEEPER_TERMINATED；回收 KEEPER 角色。 事务边界：状态变更 + 角色回收在同一事务中。
      * 异常情况：非本商家抛 403；状态不允许抛 400；有未完成订单抛 400。
      */
     @Override
@@ -425,14 +348,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【平台审核通过看护者申请】
-     *
      * 业务作用：平台管理员审核通过看护者入驻申请，授予 KEEPER 角色。
-     * 调用场景：平台管理员后台审核通过时调用。
-     * 调用链：AdminController → approve @Transactional → KeeperMapper.updateById → grantKeeperRole
-     * 数据处理：校验 PENDING 状态，更新为 KEEPER_ACTIVE，授予 KEEPER 角色。
-     * 状态影响：status: KEEPER_PENDING → KEEPER_ACTIVE；新增 user_role 记录。
-     * 事务边界：状态变更 + 角色授予在同一事务中。
+     * 状态影响：status: KEEPER_PENDING → KEEPER_ACTIVE；新增 user_role 记录。 事务边界：状态变更 + 角色授予在同一事务中。
      * 异常情况：不是待审核状态抛 BusinessException。
      */
     @Override
@@ -449,13 +366,7 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【平台驳回看护者申请】
-     *
      * 业务作用：平台管理员驳回看护者入驻申请。
-     * 调用场景：平台管理员后台驳回时调用。
-     * 调用链：AdminController → reject @Transactional → KeeperMapper.updateById
-     * 数据处理：校验 PENDING 状态，更新为 KEEPER_REJECTED。
-     * 状态影响：status: KEEPER_PENDING → KEEPER_REJECTED。
      * 异常情况：不是待审核状态抛 BusinessException。
      */
     @Override
@@ -471,14 +382,9 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【设置看护者在线状态】
-     *
      * 业务作用：看护者手动切换自己的在线/离线状态。
-     * 调用场景：看护者在 APP 上点击上线/下线时调用。
-     * 调用链：KeeperController → setOnlineStatus @Transactional → KeeperMapper.updateById
      * 数据处理：校验状态值合法性；校验当前状态是否可切换；BUSY 状态禁止手动切换。
      * 业务规则：仅 ACTIVE/OFFLINE/BUSY 状态可切换；BUSY 禁止手动切换。
-     * 状态影响：更新 keeper 的 status 字段。
      * 异常情况：无效状态值抛 BusinessException；BUSY 状态抛 BusinessException。
      */
     @Override
@@ -509,16 +415,11 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【同步商家店铺状态至看护者】
-     *
      * 业务作用：商家店铺开门/关门时同步通知旗下所有看护者的在线状态。
-     * 调用场景：MerchantServiceImpl.refreshStoreState 在店铺状态变更时触发。
-     * 调用链：MerchantServiceImpl → syncMerchantStoreStatus @Transactional → 循环更新看护者在线状态
-     * 数据处理：遍历该商家下所有看护者，开门时 OFFLINE→ACTIVE，关门时 ACTIVE→OFFLINE，BUSY 保持不变。
-     * 业务规则：仅变更 OFFLINE↔ACTIVE，BUSY 状态不受影响。
+     * 业务规则：
+     * 仅变更 OFFLINE↔ACTIVE，BUSY 状态不受影响。
      * 来源保护：开门时仅恢复"非主动离线"（offline_source_wsh != 1）的看护者；主动离线看护者保持离线，
      * 避免店铺同步覆盖看护员主动离线的意图。关门置 OFFLINE 时来源统一标记为系统同步（0）。
-     * 状态影响：批量更新旗下看护者的在线状态。
      */
     @Override
     @Transactional
@@ -558,13 +459,7 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【看护者实体转VO】
-     *
      * 业务作用：将看护者实体转换为前端展示所需的 VO（含资质信息）。
-     * 调用场景：Controller 层返回看护者信息前调用。
-     * 调用链：各查询 Controller → toDTO → qualificationService.listByOwner
-     * 数据处理：字段拷贝 + 调用资质服务加载看护者资质列表。
-     * 状态影响：只读操作。
      */
     @Override
     public void fillMinServicePrice(List<KeeperVO> keepers) {
@@ -598,14 +493,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【根据用户ID查找看护者】
-     *
      * 业务作用：根据用户ID查询最新的看护者记录（支持多次申请场景）。
-     * 调用场景：用户登录后查询看护者身份；创建看护者时判断是否已有历史记录。
-     * 调用链：身份校验/入驻申请 → findByUserId → KeeperMapper.selectOne（按 user_id 倒序取最新）
-     * 数据处理：按 user_id 查询，按 ID 倒序取最新一条记录。
      * 业务规则：一个用户可以有多次看护者申请记录，按 ID 倒序取最新。
-     * 状态影响：只读操作。
      */
     @Override
     public Keeper findByUserId(Long userId) {
@@ -618,14 +507,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【商家查询旗下待审核看护者】
-     *
      * 业务作用：商家 owner 查询归属本商家的所有待审核看护者申请。
-     * 调用场景：商家在后台审核看护者入驻申请时调用。
-     * 调用链：MerchantKeeperController → listPendingByMerchant → requireMerchantByUserId → KeeperMapper.selectList
-     * 数据处理：根据 merchantUserId 查询商家信息，再查该商家下所有 KEEPER_PENDING 的看护者。
      * 业务规则：必须先校验商家身份；仅返回待审核状态的看护者。
-     * 状态影响：只读操作。
      */
     @Override
     public List<Keeper> listPendingByMerchant(Long merchantUserId) {
@@ -641,14 +524,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【商家审核通过看护者申请】
-     *
      * 业务作用：商家 owner 审核通过归属本商家的看护者入驻申请。
-     * 调用场景：商家在后台审核通过看护者申请时调用。
-     * 调用链：MerchantKeeperController → approveByMerchant @Transactional → KeeperMapper.updateById → grantKeeperRole
-     * 数据处理：校验 PENDING 状态；校验商家归属权；更新为 KEEPER_ACTIVE 并授予角色。
-     * 状态影响：status: KEEPER_PENDING → KEEPER_ACTIVE；新增 user_role 记录。
-     * 事务边界：状态变更 + 角色授予在同一事务中。
+     * 状态影响：status: KEEPER_PENDING → KEEPER_ACTIVE；新增 user_role 记录。 事务边界：状态变更 + 角色授予在同一事务中。
      * 异常情况：不是待审核状态抛 BusinessException；无权限审核抛 BusinessException。
      */
     @Override
@@ -669,14 +546,8 @@ public class KeeperServiceImpl implements KeeperService {
     }
 
     /**
-     * 【商家驳回看护者申请】
-     *
      * 业务作用：商家 owner 驳回归属本商家的看护者入驻申请。
-     * 调用场景：商家在后台驳回看护者申请时调用。
-     * 调用链：MerchantKeeperController → rejectByMerchant @Transactional → KeeperMapper.updateById
-     * 数据处理：校验 PENDING 状态；校验商家归属权；更新为 KEEPER_REJECTED。
-     * 状态影响：status: KEEPER_PENDING → KEEPER_REJECTED。
-     * 事务边界：状态变更在同一事务中。
+     * 状态影响：status: KEEPER_PENDING → KEEPER_REJECTED。 事务边界：状态变更在同一事务中。
      * 异常情况：不是待审核状态抛 BusinessException；无权限审核抛 BusinessException。
      */
     @Override

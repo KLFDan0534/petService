@@ -23,12 +23,6 @@ export async function previewOrder(data) {
   return res.data
 }
 
-// 一次下好几只宠物的单，合在一起只付一次钱
-export async function createOrdersBatch(data) {
-  const res = await request.post('/api/orders/batch', data)
-  return res.data
-}
-
 // 指派：商家把待分配订单分给指定看护者
 export async function assignOrder(data) {
   const res = await request.post('/api/orders/assign', data)
@@ -79,6 +73,18 @@ export async function getMyKeeperOrders() {
   return res.data
 }
 
+// 待分配订单池：本商家名下已支付但还没有负责人的单，宠托师工作台「待抢单」用
+export async function getPoolOrders() {
+  const res = await request.get('/api/orders/pool')
+  return res.data
+}
+
+// 抢单：把池子里的单接到自己名下。body 传 { order_no_wsh }
+export async function claimOrder(data) {
+  const res = await request.post('/api/orders/claim', data)
+  return res.data
+}
+
 // 商家后台的订单列表，分页拉，一次默认 100 条
 export async function getMerchantOrders(page = 1, size = 100) {
   const res = await request.get(`/orders/merchant?page=${page}&size=${size}`)
@@ -88,16 +94,6 @@ export async function getMerchantOrders(page = 1, size = 100) {
 // 服务时间线，一天一条记录，用户能看见每天干了啥
 export async function getTimeline(orderId) {
   const res = await request.get(`/api/order-fulfillments/${orderId}/timeline`)
-  return res.data
-}
-
-export async function getFulfillmentOverview(orderId) {
-  const res = await request.get(`/api/order-fulfillments/${orderId}`)
-  return res.data
-}
-
-export async function createTimeline(orderId, data) {
-  const res = await request.post(`/api/order-fulfillments/${orderId}/timeline`, data)
   return res.data
 }
 
@@ -127,6 +123,3 @@ export async function uploadTimeline(orderId, formData) {
   const res = await request.post(`/api/order-fulfillments/${orderId}/timeline/upload`, formData)
   return res.data
 }
-
-
-

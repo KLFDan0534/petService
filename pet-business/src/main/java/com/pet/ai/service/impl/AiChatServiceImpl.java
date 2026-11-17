@@ -23,7 +23,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,22 +57,8 @@ public class AiChatServiceImpl implements AiChatService {
     private final Map<Long, List<Long>> rateBuckets = new ConcurrentHashMap<>();
 
     /**
-     * 【智能客服服务实现的构造注入】
-     *
      * 业务作用：注入知识库检索、JSON 解析、AI 配置与聊天历史服务，并初始化带超时的 RestTemplate。
-     *
-     * 调用场景：Spring 容器创建 AiChatServiceImpl 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 创建 SimpleClientHttpRequestFactory 与 RestTemplate。
-     *
      * 数据处理：连接超时 5 秒、读超时 20 秒；其余依赖直接赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：RestTemplate 在构造器内 new 而非交给 Spring 管理，无法复用全局拦截器与连接池配置。
      */
     public AiChatServiceImpl(RagService ragService, ObjectMapper objectMapper, AiConfigService aiConfigService,
@@ -90,22 +75,9 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【智能客服对话主流程】
-     *
      * 业务作用：处理用户提问，命中人工关键词直接转人工，否则检索知识库并调用大模型生成回复。
-     *
-     * 调用场景：用户端 AI 客服对话框发送消息。
-     *
-     * 调用链：AiChatController → chat() → historyService.saveSimple() → containsAny() → ragService.search() → buildSystemPrompt() → callKenari() → historyService.save()。
-     *
-     * 数据处理：校验并 trim 消息 → 限流校验 → 生成或沿用 sessionId 并保存用户消息 → 关键词判定转人工 → 检索 TOP_K=3 篇文档 → 组装提示词与多轮消息 → 解析模型回复 → 按 AI 可用性、知识库命中、AI 主动要求人工三种情况设置 need_human_wsh → 保存 AI 回复。
-     *
      * 业务规则：消息必填且不超过 500 字；每用户每分钟最多 20 次；命中人工关键词直接转人工；知识库无命中时回复追加提示并标记需人工；AI 回复命中信号词时标记需人工。
-     *
-     * 状态影响：写入 AI 聊天历史（用户消息与 AI 回复），历史写入失败仅记录 warn 日志。
-     *
      * 异常情况：消息为空或超长抛 BusinessException(400)；超过频率抛 BusinessException(429)；模型调用异常不抛出而是降级为转人工。
-     *
      * 注意事项：命中人工关键词与模型不可用两种分支提前 return，此时不会保存 AI 回复历史；限流桶为单机内存实现。
      */
     @Override
@@ -190,22 +162,9 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【单轮提问的简化入口】
-     *
      * 业务作用：用单条问题构造请求并复用 chat() 完成一次无历史的多轮对话调用。
-     *
-     * 调用场景：内部服务或其它模块需要直接向 AI 提问时。
-     *
-     * 调用链：调用方 → ask() → chat()。
-     *
-     * 数据处理：把问题放入 message_wsh，历史置为空列表。
-     *
      * 业务规则：沿用 chat() 的全部校验、限流与转人工规则。
-     *
-     * 状态影响：同 chat()，会写入聊天历史。
-     *
      * 异常情况：同 chat()。
-     *
      * 注意事项：历史为空意味着不带上下文，多轮场景应直接调用 chat() 并传入 history_wsh。
      */
     @Override
@@ -217,12 +176,10 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【业务名称】组装系统提示词（实现）
+     * 组装系统提示词（实现）
+     *
      * 业务作用：把检索到的知识库文档注入 system 提示词，约束 AI 只依据知识库回答。
-     * 数据处理：无命中时仅保留角色与不编造规则。
      * 业务规则：知识库内容原样拼接；要求 AI 不知道时引导人工。
-     * 状态影响：无。
-     * 异常情况：无。
      */
     private String buildSystemPrompt(List<RagDocumentDTO> sources) {
         StringBuilder sb = new StringBuilder();
@@ -246,12 +203,10 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【业务名称】组装对话消息（实现）
+     * 组装对话消息（实现）
+     *
      * 业务作用：把历史对话与当前消息转成 OpenAI 格式的 messages 数组。
-     * 数据处理：仅保留最近 MAX_HISTORY 条历史，追加当前用户消息。
      * 业务规则：历史角色只接受 user/assistant。
-     * 状态影响：无。
-     * 异常情况：无。
      */
     private List<Map<String, String>> toMessages(AiChatRequestDTO request, String message) {
         List<Map<String, String>> messages = new ArrayList<>();
@@ -277,26 +232,23 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【业务名称】调用 kenari 大模型（实现）
+     * 调用 kenari 大模型（实现）
+     *
      * 业务作用：调用 OpenAI 兼容的 /chat/completions 接口获取回复。
-     * 调用链：callKenari() → restTemplate.postForObject()。
-     * 数据处理：POST JSON，解析 choices[0].message.content。
      * 业务规则：key 缺失抛异常；网络异常抛异常（由上层转人工）。
-     * 状态影响：无。
      * 异常情况：抛 RestClientException / IOException。
      * 注意事项：endpoint 为 https://kenari.id/v1，走标准 OpenAI 协议。
      */
     private String callKenari(String systemPrompt, List<Map<String, String>> messages) throws Exception {
         // 优先使用后台持久化的智能客服(cs)生效配置，无则回退 yml 默认
-        AiConfigWsh cfg = aiConfigStore.getActiveConfig(AiConfigWsh.USAGE_CS);
-        String apiKey = cfg != null ? cfg.getApi_key_wsh() : aiConfigService.getApiKey();
-        String model = cfg != null ? cfg.getModel_wsh() : aiConfigService.getModel();
-        int maxTokens = cfg != null && cfg.getMax_tokens_wsh() != null
-                ? cfg.getMax_tokens_wsh()
-                : aiConfigService.getMaxTokens();
-        double temperature = cfg != null && cfg.getTemperature_wsh() != null
-                ? cfg.getTemperature_wsh().doubleValue()
-                : aiConfigService.getTemperature();
+        AiConfigStore.ModelParams p = aiConfigStore.resolveParams(
+                AiConfigWsh.USAGE_CS,
+                aiConfigService.getEndpoint(), aiConfigService.getApiKey(), aiConfigService.getModel(),
+                aiConfigService.getMaxTokens(), aiConfigService.getTemperature());
+        String apiKey = p.apiKey();
+        String model = p.model();
+        int maxTokens = p.maxTokens();
+        double temperature = p.temperature();
 
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("AI API Key 未配置，请在管理后台 → AI 配置中设置");
@@ -317,9 +269,8 @@ public class AiChatServiceImpl implements AiChatService {
         body.put("max_tokens", maxTokens);
         body.put("temperature", temperature);
 
-        String url = cfg != null
-                ? aiConfigStore.chatCompletionsUrl(cfg.getEndpoint_wsh())
-                : aiConfigService.getChatCompletionsUrl();
+        // endpoint 统一走 store 的规范化（去掉末尾斜杠），与 DB 配置的拼接规则保持一致
+        String url = aiConfigStore.chatCompletionsUrl(p.endpoint());
         String raw;
         try {
             raw = restTemplate.postForObject(url, new HttpEntity<>(body, headers), String.class);
@@ -336,11 +287,10 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【业务名称】抽取 OpenAI 兼容回复正文（适配思考型模型响应）
+     * 抽取 OpenAI 兼容回复正文（适配思考型模型响应）
+     *
      * 业务作用：兼容 content 为字符串或部分数组两种 OpenAI 格式；content 为空时回退 reasoning_content（思考型模型，如 glm-5.3-flash）。
-     * 数据处理：message.content → 文本；数组则拼接各 part.text / 文本节点。
      * 业务规则：content 与 reasoning_content 都为空时返回空串。
-     * 状态影响：无。
      */
     private String extractReplyText(JsonNode message) {
         String content = nodeToText(message.path("content"));
@@ -376,11 +326,10 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【业务名称】频率限制（实现）
+     * 频率限制（实现）
+     *
      * 业务作用：限制单用户每分钟请求次数，防止刷 AI 接口。
-     * 数据处理：内存滑动窗口（userId → 最近1分钟时间戳）。
      * 业务规则：超过 RATE_LIMIT_PER_MINUTE 抛 429。
-     * 状态影响：无。
      * 异常情况：超限抛 BusinessException(429)。
      * 注意事项：单机内存实现，多实例部署时建议换 Redis。
      */
@@ -401,22 +350,8 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 【判断文本是否命中关键词】
-     *
      * 业务作用：忽略大小写判断文本中是否包含任一关键词。
-     *
-     * 调用场景：chat() 判断用户是否要求人工、判断 AI 回复是否要求转人工。
-     *
-     * 调用链：chat() → containsAny()。
-     *
-     * 数据处理：文本与关键词统一转小写后做 contains 匹配。
-     *
      * 业务规则：文本为空或空白返回 false；命中任一关键词即返回 true。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：纯子串匹配，可能出现误判（如「联系」出现在正常语句中也会触发转人工）。
      */
     private boolean containsAny(String text, List<String> keywords) {

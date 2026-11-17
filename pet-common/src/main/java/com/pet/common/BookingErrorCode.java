@@ -14,22 +14,8 @@ package com.pet.common;
 public final class BookingErrorCode {
 
     /**
-     * 【错误标识常量类私有构造器】
-     *
      * 业务作用：阻止实例化，保证该类只作为常量容器使用。
-     *
-     * 调用场景：无；常量类不会被实例化。
-     *
-     * 调用链：无。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：常量类不允许创建实例。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：新增标识需在此登记，且发布后不可变更。
      */
     private BookingErrorCode() {
@@ -59,7 +45,7 @@ public final class BookingErrorCode {
     /** 客户端提交的商家与服务归属不一致 */
     public static final String SERVICE_MERCHANT_MISMATCH = "SERVICE_MERCHANT_MISMATCH";
 
-    /** 服务计费单位未知/不支持（既不是 day/session/hour 的任一规范化形式） */
+    /** 服务计价单位为空/未知/不支持（既不是 BookingUnit 注册表 night/session/hour 的任一规范化形式） */
     public static final String UNSUPPORTED_SERVICE_UNIT = "UNSUPPORTED_SERVICE_UNIT";
 
     /** 请求提交的计费单位与客户端单位不一致/与订单语义冲突 */

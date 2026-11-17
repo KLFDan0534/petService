@@ -227,7 +227,7 @@ function money(value) {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .cp-crumb {
   display: flex;
   align-items: center;
@@ -241,7 +241,7 @@ function money(value) {
 .cp-crumb-sep { color: var(--ref-line); }
 .cp-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .cp-eyebrow {
   display: flex;
   align-items: center;
@@ -255,7 +255,7 @@ function money(value) {
 .cp-idx { font-variant-numeric: tabular-nums; }
 .cp-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .cp-head {
   display: flex;
   flex-wrap: wrap;
@@ -284,7 +284,7 @@ function money(value) {
 }
 .cp-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -307,7 +307,7 @@ function money(value) {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Facts ═══ */
+/* Facts */
 .cp-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -341,7 +341,7 @@ function money(value) {
   color: var(--ref-muted);
 }
 
-/* ═══ Section ═══ */
+/* Section */
 .cp-section { margin-top: 56px; }
 .cp-sec-head {
   display: flex;
@@ -368,7 +368,7 @@ function money(value) {
   opacity: 0.8;
 }
 
-/* ═══ Grid ═══ */
+/* Grid */
 .cp-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -376,7 +376,7 @@ function money(value) {
   margin-top: 20px;
 }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .cp-skeleton {
   height: 200px;
   border: 1px solid var(--ref-line);
@@ -386,7 +386,7 @@ function money(value) {
   animation: cp-shimmer 1.3s linear infinite;
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .cp-empty {
   margin-top: 20px;
   padding: 56px 24px;
@@ -405,7 +405,7 @@ function money(value) {
 .cp-empty-desc { margin: 10px 0 0; font-size: 13px; color: var(--ref-muted); }
 .cp-empty .cta { margin-top: 22px; }
 
-/* ═══ Coupon card ═══ */
+/* Coupon card */
 .cp-card {
   position: relative;
   display: flex;
@@ -514,10 +514,10 @@ function money(value) {
   border-color: var(--ref-line);
 }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes cp-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .cp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

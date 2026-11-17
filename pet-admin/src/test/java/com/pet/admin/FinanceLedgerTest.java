@@ -73,6 +73,7 @@ class FinanceLedgerTest {
     private static final String ORDER_NO = "ORD-FIN-001";
 
     @Mock private PaymentMapper paymentMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private OrderMapper orderMapper;
     @Mock private OrderStatusBroadcaster orderStatusBroadcaster;
     @Mock private AccountingService accountingService;
@@ -136,7 +137,7 @@ class FinanceLedgerTest {
                 new ObjectMapper(),
                 businessHoursService,
                 businessHoursTargetResolver,
-                ratingMapper);
+                ratingMapper, serviceCategoryMapper);
         walletController = new WalletController(walletService, accountingService);
     }
 

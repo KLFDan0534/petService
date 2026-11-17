@@ -16,11 +16,6 @@ const state = vi.hoisted(() => ({
 }))
 
 const merchant = { id_wsh: 10, name_wsh: 'M1', address_wsh: '测试路1号', latitude_wsh: 31.24, longitude_wsh: 121.48 }
-const keepers = [
-  { id_wsh: 100, name_wsh: 'K1', price_per_day_wsh: 100, status_wsh: 1, qualifications_wsh: [{ status_wsh: 'approved' }], current_pets_wsh: 1, max_pets_wsh: 3 },
-  { id_wsh: 101, name_wsh: 'K2', price_per_day_wsh: 120, status_wsh: 1, qualifications_wsh: [{ status_wsh: 'approved' }], current_pets_wsh: 0, max_pets_wsh: 2 },
-]
-
 function detailData() {
   return {
     id_wsh: 5,
@@ -37,9 +32,7 @@ vi.mock('@/api/pet', () => ({
 }))
 vi.mock('@/api/merchant', () => ({
   getMerchants: vi.fn(() => Promise.resolve({ code: 200, data: [merchant] })),
-}))
-vi.mock('@/api/keeper', () => ({
-  getKeepersByMerchant: vi.fn(() => Promise.resolve({ code: 200, data: keepers })),
+  getMerchant: vi.fn(() => Promise.resolve({ code: 200, data: merchant })),
 }))
 vi.mock('@/api/service', () => ({
   getServiceDetail: vi.fn(() => {
@@ -55,29 +48,22 @@ vi.mock('@/api/service', () => ({
 }))
 vi.mock('@/api/order', () => ({
   createOrder: vi.fn(),
-  createOrdersBatch: vi.fn(),
-  // 价格由后端算：按「数量 × 服务单价」返回，长住折扣沿用 7 天 5% / 30 天 10%
+  // 金额一律由服务端报价返回；mock 只给出固定报价，不在前端按单价/折扣计算。
   previewOrder: vi.fn((payload) => {
     const quantity = Number(payload?.quantity_wsh || 1)
-    const total = quantity * Number(state.servicePrice)
-    const cycles = state.serviceUnit === 'boarding' ? Math.floor(quantity / 24) : quantity
-    const rate = cycles >= 30 ? 0.1 : cycles >= 7 ? 0.05 : 0
-    const longStay = Number((total * rate).toFixed(2))
-    const final = Number((total - longStay).toFixed(2))
     return Promise.resolve({
       code: 200,
       data: {
         billing_unit_wsh: state.serviceUnit,
         quantity_wsh: quantity,
-        days_wsh: quantity,
         unit_price_wsh: Number(state.servicePrice),
-        total_amount_wsh: total.toFixed(2),
-        long_stay_discount_wsh: longStay.toFixed(2),
+        total_amount_wsh: '88.00',
+        long_stay_discount_wsh: '0.00',
         coupon_discount_wsh: '0.00',
         membership_discount_wsh: '0.00',
         platform_subsidy_wsh: '0.00',
-        discount_wsh: longStay.toFixed(2),
-        final_amount_wsh: final.toFixed(2),
+        discount_wsh: '0.00',
+        final_amount_wsh: '88.00',
         start_date_wsh: payload?.start_date_wsh || null,
         end_date_wsh: payload?.end_date_wsh || null,
         delivery_time_wsh: payload?.delivery_time_wsh || payload?.start_time_wsh || null,
@@ -160,12 +146,6 @@ function couponSelectOf(wrapper) {
     s.findAll('option').some(o => ['不使用优惠券', '暂无优惠券', '正在加载优惠券...'].includes(o.text())))
 }
 
-function futureDateTime(hours) {
-  const d = new Date(Date.now() + hours * 3600000)
-  const pad = value => String(value).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 async function mountDialog(props = {}) {
   const wrapper = shallowMount(CreateOrderDialog, {
     props,
@@ -196,7 +176,7 @@ describe('CreateOrderDialog booking', () => {
   beforeEach(() => {
     state.serviceVersion = 'v1'
     state.servicePrice = 88
-    state.serviceUnit = 'day'
+    state.serviceUnit = 'night'
     state.serviceName = '真实服务'
     state.merchantId = 10
     state.keeperCalls.length = 0
@@ -233,12 +213,9 @@ describe('CreateOrderDialog booking', () => {
 
   it('F-BKG-014: coupon select is disabled and shows 暂无优惠券 when user has no coupons', async () => {
     state.coupons = []
-    const wrapper = await mountDialog({ visible: true, initialMerchantId: '10' })
+    const wrapper = await mountDialog({ visible: true, initialServiceId: '5' })
 
     await pickSelect(wrapper, '豆豆', '1')
-    const [delivery, pickup] = wrapper.findAll('input[type="datetime-local"]')
-    await delivery.setValue(futureDateTime(2))
-    await pickup.setValue(futureDateTime(4))
     await settle()
 
     const couponSelect = couponSelectOf(wrapper)
@@ -248,10 +225,10 @@ describe('CreateOrderDialog booking', () => {
     expect(couponSelect.text()).not.toContain('不使用优惠券')
   })
 
-  it('F-BKG-015: auto-selects the most favorable coupon and quotes it', async () => {
+  it('F-BKG-015: auto-selects the first available coupon returned by backend and quotes it', async () => {
     state.servicePrice = 88
-    state.serviceUnit = 'day'
-    // 券1: 8折 最高减50（88 元订单约减 17.6）；券2: 满50减10 → 应自动选中券1
+    state.serviceUnit = 'night'
+    // 自动勾选只按后端可用券列表顺序，前端不估算优惠金额；列表首张为券1（八折券）
     state.coupons = [
       { id_wsh: 201, name_wsh: '八折券', type_wsh: 'percent', discount_rate_wsh: 0.8, max_discount_amount_wsh: 50, threshold_amount_wsh: 0 },
       { id_wsh: 202, name_wsh: '满减券', type_wsh: 'amount', discount_amount_template_wsh: 10, threshold_amount_wsh: 50 },
@@ -267,8 +244,8 @@ describe('CreateOrderDialog booking', () => {
     await wrapper.findAll('input[type="date"]')[0].setValue(dateStr(1))
     await settle()
     await pickSelectByValue(wrapper, `${dateStr(1)}T10:00:00`)
-    await wrapper.findAll('input[type="date"]')[1].setValue(dateStr(2))
-    await settle()
+    // 单宠物按夜寄养：离店日期由夜数推导（默认 1 晚 = 送达日 +1），是只读框，不再手动填接回日期
+    expect(wrapper.find('[data-testid="checkout-date"]').attributes('disabled')).toBeDefined()
     await pickSelectByValue(wrapper, `${dateStr(2)}T10:00:00`)
     await settle()
 
@@ -286,21 +263,17 @@ describe('CreateOrderDialog booking', () => {
     const { createOrder } = await import('@/api/order')
     createOrder.mockReturnValue(new Promise(() => {}))
 
-    const wrapper = await mountDialog({ visible: true, initialMerchantId: '10' })
+    const wrapper = await mountDialog({ visible: true, initialServiceId: '5' })
 
     await pickSelect(wrapper, '豆豆', '1')
-    await pickSelect(wrapper, 'M1', '10')
+    await settle()
+    state.keeperCalls[state.keeperCalls.length - 1].holder.resolve({ code: 200, data: { days_wsh: [makeDay(1, ['10:00']), makeDay(2, ['10:00'])] } })
     await settle()
 
-    const delivery = wrapper.findAll('input[type="datetime-local"]')[0]
-    const pickup = wrapper.findAll('input[type="datetime-local"]')[1]
-    const future = (hours) => {
-      const d = new Date(Date.now() + hours * 3600000)
-      const pad = value => String(value).padStart(2, '0')
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-    }
-    await delivery.setValue(future(2))
-    await pickup.setValue(future(4))
+    await wrapper.findAll('input[type="date"]')[0].setValue(dateStr(1))
+    await settle()
+    await pickSelectByValue(wrapper, `${dateStr(1)}T10:00:00`)
+    await pickSelectByValue(wrapper, `${dateStr(2)}T10:00:00`)
 
     const nameInput = wrapper.find('input[placeholder="联系人姓名"]')
     const phoneInput = wrapper.find('input[placeholder="联系人手机号"]')
@@ -330,9 +303,9 @@ describe('CreateOrderDialog booking', () => {
     await wrapper.findAll('input[type="date"]')[0].setValue(dateStr(1))
     await settle()
     await pickSelectByValue(wrapper, `${dateStr(1)}T10:00:00`)
-    await wrapper.findAll('input[type="date"]')[1].setValue(dateStr(2))
-    await settle()
+    // 单宠物按夜寄养：离店日期由夜数推导（只读），不再手动填接回日期
     await pickSelectByValue(wrapper, `${dateStr(2)}T10:00:00`)
+    await settle()
     await wrapper.find('input[placeholder="联系人姓名"]').setValue('张三')
     await wrapper.find('input[placeholder="联系人手机号"]').setValue('13800000000')
 
@@ -361,9 +334,9 @@ describe('CreateOrderDialog booking', () => {
     await wrapper.findAll('input[type="date"]')[0].setValue(dateStr(1))
     await settle()
     await pickSelectByValue(wrapper, `${dateStr(1)}T10:00:00`)
-    await wrapper.findAll('input[type="date"]')[1].setValue(dateStr(2))
-    await settle()
+    // 单宠物按夜寄养：离店日期由夜数推导（只读），不再手动填接回日期
     await pickSelectByValue(wrapper, `${dateStr(2)}T10:00:00`)
+    await settle()
 
     createOrder.mockResolvedValue({ code: 200, data: { id_wsh: 9 } })
     await submitButton(wrapper).trigger('click')
@@ -374,34 +347,34 @@ describe('CreateOrderDialog booking', () => {
     expect(wrapper.emitted('created')[0][0].id_wsh).toBe(9)
   })
 
-  it('F-BKG-019: 送达地址显示与用户位置的距离', async () => {
-    const wrapper = await mountDialog({ visible: true, initialMerchantId: '10' })
+  it('F-BKG-019: 送达地址固定为门店地址且不可编辑', async () => {
+    const wrapper = await mountDialog({ visible: true, initialServiceId: '5' })
 
-    // 商家地址自动填入后，应计算并展示距离徽标
-    expect(wrapper.find('.delivery-distance').exists()).toBe(true)
-    expect(wrapper.find('.delivery-distance').text()).toContain('距您约')
-    expect(wrapper.find('.delivery-distance').text()).toContain('公里')
+    // 地址自动取门店地址，只读展示，客户不能再选送达地点
+    const address = wrapper.find('[data-testid="delivery-address"]')
+    expect(address.exists()).toBe(true)
+    expect(address.attributes('readonly')).toBeDefined()
+    expect(address.element.value).toBe('测试路1号')
+    // 地图选点与距离提示均已下线
+    expect(wrapper.find('.amap-picker').exists()).toBe(false)
+    expect(wrapper.find('.delivery-distance').exists()).toBe(false)
   })
 
   it('F-BKG-013: success response without an order id closes defensively without emitting created', async () => {
     const { createOrder } = await import('@/api/order')
     createOrder.mockResolvedValue({ code: 200, data: {} })
 
-    const wrapper = await mountDialog({ visible: true, initialMerchantId: '10' })
+    const wrapper = await mountDialog({ visible: true, initialServiceId: '5' })
 
     await pickSelect(wrapper, '豆豆', '1')
-    await pickSelect(wrapper, 'M1', '10')
+    await settle()
+    state.keeperCalls[state.keeperCalls.length - 1].holder.resolve({ code: 200, data: { days_wsh: [makeDay(1, ['10:00']), makeDay(2, ['10:00'])] } })
     await settle()
 
-    const delivery = wrapper.findAll('input[type="datetime-local"]')[0]
-    const pickup = wrapper.findAll('input[type="datetime-local"]')[1]
-    const future = (hours) => {
-      const d = new Date(Date.now() + hours * 3600000)
-      const pad = value => String(value).padStart(2, '0')
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-    }
-    await delivery.setValue(future(2))
-    await pickup.setValue(future(4))
+    await wrapper.findAll('input[type="date"]')[0].setValue(dateStr(1))
+    await settle()
+    await pickSelectByValue(wrapper, `${dateStr(1)}T10:00:00`)
+    await pickSelectByValue(wrapper, `${dateStr(2)}T10:00:00`)
     await wrapper.find('input[placeholder="联系人姓名"]').setValue('张三')
     await wrapper.find('input[placeholder="联系人手机号"]').setValue('13800000000')
 
@@ -414,11 +387,11 @@ describe('CreateOrderDialog booking', () => {
   })
 })
 
-describe('CreateOrderDialog 批量下单与预约窗口', () => {
+describe('CreateOrderDialog 预约窗口', () => {
   beforeEach(() => {
     state.serviceVersion = 'v1'
     state.servicePrice = 88
-    state.serviceUnit = 'day'
+    state.serviceUnit = 'night'
     state.serviceName = '真实服务'
     state.merchantId = 10
     state.keeperCalls.length = 0
@@ -441,86 +414,9 @@ describe('CreateOrderDialog 批量下单与预约窗口', () => {
     await settle()
 
     const dateInputs = wrapper.findAll('input[type="date"]')
-    // 按夜寄养：入住日期可选，离店日期由夜数推导（只读）
-    expect(dateInputs.length).toBe(2)
+    // 单宠物按夜寄养：只有入住日期可编辑；离店日期由夜数推导，是只读框（data-testid="checkout-date"）
+    expect(dateInputs.length).toBe(1)
     expect(dateInputs[0].attributes('max')).toBe(dateStr(90))
-    expect(dateInputs[1].attributes('disabled')).toBeDefined()
-  })
-
-  it('F-BKG-017: 多宠物批量提交 createOrdersBatch(items) 并发出 created(batch)', async () => {
-    const { createOrdersBatch } = await import('@/api/order')
-    createOrdersBatch.mockResolvedValue({ code: 200, data: [{ id_wsh: 10, order_no_wsh: 'ORD1' }, { id_wsh: 11, order_no_wsh: 'ORD2' }] })
-
-    const wrapper = await mountDialog({ visible: true, initialServiceId: '5' })
-    await pickSelect(wrapper, '豆豆', '1')
-    await settle()
-    state.keeperCalls[state.keeperCalls.length - 1].holder.resolve({ code: 200, data: { days_wsh: [makeDay(1, ['10:00']), makeDay(2, ['10:00']), makeDay(3, ['10:00']), makeDay(4, ['10:00'])] } })
-    await settle()
-
-    // 第一行：宠物A 入住日期1、2 夜 → 离店日期3
-    await wrapper.findAll('input[type="date"]')[0].setValue(dateStr(1))
-    await settle()
-    await pickSelectByValue(wrapper, `${dateStr(1)}T10:00:00`)
-    await wrapper.findAll('input[type="number"]')[0].setValue(2)
-    await settle()
-    await pickSelectByValue(wrapper, `${dateStr(3)}T10:00:00`)
-
-    // 添加第二行：宠物B 入住日期2、2 夜 → 离店日期4
-    const addButton = wrapper.findAll('button').find(b => b.text().includes('添加宠物'))
-    await addButton.trigger('click')
-    await settle()
-    // 看护人在前、宠物行在后：按选项文本定位第二行的宠物下拉
-    const petSelects = wrapper.findAll('select').filter(s => s.findAll('option').some(o => o.text().includes('豆豆')))
-    await petSelects.at(-1).setValue('1')
-    await wrapper.findAll('input[type="date"]')[2].setValue(dateStr(2))
-    await settle()
-    await pickSelectByValue(wrapper, `${dateStr(2)}T10:00:00`)
-    await wrapper.findAll('input[type="number"]')[1].setValue(2)
-    await settle()
-    await pickSelectByValue(wrapper, `${dateStr(4)}T10:00:00`)
-
-    await wrapper.find('input[placeholder="联系人姓名"]').setValue('张三')
-    await wrapper.find('input[placeholder="联系人手机号"]').setValue('13800000000')
-    await submitButton(wrapper).trigger('click')
-    await settle()
-
-    expect(createOrdersBatch).toHaveBeenCalledTimes(1)
-    const payload = createOrdersBatch.mock.calls[0][0]
-    expect(payload.items.length).toBe(2)
-    expect(payload.items[0].pet_id_wsh).toBe(1)
-    // 夜数是预订事实：2 夜从日期1 到日期3，不是「含首尾 3 天」
-    expect(payload.items[0].quantity_wsh).toBe(2)
-    expect(payload.items[0].start_date_wsh).toBe(dateStr(1))
-    expect(payload.items[0].end_date_wsh).toBe(dateStr(3))
-    expect(payload.items[1].quantity_wsh).toBe(2)
-    expect(payload.items[1].start_date_wsh).toBe(dateStr(2))
-    expect(payload.items[1].end_date_wsh).toBe(dateStr(4))
-    expect(payload.service_id_wsh).toBe(5)
-    expect(payload.billing_unit_wsh).toBe('night')
-    expect(wrapper.emitted('created')[0][0]).toMatchObject({ batch: true })
-    expect(wrapper.emitted('created')[0][0].orders.length).toBe(2)
-  })
-
-  it('F-BKG-018: 添加宠物上限 10 行且可移除', async () => {
-    const wrapper = await mountDialog({ visible: true, initialServiceId: '5' })
-    await settle()
-    state.keeperCalls[state.keeperCalls.length - 1].holder.resolve({ code: 200, data: { days_wsh: [makeDay(1, ['10:00'])] } })
-    await settle()
-
-    const addButton = wrapper.findAll('button').find(b => b.text().includes('添加宠物'))
-    for (let i = 0; i < 9; i++) {
-      await addButton.trigger('click')
-      await settle()
-    }
-    expect(wrapper.findAll('.pet-row').length).toBe(10)
-    expect(addButton.attributes('disabled')).toBeDefined()
-    expect(addButton.text()).toContain('最多可添加 10 只宠物')
-
-    // 移除一行后恢复可添加
-    const removeButton = wrapper.findAll('button').find(b => b.text() === '移除')
-    await removeButton.trigger('click')
-    await settle()
-    expect(wrapper.findAll('.pet-row').length).toBe(9)
-    expect(addButton.attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="checkout-date"]').attributes('disabled')).toBeDefined()
   })
 })

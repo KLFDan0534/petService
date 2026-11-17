@@ -63,13 +63,13 @@ describe('MerchantDetail.vue future booking', () => {
   it('keeps the booking button enabled with closed-store wording when store is closed but future booking is on', async () => {
     mockProfile({
       merchant: merchant({ storeStatus: 0 }),
-      services: [{ id_wsh: 1, name_wsh: '寄养', price_wsh: 100, unit_wsh: '天' }],
+      services: [{ id_wsh: 1, name_wsh: '寄养', price_wsh: 100, unit_wsh: 'night' }],
     })
 
     const wrapper = mountDetail()
     await flushPromises()
 
-    const button = wrapper.find('.service-action button')
+    const button = wrapper.find('.md-service-action button')
     expect(button.exists()).toBe(true)
     expect(button.attributes('disabled')).toBeUndefined()
     expect(button.text()).toContain('休息中·可预约')
@@ -78,13 +78,13 @@ describe('MerchantDetail.vue future booking', () => {
   it('shows 预约 wording when the store is open and future booking is on', async () => {
     mockProfile({
       merchant: merchant({ storeStatus: 1 }),
-      services: [{ id_wsh: 1, name_wsh: '寄养', price_wsh: 100, unit_wsh: '天' }],
+      services: [{ id_wsh: 1, name_wsh: '寄养', price_wsh: 100, unit_wsh: 'night' }],
     })
 
     const wrapper = mountDetail()
     await flushPromises()
 
-    const button = wrapper.find('.service-action button')
+    const button = wrapper.find('.md-service-action button')
     expect(button.text()).toContain('预约')
     expect(button.attributes('disabled')).toBeUndefined()
   })
@@ -93,13 +93,13 @@ describe('MerchantDetail.vue future booking', () => {
   it('disables the booking button when future booking is off, regardless of store status', async () => {
     mockProfile({
       merchant: merchant({ storeStatus: 1, futureBooking: 0 }),
-      services: [{ id_wsh: 1, name_wsh: '寄养', price_wsh: 100, unit_wsh: '天' }],
+      services: [{ id_wsh: 1, name_wsh: '寄养', price_wsh: 100, unit_wsh: 'night' }],
     })
 
     const wrapper = mountDetail()
     await flushPromises()
 
-    const button = wrapper.find('.service-action button')
+    const button = wrapper.find('.md-service-action button')
     expect(button.attributes('disabled')).toBeDefined()
   })
 
@@ -107,13 +107,13 @@ describe('MerchantDetail.vue future booking', () => {
   it('F-NAV-003: booking routes to the product detail /services/{id}?book=1 without legacy order query', async () => {
     mockProfile({
       merchant: merchant({ storeStatus: 1 }),
-      services: [{ id_wsh: 7, name_wsh: '寄养', price_wsh: 100, unit_wsh: '天' }],
+      services: [{ id_wsh: 7, name_wsh: '寄养', price_wsh: 100, unit_wsh: 'night' }],
     })
 
     const wrapper = mountDetail()
     await flushPromises()
 
-    const button = wrapper.find('.service-action button')
+    const button = wrapper.find('.md-service-action button')
     await button.trigger('click')
 
     expect(state.push).toHaveBeenCalledWith({ path: '/services/7', query: { book: '1' } })

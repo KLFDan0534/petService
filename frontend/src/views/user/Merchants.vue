@@ -468,7 +468,7 @@ onMounted(loadMerchants)
 
 .ms-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ms-crumb {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -478,7 +478,7 @@ onMounted(loadMerchants)
 .ms-crumb-sep { color: var(--ref-line); }
 .ms-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: var(--r-tag); border: 1px solid transparent;
@@ -497,7 +497,7 @@ onMounted(loadMerchants)
   padding: 4px 10px; font-size: 11px; font-weight: 500; line-height: 1; color: var(--ref-ink-soft);
 }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -517,7 +517,7 @@ onMounted(loadMerchants)
   border-top-color: currentColor; animation: ms-rot 0.7s linear infinite;
 }
 
-/* ═══ Header ═══ */
+/* Header */
 .ms-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
   gap: 20px 40px; padding: 20px 0 8px;
@@ -549,7 +549,7 @@ onMounted(loadMerchants)
   font-size: 26px; font-weight: 400; line-height: 1; color: var(--ref-ink); font-variant-numeric: tabular-nums;
 }
 
-/* ═══ Toolbar ═══ */
+/* Toolbar */
 .ms-toolbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
   margin-top: 18px; padding: 14px 16px;
@@ -588,7 +588,7 @@ onMounted(loadMerchants)
 .ms-radius { display: flex; flex-direction: column; gap: 6px; }
 .ms-radius-label { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ref-muted); }
 
-/* ═══ Section ═══ */
+/* Section */
 .ms-section { margin-top: 40px; }
 .ms-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
 .ms-section-title {
@@ -596,7 +596,7 @@ onMounted(loadMerchants)
   font-size: 24px; font-weight: 400; line-height: 1.2; letter-spacing: -0.02em; color: var(--ref-ink);
 }
 
-/* ═══ Cards ═══ */
+/* Cards */
 .ms-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 22px;
 }
@@ -666,7 +666,7 @@ onMounted(loadMerchants)
 .ms-arrow { font-size: 14px; color: var(--ref-muted); transition: transform 0.15s, color 0.15s; }
 .ms-card:hover .ms-arrow { transform: translate(2px, -2px); color: var(--ref-brand); }
 
-/* ═══ Loading / Empty ═══ */
+/* Loading / Empty */
 .ms-skeleton-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 22px;
 }
@@ -684,7 +684,7 @@ onMounted(loadMerchants)
 .ms-empty-desc { margin: 8px 0 0; font-size: 13px; color: var(--ref-muted); }
 .ms-empty .cta { margin-top: 20px; }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed; inset: 0; z-index: 2000;
   display: flex; align-items: center; justify-content: center;
@@ -736,13 +736,13 @@ onMounted(loadMerchants)
 }
 .dlg-cancel:hover { background: var(--ref-sand); border-color: color-mix(in srgb, var(--ref-ink) 30%, transparent); }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes ms-shimmer { to { background-position: -200% 0; } }
 @keyframes ms-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ms-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes ms-rot { to { transform: rotate(360deg); } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .ms-grid, .ms-skeleton-grid { grid-template-columns: repeat(2, 1fr); }
 }

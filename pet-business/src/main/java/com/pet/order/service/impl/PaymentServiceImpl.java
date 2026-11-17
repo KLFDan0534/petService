@@ -64,22 +64,7 @@ public class PaymentServiceImpl implements PaymentService {
     private static final Duration PAYMENT_TIMEOUT = Duration.ofMillis(RabbitMQConfig.ORDER_PAYMENT_TIMEOUT_TTL_MS);
 
     /**
-     * 【构造函数：注入支付链路依赖】
-     *
      * 业务作用：注入支付单、订单 Mapper，以及状态广播、账务、优惠券、会员权益、MQ 发送与订单服务。
-     *
-     * 调用场景：容器启动创建 PaymentServiceImpl Bean 时自动调用。
-     *
-     * 调用链：Spring IoC → PaymentServiceImpl(构造) → 各依赖字段赋值。
-     *
-     * 数据处理：仅做字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：支付超时窗口 PAYMENT_TIMEOUT 取自 RabbitMQConfig 的 TTL 常量，与 MQ 延迟队列保持一致。
      */
     public PaymentServiceImpl(PaymentMapper paymentMapper,
@@ -130,18 +115,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * 【查询用户支付记录列表（实现）】
-     *
-     * 业务作用：
-     * 通过用户订单ID批量查询关联支付记录，按创建时间降序排列。
-     *
-     * 调用链：
-     * PaymentService.listByUser()
-     * ↓
-     * orderMapper查询用户所有订单ID → paymentMapper批量查询支付记录
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：通过用户订单ID批量查询关联支付记录，按创建时间降序排列。
      *
      * @param userId 用户ID
      * @return 支付记录列表
@@ -188,17 +162,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * 【创建支付记录（实现）】
-     *
-     * 业务作用：
-     * 核心创建支付逻辑：校验状态/超时 → 复用已有待支付记录 → 生成新支付记录。
-     *
+     * 业务作用：核心创建支付逻辑：校验状态/超时 → 复用已有待支付记录 → 生成新支付记录。
      * 调用链：
      * PaymentService.createPayment()
      * ↓
      * 查询订单 → 校验(已支付/状态/超时) → 查已有待支付记录
      * → 存在则更新支付方式 → 不存在则生成PAY+UUID编号 → insert
-     *
      * 业务规则：
      * 1. 订单必须PENDING且未支付
      * 2. 支付超时检查：ensureOrderPaymentNotExpired()
@@ -443,18 +412,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * 【管理员分页查询支付记录（实现）】
-     *
-     * 业务作用：
-     * 分页查询支付记录，keyword 非空时按订单号/支付编号模糊搜索，按创建时间倒序排列。
-     *
-     * 调用链：
-     * PaymentService.pageAll()
-     * ↓
-     * paymentMapper.selectPage(Page, LambdaQueryWrapper)
-     *
-     * 状态影响：
-     * 只读操作。
+     * 业务作用：分页查询支付记录，keyword 非空时按订单号/支付编号模糊搜索，按创建时间倒序排列。
      *
      * @param pageParam 分页参数
      * @param keyword   搜索关键字（可为null，用于按订单号/支付编号模糊搜索）
@@ -543,22 +501,9 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * 【金额空值兜底】
-     *
      * 业务作用：把可空金额转为可参与运算的 BigDecimal，null 时返回 0。
-     *
-     * 调用场景：pay 方法中读取支付金额与平台补贴金额。
-     *
-     * 调用链：PaymentServiceImpl.pay → defaultMoney → BigDecimal.ZERO。
-     *
      * 数据处理：null 返回 BigDecimal.ZERO，否则原样返回。
-     *
      * 业务规则：不做小数位归一，也不校验负数。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：与 CouponServiceImpl.moneyOrZero 不同，此处不 setScale(2) 也不拒绝负数，仅用于避免空指针。
      */
     private BigDecimal defaultMoney(BigDecimal amount) {

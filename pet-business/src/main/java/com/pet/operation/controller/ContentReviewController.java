@@ -18,7 +18,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.stream.Collectors;
 
 import com.pet.operation.dto.ContentReviewReportRequestDTO;
@@ -36,19 +35,7 @@ public class ContentReviewController {
      * 【构造方法】注入内容审核服务
      *
      * 业务作用：由 Spring 注入 ContentReviewService，供举报与审核接口使用。
-     *
-     * 调用场景：Spring 容器启动创建 Controller Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → contentReviewService 赋值。
-     *
-     * 数据处理：仅字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：依赖缺失时由 Spring 抛出 Bean 创建异常。
-     *
      * 注意事项：依赖为 final 字段。
      */
     public ContentReviewController(ContentReviewService contentReviewService) {
@@ -182,19 +169,7 @@ public class ContentReviewController {
      * 【审核记录转DTO】把 ContentReview 实体字段拷贝为 DTO
      *
      * 业务作用：控制器层输出审核记录时屏蔽实体字段。
-     *
-     * 调用场景：report、approve、reject 返回结果前调用，以及 toDTOPage 内部调用。
-     *
-     * 调用链：report / approve / reject / toDTOPage → 本方法。
-     *
-     * 数据处理：拷贝 id_wsh、target_type_wsh、target_id_wsh、reporter_id_wsh、reason_wsh、status_wsh、reviewer_id_wsh、review_remark_wsh、created_at_wsh。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：入参为 null 时抛 NullPointerException，未判空。
-     *
      * 注意事项：不返回 updated_at_wsh，前端无法感知审核时间。
      */
     private ContentReviewDTO toDTO(ContentReview entity) {
@@ -215,19 +190,7 @@ public class ContentReviewController {
      * 【分页结果转DTO】把审核记录分页对象转换为 DTO 分页对象
      *
      * 业务作用：listPending 与 listAll 返回分页数据时统一转换。
-     *
-     * 调用场景：listPending 与 listAll 中调用。
-     *
-     * 调用链：listPending / listAll → 本方法 → toDTO。
-     *
-     * 数据处理：保留 current、size、total，把 records 逐条映射为 ContentReviewDTO。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：page 为 null 时抛 NullPointerException，未判空。
-     *
      * 注意事项：方法签名使用全限定类名而非 import，可读性较差；泛型返回 IPage 但实际构造的是 Page。
      */
     private com.baomidou.mybatisplus.core.metadata.IPage<ContentReviewDTO> toDTOPage(com.baomidou.mybatisplus.core.metadata.IPage<ContentReview> page) {

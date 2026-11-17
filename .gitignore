@@ -44,8 +44,16 @@ login-snapshot.yml
 merchant-pets.yml
 
 
-# 项目文档
-docs/
+# 项目文档（默认整目录忽略；仅放行正式数据库迁移脚本，保证迁移可追溯）
+# Git 规则：父目录被忽略时无法单独放行子项，故先放行中间目录再逐层放行
+docs/*
+!docs/database/
+docs/database/*
+!docs/database/migrations/
+
+# 保持原有语义：原 `docs/` 是无锚定模式，会忽略任意层级的 docs 目录。
+# 上面改成根锚定后需显式补回，避免 frontend/docs 被意外纳入版本控制。
+frontend/docs/
 
 # opencode 配置
 .opencode/
@@ -86,6 +94,11 @@ header-new.png
 
 # 数据库脚本（敏感，不提交 GitHub）
 database/
+
+# 例外：docs/database/migrations 是正式迁移脚本，必须可追溯，故放行
+# （上面的 database/ 会连带匹配 docs/database，这里按「后匹配优先」逐层放行）
+!docs/database/
+!docs/database/migrations/
 
 # 临时脚本
 _tmp_merge_schema.ps1
@@ -141,3 +154,13 @@ pet-web/dist/
 
 # 临时代码查找笔记
 代码关联/
+
+# ===== 2026-11-17 提交前补充 =====
+
+# 前端构建产物（阶段快照 / 验证输出）
+frontend/dist_phaseF/
+frontend/spec-out/
+
+# 本地临时文件 / 工具缓存
+_run_args.txt
+.grill/

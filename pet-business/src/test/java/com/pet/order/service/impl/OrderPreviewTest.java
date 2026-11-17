@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.boarding.entity.Keeper;
 import com.pet.boarding.entity.Merchant;
 import com.pet.boarding.entity.ServiceItem;
+import com.pet.boarding.entity.ServiceCategory;
 import com.pet.boarding.mapper.KeeperMapper;
 import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.boarding.mapper.ServiceItemMapper;
@@ -16,6 +17,7 @@ import com.pet.boarding.service.KeeperAttendanceService;
 import com.pet.boarding.service.KeeperLeaveService;
 import com.pet.boarding.service.MerchantService;
 import com.pet.common.BusinessException;
+import com.pet.common.BookingErrorCode;
 import com.pet.common.StatusCode;
 import com.pet.customer.mapper.RatingMapper;
 import com.pet.finance.service.AccountingService;
@@ -24,8 +26,6 @@ import com.pet.marketing.service.CouponService;
 import com.pet.membership.dto.MembershipDiscountDTO;
 import com.pet.membership.service.MembershipBenefitService;
 import com.pet.mq.MessageSender;
-import com.pet.order.dto.OrderBatchCreateRequestDTO;
-import com.pet.order.dto.OrderBatchItemDTO;
 import com.pet.order.dto.OrderCreateRequestDTO;
 import com.pet.order.dto.OrderDTO;
 import com.pet.order.dto.OrderPreviewRequestDTO;
@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
@@ -80,6 +81,7 @@ class OrderPreviewTest {
     private static final Long SERVICE_ID = 5L;
 
     @Mock private OrderMapper orderMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private PaymentMapper paymentMapper;
     @Mock private PetMapper petMapper;
     @Mock private KeeperMapper keeperMapper;
@@ -121,7 +123,7 @@ class OrderPreviewTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper, serviceCategoryMapper);
     }
 
     private ServiceItem serviceItem(String unit, String price) {
@@ -148,6 +150,9 @@ class OrderPreviewTest {
         merchant.setId_wsh(MERCHANT_ID);
         merchant.setStatus_wsh(StatusCode.MERCHANT_APPROVED.getValue());
         merchant.setFuture_booking_enabled_wsh(1);
+        // 到店交接要求门店必须有坐标，缺坐标会在下单口被拦
+        merchant.setLatitude_wsh(new BigDecimal("31.2304"));
+        merchant.setLongitude_wsh(new BigDecimal("121.4737"));
         lenient().when(merchantMapper.selectById(MERCHANT_ID)).thenReturn(merchant);
         lenient().when(serviceItemMapper.selectById(SERVICE_ID)).thenReturn(serviceItem);
 
@@ -216,6 +221,50 @@ class OrderPreviewTest {
         create.setEmergency_contact_name_wsh("赵测试");
         create.setEmergency_contact_phone_wsh("13800001009");
         return create;
+    }
+
+    // ============ Category-enabled booking gate (P0-1) ============
+
+    @Test
+    void disabledCategoryRejectedAtPreview() {
+        ServiceItem s = serviceItem("night", "150.00");
+        s.setCategory_id_wsh(3L);
+        stubCommon(s);
+        ServiceCategory disabled = new ServiceCategory();
+        disabled.setId_wsh(3L);
+        disabled.setStatus_wsh(StatusCode.SERVICE_DISABLED.getValue());
+        lenient().when(serviceCategoryMapper.selectById(3L)).thenReturn(disabled);
+
+        LocalDate d = checkin();
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service().previewOrder(OWNER_ID,
+                        nightPreview(d, 3, d.atTime(11, 0), d.plusDays(3).atTime(14, 30))));
+        assertEquals(400, ex.getCode());
+        assertEquals(BookingErrorCode.SERVICE_OFF_SHELF, ex.getErrorCode());
+    }
+
+    @Test
+    void enabledCategoryAllowsPreview() {
+        ServiceItem s = serviceItem("night", "150.00");
+        s.setCategory_id_wsh(3L);
+        stubCommon(s);
+        ServiceCategory enabled = new ServiceCategory();
+        enabled.setId_wsh(3L);
+        enabled.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
+        lenient().when(serviceCategoryMapper.selectById(3L)).thenReturn(enabled);
+
+        LocalDate d = checkin();
+        assertDoesNotThrow(() -> service().previewOrder(OWNER_ID,
+                nightPreview(d, 3, d.atTime(11, 0), d.plusDays(3).atTime(14, 30))));
+    }
+
+    @Test
+    void serviceWithoutCategorySkipsCategoryLookup() {
+        stubCommon(serviceItem("night", "150.00"));
+        LocalDate d = checkin();
+        assertDoesNotThrow(() -> service().previewOrder(OWNER_ID,
+                nightPreview(d, 3, d.atTime(11, 0), d.plusDays(3).atTime(14, 30))));
+        verify(serviceCategoryMapper, never()).selectById(any());
     }
 
     // ============ 按夜计价 ============
@@ -454,13 +503,13 @@ class OrderPreviewTest {
         assertEquals(quote.getPickup_time_wsh(), order.getPickup_time_wsh());
     }
 
-    /** 批量下单不再要求指定看护者：不传 keeper 时整批进入待分配池。 */
+    /** 单笔下单不要求指定看护者：不传 keeper 时订单进入待分配池（keeper_id_wsh == null）。 */
     @Test
-    void batchCreateWithoutKeeperEntersAssignmentPool() {
+    void createOrderWithoutKeeperEntersAssignmentPool() {
         stubCommon(serviceItem("night", "150.00"));
         lenient().when(orderMapper.insert(any(PetOrder.class))).thenAnswer(inv -> {
             PetOrder o = inv.getArgument(0);
-            o.setId_wsh(910L + Math.abs(o.hashCode() % 50));
+            o.setId_wsh(910L);
             return 1;
         });
         User owner = new User();
@@ -468,32 +517,13 @@ class OrderPreviewTest {
         lenient().when(userMapper.selectById(OWNER_ID)).thenReturn(owner);
 
         LocalDate d = checkin();
-        OrderBatchCreateRequestDTO batch = new OrderBatchCreateRequestDTO();
-        batch.setService_id_wsh(SERVICE_ID);
-        batch.setMerchant_id_wsh(MERCHANT_ID);
-        OrderBatchItemDTO first = new OrderBatchItemDTO();
-        first.setPet_id_wsh(PET_ID);
-        first.setStart_date_wsh(d);
-        first.setEnd_date_wsh(d.plusDays(1));
-        first.setQuantity_wsh(1);
-        first.setDelivery_time_wsh(d.atTime(14, 0));
-        first.setPickup_time_wsh(d.plusDays(1).atTime(14, 30));
-        OrderBatchItemDTO second = new OrderBatchItemDTO();
-        second.setPet_id_wsh(PET_ID + 1);
-        second.setStart_date_wsh(d);
-        second.setEnd_date_wsh(d.plusDays(1));
-        second.setQuantity_wsh(1);
-        second.setDelivery_time_wsh(d.atTime(14, 0));
-        second.setPickup_time_wsh(d.plusDays(1).atTime(14, 30));
-        batch.setItems(List.of(first, second));
+        OrderCreateRequestDTO request = nightCreate(d, 1, d.atTime(14, 0), d.plusDays(1).atTime(14, 30));
 
-        List<OrderDTO> orders = service().createOrders(OWNER_ID, batch);
+        OrderDTO order = service().createOrder(OWNER_ID, request);
 
-        assertEquals(2, orders.size());
-        assertNull(orders.get(0).getKeeper_id_wsh());
-        assertNull(orders.get(1).getKeeper_id_wsh());
-        assertEquals(new BigDecimal("150.00"), orders.get(0).getFinal_amount_wsh());
-        assertEquals(1, orders.get(0).getQuantity_wsh());
-        assertEquals(d.plusDays(1), orders.get(0).getEnd_date_wsh());
+        assertNull(order.getKeeper_id_wsh());
+        assertEquals(new BigDecimal("150.00"), order.getFinal_amount_wsh());
+        assertEquals(1, order.getQuantity_wsh());
+        assertEquals(d.plusDays(1), order.getEnd_date_wsh());
     }
 }

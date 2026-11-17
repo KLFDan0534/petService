@@ -1,0 +1,130 @@
+version: '3.8'
+
+# ============================================================
+# 【已拆分，保留仅作参考】pet-service 一体化部署（nginx + MinIO 同容器）
+#
+# 前端已从本文件提取为独立容器，日常请改用：
+#   - 基础设施：docker compose up -d
+#   - 前端容器：docker compose -f docker-compose.web.yml up -d
+# 本文件只在「想用单个容器同时提供前端 + MinIO」时才需要。
+#
+# 一键启动：docker compose -f docker-compose.allinone.yml up -d
+# 一键停止：docker compose -f docker-compose.allinone.yml down
+# 重建镜像：./pet-allinone/build.sh （或 Windows 下 pet-allinone\build.bat）
+# ============================================================
+
+services:
+  # ---------- 一体化容器：nginx(前端+反代) + MinIO ----------
+  pet-service:
+    image: pet-service:latest
+    build:
+      context: ./pet-allinone
+      dockerfile: Dockerfile
+    container_name: pet-service
+    restart: unless-stopped
+    ports:
+      - "80:80"        # 前端 + 反向代理
+      - "9000:9000"    # MinIO S3 API
+      - "9001:9001"    # MinIO 控制台
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      TZ: Asia/Shanghai
+    volumes:
+      # 复用既有 MinIO 数据卷，数据不丢
+      - minio-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - pet-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- 以下为基础设施，保持独立容器 ----------
+  mysql:
+    image: mysql:8.0
+    container_name: pet-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pet_service
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./pet-admin/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pet-network
+
+  redis:
+    image: redis:7
+    container_name: pet-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pet-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: pet-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pet-network
+
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: pet-chroma
+    environment:
+      IS_PERSISTENT: "TRUE"
+      PERSIST_DIRECTORY: /chroma-data
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma-data
+    networks:
+      - pet-network
+
+volumes:
+  mysql-data:
+    name: petservice_mysql_manual_copy_20260708-135648
+  redis-data:
+    name: petservice_redis-data
+  rabbitmq-data:
+    name: petservice_rabbitmq-data
+  minio-data:
+    name: petservice_minio-data
+  chroma-data:
+    name: petservice_chroma-data
+
+networks:
+  pet-network:
+    name: petservice_pet-network
+    driver: bridge

@@ -47,7 +47,7 @@ const listServices = [
     name_wsh: 'VIP寄养',
     category_id_wsh: 2,
     price_wsh: 299,
-    unit_wsh: '夜',
+    unit_wsh: 'night',
     status_wsh: 1,
     description_wsh: '豪华单间',
     images_wsh: 'http://minio/service/legacy-a.png',
@@ -60,7 +60,7 @@ const detail = {
     name_wsh: 'VIP寄养',
     category_id_wsh: 2,
     price_wsh: 299,
-    unit_wsh: '夜',
+    unit_wsh: 'night',
     duration_minutes_wsh: 1440,
     booking_mode_wsh: 'interval',
     status_wsh: 1,
@@ -107,10 +107,17 @@ async function fillRequired(wrapper, overrides = {}) {
   for (const [selector, value] of Object.entries(fields)) {
     await wrapper.find(selector).setValue(value)
   }
-  await wrapper.find('select').setValue('2')
+  await pickCategory(wrapper)
   if (overrides.unit) {
     await wrapper.find('[data-testid="unit-select"]').setValue(overrides.unit)
   }
+}
+
+// 两级面板：点开触发按钮 → hover 一级 → 点第一个二级（fixture 里是 id=2 标准寄养）
+async function pickCategory(wrapper) {
+  await wrapper.find('.category-trigger').trigger('click')
+  await wrapper.find('.category-root').trigger('mouseenter')
+  await wrapper.findAll('.category-chip')[0].trigger('click')
 }
 
 describe('MerchantServices 服务产品编辑器', () => {
@@ -212,43 +219,54 @@ describe('MerchantServices 服务产品编辑器', () => {
     ])
   })
 
-  it('F-MGT-005 左移/右移确定性重排图册顺序', async () => {
+  it('F-MGT-005 拖拽确定性重排图册顺序', async () => {
     const { wrapper } = createWrapper()
     await openCreateModal(wrapper)
     await setFiles(wrapper, [imageFile('a.png'), imageFile('b.png')]).trigger('change')
     await flushPromises()
-    const srcs = () => wrapper.findAll('.image-preview img').map(img => img.attributes('src'))
+    const tiles = () => wrapper.findAll('.image-preview')
+    const srcs = () => tiles().map(tile => tile.find('img').attributes('src'))
     expect(srcs()).toEqual([
       'http://minio/service/a.png',
       'http://minio/service/b.png',
     ])
-    await wrapper.findAll('.media-actions button')[1].trigger('click')
+    // 第二张拖到第一张的位置
+    await tiles()[1].trigger('dragstart')
+    await tiles()[0].trigger('dragover')
+    await tiles()[0].trigger('drop')
     expect(srcs()).toEqual([
       'http://minio/service/b.png',
       'http://minio/service/a.png',
     ])
-    await wrapper.findAll('.media-actions button')[4].trigger('click')
+    // 再拖回原位
+    await tiles()[0].trigger('dragstart')
+    await tiles()[1].trigger('dragover')
+    await tiles()[1].trigger('drop')
     expect(srcs()).toEqual([
       'http://minio/service/a.png',
       'http://minio/service/b.png',
     ])
   })
 
-  it('F-MGT-006 封面唯一且移除封面后确定性替补', async () => {
+  it('F-MGT-006 封面恒为第一张，删除需弹窗确认', async () => {
     const { wrapper } = createWrapper()
     await openCreateModal(wrapper)
     await setFiles(wrapper, [imageFile('a.png'), imageFile('b.png')]).trigger('change')
     await flushPromises()
-    const coverCount = () => wrapper.findAll('.cover-badge').length
-    expect(coverCount()).toBe(1)
-    const second = wrapper.findAll('.image-preview')[1]
-    await second.findAll('button')[2].trigger('click')
-    expect(coverCount()).toBe(1)
-    expect(second.element.querySelector('img').getAttribute('src')).toContain('b.png')
-    const tiles = wrapper.findAll('.image-preview')
-    await tiles[1].findAll('button')[3].trigger('click')
-    expect(coverCount()).toBe(1)
-    expect(wrapper.findAll('.image-preview')[0].element.querySelector('img').getAttribute('src')).toContain('a.png')
+    const coverSrc = () => wrapper.find('.cover-badge').element.closest('.image-preview').querySelector('img').getAttribute('src')
+    expect(wrapper.findAll('.cover-badge')).toHaveLength(1)
+    expect(coverSrc()).toContain('a.png')
+    // 点第二张的叉：先弹确认框，取消不删
+    await wrapper.findAll('.media-remove')[1].trigger('click')
+    expect(wrapper.find('.app-dialog.remove-confirm').exists()).toBe(true)
+    await wrapper.find('.app-dialog.remove-confirm').findAll('button').find(b => b.text() === '取消').trigger('click')
+    expect(wrapper.findAll('.image-preview')).toHaveLength(2)
+    // 再点一次并确认删除
+    await wrapper.findAll('.media-remove')[1].trigger('click')
+    await wrapper.find('.app-dialog.remove-confirm').findAll('button').find(b => b.text() === '确认删除').trigger('click')
+    expect(wrapper.findAll('.image-preview')).toHaveLength(1)
+    expect(wrapper.findAll('.image-preview img')[0].attributes('src')).toContain('a.png')
+    expect(wrapper.findAll('.cover-badge')).toHaveLength(1)
   })
 
   it('F-MGT-007 拒绝错误MIME/超大文件/超过10张并给出可见错误', async () => {
@@ -392,7 +410,7 @@ describe('MerchantServices 服务产品编辑器', () => {
     expect(payload.duration_minutes_wsh).toBe(60)
   })
 
-  it('F-MGT-015 编辑时回显规范化单位与时长', async () => {
+  it('F-MGT-015 编辑时回显标准单位与时长', async () => {
     mocks.getServiceManageDetail.mockResolvedValue({
       code: 200,
       data: {
@@ -418,12 +436,12 @@ describe('MerchantServices 服务产品编辑器', () => {
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '编辑').trigger('click')
     await flushPromises()
-    // detail.unit_wsh='夜' 应规范化为 night
+    // detail.unit_wsh='night' 为后端标准单位，回显直接使用（不做别名归一）
     expect(wrapper.find('[data-testid="unit-select"]').element.value).toBe('night')
     expect(Number(wrapper.find('[data-testid="duration-input"]').element.value)).toBe(1440)
   })
 
-  it('F-MGT-017 更新提交 payload 包含规范化 unit_wsh 与 duration_minutes_wsh', async () => {
+  it('F-MGT-017 更新提交 payload 包含标准 unit_wsh 与 duration_minutes_wsh', async () => {
     const { wrapper } = createWrapper()
     await flushPromises()
     await wrapper.findAll('button').find(b => b.text() === '编辑').trigger('click')

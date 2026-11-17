@@ -41,22 +41,7 @@ public class KeeperLeaveServiceImpl implements KeeperLeaveService {
     private final MerchantMapper merchantMapper;
 
     /**
-     * 【构造看护者休假服务】
-     *
-     * 业务作用：注入休假、看护者、商家三个 Mapper。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值 leaveMapper / keeperMapper / merchantMapper 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖均为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：休假记录在考勤打卡与订单分配时会被其他服务调用校验，改动需评估下游影响。
      */
     public KeeperLeaveServiceImpl(KeeperLeaveMapper leaveMapper,

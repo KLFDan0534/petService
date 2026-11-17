@@ -36,25 +36,6 @@ public class MembershipServiceImpl implements MembershipService {
     private final MemberPlanMapper memberPlanMapper;
     private final ObjectMapper objectMapper;
 
-    /**
-     * 【会员服务实现的构造注入】
-     *
-     * 业务作用：注入会员记录、套餐 Mapper 与 JSON 解析器。
-     *
-     * 调用场景：Spring 容器创建 MembershipServiceImpl 时。
-     *
-     * 调用链：Spring 容器 → 本构造方法 → 赋值 3 个 final 成员。
-     *
-     * 数据处理：仅保存依赖引用。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
-     * 注意事项：无。
-     */
     public MembershipServiceImpl(UserMembershipMapper userMembershipMapper,
                                  MemberPlanMapper memberPlanMapper,
                                  ObjectMapper objectMapper) {
@@ -64,13 +45,10 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     /**
-     * 【业务名称】获取当前会员信息（实现）
+     * 获取当前会员信息（实现）
+     *
      * 业务作用：获取指定用户的当前会员信息。
-     * 调用场景：用户查看会员状态。
-     * 调用链：getCurrentMembership() → selectOne() → refreshIfExpired() → toDTO()。
-     * 数据处理：查询一条会员记录 → 过期自动刷新 → 转为 DTO。
      * 业务规则：无会员时返回默认 inactive DTO；过期自动刷新。
-     * 状态影响：会员过期时自动更新数据库状态。
      * 异常情况：用户ID为空抛 BusinessException(401)。
      * 注意事项：@Transactional 保证事务一致性。
      */
@@ -98,15 +76,11 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     /**
-     * 【业务名称】管理端查询会员列表（实现）
+     * 管理端查询会员列表（实现）
+     *
      * 业务作用：按状态筛选查询会员列表，查询前自动过期。
-     * 调用场景：后台会员管理。
-     * 调用链：listMembershipsForAdmin() → expireMemberships() → selectList() → toDTO()。
-     * 数据处理：过期处理后按状态筛选查询。
      * 业务规则：查询前自动过期保证数据准确。
-     * 状态影响：查询前触发过期处理。
      * 异常情况：不支持的状态抛 BusinessException(400)。
-     * 注意事项：无。
      */
     @Override
     @Transactional
@@ -124,14 +98,10 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     /**
-     * 【业务名称】批量过期会员（实现）
+     * 批量过期会员（实现）
+     *
      * 业务作用：将所有已过期的活跃会员标记为 expired。
-     * 调用场景：定时任务或管理端查询前自动调用。
-     * 调用链：expireMemberships() → update()。
-     * 数据处理：批量更新 expires_at < now 且 status=active 的记录。
      * 业务规则：仅处理活跃已过期会员。
-     * 状态影响：符合条件的会员状态 active → expired。
-     * 异常情况：无。
      * 注意事项：@Transactional 保证事务一致性。
      */
     @Override
@@ -145,15 +115,10 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     /**
-     * 【业务名称】会员实体转DTO（实现）
+     * 会员实体转DTO（实现）
+     *
      * 业务作用：将会员实体转换为 DTO，丰富套餐名称、折扣率、有效状态和剩余天数。
-     * 调用场景：内部转换。
-     * 调用链：toDTO()。
-     * 数据处理：字段拷贝 → 关联套餐 → 解析快照 → 计算有效状态和剩余天数。
      * 业务规则：折扣率为 null 时默认为 1。
-     * 状态影响：无。
-     * 异常情况：无。
-     * 注意事项：无。
      */
     @Override
     public UserMembershipDTO toDTO(UserMembership membership) {
@@ -183,22 +148,8 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     /**
-     * 【单个会员的过期刷新】
-     *
      * 业务作用：发现会员已过期时，就地把数据库状态改为 expired 并同步内存对象。
-     *
-     * 调用场景：getCurrentMembership() 查询单条会员后调用。
-     *
-     * 调用链：getCurrentMembership() → refreshIfExpired() → userMembershipMapper.update()。
-     *
-     * 数据处理：以 id + status=active 为条件更新 status_wsh 为 expired，随后修改入参对象的 status_wsh。
-     *
      * 业务规则：id 为空、状态非 active、到期时间为空或尚未到期时直接返回，不做更新。
-     *
-     * 状态影响：更新 user_membership 表状态字段。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：带 status=active 条件是为了防止并发重复更新；只改状态不改 expires_at。
      */
     private void refreshIfExpired(UserMembership membership) {
@@ -218,22 +169,9 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     /**
-     * 【应用会员权益快照】
-     *
      * 业务作用：把会员记录中的 JSON 权益快照解析后覆盖 DTO 的套餐名与折扣率。
-     *
-     * 调用场景：toDTO() 组装会员 DTO 时。
-     *
-     * 调用链：toDTO() → applySnapshot() → objectMapper.readTree()。
-     *
-     * 数据处理：读取 plan_name_wsh 与 discount_rate_wsh 两个字段，数值型折扣率取 decimalValue。
-     *
      * 业务规则：快照为空直接返回；字段缺失或类型不符则跳过。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：JSON 解析异常被静默吞掉，不抛出也不记录日志。
-     *
      * 注意事项：快照值会覆盖按 plan_id 查出的套餐信息，属于「下单时锁定权益」的设计。
      */
     private void applySnapshot(UserMembershipDTO dto, String snapshot) {
@@ -256,22 +194,10 @@ public class MembershipServiceImpl implements MembershipService {
     }
 
     /**
-     * 【规范化会员状态入参】
-     *
      * 业务作用：把查询状态字符串 trim 并转小写，同时校验是否为合法状态。
-     *
-     * 调用场景：listMembershipsForAdmin() 处理状态筛选参数。
-     *
-     * 调用链：listMembershipsForAdmin() → normalizeStatusOrNull()。
-     *
      * 数据处理：空值返回 null 表示不过滤；否则转小写并比对白名单 inactive/active/expired/cancelled。
-     *
      * 业务规则：仅四个状态值合法。
-     *
-     * 状态影响：无。
-     *
      * 异常情况：非法状态抛 BusinessException(400, "不支持的会员状态")。
-     *
      * 注意事项：白名单中的 cancelled 没有对应的常量定义，属于硬编码字符串。
      */
     private String normalizeStatusOrNull(String status) {

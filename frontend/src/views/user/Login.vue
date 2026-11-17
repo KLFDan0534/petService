@@ -136,7 +136,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { addDynamicRoutes } from '@/router'
 import { safeRedirect } from '@/utils/safeRedirect'
-import axios from 'axios'
+import { login } from '@/api/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -169,18 +169,18 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    const r = await axios.post('/api/auth/login', {
+    const r = await login({
       username_wsh: username_wsh.value.trim(),
       password_wsh: password_wsh.value,
       turnstileToken: turnstileToken.value || undefined,
     })
-    if (r.data.code === 200) {
-      authStore.setAuth(r.data.data)
-      addDynamicRoutes(r.data.data.roles_wsh || [])
+    if (r.code === 200) {
+      authStore.setAuth(r.data)
+      addDynamicRoutes(r.data.roles_wsh || [])
       const redirect = safeRedirect(route.query.redirect) || '/dashboard'
       router.push(redirect)
     } else {
-      errors.password = r.data.msg || r.data.message || '用户名或密码不正确'
+      errors.password = r.msg || r.message || '用户名或密码不正确'
       resetTurnstile()
     }
   } catch (e) {
@@ -228,7 +228,7 @@ async function handleLogin() {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ═══ 品牌标识 ═══ */
+/* 品牌标识 */
 .auth-brand {
   display: inline-flex; align-items: center; gap: 12px;
   text-decoration: none; color: var(--ref-ink);
@@ -249,7 +249,7 @@ async function handleLogin() {
 .auth-brand-name { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.1; }
 .auth-brand-sub { margin-top: 5px; font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--ref-muted); }
 
-/* ═══ 标题区 ═══ */
+/* 标题区 */
 .auth-head { margin-top: 44px; }
 .auth-eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ref-muted); }
 .auth-title {
@@ -259,7 +259,7 @@ async function handleLogin() {
 }
 .auth-lede { margin: 14px 0 0; font-size: 13.5px; line-height: 1.75; color: var(--ref-ink-soft); }
 
-/* ═══ 警告提示 ═══ */
+/* 警告提示 */
 .auth-alert {
   margin-top: 24px; padding: 12px 14px;
   border-radius: var(--r-btn); font-size: 13px; line-height: 1.6;
@@ -270,7 +270,7 @@ async function handleLogin() {
   color: var(--ref-brand-deep);
 }
 
-/* ═══ 表单 ═══ */
+/* 表单 */
 .auth-form { margin-top: 30px; display: grid; gap: 20px; }
 .auth-field { display: grid; gap: 8px; }
 .auth-label { font-size: 12.5px; font-weight: 500; color: var(--ref-ink-soft); }
@@ -294,7 +294,7 @@ async function handleLogin() {
 .auth-link-sm { font-size: 12.5px; color: var(--ref-muted); text-decoration: none; transition: color 0.15s; }
 .auth-link-sm:hover { color: var(--ref-brand); }
 
-/* ═══ 主按钮（CTA） ═══ */
+/* 主按钮（CTA） */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -311,7 +311,7 @@ async function handleLogin() {
 
 .auth-note { margin: 18px 0 0; font-size: 11px; line-height: 1.7; color: var(--ref-muted); }
 
-/* ═══ 页脚 ═══ */
+/* 页脚 */
 .auth-foot {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin-top: 32px; padding-top: 22px; border-top: 1px solid var(--ref-line);
@@ -324,7 +324,7 @@ async function handleLogin() {
 }
 .auth-link:hover { color: var(--ref-brand); border-color: var(--ref-brand); }
 
-/* ═══ 游客访问 ═══ */
+/* 游客访问 */
 .auth-guest { margin-top: 22px; }
 .text-link {
   display: inline-flex; align-items: center; gap: 6px;
@@ -337,7 +337,7 @@ async function handleLogin() {
 .tl-arrow { transition: transform 0.15s; }
 .text-link:hover .tl-arrow { transform: translateX(4px); }
 
-/* ═══ 右侧品牌栏 ═══ */
+/* 右侧品牌栏 */
 .auth-side { display: none; }
 .auth-side-label { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255, 255, 255, 0.4); }
 .auth-side-title {
@@ -353,7 +353,7 @@ async function handleLogin() {
 .auth-side-item-desc { display: block; margin-top: 6px; max-width: 300px; font-size: 13px; line-height: 1.7; color: rgba(255, 255, 255, 0.55); }
 .auth-side-addr { margin: 0; font-size: 11px; color: rgba(255, 255, 255, 0.35); font-variant-numeric: tabular-nums; }
 
-/* ═══ 响应式 ═══ */
+/* 响应式 */
 @media (min-width: 900px) {
   .auth-main { flex: 1 1 52%; padding: 64px 40px 80px; }
   .auth-side {
@@ -370,7 +370,7 @@ async function handleLogin() {
   .auth-inner { animation: none; }
 }
 
-/* ═══ 人机验证容器（空容器不占高度，避免加载失败时出现空白） ═══ */
+/* 人机验证容器（空容器不占高度，避免加载失败时出现空白） */
 .auth-turnstile { display: grid; gap: 8px; }
 .auth-turnstile-slot:empty { display: none; }
 .auth-turnstile-hint {

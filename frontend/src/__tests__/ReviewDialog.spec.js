@@ -28,30 +28,34 @@ describe('ReviewDialog.vue 三维评价', () => {
     const wrapper = mountDialog()
     await flushPromises()
 
-    const tabs = wrapper.findAll('.dimension-tab').map(tab => tab.text())
-    expect(tabs).toContain('商家')
-    expect(tabs).toContain('看护人')
-    expect(tabs).toContain('服务')
+    // 页面改版后三个维度平铺成三行，不再是页签；每行各自带目标名
+    const rows = wrapper.findAll('.review-row')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].find('.review-row__label').text()).toContain('商家')
+    expect(rows[1].find('.review-row__label').text()).toContain('看护人')
+    expect(rows[2].find('.review-row__label').text()).toContain('服务')
 
     const names = ['商家甲', '看护人乙', '寄养服务']
-    for (let i = 0; i < names.length; i += 1) {
-      await wrapper.findAll('.dimension-tab').at(i).trigger('click')
-      await flushPromises()
-      expect(wrapper.find('.dimension-target').text()).toContain(names[i])
-    }
+    names.forEach((name, i) => {
+      expect(rows[i].find('.review-row__hint').text()).toContain(name)
+    })
   })
 
-  // 商家已经评过了，打开弹窗就该自动落到下一个还没评的"看护人"，省得用户自己去找
+  // 商家评过了就该锁住并打标记，剩下没评的维度照样能打分、按维度提交
   it('defaults to the first undone dimension and emits reviewed with dimension payload', async () => {
     const wrapper = mountDialog({ doneTypes: ['merchant'] })
     await flushPromises()
 
-    expect(wrapper.find('.dimension-tab.active').text()).toContain('看护人')
-    expect(wrapper.find('.dimension-target').text()).toContain('看护人乙')
+    const rows = wrapper.findAll('.review-row')
+    expect(rows[0].find('.review-row__done').exists()).toBe(true)
+    expect(rows[0].findAll('.star')[0].attributes('disabled')).toBeDefined()
+    expect(rows[1].find('.review-row__done').exists()).toBe(false)
+    expect(rows[1].find('.review-row__hint').text()).toContain('看护人乙')
 
-    await wrapper.find('select').setValue('4')
+    // 给看护人打 4 星、写留言，再点提交评价
+    await rows[1].findAll('.star')[3].trigger('click')
     await wrapper.find('textarea').setValue('很细心')
-    await wrapper.find('.btn-primary').trigger('click')
+    await wrapper.find('.app-btn--primary').trigger('click')
     await flushPromises()
 
     const emitted = wrapper.emitted('reviewed')
@@ -65,19 +69,25 @@ describe('ReviewDialog.vue 三维评价', () => {
     })
   })
 
-  // 三个维度都评过了，页签上要打标记，提交按钮也得锁住，免得同一单被重复评价
+  // 三个维度都评过了，行上打标记、星星禁掉，点提交也不该再抛出 reviewed
   it('marks already-rated dimensions and blocks resubmission', async () => {
     const wrapper = mountDialog({ doneTypes: ['merchant', 'keeper', 'service'] })
     await flushPromises()
 
-    const doneCount = wrapper.findAll('.dimension-done')
-    expect(doneCount).toHaveLength(3)
-    const submit = wrapper.find('.btn-primary')
-    expect(submit.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('该维度已评价')
+    const rows = wrapper.findAll('.review-row')
+    expect(wrapper.findAll('.review-row__done')).toHaveLength(3)
+    rows.forEach((row) => {
+      expect(row.findAll('.star')[0].attributes('disabled')).toBeDefined()
+    })
+
+    // 没有可评维度时提交只给提示，不会重复评价
+    await wrapper.find('.app-btn--primary').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('reviewed')).toBeUndefined()
+    expect(wrapper.find('.review-error').text()).toContain('请为可评价的维度评分后再提交')
   })
 
-  // 订单里没带服务 id，这一项就没法评，得说清楚原因并把提交按钮关掉
+  // 订单没带服务 id，这一行就打不了分，行上写明原因，提交也不会带上它
   it('disables submit when active dimension has no target id', async () => {
     const wrapper = mount(ReviewDialog, {
       props: {
@@ -88,11 +98,18 @@ describe('ReviewDialog.vue 三维评价', () => {
     })
     await flushPromises()
 
-    const serviceTab = wrapper.findAll('.dimension-tab').at(2)
-    await serviceTab.trigger('click')
+    const serviceRow = wrapper.findAll('.review-row')[2]
+    expect(serviceRow.find('.review-row__note').text()).toContain('该订单缺少信息')
+    expect(serviceRow.findAll('.star')[0].attributes('disabled')).toBeDefined()
+
+    // 只给商家打分并提交，缺 id 的服务维度不该出现在 reviewed 事件里
+    await wrapper.findAll('.review-row')[0].findAll('.star')[3].trigger('click')
+    await wrapper.find('.app-btn--primary').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('.dimension-note').text()).toContain('缺少服务信息，无法评价')
-    expect(wrapper.find('.btn-primary').attributes('disabled')).toBeDefined()
+    const emitted = wrapper.emitted('reviewed') || []
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0][0].targetType).toBe('merchant')
+    expect(emitted.map(call => call[0].targetType)).not.toContain('service')
   })
 })

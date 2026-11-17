@@ -20,22 +20,7 @@ public class OperationLogServiceImpl implements OperationLogService {
     private final OperationLogMapper operationLogMapper;
 
     /**
-     * 【构造函数：注入操作日志 Mapper】
-     *
      * 业务作用：注入 OperationLogMapper 供分页查询、详情查询与保存使用。
-     *
-     * 调用场景：容器启动创建 OperationLogServiceImpl Bean 时自动调用。
-     *
-     * 调用链：Spring IoC → OperationLogServiceImpl(构造) → operationLogMapper 字段赋值。
-     *
-     * 数据处理：仅做字段赋值。
-     *
-     * 业务规则：无。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：本类只做日志表的读写，不参与业务逻辑判定。
      */
     public OperationLogServiceImpl(OperationLogMapper operationLogMapper) {

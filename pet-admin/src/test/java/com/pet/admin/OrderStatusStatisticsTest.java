@@ -41,13 +41,13 @@ class OrderStatusStatisticsTest {
 
     @Test
     void dashboardsCountAutoAcceptedOrdersAsRevenueAndActive() {
-        OrderDTO paid = order(OrderStatus.PAID, "10.00");
-        OrderDTO confirmed = order(OrderStatus.CONFIRMED, "20.00");
-        OrderDTO received = order(OrderStatus.RECEIVED, "40.00");
-        OrderDTO inProgress = order(OrderStatus.IN_PROGRESS, "50.00");
-        OrderDTO completed = order(OrderStatus.COMPLETED, "60.00");
-        OrderDTO pending = order(OrderStatus.PENDING, "70.00");
-        OrderDTO cancelled = order(OrderStatus.CANCELLED, "80.00");
+        OrderDTO paid = order(OrderStatus.PAID, "10.00", 101L);
+        OrderDTO confirmed = order(OrderStatus.CONFIRMED, "20.00", 102L);
+        OrderDTO received = order(OrderStatus.RECEIVED, "40.00", 103L);
+        OrderDTO inProgress = order(OrderStatus.IN_PROGRESS, "50.00", 104L);
+        OrderDTO completed = order(OrderStatus.COMPLETED, "60.00", 105L);
+        OrderDTO pending = order(OrderStatus.PENDING, "70.00", 106L);
+        OrderDTO cancelled = order(OrderStatus.CANCELLED, "80.00", 107L);
         List<OrderDTO> orders = List.of(paid, confirmed, received, inProgress, completed, pending, cancelled);
 
         when(userService.listAll()).thenReturn(List.of());
@@ -84,12 +84,14 @@ class OrderStatusStatisticsTest {
         assertEquals(1, admin.getCompleted_orders_wsh());
         assertEquals(1, user.getCompleted_orders_wsh());
         assertEquals(1, merchant.getCompleted_orders_wsh());
+        assertEquals(2, merchant.getPets_wsh());
     }
 
-    private OrderDTO order(String status, String amount) {
+    private OrderDTO order(String status, String amount, long petId) {
         OrderDTO order = new OrderDTO();
         order.setStatus_wsh(status);
         order.setFinal_amount_wsh(new BigDecimal(amount));
+        order.setPet_id_wsh(petId);
         return order;
     }
 }

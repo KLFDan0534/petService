@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /**
  * 服务项目（ServiceItem）实体，映射 pet_service_wsh 表。
  * <p>
- * 服务项目是商家提供的具体宠物服务，例如"标准洗浴 80元/次"、"全天寄养 100元/天"。
+ * 服务项目是商家提供的具体宠物服务，例如"标准洗浴 80元/次"、"过夜寄养 100元/夜"。
  * 每个服务项目归属于一个商家，并关联到一个服务分类（ServiceCategory）。
  * 分类的编码（code）会自动同步到服务项目的 type 字段，便于前端进行归类展示。
  * 服务项目可以独立启用/禁用，禁用后客户不可见。
@@ -57,7 +57,7 @@ public class ServiceItem {
     private String unit_wsh;
 
     @TableField(value = "duration_minutes_wsh")
-    @Schema(description = "单次服务时长（分钟）；day=1440，session/hour 自定义")
+    @Schema(description = "单次服务时长（分钟）；night=1440，session/hour 自定义")
     private Integer duration_minutes_wsh;
 
     @TableField(value = "booking_mode_wsh")

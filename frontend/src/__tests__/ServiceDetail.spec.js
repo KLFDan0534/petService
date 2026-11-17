@@ -55,7 +55,7 @@ function detailData(overrides = {}) {
       category_name_wsh: '寄养·标准',
       description_wsh: '专业寄养服务，含每日遛弯与健康观察。',
       price_wsh: 199,
-      unit_wsh: '天',
+      unit_wsh: 'night',
       service_version_wsh: 'v1',
       service_rating_wsh: 4.5,
       service_rating_count_wsh: 12,
@@ -86,7 +86,7 @@ function createWrapper() {
 }
 
 function mainImageSrc(wrapper) {
-  const img = wrapper.find('.gallery-main img')
+  const img = wrapper.find('.d-frame img')
   return img.exists() ? img.attributes('src') : null
 }
 
@@ -111,9 +111,9 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
   it('F-DET-001 加载状态具有可访问标签', () => {
     mocks.getServiceDetail.mockImplementation(() => new Promise(() => {}))
     const wrapper = createWrapper()
-    const loading = wrapper.find('.loading')
+    const loading = wrapper.find('.d-skeleton')
     expect(loading.attributes('role')).toBe('status')
-    expect(loading.attributes('aria-label')).toBe('加载服务信息...')
+    expect(loading.attributes('aria-label')).toBe('服务加载中')
     wrapper.unmount()
   })
 
@@ -121,11 +121,11 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     const wrapper = createWrapper()
     await flushPromises()
     expect(wrapper.find('h1').text()).toBe('标准寄养')
-    expect(wrapper.find('.badge').text()).toBe('寄养·标准')
-    expect(wrapper.find('.service-price').text()).toContain('199.00')
-    expect(wrapper.find('.service-price').text()).toContain('/ 天')
-    expect(wrapper.find('.service-desc').text()).toContain('专业寄养服务')
-    expect(wrapper.find('.rating-summary').text()).toContain('4.5')
+    expect(wrapper.find('.d-cat').text()).toBe('寄养·标准')
+    expect(wrapper.find('.d-price').text()).toContain('199.00')
+    expect(wrapper.find('.d-price').text()).toContain('/ 按夜')
+    expect(wrapper.find('.d-desc').text()).toContain('专业寄养服务')
+    expect(wrapper.find('.d-rating').text()).toContain('4.5')
     expect(mainImageSrc(wrapper)).toBe('/images/cover.jpg')
   })
 
@@ -133,11 +133,11 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
   it('F-DET-003 缩略图点击与键盘操作切换主图且容器不位移', async () => {
     const wrapper = createWrapper()
     await flushPromises()
-    const thumbs = wrapper.findAll('.gallery-thumb')
+    const thumbs = wrapper.findAll('.d-thumb')
     expect(thumbs).toHaveLength(2)
     await thumbs[1].trigger('click')
     expect(mainImageSrc(wrapper)).toBe('/images/second.jpg')
-    expect(wrapper.find('.gallery-main').exists()).toBe(true)
+    expect(wrapper.find('.d-frame').exists()).toBe(true)
     await thumbs[0].trigger('keydown', { key: 'Enter' })
     expect(mainImageSrc(wrapper)).toBe('/images/cover.jpg')
     await thumbs[1].trigger('keydown', { key: ' ' })
@@ -149,8 +149,8 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     mocks.getServiceDetail.mockResolvedValue(detailData({ media_wsh: [] }))
     const wrapper = createWrapper()
     await flushPromises()
-    expect(wrapper.find('.gallery-main img').exists()).toBe(false)
-    expect(wrapper.find('.gallery-main .media-placeholder').exists()).toBe(true)
+    expect(wrapper.find('.d-frame img').exists()).toBe(true)
+    expect(wrapper.find('.d-frame img').attributes('src')).toContain('/photos/')
     expect(wrapper.find('h1').text()).toBe('标准寄养')
     wrapper.unmount()
 
@@ -160,8 +160,8 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     const broken = createWrapper()
     await flushPromises()
     expect(broken.find('h1').text()).toBe('标准寄养')
-    await broken.find('.gallery-main img').trigger('error')
-    expect(broken.find('.gallery-main .media-placeholder').exists()).toBe(true)
+    await broken.find('.d-frame img').trigger('error'); await broken.find('.d-frame img').trigger('error')
+    expect(broken.find('.d-frame .media-placeholder').exists()).toBe(true)
   })
 
   // 图多到十张也不能撑坏，缩略图数量对得上，默认展示的还是第一张
@@ -175,8 +175,8 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     mocks.getServiceDetail.mockResolvedValue(detailData({ media_wsh: media }))
     const wrapper = createWrapper()
     await flushPromises()
-    expect(wrapper.findAll('.gallery-thumb')).toHaveLength(10)
-    expect(wrapper.find('.gallery-thumbs').exists()).toBe(true)
+    expect(wrapper.findAll('.d-thumb')).toHaveLength(10)
+    expect(wrapper.find('.d-thumbs').exists()).toBe(true)
     expect(mainImageSrc(wrapper)).toBe('/images/m0.jpg')
   })
 
@@ -185,17 +185,17 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     mocks.getServiceDetail.mockResolvedValue({ code: 404, message: '服务产品不存在' })
     const wrapper = createWrapper()
     await flushPromises()
-    expect(wrapper.find('.empty-state h3').text()).toBe('服务不可用')
-    expect(wrapper.find('.empty-state p').text()).toContain('服务产品不存在')
-    await wrapper.find('.empty-state .btn').trigger('click')
+    expect(wrapper.find('.d-empty h2').text()).toBe('服务不可用')
+    expect(wrapper.find('.d-empty p').text()).toContain('服务产品不存在')
+    await wrapper.find('.d-empty .r-btn').trigger('click')
     expect(mocks.routerPush).toHaveBeenCalledWith('/services')
     wrapper.unmount()
 
     mocks.getServiceDetail.mockResolvedValue({ code: 400, message: '服务已下架' })
     const unavailable = createWrapper()
     await flushPromises()
-    expect(unavailable.find('.empty-state p').text()).toContain('服务已下架')
-    expect(unavailable.find('.empty-state .btn').text()).toBe('返回服务列表')
+    expect(unavailable.find('.d-empty p').text()).toContain('服务已下架')
+    expect(unavailable.find('.d-empty .r-btn').text()).toBe('返回服务列表')
   })
 
   // 评价、商家、看护员三个接口一起报错，产品本身的内容也不能跟着消失
@@ -207,9 +207,9 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     await flushPromises()
     expect(wrapper.find('h1').text()).toBe('标准寄养')
     expect(mainImageSrc(wrapper)).toBe('/images/cover.jpg')
-    expect(wrapper.find('.provider-info strong').text()).toBe('萌宠之家')
-    expect(wrapper.find('.detail-main').text()).toContain('评价加载失败')
-    expect(wrapper.find('.keepers-sub').exists()).toBe(false)
+    expect(wrapper.find('.d-provider-info strong').text()).toBe('萌宠之家')
+    expect(wrapper.text()).toContain('评价加载失败')
+    expect(wrapper.find('.d-keepers').exists()).toBe(false)
   })
 
   // 从 S1 切到 S2 时，S1 的请求可能比 S2 还晚回来。这里故意让慢的那个后回来，看会不会把新内容盖掉
@@ -236,7 +236,7 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     pending[0].resolve(detailData({ id_wsh: 1, name_wsh: 'S1 寄养' }))
     await flushPromises()
     expect(wrapper.find('h1').text()).toBe('S2 寄养')
-    expect(wrapper.find('.service-price').text()).toContain('299.00')
+    expect(wrapper.find('.d-price').text()).toContain('299.00')
   })
 
   // 名字、介绍、价格都往夸张了写，靠 text-break 保证不会把布局撑破
@@ -253,28 +253,28 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     const h1 = wrapper.find('h1')
     expect(h1.text()).toBe(longName)
     expect(h1.classes()).toContain('text-break')
-    const desc = wrapper.find('.service-desc')
+    const desc = wrapper.find('.d-desc')
     expect(desc.text()).toBe(longDesc)
     expect(desc.classes()).toContain('text-break')
-    expect(wrapper.find('.service-price').text()).toContain('999999.99')
+    expect(wrapper.find('.d-price').text()).toContain('999999.99')
   })
 
   // 读屏和键盘用户也要能用：缩略图、商家卡片、看护员卡片都得有能念出来的名字，还得能聚焦
   it('F-DET-010 按钮/缩略图/商家/看护员有可访问名称与可聚焦性', async () => {
     const wrapper = createWrapper()
     await flushPromises()
-    const thumbs = wrapper.findAll('.gallery-thumb')
+    const thumbs = wrapper.findAll('.d-thumb')
     expect(thumbs[0].attributes('aria-label')).toBe('查看第 1 张图片')
     expect(thumbs[0].attributes('aria-current')).toBe('true')
     expect(thumbs[1].attributes('aria-current')).toBeUndefined()
-    expect(wrapper.find('.provider-card').attributes('role')).toBe('link')
-    expect(wrapper.find('.provider-card').attributes('tabindex')).toBe('0')
-    expect(wrapper.find('.provider-card').attributes('aria-label')).toContain('萌宠之家')
-    const keeper = wrapper.find('.keeper-mini-item')
+    expect(wrapper.find('.d-provider').attributes('role')).toBe('link')
+    expect(wrapper.find('.d-provider').attributes('tabindex')).toBe('0')
+    expect(wrapper.find('.d-provider').attributes('aria-label')).toContain('萌宠之家')
+    const keeper = wrapper.find('.d-keeper')
     expect(keeper.attributes('role')).toBe('link')
     expect(keeper.attributes('tabindex')).toBe('0')
     expect(keeper.attributes('aria-label')).toContain('张阿姨')
-    expect(wrapper.find('.btn-primary').text()).toBe('立即预约')
+    expect(wrapper.find('.r-btn-primary').text()).toContain('立即预约')
   })
 
   // 门店不能在线预约时，按钮不能变成点不动的死按钮，点下去要说明为什么不能约
@@ -285,9 +285,9 @@ describe('ServiceDetail.vue 公开产品详情页', () => {
     }))
     const wrapper = createWrapper()
     await flushPromises()
-    const bookButton = wrapper.find('.service-actions .btn-primary')
+    const bookButton = wrapper.find('.d-actions .r-btn-primary')
     expect(bookButton.attributes('disabled')).toBeUndefined()
-    expect(wrapper.find('.bookable-reason').text()).toBe('该服务以次计费，暂不支持在线预约')
+    expect(wrapper.find('.d-notice').text()).toBe('该服务以次计费，暂不支持在线预约')
     expect(wrapper.find('h1').text()).toBe('标准寄养')
     await bookButton.trigger('click')
   })

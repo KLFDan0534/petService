@@ -1,5 +1,5 @@
 // JWT 是三段用点隔开的字符串，第二段才是用户信息，base64 解一下就能读
-export function parseJwt(token) {
+function parseJwt(token) {
   try {
     const payload = token.split('.')[1]
     return JSON.parse(atob(payload))

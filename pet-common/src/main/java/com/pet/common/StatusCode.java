@@ -1,5 +1,7 @@
 package com.pet.common;
 
+import java.util.List;
+
 /**
  * 【全局统一状态码枚举】
  *
@@ -17,13 +19,13 @@ package com.pet.common;
  */
 public enum StatusCode {
 
-    // ==================== 用户 (User) ====================
+    // 用户 (User)
     /** 用户状态：正常/启用 */
     USER_ACTIVE(1),
     /** 用户状态：被封禁/禁用 */
     USER_BANNED(0),
 
-    // ==================== 商家 (Merchant) ====================
+    // 商家 (Merchant)
     /** 商家状态：待审核（管理员审核入驻申请） */
     MERCHANT_PENDING(0),
     /** 商家状态：审核通过，正常营业中 */
@@ -31,7 +33,7 @@ public enum StatusCode {
     /** 商家状态：审核未通过 */
     MERCHANT_REJECTED(2),
 
-    // ==================== 看护员 (Keeper) ====================
+    // 看护员 (Keeper)
     /** 看护员状态：待审核（商家/管理员审核入驻申请） */
     KEEPER_PENDING(0),
     /** 看护员状态：审核通过，可接单 */
@@ -47,55 +49,46 @@ public enum StatusCode {
     /** 看护员状态：被商家终止雇佣关系 */
     KEEPER_TERMINATED(6),
 
-    // ==================== 服务项目 (ServiceItem) ====================
+    // 服务项目 (ServiceItem)
     /** 服务项目状态：已上架/启用，用户可见可下单 */
     SERVICE_ENABLED(1),
     /** 服务项目状态：已下架/禁用，用户不可见不可下单 */
     SERVICE_DISABLED(0),
 
-    // ==================== 公告 (Notice) ====================
+    // 公告 (Notice)
     /** 公告状态：已发布，对用户可见 */
     NOTICE_ACTIVE(1),
     /** 公告状态：草稿/未发布，仅管理员可见编辑 */
     NOTICE_DRAFT(0),
 
-    // ==================== 操作日志 (OperationLog) ====================
+    // 操作日志 (OperationLog)
     /** 操作日志状态：执行成功 */
     LOG_SUCCESS(1),
     /** 操作日志状态：执行失败 */
     LOG_FAILURE(0),
 
-    // ==================== (通知)已读 ====================
+    // (通知)已读
     /** 已读状态：已读 */
     NOTIFICATION_READ(1),
     /** 已读状态：未读 */
     NOTIFICATION_UNREAD(0),
 
-    // ==================== 删除状态 ====================
+    // 删除状态
     /** 删除状态：删除 */
     DELETE_DELETED(1),
     /** 删除状态：未删除 */
     DELETE_UNDELETED(0);
 
+    /** 可承接未来预约的看护者状态：在职 / 休息 / 忙碌（下单、抢单、自动分配、可用性日历共用口径）。 */
+    public static final List<Integer> KEEPER_BOOKABLE_STATUSES = List.of(
+            KEEPER_ACTIVE.getValue(), KEEPER_OFFLINE.getValue(), KEEPER_BUSY.getValue());
+
     private final int value;
 
     /**
-     * 【状态码枚举构造器】
-     *
      * 业务作用：为每个枚举常量绑定整型状态值。
-     *
-     * 调用场景：枚举常量声明时由编译器调用。
-     *
-     * 调用链：枚举初始化 → 构造器 → 写入 value。
-     *
      * 数据处理：value 写入不可变字段。
-     *
      * 业务规则：状态值按业务模块各自定义，不保证全局唯一。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：新增常量需确认与数据库存量值一致，避免语义冲突。
      */
     StatusCode(int value) {

@@ -345,7 +345,7 @@ onMounted(load)
 
 .kd-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .kd-crumb {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -356,7 +356,7 @@ onMounted(load)
 .kd-crumb-sep { color: var(--ref-line); }
 .kd-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Badges ═══ */
+/* Badges */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: var(--r-tag); border: 1px solid transparent;
@@ -369,7 +369,7 @@ onMounted(load)
 .badge-closed { background: transparent; color: var(--ref-muted); border-color: var(--ref-line); }
 .badge-danger { background: color-mix(in srgb, var(--ref-brand-deep) 10%, transparent); color: var(--ref-brand-deep); border-color: color-mix(in srgb, var(--ref-brand-deep) 24%, transparent); }
 
-/* ═══ Tag pill ═══ */
+/* Tag pill */
 .tag-pill {
   display: inline-flex; align-items: center;
   border-radius: var(--r-tag); border: 1px solid var(--ref-line);
@@ -380,7 +380,7 @@ onMounted(load)
 .kd-merchant-tag { cursor: pointer; transition: border-color 0.15s, color 0.15s; }
 .kd-merchant-tag:hover { border-color: color-mix(in srgb, var(--ref-brand) 40%, transparent); color: var(--ref-brand-deep); }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -395,7 +395,7 @@ onMounted(load)
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Header ═══ */
+/* Header */
 .kd-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
   gap: 20px 24px; padding: 20px 0 8px;
@@ -418,7 +418,7 @@ onMounted(load)
 .kd-star-on { color: var(--ref-brand); }
 .kd-star-off { color: var(--ref-muted); }
 
-/* ═══ Facts ═══ */
+/* Facts */
 .kd-facts {
   display: flex; flex-wrap: wrap; gap: 0; margin: 22px 0 0;
   border: 1px solid var(--ref-line); border-radius: var(--r-card);
@@ -436,7 +436,7 @@ onMounted(load)
 .kd-star { color: var(--ref-brand); font-size: 16px; }
 .kd-price-symbol { font-size: 13px; vertical-align: top; color: var(--ref-brand-deep); }
 
-/* ═══ Section ═══ */
+/* Section */
 .kd-section { margin-top: 40px; }
 .kd-section-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 24px; }
 .kd-section-title {
@@ -445,7 +445,7 @@ onMounted(load)
 }
 .kd-section-desc { margin: 8px 0 0; max-width: 640px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 
-/* ═══ 01 照护师档案 ═══ */
+/* 01 照护师档案 */
 .kd-profile {
   display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 20px; margin-top: 22px;
 }
@@ -485,7 +485,7 @@ onMounted(load)
 .kd-load-caption { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--ref-muted); }
 .kd-joined { margin: 18px 0 0; font-size: 12px; color: var(--ref-muted); font-variant-numeric: tabular-nums; }
 
-/* ═══ 02 资质核验 ═══ */
+/* 02 资质核验 */
 .kd-qual-list {
   margin: 22px 0 0; padding: 0; list-style: none;
   border: 1px solid var(--ref-line); border-radius: var(--r-card);
@@ -509,7 +509,7 @@ onMounted(load)
   border: 1px solid var(--ref-line);
 }
 
-/* ═══ 03 用户评价 ═══ */
+/* 03 用户评价 */
 .kd-ratings { display: grid; gap: 28px; margin-top: 22px; }
 .kd-score { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .kd-score-big {
@@ -538,7 +538,7 @@ onMounted(load)
   color: var(--ref-muted); margin-bottom: 2px;
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .kd-empty {
   margin-top: 22px; padding: 40px 24px;
   border: 1px dashed var(--ref-line); border-radius: var(--r-card);
@@ -549,7 +549,7 @@ onMounted(load)
 .kd-empty-page { padding: 72px 24px; }
 .kd-empty-page .cta { margin-top: 22px; }
 
-/* ═══ Loading skeleton ═══ */
+/* Loading skeleton */
 .kd-loading { display: grid; gap: 16px; padding: 24px 0 0; }
 .kd-skel {
   border-radius: 10px;
@@ -561,10 +561,10 @@ onMounted(load)
 .kd-skel-lede { width: 70%; max-width: 460px; height: 14px; }
 .kd-skel-cover { width: 100%; height: 300px; }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes kd-shimmer { to { background-position: -200% 0; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .kd-profile { grid-template-columns: 1fr; }
   .kd-portrait { min-height: 240px; aspect-ratio: 16 / 9; }

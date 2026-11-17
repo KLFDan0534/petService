@@ -64,6 +64,7 @@ import static org.mockito.Mockito.when;
 class OrderAutoAcceptTimeoutTest {
 
     @Mock private PaymentMapper paymentMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private OrderMapper orderMapper;
     @Mock private OrderStatusBroadcaster orderStatusBroadcaster;
     @Mock private AccountingService accountingService;
@@ -301,7 +302,7 @@ class OrderAutoAcceptTimeoutTest {
                 new ObjectMapper(),
                 businessHoursService,
                 businessHoursTargetResolver,
-                ratingMapper);
+                ratingMapper, serviceCategoryMapper);
     }
 
     private Payment payment(String payNo, Long id, Long orderId, BigDecimal amount) {

@@ -59,7 +59,7 @@ public class ServiceAvailabilityVO {
     /** 按天拆分的可预约性 */
     private List<DayAvailabilityVO> days_wsh;
 
-    // ==================== 按夜计价规则描述（仅 night 返回） ====================
+    // 按夜计价规则描述（仅 night 返回）
 
     /** 入住锚点时刻（night 固定 14:00） */
     private String checkin_anchor_time_wsh;

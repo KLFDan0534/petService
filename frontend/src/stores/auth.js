@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import request from '@/utils/request'
+import { logout as logoutApi } from '@/api/auth'
 import { isTokenExpired } from '@/utils/jwt'
 
 function clearStoredAuth() {
@@ -79,37 +79,12 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function logout() {
     try {
-      await request.post('/api/auth/logout')
+      await logoutApi()
     } catch (e) {
       // 忽略：后端不可用不应阻塞本地退出
     }
     clearAuth()
   }
 
-  async function apiGet(url, params) {
-    const r = await request.get(url, { params })
-    return r.data
-  }
-
-  async function apiPost(url, data) {
-    const r = await request.post(url, data)
-    return r.data
-  }
-
-  async function apiPut(url, data) {
-    const r = await request.put(url, data)
-    return r.data
-  }
-
-  async function apiDelete(url) {
-    const r = await request.delete(url)
-    return r.data
-  }
-
-  async function apiPatch(url, data) {
-    const r = await request.patch(url, data)
-    return r.data
-  }
-
-  return { user, token, refreshToken, isLoggedIn, isAdmin, isMerchant, isOwner, isCs, hasRole, setAuth, clearAuth, logout, refetchUser, apiGet, apiPost, apiPut, apiDelete, apiPatch }
+  return { user, token, refreshToken, isLoggedIn, isAdmin, isMerchant, isOwner, isCs, hasRole, setAuth, clearAuth, logout, refetchUser }
 })

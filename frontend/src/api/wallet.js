@@ -40,11 +40,6 @@ export async function getAdminTips(params = {}) {
   return res.data
 }
 
-export async function getTipsByOrder(orderId) {
-  const res = await request.get(`/api/tips/order/${orderId}`)
-  return res.data
-}
-
 export async function getMyWithdrawals() {
   const res = await request.get('/api/withdrawals/me')
   return res.data
@@ -88,6 +83,3 @@ export async function getTransactions(params) {
   const res = await request.get('/api/transactions', { params })
   return res.data
 }
-
-
-

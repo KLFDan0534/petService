@@ -12,17 +12,6 @@ export async function updateUserStatus(id, status) {
   return res.data
 }
 
-export async function getUserRoles(userId) {
-  const res = await request.get(`/api/users/${userId}/roles`)
-  return res.data
-}
-
-// 整批换掉这人的角色，传什么就是什么，不是往里加
-export async function setUserRoles(userId, roleIds) {
-  const res = await request.put(`/api/users/${userId}/roles`, { role_ids_wsh: roleIds })
-  return res.data
-}
-
 // 系统里所有角色，分配权限时选人用
 export async function getRoles() {
   const res = await request.get('/api/roles')
@@ -50,11 +39,6 @@ export async function getOperationLogs(params) {
   return res.data
 }
 
-export async function getOperationLog(id) {
-  const res = await request.get(`/api/operation-logs/${id}`)
-  return res.data
-}
-
 // 看回收站里有哪几张表能翻，先选表再查数据
 export async function getRecycleBinTables() {
   const res = await request.get('/api/recycle-bin/tables')
@@ -77,6 +61,3 @@ export async function permanentDeleteFromRecycleBin(table, id) {
   const res = await request.post(`/api/recycle-bin/delete?table=${table}&id=${id}`, {})
   return res.data
 }
-
-
-

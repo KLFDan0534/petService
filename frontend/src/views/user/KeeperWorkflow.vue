@@ -202,6 +202,24 @@ import { useRouter } from 'vue-router'
 import { User, Shop } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
+import { getCurrentUser, updateCurrentUser } from '@/api/auth'
+import { getMyKeeperInfo, updateKeeper, createKeeper } from '@/api/keeper'
+import { getMerchants } from '@/api/merchant'
+import {
+  getPoolOrders,
+  getMyKeeperOrders,
+  claimOrder as claimOrderApi,
+  rejectOrder as rejectOrderApi,
+  markReceived,
+  startService,
+  completeOrder,
+  getTimeline,
+  getDailyStatus,
+  uploadTimeline,
+  getConversation,
+  sendMessage as sendMessageApi,
+} from '@/api/order'
+import { uploadFileToDirectory } from '@/api/file'
 import { KeeperOnlineStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
 import KeeperProfileTab from '@/components/keeper/KeeperProfileTab.vue'
 import KeeperCertTab from '@/components/keeper/KeeperCertTab.vue'
@@ -223,6 +241,11 @@ const poolOrders = ref([])
 // 待分配池的 SSE 连接：新单入池 / 被接走时实时刷新，不用手动刷新页面
 let orderEventSource = null
 let poolRefreshTimer = null
+let sseReconnectTimer = null
+let sseReconnectAttempts = 0
+let sseClosedByAuth = false
+// 最多重连 5 次（2s/4s/8s/16s/30s），超过就停下，避免 token 失效后无限 401
+const SSE_MAX_RECONNECT_ATTEMPTS = 5
 const myOrders = ref([])
 const keeperInfo = ref(null)
 const merchants = ref([])
@@ -269,10 +292,14 @@ onUnmounted(() => {
     orderEventSource.close()
     orderEventSource = null
   }
+  if (sseReconnectTimer) {
+    clearTimeout(sseReconnectTimer)
+    sseReconnectTimer = null
+  }
 })
 
 async function loadProfile() {
-  const res = await authStore.apiGet('/api/users/me')
+  const res = await getCurrentUser()
   if (res.code === 200 && res.data) {
     profile.nickname_wsh = res.data.nickname_wsh || ''
     profile.avatar_wsh = keeperInfo.value?.avatar_wsh || res.data.avatar_wsh || ''
@@ -280,16 +307,16 @@ async function loadProfile() {
 }
 
 async function updateProfile(nickname) {
-  const res = await authStore.apiPut('/api/users/me', { nickname_wsh: nickname })
+  const res = await updateCurrentUser({ nickname_wsh: nickname })
   if (res.code === 200 && keeperInfo.value?.id_wsh && profile.avatar_wsh) {
-    await authStore.apiPut(`/api/keepers/${keeperInfo.value.id_wsh}`, { avatar_wsh: profile.avatar_wsh })
+    await updateKeeper(keeperInfo.value.id_wsh, { avatar_wsh: profile.avatar_wsh })
     keeperInfo.value = { ...keeperInfo.value, avatar_wsh: profile.avatar_wsh }
   }
   if (res.code === 200) appStore.addToast('资料已保存', 'success')
 }
 
 async function loadKeeperInfo() {
-  const res = await authStore.apiGet('/api/keepers/me')
+  const res = await getMyKeeperInfo()
   if (res.code === 200 && res.data) {
     keeperInfo.value = res.data
     profile.avatar_wsh = res.data.avatar_wsh || profile.avatar_wsh
@@ -297,14 +324,14 @@ async function loadKeeperInfo() {
 }
 
 async function loadMerchants() {
-  const res = await authStore.apiGet('/api/merchants')
+  const res = await getMerchants()
   if (res.code === 200) merchants.value = res.data || []
 }
 
 async function submitCertification(form) {
   const ok = await ensureProfileRequirement(PROFILE_ACTIONS.APPLY_KEEPER, { authStore, appStore, router })
   if (!ok) return
-  const res = await authStore.apiPost('/api/keepers', { ...form, status_wsh: 1 })
+  const res = await createKeeper({ ...form, status_wsh: 1 })
   if (res.code === 200) {
     keeperInfo.value = res.data
     appStore.addToast('认证已提交', 'success')
@@ -317,13 +344,17 @@ async function submitCertification(form) {
  * 只做刷新与提示，不改业务数据；断线由 EventSource 自己重连。
  */
 function connectOrderEvents() {
-  if (orderEventSource || !authStore.token) return
+  if (orderEventSource || !authStore.token || sseClosedByAuth) return
   try {
     orderEventSource = new EventSource(
       `/api/order-events/stream?token=${encodeURIComponent(authStore.token)}`)
   } catch (e) {
     orderEventSource = null
+    scheduleSseReconnect()
     return
+  }
+  orderEventSource.onopen = () => {
+    sseReconnectAttempts = 0
   }
   orderEventSource.addEventListener('pool-new', () => {
     schedulePoolRefresh()
@@ -332,6 +363,30 @@ function connectOrderEvents() {
   orderEventSource.addEventListener('pool-removed', () => {
     schedulePoolRefresh()
   })
+  orderEventSource.onerror = () => {
+    // 浏览器原生 EventSource 失败后会每 ~3 秒无限重连；token 过期时就是无限 401。
+    // 这里改成「有限次退避重连」，避免把服务端打成 401 洪流。
+    if (orderEventSource) {
+      orderEventSource.close()
+      orderEventSource = null
+    }
+    scheduleSseReconnect()
+  }
+}
+
+/** 有限次指数退避重连；超过上限就不再重试，等用户手动刷新页面 */
+function scheduleSseReconnect() {
+  if (sseReconnectTimer || sseClosedByAuth) return
+  if (sseReconnectAttempts >= SSE_MAX_RECONNECT_ATTEMPTS) {
+    sseClosedByAuth = true
+    return
+  }
+  const delay = Math.min(30000, 2000 * 2 ** sseReconnectAttempts)
+  sseReconnectAttempts += 1
+  sseReconnectTimer = setTimeout(() => {
+    sseReconnectTimer = null
+    connectOrderEvents()
+  }, delay)
 }
 
 /** 合并短时间内的多次事件，避免连续弹单时打出十几个请求 */
@@ -345,7 +400,7 @@ function schedulePoolRefresh() {
 
 async function loadPoolOrders() {
   try {
-    const res = await authStore.apiGet('/api/orders/pool')
+    const res = await getPoolOrders()
     if (res.code === 200) poolOrders.value = res.data || []
   } catch (e) {
     poolOrders.value = []
@@ -353,7 +408,7 @@ async function loadPoolOrders() {
 }
 
 async function loadMyOrders() {
-  const res = await authStore.apiGet('/api/orders/my-keeper')
+  const res = await getMyKeeperOrders()
   if (res.code === 200) myOrders.value = res.data || []
 }
 
@@ -369,7 +424,7 @@ async function claimOrder(order) {
   if (!order?.order_no_wsh || processingOrderNo.value) return
   processingOrderNo.value = order.order_no_wsh
   try {
-    const res = await authStore.apiPost('/api/orders/claim', { order_no_wsh: order.order_no_wsh })
+    const res = await claimOrderApi({ order_no_wsh: order.order_no_wsh })
     if (res.code === 200) {
       appStore.addToast('抢单成功', 'success')
       // 抢到后切到「我的订单」，否则用户还停在空的待抢单页，以为没成功
@@ -391,7 +446,7 @@ async function rejectOrder(order) {
   if (!order?.order_no_wsh || processingOrderNo.value) return
   processingOrderNo.value = order.order_no_wsh
   try {
-    const res = await authStore.apiPost('/api/orders/reject', { order_no_wsh: order.order_no_wsh })
+    const res = await rejectOrderApi({ order_no_wsh: order.order_no_wsh })
     if (res.code === 200) {
       appStore.addToast('已拒单', 'success')
       await refreshOrders()
@@ -410,7 +465,7 @@ async function rejectOrder(order) {
 async function handleReceive(payload) {
   receiving.value = true
   try {
-    const res = await authStore.apiPost('/api/orders/received', payload)
+    const res = await markReceived(payload)
     if (res.code === 200) {
       appStore.addToast('已确认收宠', 'success')
       orderModalKey.value++
@@ -429,7 +484,7 @@ async function handleStart(orderNo, file) {
     const formData = new FormData()
     formData.append('order_no_wsh', orderNo)
     formData.append('file', file)
-    const res = await authStore.apiPost('/api/orders/start/upload', formData)
+    const res = await startService(formData)
     if (res.code === 200) {
       appStore.addToast('已开始护理', 'success')
       orderModalKey.value++
@@ -451,7 +506,7 @@ async function handleCheckout(payload) {
   processingOrderNo.value = payload.order_no_wsh
   completingId.value = payload.order_no_wsh
   try {
-    const res = await authStore.apiPost('/api/orders/complete', payload)
+    const res = await completeOrder(payload)
     if (res.code === 200) {
       const data = res.data || {}
       if (data.completed_wsh) {
@@ -487,8 +542,8 @@ async function onSelectedOrderChange(val) {
 async function loadSelectedOrderData() {
   if (!selectedOrderId.value) return
   const [recordsRes, statusRes] = await Promise.all([
-    authStore.apiGet(`/api/order-fulfillments/${selectedOrderId.value}/timeline`),
-    authStore.apiGet(`/api/order-fulfillments/${selectedOrderId.value}/daily-status`),
+    getTimeline(selectedOrderId.value),
+    getDailyStatus(selectedOrderId.value),
   ])
   if (recordsRes.code === 200) careRecords.value = recordsRes.data || []
   if (statusRes.code === 200) dailyStatus.value = statusRes.data
@@ -501,7 +556,7 @@ async function submitRecord(data) {
     formData.append('type_wsh', data.type)
     formData.append('content_wsh', data.content)
     data.files.forEach(file => formData.append('files', file))
-    const res = await authStore.apiPost(`/api/order-fulfillments/${data.orderId}/timeline/upload`, formData)
+    const res = await uploadTimeline(data.orderId, formData)
     if (res.code === 200) {
       appStore.addToast('动态已上传', 'success')
       recordSubmitKey.value++
@@ -517,7 +572,7 @@ async function uploadKeeperAvatar(file) {
   try {
     const formData = new FormData()
     formData.append('file', file)
-    const res = await authStore.apiPost('/api/files/upload?directory=keepers', formData)
+    const res = await uploadFileToDirectory('keepers', formData)
     if (res.code === 200 && res.data?.url_wsh) {
       profile.avatar_wsh = res.data.url_wsh
       appStore.addToast('头像上传成功', 'success')
@@ -529,13 +584,13 @@ async function uploadKeeperAvatar(file) {
 
 async function loadConversation() {
   if (!selectedChatOrderId.value) return
-  const res = await authStore.apiGet(`/api/order-fulfillments/${selectedChatOrderId.value}/conversation`)
+  const res = await getConversation(selectedChatOrderId.value)
   if (res.code === 200) conversation.value = res.data || []
 }
 
 async function sendMessage() {
   if (!selectedChatOrderId.value || !chatText.value.trim()) return
-  const res = await authStore.apiPost(`/api/order-fulfillments/${selectedChatOrderId.value}/conversation`, {
+  const res = await sendMessageApi(selectedChatOrderId.value, {
     content_wsh: chatText.value,
   })
   if (res.code === 200) {
@@ -574,7 +629,7 @@ function goKeeperProfile() {
 
 .kw-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .kw-crumb {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 6px 0; font-size: 12.5px; color: var(--ref-muted);
@@ -584,7 +639,7 @@ function goKeeperProfile() {
 .kw-crumb-sep { color: var(--ref-line); }
 .kw-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Page header ═══ */
+/* Page header */
 .kw-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
   gap: 20px 32px; padding: 22px 0 8px;
@@ -610,7 +665,7 @@ function goKeeperProfile() {
 .kw-facts dd { margin: 0; font-family: var(--ref-font-display); font-size: 22px; font-weight: 400; line-height: 1; color: var(--ref-ink); font-variant-numeric: tabular-nums; }
 .kw-facts dt { margin: 8px 0 0; font-size: 11px; letter-spacing: 0.14em; color: var(--ref-muted); }
 
-/* ═══ Sections ═══ */
+/* Sections */
 .kw-merchant-link {
   display: inline-flex;
   align-items: center;
@@ -641,7 +696,7 @@ function goKeeperProfile() {
 }
 .kw-sec-desc { margin: 8px 0 0; max-width: 560px; font-size: 13px; line-height: 1.7; color: var(--ref-ink-soft); opacity: 0.8; }
 
-/* ═══ 今日 ═══ */
+/* 今日 */
 .kw-today-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 16px; margin-top: 20px; align-items: stretch; }
 .kw-card {
   border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface);
@@ -652,7 +707,7 @@ function goKeeperProfile() {
 .kw-status-badge { margin: 14px 0 0; }
 .kw-status-note { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--ref-line); font-size: 12px; line-height: 1.8; color: var(--ref-muted); }
 
-/* ═══ Toolbar ═══ */
+/* Toolbar */
 .kw-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .kw-chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -668,7 +723,7 @@ function goKeeperProfile() {
 
 .kw-content { margin-top: 20px; }
 
-/* ═══ Chat (page-level) ═══ */
+/* Chat (page-level) */
 .kw-chat {
   padding: 24px; display: grid; gap: 16px;
   border: 1px solid var(--ref-line); border-radius: var(--r-card); background: var(--ref-surface);
@@ -697,7 +752,7 @@ function goKeeperProfile() {
 .kw-msg-time { display: block; margin-top: 4px; font-size: 10.5px; opacity: 0.6; }
 .kw-chat-input { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 42px; padding: 0 18px; border-radius: var(--r-btn);
@@ -709,7 +764,7 @@ function goKeeperProfile() {
 .cta-primary { background: var(--ref-brand); color: #fff; }
 .cta-primary:hover:not(:disabled) { background: var(--ref-brand-deep); }
 
-/* ═══ Badges (page-level + shared panels) ═══ */
+/* Badges (page-level + shared panels) */
 .badge,
 :deep(.badge) {
   display: inline-flex; align-items: center; gap: 6px;
@@ -861,11 +916,11 @@ function goKeeperProfile() {
 :deep(.empty-state h3) { margin: 0 0 8px; font-family: var(--ref-font-display); font-size: 18px; font-weight: 500; color: var(--ref-ink); }
 :deep(.empty-state p) { margin: 0; font-size: 13px; color: var(--ref-muted); }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes kw-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes kw-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 900px) {
   .kw-today-grid { grid-template-columns: 1fr; }
   .kw-facts { width: 100%; }

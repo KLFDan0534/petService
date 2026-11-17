@@ -1,7 +1,7 @@
 package com.pet.fulfillment.service;
 
 import com.pet.customer.dto.ChatMessageDTO;
-import com.pet.fulfillment.dto.CreateCareRecordRequestDTO;
+import com.pet.pet.dto.CareRecordRequestDTO;
 import com.pet.fulfillment.dto.DailyStatusDTO;
 import com.pet.fulfillment.vo.OrderFulfillmentOverviewVO;
 import com.pet.fulfillment.dto.SendOrderMessageRequestDTO;
@@ -61,7 +61,7 @@ public interface OrderFulfillmentService {
      * @param request 创建护理记录请求（包含类型、内容、图片、记录时间）
      * @return 创建的护理记录实体
      */
-    CareRecord createTimelineRecord(Long userId, boolean admin, Long orderId, CreateCareRecordRequestDTO request);
+    CareRecord createTimelineRecord(Long userId, boolean admin, Long orderId, CareRecordRequestDTO request);
 
     /**
      * 创建护理时间线记录（含文件上传）。

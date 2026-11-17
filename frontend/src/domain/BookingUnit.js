@@ -1,97 +1,62 @@
-const NORMALIZE_ALIASES = {
-  night: 'night',
-  nights: 'night',
-  '晚': 'night',
-  '夜': 'night',
-  '按晚': 'night',
-  '按夜': 'night',
-  '过夜': 'night',
-  session: 'session',
-  sessions: 'session',
-  '次': 'session',
-  '课时': 'session',
-  '节': 'session',
-  hour: 'hour',
-  hours: 'hour',
-  '小时': 'hour',
-  '按时': 'hour',
-  '按小时': 'hour',
-}
+/**
+ * 计价单位展示工具。
+ *
+ * 全项目只允许 night / session / hour 三种计价单位，唯一注册表在后端 BookingUnit.java。
+ * 本文件只做展示映射与纯日期推导：不校验单位合法性、不做别名归一、不计算任何金额或优惠。
+ * 价格一律由服务端 POST /api/orders/preview 返回。
+ */
 
-/** 过夜寄养：按夜计价，一夜 24 小时，14:00 入住锚点 */
+/** 仅作为展示键使用，不参与任何校验。 */
 export const NIGHT = 'night'
 export const SESSION = 'session'
 export const HOUR = 'hour'
 
-/** 固定锚点/宽限/提前门槛（与后端 OrderPricing 同源，前端只展示、不计算金额） */
-export const CHECKIN_ANCHOR_TIME = '14:00'
-export const CHECKOUT_GRACE_MINUTES = 30
-export const EARLY_LIMIT_MINUTES = 180
-
-export function normalizeUnit(value) {
-  const key = String(value || '').trim().toLowerCase()
-  return NORMALIZE_ALIASES[key] || null
+const UNIT_LABELS = {
+  [NIGHT]: '按夜',
+  [SESSION]: '按次',
+  [HOUR]: '按小时',
 }
 
-export function isSupportedUnit(value) {
-  return normalizeUnit(value) != null
-}
-
+/**
+ * 单位展示名：标准单位返回中文名；历史旧单位（day/boarding/time 等）
+ * 只按原始值展示并明确标注为历史计价单位，绝不解释成「按24小时」、绝不映射成标准单位。
+ */
 export function unitLabel(value) {
-  const unit = normalizeUnit(value)
-  if (unit === NIGHT) return '夜'
-  if (unit === SESSION) return '次'
-  if (unit === HOUR) return '小时'
-  return unit || ''
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+  const label = UNIT_LABELS[raw.toLowerCase()]
+  if (label) return label
+  return `${raw}（历史计价单位）`
 }
 
-export function bookingMode(value, unitValue) {
-  const unit = normalizeUnit(unitValue)
-  if (value) return value
-  if (unit === SESSION || unit === HOUR) return 'slot'
-  if (unit === NIGHT) return 'interval'
-  return 'interval'
+/** 是否标准计价单位（night / session / hour）：与上方唯一注册表同源。 */
+export function isStandardUnit(value) {
+  return Boolean(UNIT_LABELS[String(value ?? '').trim().toLowerCase()])
 }
 
-export function defaultDurationMinutes(unitValue) {
-  const unit = normalizeUnit(unitValue)
-  // night 的 1440 只是单位元数据，不要求实际住满 24 小时
-  if (unit === NIGHT) return 1440
-  return 60
-}
-
+/** 时长文案：不含「天」口径，1440 分钟展示为「24 小时」。 */
 export function durationText(minutes) {
   const value = Number(minutes || 0)
   if (value <= 0) return ''
-  if (value % 1440 === 0) return `${value / 1440} 天`
   if (value % 60 === 0) return `${value / 60} 小时`
   return `${value} 分钟`
 }
 
 /**
- * 订单的计费说明文案，例如「3 夜」「1 次（8 小时）」「4 小时」。
- * 旧订单缺少 unit 字段时只做历史投影读取，不参与任何计算。
+ * 订单计费说明：一律按订单自身 billing_unit_wsh 快照展示，不含任何金额计算。
+ * 标准单位用 unitLabel 的中文名；历史单位按原始值标注；缺失时明确提示。
  */
 export function billingText(order) {
   if (!order) return ''
-  const unit = normalizeUnit(order.billing_unit_wsh)
-  if (unit === null) {
-    const days = Number(order.days_wsh || 0)
-    return days > 0 ? `${days} 天` : ''
-  }
+  const raw = String(order.billing_unit_wsh ?? '').trim()
+  if (!raw) return '历史计价单位缺失'
+  const label = unitLabel(raw)
+  // 历史单位（unitLabel 已带标注）：只展示标注，不套用数量/时长，避免解释旧口径
+  if (!UNIT_LABELS[raw.toLowerCase()]) return label
   const quantity = Number(order.quantity_wsh || 0)
-  if (unit === NIGHT) {
-    return quantity > 0 ? `${quantity} 夜` : '按夜计费'
-  }
-  if (quantity <= 0) {
-    return unitLabel(unit)
-  }
-  if (unit === SESSION) {
-    const duration = durationText(order.duration_minutes_wsh)
-    return duration ? `1 次（${duration}）` : '1 次'
-  }
+  if (quantity <= 0) return label
   const duration = durationText(order.duration_minutes_wsh)
-  return quantity > 1 ? `${quantity} ${unitLabel(unit)}（${duration}）` : `1 ${unitLabel(unit)}`
+  return duration ? `${quantity} ${label}（${duration}）` : `${quantity} ${label}`
 }
 
 /**

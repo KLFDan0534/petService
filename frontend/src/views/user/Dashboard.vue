@@ -652,7 +652,7 @@ const router = useRouter()
 const appStore = useAppStore()
 const { attachDistances } = useServiceDistance()
 
-/* ── hero parallax ── */
+/* hero parallax */
 const heroShiftX = ref(0)
 const heroShiftY = ref(0)
 const heroScale = ref(1)
@@ -673,7 +673,7 @@ function onHeroPointerLeave() {
   heroScale.value = 1
 }
 
-/* ── gallery parallax ── */
+/* gallery parallax */
 const galleryRef = ref(null)
 const galleryProgress = ref(0)
 let galleryRafId = null
@@ -715,7 +715,7 @@ function galleryTileStyle(shift) {
   return { transform: `translateY(${(galleryProgress.value * shift).toFixed(1)}px)` }
 }
 
-/* ── state ── */
+/* state */
 const services = ref([])
 const testimonials = ref([])
 const providers = ref([])
@@ -732,7 +732,7 @@ function tomorrowISO() {
   return date.toISOString().slice(0, 10)
 }
 
-/* ── constants ── */
+/* constants */
 
 const guarantees = [
   { icon: Stamp, title: '实名认证与背景审核', body: '照护师需通过身份核验、从业经历审查与犬猫急救培训，资质在门店页公开可查。' },
@@ -812,7 +812,7 @@ const iconMap = {
   MEDICAL_CHECKUP: FirstAidKit,
 }
 
-/* ── computed ── */
+/* computed */
 
 const featuredServices = computed(() => services.value.slice(0, 6))
 
@@ -842,7 +842,7 @@ const averageRatingDisplay = computed(() => {
 
 const currentYear = new Date().getFullYear()
 
-/* ── helpers ── */
+/* helpers */
 
 function normalizeList(data) {
   if (Array.isArray(data)) return data
@@ -881,7 +881,7 @@ function formatDate(value) {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('zh-CN')
 }
 
-/* ── nav ── */
+/* nav */
 
 function goDetail(id) { if (id) router.push(`/services/${id}`) }
 function createOrder(svc) {
@@ -898,7 +898,7 @@ function scrollTo(sel) {
   el.scrollIntoView({ behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
 }
 
-/* ── data ── */
+/* data */
 
 async function loadDashboard() {
   loading.value = true
@@ -950,7 +950,7 @@ async function loadCommunity() {
   } finally { testimonialsLoading.value = false }
 }
 
-/* ── lifecycle ── */
+/* lifecycle */
 
 watch(() => services.value.length, () => {
   if (!selectedServiceId.value && services.value.length) {
@@ -994,7 +994,7 @@ onUnmounted(() => {
   min-height: 100vh;
 }
 
-/* ═══ LAYOUT ═══ */
+/* LAYOUT */
 .shell {
   width: min(78rem, 100% - 40px);
   margin: 0 auto;
@@ -1003,7 +1003,7 @@ onUnmounted(() => {
 .section-tinted { background: color-mix(in srgb, var(--ref-cream) 45%, var(--ref-canvas)); }
 .section-paper { background: var(--paper); color: var(--cream-fixed); }
 
-/* ═══ SectionHeading (inline) ═══ */
+/* SectionHeading (inline) */
 .sh-wrap {
   display: flex;
   flex-wrap: wrap;
@@ -1057,7 +1057,7 @@ onUnmounted(() => {
 .section-paper .sh-desc { color: rgba(255, 255, 255, 0.55); }
 .sh-action { padding-bottom: 4px; flex-shrink: 0; }
 
-/* ═══ TextLink ═══ */
+/* TextLink */
 .text-link {
   display: inline-flex;
   align-items: center;
@@ -1085,7 +1085,7 @@ onUnmounted(() => {
 }
 .text-link:hover .tl-arrow { transform: translateX(4px); }
 
-/* ═══ CTA buttons ═══ */
+/* CTA buttons */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -1125,7 +1125,7 @@ onUnmounted(() => {
 }
 .cta:hover .cta-arrow { transform: translateX(4px); }
 
-/* ═══ HERO ═══ */
+/* HERO */
 .hero-section {
   padding: 136px 0 96px;
   background: var(--ref-canvas);
@@ -1321,7 +1321,7 @@ onUnmounted(() => {
   aspect-ratio: 1;
 }
 
-/* ═══ SERVICES ═══ */
+/* SERVICES */
 .svc-skeleton {
   display: grid;
   grid-template-columns: 7fr 5fr;
@@ -1569,7 +1569,7 @@ onUnmounted(() => {
   color: var(--ref-brand);
 }
 
-/* ═══ GALLERY BAND ═══ */
+/* GALLERY BAND */
 .gallery-band {
   border-top: 1px solid var(--ref-line);
   border-bottom: 1px solid var(--ref-line);
@@ -1660,7 +1660,7 @@ onUnmounted(() => {
   animation: db-pulse 1.4s ease-in-out infinite;
 }
 
-/* ═══ MERCHANT TABLE ═══ */
+/* MERCHANT TABLE */
 .merchant-table { margin-top: 12px; border-top: 1px solid var(--ref-line); }
 .mt-row {
   display: flex;
@@ -1740,7 +1740,7 @@ onUnmounted(() => {
   color: var(--ref-brand);
 }
 
-/* ═══ KEEPERS ═══ */
+/* KEEPERS */
 .keeper-section-head {
   display: flex;
   align-items: baseline;
@@ -1847,7 +1847,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* ═══ TRUST ═══ */
+/* TRUST */
 .trust-grid {
   display: grid;
   grid-template-columns: 5fr 7fr;
@@ -1884,7 +1884,7 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.55);
 }
 
-/* ═══ PROCESS ═══ */
+/* PROCESS */
 .process-wrap { position: relative; margin-top: 8px; }
 .process-rail {
   position: absolute;
@@ -1936,7 +1936,7 @@ onUnmounted(() => {
   color: var(--ref-muted);
 }
 
-/* ═══ TESTIMONIALS ═══ */
+/* TESTIMONIALS */
 .testi-skeleton {
   display: grid;
   grid-template-columns: 7fr 5fr;
@@ -2036,7 +2036,7 @@ onUnmounted(() => {
   color: var(--ref-muted);
 }
 
-/* ═══ BOOKING — dark rounded card on canvas ═══ */
+/* BOOKING — dark rounded card on canvas */
 .booking-card {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2164,7 +2164,7 @@ onUnmounted(() => {
   min-height: 480px;
 }
 
-/* ═══ EMPTY ═══ */
+/* EMPTY */
 .empty-dashed {
   margin-top: 48px;
   padding: 64px;
@@ -2176,7 +2176,7 @@ onUnmounted(() => {
   color: var(--ref-muted);
 }
 
-/* ═══ FOOTER — light canvas ═══ */
+/* FOOTER — light canvas */
 .site-footer {
   border-top: 1px solid var(--ref-line);
   background: var(--ref-canvas);
@@ -2286,13 +2286,13 @@ onUnmounted(() => {
 }
 .footer-legal a:hover { color: var(--ref-ink); }
 
-/* ═══ ANIMATIONS ═══ */
+/* ANIMATIONS */
 @keyframes db-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
 }
 
-/* ═══ RESPONSIVE ═══ */
+/* RESPONSIVE */
 @media (max-width: 1100px) {
   .hero-grid { grid-template-columns: 1fr; gap: 48px; }
   .hero-right { justify-content: center; }

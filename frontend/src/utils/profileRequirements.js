@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import { getCurrentUser } from '@/api/auth'
 
 export const PROFILE_ACTIONS = {
   ADD_PET: 'ADD_PET',
@@ -32,11 +32,11 @@ const ACTION_REQUIREMENTS = {
 }
 
 // 实名状态 2 表示审核通过，其他值（0 未提交、1 审核中、3 驳回）都算没通过
-export function isRealNameVerified(user) {
+function isRealNameVerified(user) {
   return Number(user?.real_name_status_wsh || 0) === 2
 }
 
-export function hasBoundPhone(user) {
+function hasBoundPhone(user) {
   return Boolean(String(user?.phone_wsh || '').trim())
 }
 
@@ -70,11 +70,11 @@ export async function ensureProfileRequirement(action, { authStore, appStore, ro
 
 // 为什么要重新拉一次？因为本地存的用户信息可能是几天前的，实名刚通过时还没更新
 async function refreshCurrentUser(authStore) {
-  const r = await request.get('/users/me')
-  if (r.data.code !== 200 || !r.data.data) {
-    throw new Error(r.data.message || '获取个人资料失败')
+  const r = await getCurrentUser()
+  if (r.code !== 200 || !r.data) {
+    throw new Error(r.message || '获取个人资料失败')
   }
-  const user = r.data.data
+  const user = r.data
   if (authStore?.user) {
     authStore.user = { ...authStore.user, ...user }
   }

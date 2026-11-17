@@ -20,7 +20,7 @@ vi.mock('@/stores/category', () => ({
 }))
 
 const services = [
-  { id_wsh: 5, name_wsh: '寄养服务', price_wsh: 88, unit_wsh: '夜', images_wsh: 'http://x/1.jpg' },
+  { id_wsh: 5, name_wsh: '寄养服务', price_wsh: 88, unit_wsh: 'night', images_wsh: 'http://x/1.jpg' },
 ]
 
 function mountGrid() {
@@ -103,9 +103,9 @@ describe('ServiceGrid navigation (F-NAV-001/F-NAV-006)', () => {
 
     const chips = wrapper.findAll('.service-distance').map(node => node.text())
     expect(chips).toEqual(['2.5km', '850m'])
-    // 单位显示为中文
-    expect(wrapper.findAll('.service-price span')[0].text()).toBe('/ 夜')
-    expect(wrapper.findAll('.service-price span')[1].text()).toBe('/ 次')
+    // 单位展示统一走 domain 的中文名
+    expect(wrapper.findAll('.service-price span')[0].text()).toBe('/ 按夜')
+    expect(wrapper.findAll('.service-price span')[1].text()).toBe('/ 按次')
   })
 
   it('ignores booking click when the service has no id', async () => {

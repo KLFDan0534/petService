@@ -83,6 +83,9 @@ class ServiceAvailabilityServiceTest {
         item.setMerchant_id_wsh(merchantId);
         item.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         item.setUpdated_at_wsh(LocalDateTime.of(2026, 8, 11, 13, 45, 20));
+        // 显式声明标准计价单位：过去依赖「空单位静默按夜兜底」，治理后禁止静默兜底。
+        // night 与旧兜底语义一致，测试行为不变；需要 slot 语义的用例会自行覆盖为 session/hour。
+        item.setUnit_wsh("night");
         return item;
     }
 

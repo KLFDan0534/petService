@@ -34,6 +34,7 @@ import com.pet.qualification.service.QualificationService;
 import com.pet.system.mapper.UserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +48,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -55,6 +58,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -68,6 +72,7 @@ import static org.mockito.Mockito.when;
 class OrderAssignmentTest {
 
     @Mock private OrderMapper orderMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private PaymentMapper paymentMapper;
     @Mock private PetMapper petMapper;
     @Mock private KeeperMapper keeperMapper;
@@ -90,6 +95,20 @@ class OrderAssignmentTest {
 
     private final BusinessHoursTargetResolver resolver = new BusinessHoursTargetResolver();
 
+    /** 默认商家为审核通过状态；个别测试在方法体内覆盖为 PENDING / REJECTED。 */
+    @BeforeEach
+    void stubApprovedMerchant() {
+        lenient().when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_APPROVED.getValue()));
+    }
+
+    private Merchant merchantWithStatus(int status) {
+        Merchant m = new Merchant();
+        m.setId_wsh(10L);
+        m.setStatus_wsh(status);
+        return m;
+    }
+
     @BeforeAll
     static void initMybatisPlusTableInfo() {
         MybatisConfiguration configuration = new MybatisConfiguration();
@@ -106,7 +125,7 @@ class OrderAssignmentTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper, serviceCategoryMapper);
     }
 
     private PetOrder unassignedPaidOrder() {
@@ -219,9 +238,8 @@ class OrderAssignmentTest {
         when(merchantService.isOwner(10L, 21L)).thenReturn(true);
         Keeper target = keeper(20L, 10L, 0, 3);
         when(keeperMapper.selectById(20L)).thenReturn(target);
-        Merchant merchant = new Merchant();
-        merchant.setId_wsh(10L);
-        lenient().when(merchantMapper.selectById(10L)).thenReturn(merchant);
+        lenient().when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_APPROVED.getValue()));
 
         service().assignOrder(21L, "ORD-UNASSIGNED", 20L);
 
@@ -323,6 +341,23 @@ class OrderAssignmentTest {
         assertTrue(captor.getValue().getSqlSegment().contains("status_wsh"),
                 "抢单必须限定在职状态，否则离职看护者也能抢单");
     }
+
+    @Test
+    void claimRejectedWhenKeeperNotClockedIn() {
+        PetOrder order = unassignedPaidOrder();
+        stubEmptyCandidates();
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        lenient().when(keeperMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(keeper(20L, 10L, 1, 3));
+        // 考勤服务拒绝：未打卡的看护者不能抢单
+        doThrow(new BusinessException(403, "看护者未上班打卡，不能进行当前操作"))
+                .when(keeperAttendanceService).requireKeeperOnDuty(anyLong(), anyLong());
+
+        assertThrows(BusinessException.class, () -> service().claimOrder(21L, "ORD-UNASSIGNED"));
+
+        verify(keeperAttendanceService).requireKeeperOnDuty(20L, 10L);
+        verify(orderMapper, never()).update(any(PetOrder.class), any());
+        assertEquals(OrderStatus.PAID, order.getStatus_wsh(), "抢单被拒后订单必须仍停在 paid");
+    }
     // ============ 容量校验发生在分配环节（下单不再指定负责人） ============
 
     @Test
@@ -375,5 +410,148 @@ class OrderAssignmentTest {
         o.setEnd_date_wsh(target.getEnd_date_wsh());
         o.setStatus_wsh(OrderStatus.CONFIRMED);
         return o;
+    }
+    // ============ 规则 B2：审核状态与新分配 ============
+
+    @Test
+    void pendingMerchantCannotClaimOrder() {
+        PetOrder order = unassignedPaidOrder();
+        stubEmptyCandidates();
+        stubApprovedQualification();
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        lenient().when(keeperMapper.selectOne(any(LambdaQueryWrapper.class)))
+                .thenReturn(keeper(20L, 10L, 0, 3));
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_PENDING.getValue()));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service().claimOrder(21L, "ORD-UNASSIGNED"));
+
+        assertEquals(BookingErrorCode.MERCHANT_NOT_APPROVED, error.getErrorCode());
+        assertEquals(OrderStatus.PAID, order.getStatus_wsh());
+    }
+
+    @Test
+    void rejectedMerchantCannotBeAssignedByMerchant() {
+        PetOrder order = unassignedPaidOrder();
+        stubEmptyCandidates();
+        stubApprovedQualification();
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(merchantService.isOwner(10L, 21L)).thenReturn(true);
+        when(keeperMapper.selectById(20L)).thenReturn(keeper(20L, 10L, 0, 3));
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_REJECTED.getValue()));
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service().assignOrder(21L, "ORD-UNASSIGNED", 20L));
+
+        assertEquals(BookingErrorCode.MERCHANT_NOT_APPROVED, error.getErrorCode());
+        assertEquals(OrderStatus.PAID, order.getStatus_wsh());
+    }
+
+    @Test
+    void rejectedMerchantPausesAutoAssignmentWithoutCancellation() {
+        PetOrder order = unassignedPaidOrder();
+        stubEmptyCandidates();
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_REJECTED.getValue()));
+
+        assertFalse(service().autoAcceptPaidOrderIfTimeout("ORD-UNASSIGNED"));
+
+        // 暂停：订单保持 PAID、未分配、未取消、未退款、未释放权益
+        assertEquals(OrderStatus.PAID, order.getStatus_wsh());
+        assertNull(order.getKeeper_id_wsh());
+        verify(couponService, never()).releaseForOrder(anyLong());
+        verify(membershipBenefitService, never()).releaseForOrder(anyLong());
+        verify(orderMapper, never()).update(any(PetOrder.class), any());
+    }
+
+    @Test
+    void assignmentResumesAfterMerchantReapproved() {
+        PetOrder order = unassignedPaidOrder();
+        stubEmptyCandidates();
+        stubApprovedQualification();
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        Keeper idle = keeper(31L, 10L, 1, 5);
+        lenient().when(keeperMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(idle));
+
+        // 审核未通过：暂停，订单保持 PAID
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_PENDING.getValue()));
+        assertFalse(service().autoAcceptPaidOrderIfTimeout("ORD-UNASSIGNED"));
+        assertEquals(OrderStatus.PAID, order.getStatus_wsh());
+
+        // 审核恢复 APPROVED：定时兜底下一轮扫描继续原分配流程
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_APPROVED.getValue()));
+        assertTrue(service().autoAcceptPaidOrderIfTimeout("ORD-UNASSIGNED"));
+        assertEquals(31L, order.getKeeper_id_wsh());
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
+    }
+
+    @Test
+    void reassignStillAllowedWhenMerchantPending() {
+        PetOrder order = unassignedPaidOrder();
+        order.setStatus_wsh(OrderStatus.CONFIRMED);
+        order.setKeeper_id_wsh(20L);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(keeperMapper.selectById(21L)).thenReturn(keeper(21L, 10L, 0, 3));
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchantWithStatus(StatusCode.MERCHANT_PENDING.getValue()));
+        when(merchantService.isOwner(10L, 5L)).thenReturn(true);
+        stubApprovedQualification();
+        lenient().when(orderMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
+        when(orderMapper.update(any(PetOrder.class), any())).thenReturn(1);
+
+        // 改派属已分配订单履约维护，不受商家审核状态变化影响
+        service().assignOrder(5L, "ORD-UNASSIGNED", 21L);
+
+        assertEquals(21L, order.getKeeper_id_wsh());
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
+    }
+
+    // ============ 改派（看护者临时请假时的保底手段） ============
+
+    @Test
+    void reassignMovesConfirmedOrderToAnotherKeeper() {
+        PetOrder order = unassignedPaidOrder();
+        order.setStatus_wsh(OrderStatus.CONFIRMED);
+        order.setKeeper_id_wsh(20L);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        Keeper newKeeper = keeper(21L, 10L, 0, 3);
+        when(keeperMapper.selectById(21L)).thenReturn(newKeeper);
+        Merchant merchant = new Merchant();
+        merchant.setId_wsh(10L);
+        when(merchantMapper.selectById(10L)).thenReturn(merchant);
+        when(merchantService.isOwner(10L, 5L)).thenReturn(true);
+        stubApprovedQualification();
+        lenient().when(orderMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
+        when(orderMapper.update(any(PetOrder.class), any())).thenReturn(1);
+
+        service().assignOrder(5L, "ORD-UNASSIGNED", 21L);
+
+        assertEquals(21L, order.getKeeper_id_wsh());
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
+        verify(orderStatusBroadcaster).broadcast(order);
+    }
+
+    @Test
+    void reassignRejectedWhenOrderStillUnassigned() {
+        PetOrder order = unassignedPaidOrder();
+        order.setStatus_wsh(OrderStatus.CONFIRMED);
+        order.setKeeper_id_wsh(null);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        Keeper newKeeper = keeper(21L, 10L, 0, 3);
+        when(keeperMapper.selectById(21L)).thenReturn(newKeeper);
+        Merchant merchant = new Merchant();
+        merchant.setId_wsh(10L);
+        when(merchantMapper.selectById(10L)).thenReturn(merchant);
+        when(merchantService.isOwner(10L, 5L)).thenReturn(true);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service().assignOrder(5L, "ORD-UNASSIGNED", 21L));
+
+        assertEquals(400, error.getCode());
     }
 }

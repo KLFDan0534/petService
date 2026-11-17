@@ -55,7 +55,7 @@
             </div>
           </div>
           <span>{{ getCategoryName(service.category_id_wsh) }}</span>
-          <span>¥{{ service.price_wsh }} / {{ unitLabel(service.unit_wsh) || '次' }}</span>
+          <span>¥{{ service.price_wsh }} / {{ unitLabel(service.unit_wsh) }}</span>
           <span :class="['badge', service.status_wsh === 1 ? 'badge-success' : 'badge-secondary']">
             {{ service.status_wsh === 1 ? '已上架' : '已下架' }}
           </span>
@@ -85,12 +85,43 @@
 
           <div class="form-group">
             <label>服务分类</label>
-            <select v-model.number="form.category_id_wsh" required @change="onCategoryChange">
-              <option :value="null" disabled>请选择服务分类</option>
-              <option v-for="cat in categoryOptions" :key="cat.id_wsh" :value="cat.id_wsh">
-                {{ cat.label }}
-              </option>
-            </select>
+            <div ref="categoryPickerRef" class="category-picker">
+              <button
+                type="button"
+                class="category-trigger"
+                :class="{ 'is-placeholder': !selectedCategoryLabel }"
+                @click="toggleCategoryPanel"
+              >
+                {{ selectedCategoryLabel || '请选择服务分类' }}
+                <span class="category-caret" aria-hidden="true">▾</span>
+              </button>
+              <div v-if="categoryOpen" class="category-panel">
+                <div class="category-level1">
+                  <button
+                    v-for="root in rootCategories"
+                    :key="root.id_wsh"
+                    type="button"
+                    :class="['category-root', { active: activeRootId === root.id_wsh, selected: form.category_id_wsh === root.id_wsh }]"
+                    @mouseenter="activeRootId = root.id_wsh"
+                    @click="pickCategory(root)"
+                  >
+                    {{ root.name_wsh }}
+                  </button>
+                </div>
+                <div class="category-level2">
+                  <button
+                    v-for="child in activeChildren"
+                    :key="child.id_wsh"
+                    type="button"
+                    :class="['category-chip', { selected: form.category_id_wsh === child.id_wsh }]"
+                    @click="pickCategory(child)"
+                  >
+                    {{ child.name_wsh }}
+                  </button>
+                  <p v-if="activeChildren.length === 0" class="category-empty">该一级分类下暂无二级分类，点击左侧直接选用</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="form-grid">
@@ -142,15 +173,20 @@
               <span class="upload-hint">支持 PNG/JPEG/GIF/BMP，单张不超过 10MB，最多 {{ MAX_MEDIA }} 张。</span>
             </div>
             <div v-if="mediaItems.length" class="image-preview-grid">
-              <div v-for="(item, index) in mediaItems" :key="item.file_id_wsh ?? item.url_wsh" class="image-preview">
+              <div
+                v-for="(item, index) in mediaItems"
+                :key="item.file_id_wsh ?? item.url_wsh"
+                class="image-preview"
+                :class="{ 'is-dragging': dragIndex === index, 'is-drop-target': dropIndex === index && dragIndex !== index }"
+                draggable="true"
+                @dragstart="onDragStart(index)"
+                @dragover.prevent="onDragOver(index)"
+                @drop.prevent="onDrop(index)"
+                @dragend="resetDrag"
+              >
                 <img :src="item.url_wsh" :alt="`服务图片 ${index + 1}`">
-                <span v-if="item.is_cover" class="cover-badge">封面</span>
-                <div class="media-actions">
-                  <button type="button" :disabled="imageUploading || index === 0" @click="moveMedia(index, -1)">左移</button>
-                  <button type="button" :disabled="imageUploading || index === mediaItems.length - 1" @click="moveMedia(index, 1)">右移</button>
-                  <button type="button" :disabled="imageUploading || item.is_cover" @click="setCover(index)">设为封面</button>
-                  <button type="button" :disabled="imageUploading" @click="removeMedia(index)">移除</button>
-                </div>
+                <span v-if="index === 0" class="cover-badge">封面</span>
+                <button type="button" class="media-remove" title="删除这张图片" @click="askRemoveMedia(index)">×</button>
               </div>
             </div>
           </div>
@@ -176,11 +212,19 @@
         </button>
       </template>
     </AppDialog>
+
+    <AppDialog class-name="remove-confirm" :visible="pendingRemoveIndex >= 0" :width="360" title="删除图片" @close="cancelRemoveMedia">
+      <p class="remove-hint">确定删除这张图片吗？删除后需要重新上传才能恢复。</p>
+      <template #footer>
+        <button type="button" class="btn btn-secondary btn-sm" @click="cancelRemoveMedia">取消</button>
+        <button type="button" class="btn btn-danger btn-sm" @click="confirmRemoveMedia">确认删除</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useAppStore } from '@/stores/app'
 import AppDialog from '@/components/common/AppDialog.vue'
 import { getMy } from '@/services/merchantService'
@@ -194,11 +238,14 @@ import {
 } from '@/api/service'
 import { getServiceCategoryList } from '@/api/serviceCategory'
 import { uploadProductImage } from '@/api/file'
-import { normalizeUnit, defaultDurationMinutes, unitLabel } from '@/domain/BookingUnit'
+import { unitLabel } from '@/domain/BookingUnit'
 
 // 图片张数和单张大小的上限，前端先挡一道，后端还会再校验
 const MAX_MEDIA = 10
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+// 表单初始时长（分钟）：按标准计价单位给出，不从别名表推导；编辑时以服务详情值为准。
+const STANDARD_DURATION_MINUTES = { night: 1440, session: 60, hour: 60 }
 
 const appStore = useAppStore()
 const loading = ref(true)
@@ -214,6 +261,15 @@ const editingService = ref(null)
 const selectedCategoryId = ref(0)
 const mediaItems = ref([])
 let formSnapshot = ''
+
+// 分类面板：一级常驻左栏，hover 一级在右栏展开二级
+const categoryOpen = ref(false)
+const activeRootId = ref(0)
+const categoryPickerRef = ref(null)
+// 图片拖拽与删除确认
+const dragIndex = ref(-1)
+const dropIndex = ref(-1)
+const pendingRemoveIndex = ref(-1)
 
 // 新增和编辑共用这一份表单数据，打开弹窗前先清空，编辑时再按详情填回来
 const form = reactive({
@@ -251,17 +307,17 @@ const forcedUnitHint = computed(() => {
 function onCategoryChange() {
   if (!forcedUnit.value) return
   form.unit_wsh = forcedUnit.value
-  // 日间寄养保留商家自己的时长配置，不强制成 60 分钟
+  // 日间寄养保留商家自己的时长配置
   form.duration_minutes_wsh = forcedUnit.value === 'session'
-    ? (Number(form.duration_minutes_wsh) || 480)
-    : defaultDurationMinutes(forcedUnit.value)
+    ? (Number(form.duration_minutes_wsh) || STANDARD_DURATION_MINUTES.session)
+    : STANDARD_DURATION_MINUTES[forcedUnit.value]
 }
 
 // 换计价单位时把时长重置成这个单位该有的值，不然会留着上一单位填的数字
 function onUnitChange(event) {
   const unit = event.target.value
   form.unit_wsh = unit
-  form.duration_minutes_wsh = defaultDurationMinutes(unit)
+  form.duration_minutes_wsh = STANDARD_DURATION_MINUTES[unit] || STANDARD_DURATION_MINUTES.hour
 }
 
 // 时长的规矩跟着单位走，这里统一算出一条错误文案，空串就代表没问题
@@ -283,34 +339,51 @@ const durationHint = computed(() => {
   return '范围 15..1440 分钟'
 })
 
-// 分类是分层的，这里按父子关系摊成一列，用缩进表示层级，下拉框才能一眼看到子分类
-const categoryOptions = computed(() => {
-  const byParent = new Map()
-  categories.value.forEach(cat => {
-    const parentId = cat.parent_id_wsh || 0
-    if (!byParent.has(parentId)) byParent.set(parentId, [])
-    byParent.get(parentId).push(cat)
+// 一级分类，按 sort_order 排
+const rootCategories = computed(() => sortByOrder(categories.value.filter(cat => !cat.parent_id_wsh)))
+
+// 当前 hover 的一级分类下的二级分类，右栏用
+const activeChildren = computed(() => sortByOrder(categories.value.filter(cat => cat.parent_id_wsh === activeRootId.value)))
+
+function sortByOrder(list) {
+  return [...list].sort((a, b) => {
+    const orderDiff = (a.sort_order_wsh || 0) - (b.sort_order_wsh || 0)
+    if (orderDiff !== 0) return orderDiff
+    return (a.id_wsh || 0) - (b.id_wsh || 0)
   })
+}
 
-  // 为什么不能直接把数组排一遍？因为父分类下面还得紧跟它的子分类，只能一层层往里走
-  const walk = (parentId = 0, level = 0, rows = []) => {
-    const siblings = [...(byParent.get(parentId) || [])].sort((a, b) => {
-      const orderDiff = (a.sort_order_wsh || 0) - (b.sort_order_wsh || 0)
-      if (orderDiff !== 0) return orderDiff
-      return (a.id_wsh || 0) - (b.id_wsh || 0)
-    })
-    siblings.forEach(cat => {
-      rows.push({
-        ...cat,
-        label: `${'  '.repeat(level)}${cat.name_wsh}`,
-      })
-      walk(cat.id_wsh, level + 1, rows)
-    })
-    return rows
-  }
-
-  return walk()
+// 触发按钮上显示的「一级 / 二级」
+const selectedCategoryLabel = computed(() => {
+  const leaf = categories.value.find(cat => cat.id_wsh === form.category_id_wsh)
+  if (!leaf) return ''
+  const parent = leaf.parent_id_wsh ? categories.value.find(cat => cat.id_wsh === leaf.parent_id_wsh) : null
+  return parent ? `${parent.name_wsh} / ${leaf.name_wsh}` : leaf.name_wsh
 })
+
+// 打开面板时把高亮定位到已选分类所属的一级，省得每次重新找
+function toggleCategoryPanel() {
+  if (!categoryOpen.value) {
+    const selected = categories.value.find(cat => cat.id_wsh === form.category_id_wsh)
+    activeRootId.value = selected
+      ? (selected.parent_id_wsh || selected.id_wsh)
+      : (rootCategories.value[0]?.id_wsh || 0)
+  }
+  categoryOpen.value = !categoryOpen.value
+}
+
+function pickCategory(cat) {
+  form.category_id_wsh = cat.id_wsh
+  categoryOpen.value = false
+  onCategoryChange()
+}
+
+// 点面板外面收起
+function onDocumentMousedown(event) {
+  if (categoryOpen.value && !categoryPickerRef.value?.contains(event.target)) {
+    categoryOpen.value = false
+  }
+}
 
 // 老数据把图片塞在一个逗号串里，这里拆成数组；新数据走 media_wsh 就用不着它了
 function parseImages(value) {
@@ -328,7 +401,7 @@ function firstImage(value) {
 function currentMediaSignature() {
   return JSON.stringify({
     ...form,
-    media: mediaItems.value.map(item => [item.file_id_wsh ?? item.url_wsh, item.is_cover]),
+    media: mediaItems.value.map(item => item.file_id_wsh ?? item.url_wsh),
   })
 }
 
@@ -434,14 +507,22 @@ async function openEdit(service) {
       return
     }
     const detail = res.data
-    const rawUnit = normalizeUnit(detail.service_wsh?.unit_wsh) || 'night'
+    const rawUnit = String(detail.service_wsh?.unit_wsh ?? '').trim()
+    const label = unitLabel(rawUnit)
+    // 历史/异常单位直接提示数据异常并关掉弹窗，绝不静默兜底成 night 回显。
+    if (!label || label.includes('历史计价单位')) {
+      appStore.addToast(`服务计价单位数据异常（${rawUnit || '缺失'}），请联系管理员`, 'error')
+      showForm.value = false
+      editingService.value = null
+      return
+    }
     Object.assign(form, {
       name_wsh: detail.service_wsh?.name_wsh || '',
       category_id_wsh: detail.service_wsh?.category_id_wsh ?? null,
       description_wsh: detail.service_wsh?.description_wsh || '',
       price_wsh: Number(detail.service_wsh?.price_wsh ?? 0),
       unit_wsh: rawUnit,
-      duration_minutes_wsh: Number(detail.service_wsh?.duration_minutes_wsh) || defaultDurationMinutes(rawUnit),
+      duration_minutes_wsh: Number(detail.service_wsh?.duration_minutes_wsh) || STANDARD_DURATION_MINUTES[rawUnit] || 60,
       status_wsh: Number(detail.service_wsh?.status_wsh ?? 1),
     })
     const media = (detail.media_wsh || []).map(item => ({
@@ -455,7 +536,11 @@ async function openEdit(service) {
         media.push({ file_id_wsh: null, url_wsh: url, is_cover: index === 0 })
       })
     }
-    mediaItems.value = media
+    // 封面固定是列表第一张：回显时把原封面挪到最前，只改个价格不会顺手换封面
+    mediaItems.value = [
+      ...media.filter(item => item.is_cover),
+      ...media.filter(item => !item.is_cover),
+    ].map(item => ({ file_id_wsh: item.file_id_wsh, url_wsh: item.url_wsh }))
   } catch (error) {
     appStore.addToast('加载服务详情失败', 'error')
     showForm.value = false
@@ -520,14 +605,8 @@ async function uploadServiceImages(event) {
       const existing = new Set(mediaItems.value.map(item => item.file_id_wsh))
       const next = mediaItems.value.slice()
       uploaded.forEach(item => {
-        if (!existing.has(item.file_id_wsh)) {
-          next.push({ ...item, is_cover: false })
-        }
+        if (!existing.has(item.file_id_wsh)) next.push(item)
       })
-      // 列表里必须有一张封面，一张都没有就把第一张顶上
-      if (next.length && !next.some(item => item.is_cover)) {
-        next[0].is_cover = true
-      }
       mediaItems.value = next
       if (failedCount > 0) {
         appStore.addToast(`成功上传 ${uploaded.length} 张，失败 ${failedCount} 张，可重新选择重试`, 'error')
@@ -542,32 +621,44 @@ async function uploadServiceImages(event) {
   }
 }
 
-// 左移右移就是换掉数组里两个位置，保存时按这个顺序写进 sort_order
-function moveMedia(index, direction) {
-  const target = index + direction
-  if (target < 0 || target >= mediaItems.value.length) return
+// 拖拽换位置：把拖起的那张插到松手的位置，数组顺序就是保存时的 sort_order
+function onDragStart(index) {
+  dragIndex.value = index
+}
+
+function onDragOver(index) {
+  dropIndex.value = index
+}
+
+function onDrop(index) {
+  const from = dragIndex.value
+  resetDrag()
+  if (from < 0 || from === index) return
   const next = mediaItems.value.slice()
-  const temp = next[index]
-  next[index] = next[target]
-  next[target] = temp
+  const [moved] = next.splice(from, 1)
+  next.splice(index, 0, moved)
   mediaItems.value = next
 }
 
-// 封面只能有一张，所以先把全部熄掉，再点亮选中的那张
-function setCover(index) {
-  const next = mediaItems.value.map(item => ({ ...item, is_cover: false }))
-  next[index].is_cover = true
-  mediaItems.value = next
+function resetDrag() {
+  dragIndex.value = -1
+  dropIndex.value = -1
 }
 
-// 删掉的正好是封面时，把第一张顶上去，别让列表变成没封面
-function removeMedia(index) {
-  const removed = mediaItems.value[index]
-  const next = mediaItems.value.filter((_, i) => i !== index)
-  if (removed?.is_cover && next.length && !next.some(item => item.is_cover)) {
-    next[0].is_cover = true
+// 删除先问一句，确认了才从列表里拿掉（不删服务器文件，保存时才解除关联）
+function askRemoveMedia(index) {
+  pendingRemoveIndex.value = index
+}
+
+function cancelRemoveMedia() {
+  pendingRemoveIndex.value = -1
+}
+
+function confirmRemoveMedia() {
+  if (pendingRemoveIndex.value >= 0) {
+    mediaItems.value = mediaItems.value.filter((_, i) => i !== pendingRemoveIndex.value)
   }
-  mediaItems.value = next
+  pendingRemoveIndex.value = -1
 }
 
 // 保存前在这里把关：分类、价格、时长、图片都过了才拼请求体，有一项不对就弹提示返回 null
@@ -594,12 +685,12 @@ function buildPayload() {
     category_id_wsh: form.category_id_wsh,
     description_wsh: form.description_wsh,
     price_wsh: form.price_wsh,
-    unit_wsh: form.unit_wsh || 'night',
+    unit_wsh: form.unit_wsh,
     duration_minutes_wsh: Number(form.duration_minutes_wsh),
     media_wsh: mediaItems.value.map((item, index) => ({
       file_id_wsh: item.file_id_wsh,
       sort_order_wsh: index,
-      is_cover_wsh: item.is_cover ? 1 : 0,
+      is_cover_wsh: index === 0 ? 1 : 0,
     })),
   }
 
@@ -668,7 +759,12 @@ async function removeService(service) {
   }
 }
 
-onMounted(loadPage)
+onMounted(() => {
+  document.addEventListener('mousedown', onDocumentMousedown)
+  loadPage()
+})
+
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentMousedown))
 </script>
 
 <style scoped>
@@ -834,36 +930,166 @@ onMounted(loadPage)
   line-height: 18px;
 }
 
-.media-actions {
+.media-remove {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  gap: 4px;
-  justify-content: center;
-  padding: 4px;
-  background: rgba(0, 0, 0, .68);
+  right: 4px;
+  top: 4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: rgba(220, 38, 38, .92);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
 }
 
-.media-actions button {
-  border: 0;
-  border-radius: 4px;
-  padding: 3px 6px;
-  background: rgba(255, 255, 255, .18);
-  color: #fff;
-  font-size: 11px;
-  line-height: 16px;
+.image-preview:hover .media-remove,
+.media-remove:focus-visible {
+  opacity: 1;
+}
+
+.image-preview.is-dragging {
+  opacity: .45;
+}
+
+.image-preview.is-drop-target {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+
+.image-preview img {
+  cursor: grab;
+}
+
+.remove-hint {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
+.category-picker {
+  position: relative;
+}
+
+.category-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-inline);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: 13.5px;
+  text-align: left;
   cursor: pointer;
 }
 
-.media-actions button:disabled {
-  opacity: .4;
-  cursor: not-allowed;
+.category-trigger.is-placeholder {
+  color: var(--color-muted-foreground);
 }
 
-.media-actions button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, .32);
+.category-caret {
+  flex: none;
+  color: var(--color-muted-foreground);
+  font-size: 11px;
+}
+
+.category-panel {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-lift);
+  overflow: hidden;
+}
+
+/* 一级列表：纵向，超高时自己滚 */
+.category-level1 {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-muted);
+}
+
+.category-root {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-foreground);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.category-root.active {
+  background: var(--color-card);
+}
+
+.category-root.selected {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* 二级：横排自动换行，超高时自己滚，避免分类多把面板拉太长 */
+.category-level2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  padding: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.category-chip {
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+  cursor: pointer;
+}
+
+.category-chip:hover {
+  border-color: var(--color-primary);
+}
+
+.category-chip.selected {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.category-empty {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: 12px;
 }
 
 textarea {

@@ -20,37 +20,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 【公告通知异步处理实现】
- *
- * 业务作用：
- * 消费 MQ 队列 notice.notification 投递的公告ID，在后台为该公告
- * 批量创建全量用户的站内通知，并向在线用户推送 SSE。
- *
  * 为什么放 pet-business：
  * 接口 NoticeNotificationHandler 定义在 pet-common，供 pet-framework 的
  * MessageListener 编译期引用；实现由本模块提供，运行时由 Spring 注入。
  * 这样 pet-framework 不需要（也不能）反向依赖 pet-business。
  *
- * 调用链：
- * NoticeServiceImpl.create()/update() → MessageSender.sendNoticeNotification()
- *   ↓ 队列 notice.notification
- * MessageListener.handleNoticeNotification()
- *   ↓
- * NoticeNotificationHandlerImpl.handle(noticeId)
- *
- * 状态影响：
- * - 新增多条 notification_wsh 记录（该公告 × 全部正常状态用户）
- * - 清空 notification 缓存（跨用户，无法定位单个 key）
- *
- * 异常情况：
- * 公告不存在或状态不满足时静默跳过，仅记录日志，不抛异常。
- *
+ * 业务作用：消费 MQ 队列 notice.notification 投递的公告ID，在后台为该公告 批量创建全量用户的站内通知，并向在线用户推送 SSE。
+ * 异常情况：公告不存在或状态不满足时静默跳过，仅记录日志，不抛异常。
  * 注意事项：
  * - 消息只携带 noticeId，标题/内容等以数据库当前值为准，避免消息里的数据过期
  * - 当前为「基本可用」版本：一次性载入全量用户，用户量极大时存在 OOM 风险，
- *   后续需改为分页流式处理
+ * 后续需改为分页流式处理
  * - 当前未做幂等保护：MQ 只保证至少一次投递，重复消费会产生重复通知，
- *   后续需配合唯一索引 + INSERT IGNORE 实现幂等
+ * 后续需配合唯一索引 + INSERT IGNORE 实现幂等
  */
 @Slf4j
 @Component
@@ -146,22 +128,9 @@ public class NoticeNotificationHandlerImpl implements NoticeNotificationHandler 
     }
 
     /**
-     * 【归一化公告类型】
-     *
      * 业务作用：去除空白并转小写，便于与常量比较。
-     *
-     * 调用场景：shouldCreateNotifications 判断公告类型是否为 notice。
-     *
-     * 调用链：handle → shouldCreateNotifications → normalizeType。
-     *
      * 数据处理：null 或空白返回 null，否则 trim 后转小写。
-     *
      * 业务规则：空白与 null 等价。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：返回 null 后与 TYPE_NOTICE 比较恒为 false，公告会被跳过。
      */
     private String normalizeType(String type) {
@@ -170,22 +139,8 @@ public class NoticeNotificationHandlerImpl implements NoticeNotificationHandler 
     }
 
     /**
-     * 【判断投递方式是否包含指定渠道】
-     *
      * 业务作用：在逗号分隔的投递方式串中查找目标渠道。
-     *
-     * 调用场景：shouldCreateNotifications 判断是否含 notification 或 broadcast。
-     *
-     * 调用链：handle → shouldCreateNotifications → deliveryIncludes。
-     *
-     * 数据处理：按逗号切分，逐项 trim 后与目标值做精确相等比较。
-     *
      * 业务规则：null 或空白投递方式返回 false；比较区分大小写。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：未对空元素过滤，但空串不会等于目标值，因此不影响结果。
      */
     private boolean deliveryIncludes(String deliveryType, String target) {

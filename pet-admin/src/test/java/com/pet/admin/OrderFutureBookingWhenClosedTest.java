@@ -59,6 +59,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -79,6 +80,7 @@ import static org.mockito.Mockito.doAnswer;
 class OrderFutureBookingWhenClosedTest {
 
     @Mock private OrderMapper orderMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private PaymentMapper paymentMapper;
     @Mock private PetMapper petMapper;
     @Mock private KeeperMapper keeperMapper;
@@ -172,38 +174,121 @@ class OrderFutureBookingWhenClosedTest {
     }
 
     @Test
-    void confirmRejectsWhenPolicyToggledOffAfterPayment() {
+    void confirmSucceedsWhenPolicyToggledOffAfterPayment() {
         PetOrder order = futurePaidOrder();
         order.setMerchant_id_wsh(10L);
         order.setKeeper_id_wsh(20L);
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
-        // Policy turned off between payment and auto-confirm.
+        // 规则 A：未来预约开关只约束新订单准入；已付款且已分配 Keeper 的存量订单正常确认。
         when(merchantMapper.selectById(10L)).thenReturn(merchant(10L, 1, 0, 0));
+        when(keeperMapper.selectById(20L)).thenReturn(keeper(StatusCode.KEEPER_ACTIVE.getValue()));
+        when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
+                .thenReturn(List.of(approvedQualification()));
+        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+        when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> orderService().autoAcceptPaidOrderIfTimeout("ORD-CLOSED"));
+        boolean accepted = orderService().autoAcceptPaidOrderIfTimeout("ORD-CLOSED");
 
-        assertEquals(BookingErrorCode.FUTURE_BOOKING_DISABLED, error.getErrorCode());
-        assertEquals(OrderStatus.PAID, order.getStatus_wsh());
-        verify(orderMapper, never()).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
-        verify(orderStatusBroadcaster, never()).broadcast(any());
+        assertTrue(accepted);
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
+        verify(orderStatusBroadcaster).broadcast(order);
     }
 
     @Test
-    void confirmRejectsResignedKeeper() {
+    void paidAssignedOrderConfirmsWithoutCancellationWhenPolicyDisabled() {
+        PetOrder order = futurePaidOrder();
+        order.setMerchant_id_wsh(10L);
+        order.setKeeper_id_wsh(20L);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchant(10L, StatusCode.MERCHANT_APPROVED.getValue(), 0, 0));
+        when(keeperMapper.selectById(20L)).thenReturn(keeper(StatusCode.KEEPER_ACTIVE.getValue()));
+        when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
+                .thenReturn(List.of(approvedQualification()));
+        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+        when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        assertTrue(orderService().autoAcceptPaidOrderIfTimeout("ORD-CLOSED"));
+
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
+        // 关闭预约不得触发「负责人不可用」的取消/退款/权益释放链路
+        verify(couponService, never()).releaseForOrder(anyLong());
+        verify(membershipBenefitService, never()).releaseForOrder(anyLong());
+        verify(orderStatusBroadcaster).broadcast(order);
+    }
+
+    @Test
+    void keeperQualificationStillEnforcedWhenPolicyDisabled() {
+        PetOrder order = futurePaidOrder();
+        order.setMerchant_id_wsh(10L);
+        order.setKeeper_id_wsh(20L);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchant(10L, StatusCode.MERCHANT_APPROVED.getValue(), 0, 0));
+        when(keeperMapper.selectById(20L)).thenReturn(keeper(StatusCode.KEEPER_ACTIVE.getValue()));
+        // Keeper 资质未通过：即使预约开关关闭，存量确认仍须按 Keeper 能力失败并给出终态
+        when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
+                .thenReturn(List.of());
+        when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        boolean accepted = orderService().autoAcceptPaidOrderIfTimeout("ORD-CLOSED");
+
+        assertFalse(accepted);
+        assertEquals(OrderStatus.CANCELLED, order.getStatus_wsh());
+    }
+
+    @Test
+    void futureBookingDisabledStillRejectsNewOrderWithoutInsert() {
+        LocalDate start = LocalDate.now().plusDays(1);
+        LocalDate end = start.plusDays(2);
+        stubPetAndKeeper();
+        stubSingleMerchant(10L, StatusCode.MERCHANT_APPROVED.getValue(), 0, 0);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> orderService().createOrder(7L, request(start, end)));
+
+        assertEquals(BookingErrorCode.FUTURE_BOOKING_DISABLED, error.getErrorCode());
+        verify(orderMapper, never()).insert(any(PetOrder.class));
+    }
+
+    @Test
+    void assignedOrderConfirmsWhenMerchantPending() {
+        PetOrder order = futurePaidOrder();
+        order.setMerchant_id_wsh(10L);
+        order.setKeeper_id_wsh(20L);
+        when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
+        // 规则 B2：已分配 Keeper 的订单继续履约，审核状态回退不得触发取消退款。
+        when(merchantMapper.selectById(10L))
+                .thenReturn(merchant(10L, StatusCode.MERCHANT_PENDING.getValue(), 0, 0));
+        when(keeperMapper.selectById(20L)).thenReturn(keeper(StatusCode.KEEPER_ACTIVE.getValue()));
+        when(qualificationService.listByOwner(QualificationService.OWNER_TYPE_KEEPER, 20L, false))
+                .thenReturn(List.of(approvedQualification()));
+        when(orderMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+        when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        assertTrue(orderService().autoAcceptPaidOrderIfTimeout("ORD-CLOSED"));
+
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
+        verify(couponService, never()).releaseForOrder(anyLong());
+        verify(membershipBenefitService, never()).releaseForOrder(anyLong());
+    }
+
+    @Test
+    void confirmCancelsAndRefundsWhenKeeperResigned() {
         PetOrder order = futurePaidOrder();
         order.setMerchant_id_wsh(10L);
         order.setKeeper_id_wsh(20L);
         when(orderMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(order);
         when(keeperMapper.selectById(20L)).thenReturn(keeper(StatusCode.KEEPER_RESIGNED.getValue()));
         when(merchantMapper.selectById(10L)).thenReturn(merchant(10L, 1, 1, 1));
+        when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> orderService().autoAcceptPaidOrderIfTimeout("ORD-CLOSED"));
+        boolean accepted = orderService().autoAcceptPaidOrderIfTimeout("ORD-CLOSED");
 
-        assertEquals(BookingErrorCode.KEEPER_NOT_BOOKABLE, error.getErrorCode());
-        assertEquals(OrderStatus.PAID, order.getStatus_wsh());
-        verify(orderMapper, never()).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
+        assertFalse(accepted);
+        // 看护者离职后订单不能卡在 paid，必须取消并全额退款
+        assertEquals(OrderStatus.CANCELLED, order.getStatus_wsh());
+        verify(orderStatusBroadcaster).broadcast(order);
     }
 
     @Test
@@ -339,6 +424,9 @@ class OrderFutureBookingWhenClosedTest {
         m.setStatus_wsh(merchantStatus);
         m.setFuture_booking_enabled_wsh(policy);
         m.setStore_status_wsh(storeStatus);
+        // 到店交接要求门店必须有坐标，缺坐标会在下单口被拦
+        m.setLatitude_wsh(new BigDecimal("31.2304"));
+        m.setLongitude_wsh(new BigDecimal("121.4737"));
         return m;
     }
 
@@ -378,7 +466,7 @@ class OrderFutureBookingWhenClosedTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper, serviceCategoryMapper);
     }
 
     private OrderService orderServiceDelegate() {

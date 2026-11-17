@@ -1,7 +1,7 @@
 <template>
   <div class="cs-workbench">
     <div class="wb-header">
-      <h2>客服工作台</h2>
+      <h2>{{ isPlatformSupport ? '平台客服工作台' : '商家客服工作台' }}</h2>
       <p>欢迎回来，{{ authStore.user?.nickname_wsh || authStore.user?.username_wsh }}</p>
     </div>
 
@@ -81,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -91,6 +91,9 @@ const router = useRouter()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const loading = ref(true)
+// 平台级视野只有管理员有（后端 threads/stats 对 admin 传 merchantIds=null），
+// 其余角色都是按商家授权的商家客服，标题要区分开，免得以为是平台级客服
+const isPlatformSupport = computed(() => authStore.isAdmin)
 const stats = ref({ pending_tickets_wsh: 0, my_processing_tickets_wsh: 0, pending_complaints_wsh: 0, resolved_tickets_today_wsh: 0, resolved_complaints_today_wsh: 0, merchant_count_wsh: 0 })
 const merchants = ref([])
 const conversations = ref([])

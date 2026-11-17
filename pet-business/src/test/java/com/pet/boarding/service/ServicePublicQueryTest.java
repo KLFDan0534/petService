@@ -77,7 +77,10 @@ class ServicePublicQueryTest {
         item.setCategory_id_wsh(categoryId);
         item.setName_wsh(name);
         item.setPrice_wsh(price);
-        item.setUnit_wsh("day");
+        // 公开列表只展示标准计价单位；夹具同步为 session/slot（BookingUnit.bookingMode(session)="slot"），
+        // 保留原有可见性/排序/分页测试意图不变。
+        item.setUnit_wsh("session");
+        item.setBooking_mode_wsh("slot");
         item.setStatus_wsh(StatusCode.SERVICE_ENABLED.getValue());
         item.setUpdated_at_wsh(LocalDateTime.of(2026, 8, 11, 13, 45, 20));
         return item;

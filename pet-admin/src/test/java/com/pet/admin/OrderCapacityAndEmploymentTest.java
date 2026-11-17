@@ -80,6 +80,7 @@ import static org.mockito.Mockito.when;
 class OrderCapacityAndEmploymentTest {
 
     @Mock private OrderMapper orderMapper;
+    @Mock private com.pet.boarding.mapper.ServiceCategoryMapper serviceCategoryMapper;
     @Mock private PaymentMapper paymentMapper;
     @Mock private PetMapper petMapper;
     @Mock private KeeperMapper keeperMapper;
@@ -240,6 +241,9 @@ class OrderCapacityAndEmploymentTest {
         m.setStatus_wsh(merchantStatus);
         m.setFuture_booking_enabled_wsh(policy);
         m.setStore_status_wsh(storeStatus);
+        // 到店交接要求门店必须有坐标，缺坐标会在下单口被拦
+        m.setLatitude_wsh(new BigDecimal("31.2304"));
+        m.setLongitude_wsh(new BigDecimal("121.4737"));
         return m;
     }
 
@@ -279,7 +283,7 @@ class OrderCapacityAndEmploymentTest {
                 eventPublisher, qualificationService, orderStatusBroadcaster,
                 messageSender, accountingService, keeperAttendanceService,
                 keeperLeaveService, couponService, membershipBenefitService,
-                new ObjectMapper(), businessHoursService, resolver, ratingMapper);
+                new ObjectMapper(), businessHoursService, resolver, ratingMapper, serviceCategoryMapper);
     }
 
     // ============ 鍒板簵瀹归噺澶嶆牳锛圓E16锛?============

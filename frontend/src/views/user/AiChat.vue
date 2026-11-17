@@ -331,7 +331,7 @@ function scrollToBottom() {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .ac-crumb {
   display: flex;
   align-items: center;
@@ -345,7 +345,7 @@ function scrollToBottom() {
 .ac-crumb-sep { color: var(--ref-line); }
 .ac-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .ac-eyebrow {
   display: flex;
   align-items: center;
@@ -359,7 +359,7 @@ function scrollToBottom() {
 .ac-idx { font-variant-numeric: tabular-nums; }
 .ac-line { width: 24px; height: 1px; background: var(--ref-line); }
 
-/* ═══ Hero ═══ */
+/* Hero */
 .ac-head {
   display: flex;
   flex-wrap: wrap;
@@ -388,7 +388,7 @@ function scrollToBottom() {
 }
 .ac-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -412,7 +412,7 @@ function scrollToBottom() {
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 .cta-sm { height: var(--control-height-sm); padding: 0 14px; font-size: 12px; border-radius: 9px; }
 
-/* ═══ Section ═══ */
+/* Section */
 .ac-section { margin-top: 44px; }
 .ac-sec-head {
   display: flex;
@@ -439,7 +439,7 @@ function scrollToBottom() {
   opacity: 0.8;
 }
 
-/* ═══ 对话布局 ═══ */
+/* 对话布局 */
 .ac-grid {
   display: grid;
   grid-template-columns: 1fr 18rem;
@@ -448,7 +448,7 @@ function scrollToBottom() {
   align-items: start;
 }
 
-/* ═══ 对话面板 ═══ */
+/* 对话面板 */
 .ac-chat {
   display: flex;
   flex-direction: column;
@@ -580,7 +580,7 @@ function scrollToBottom() {
 .ac-typing-dot:nth-child(3) { animation-delay: 0.3s; }
 .ac-typing-text { font-size: 11.5px; color: var(--ref-muted); margin-left: 2px; }
 
-/* ═══ 输入区 ═══ */
+/* 输入区 */
 .ac-input {
   display: flex;
   align-items: flex-end;
@@ -612,7 +612,7 @@ function scrollToBottom() {
 }
 .ac-input textarea:disabled { opacity: 0.6; }
 
-/* ═══ 历史会话 ═══ */
+/* 历史会话 */
 .ac-side {
   border: 1px solid var(--ref-line);
   border-radius: var(--radius-card);
@@ -704,13 +704,13 @@ function scrollToBottom() {
 .ac-session:hover .ac-session-del { opacity: 1; }
 .ac-session-del:hover { color: var(--ref-brand-deep); }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes ac-blink {
   0%, 80%, 100% { opacity: 0.25; }
   40% { opacity: 1; }
 }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 980px) {
   .ac-grid { grid-template-columns: 1fr; }
   .ac-session-list { max-height: 16rem; }

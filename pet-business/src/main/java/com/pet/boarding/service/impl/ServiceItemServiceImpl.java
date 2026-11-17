@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,7 +63,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     private final ServiceItemMapper serviceItemMapper;
     /** 寄养类服务的根分类代码 */
     private static final String CATEGORY_CODE_BOARDING = "BOARDING";
-    /** 日间寄养：允许按天计费 */
+    /** 日间寄养：按次计费（session） */
     private static final String CATEGORY_CODE_DAYCARE = "BOARDING_DAYCARE";
 
     private final ServiceCategoryMapper categoryMapper;
@@ -73,22 +72,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     private final ServiceMediaService serviceMediaService;
 
     /**
-     * 【构造服务项目服务】
-     *
      * 业务作用：注入服务项、服务分类、商家、评价四个 Mapper 与服务媒体服务。
-     *
-     * 调用场景：Spring 容器启动创建 Bean 时调用。
-     *
-     * 调用链：Spring 容器 → 本构造器 → 赋值各 Mapper / serviceMediaService 字段。
-     *
-     * 数据处理：无。
-     *
      * 业务规则：依赖均为 final 字段。
-     *
-     * 状态影响：无。
-     *
-     * 异常情况：无。
-     *
      * 注意事项：本类含 @Cacheable / @CacheEvict 注解，构造器注入的依赖必须保持单例语义。
      */
     public ServiceItemServiceImpl(ServiceItemMapper serviceItemMapper,
@@ -104,13 +89,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【查询商家下所有服务项目（含禁用）】
-     *
      * 业务作用：查询某个商家下所有服务项目（商家后台管理用）。
-     * 调用场景：商家在后台管理服务项目列表时调用。
-     * 调用链：ServiceItemController → listByMerchantForManage → ServiceItemMapper.selectList
-     * 数据处理：按 merchant_id 查询全部，按创建时间倒序。
-     * 状态影响：只读操作。
      */
     @Override
     public List<ServiceItem> listByMerchantForManage(Long merchantId) {
@@ -122,14 +101,22 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【根据ID查询服务项目】
-     *
+     * 业务作用：只取已上架服务，供下单场景挑选可售服务。
+     */
+    @Override
+    public List<ServiceItem> listEnabledByMerchant(Long merchantId) {
+        if (merchantId == null) {
+            return List.of();
+        }
+        return serviceItemMapper.selectList(
+                new LambdaQueryWrapper<ServiceItem>()
+                        .eq(ServiceItem::getMerchant_id_wsh, merchantId)
+                        .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue()));
+    }
+
+    /**
      * 业务作用：根据主键ID查询服务项目。
-     * 调用场景：被 update、delete 等业务方法内部调用。
-     * 调用链：上层业务方法 → getById → ServiceItemMapper.selectById
-     * 数据处理：按主键ID查询单条记录。
      * 业务规则：查询结果为 null 时抛 BusinessException。
-     * 状态影响：只读操作。
      * 异常情况：服务项目不存在时抛 BusinessException。
      */
     @Override
@@ -144,12 +131,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【批量查询服务项目】
-     *
      * 业务作用：根据多个ID批量查询服务项目。
-     * 调用链：上层方法 → listByIds → ServiceItemMapper.selectBatchIds
-     * 数据处理：按ID集合批量查询，参为空返回空列表。
-     * 状态影响：只读操作。
      */
     @Override
     public List<ServiceItem> listByIds(Collection<Long> ids) {
@@ -161,13 +143,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【创建服务项目（聚合）】
-     *
      * 业务作用：商家新增一个服务项目，标量与图册在同一事务内写入。
-     * 调用场景：商家在后台新增服务项目时调用。
-     * 业务规则：归属商家由服务端派生（调用方已完成作用域解析）；
-     * 分类必须存在且启用；名称/描述/价格/单位均校验；图册非空时整体替换校验。
-     * 状态影响：新增服务项目记录（默认已启用）+ 图册行。
+     * 业务规则：归属商家由服务端派生（调用方已完成作用域解析）； 分类必须存在且启用；名称/描述/价格/单位均校验；图册非空时整体替换校验。
      */
     @Override
     @Transactional
@@ -199,13 +176,8 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【更新服务项目（聚合）】
-     *
-     * 业务作用：修改服务项目信息；仅更新非 null 字段；更新分类时同步
-     * 更新 type 编码；media_wsh 非 null 时整体替换图册（空集合表示清空）。
-     * 业务规则：更新前对聚合根加行锁（SELECT ... FOR UPDATE），与图册替换
-     * 串行化；名称/描述/价格/状态/单位/分类均校验。
-     * 状态影响：更新服务项目字段，可选整体替换图册。
+     * 业务作用：修改服务项目信息；仅更新非 null 字段；更新分类时同步 更新 type 编码；media_wsh 非 null 时整体替换图册（空集合表示清空）。
+     * 业务规则：更新前对聚合根加行锁（SELECT ... FOR UPDATE），与图册替换 串行化；名称/描述/价格/状态/单位/分类均校验。
      */
     @Override
     @Transactional
@@ -218,6 +190,9 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         if (existing == null) {
             throw new BusinessException(404, BookingErrorCode.SERVICE_NOT_FOUND, "服务项目不存在");
         }
+        // 记录改动前的值，用于判断「本次是否动了分类或计价方式」
+        Long previousCategoryId = existing.getCategory_id_wsh();
+        String previousUnit = existing.getUnit_wsh();
         if (dto.getName_wsh() != null) {
             validateName(dto.getName_wsh());
             existing.setName_wsh(dto.getName_wsh());
@@ -236,22 +211,31 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             existing.setPrice_wsh(dto.getPrice_wsh());
         }
         if (dto.getUnit_wsh() != null || dto.getDuration_minutes_wsh() != null) {
-            String previousUnit = existing.getUnit_wsh();
             applyUnitContract(existing, dto.getUnit_wsh(), dto.getDuration_minutes_wsh());
-            // 只在单位真的被改动时校验：历史上有分类与单位不匹配的存量服务，
-            // 若无条件校验会让商家连改价格都保存不了
-            if (dto.getUnit_wsh() != null && !dto.getUnit_wsh().equalsIgnoreCase(previousUnit)) {
-                assertUnitMatchesCategory(
-                        categoryMapper.selectById(existing.getCategory_id_wsh()),
-                        existing.getUnit_wsh());
-            }
         }
         if (dto.getImages_wsh() != null) {
             existing.setImages_wsh(dto.getImages_wsh());
         }
         if (dto.getStatus_wsh() != null) {
             validateStatus(dto.getStatus_wsh());
+            // 只要目标状态是上架（无论原本是否已上架），都必须通过统一计价校验；
+            // 下架与未明确修改状态时不触发，避免把历史脏数据偷偷上架。
+            if (dto.getStatus_wsh() == StatusCode.SERVICE_ENABLED.getValue()) {
+                assertPublishableUnit(existing);
+            }
             existing.setStatus_wsh(dto.getStatus_wsh());
+        }
+        // 校验「保存后的（分类, 计价方式）组合」而不是「计价方式有没有变」：
+        // 否则只改分类就能把旧单位服务挪进寄养类，绕过约束。
+        // 两者都没动时跳过，避免历史脏数据连改价格都保存不了。
+        boolean categoryChanged = dto.getCategory_id_wsh() != null
+                && !java.util.Objects.equals(dto.getCategory_id_wsh(), previousCategoryId);
+        boolean unitChanged = dto.getUnit_wsh() != null
+                && !dto.getUnit_wsh().equalsIgnoreCase(previousUnit);
+        if (categoryChanged || unitChanged) {
+            assertUnitMatchesCategory(
+                    categoryMapper.selectById(existing.getCategory_id_wsh()),
+                    existing.getUnit_wsh());
         }
         serviceItemMapper.updateById(existing);
         if (dto.getMedia_wsh() != null) {
@@ -261,13 +245,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【删除服务项目】
-     *
      * 业务作用：物理删除服务项目。
-     * 调用场景：商家在后台删除服务项目时调用。
-     * 调用链：ServiceItemController → delete @Transactional → ServiceItemMapper.deleteById
-     * 数据处理：先查询存在性，再物理删除。
-     * 状态影响：物理删除服务项目记录。
      */
     @Override
     @Transactional
@@ -281,13 +259,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【切换服务项目启用/禁用】
-     *
      * 业务作用：切换服务项目的上架/下架状态。
-     * 调用场景：商家在后台启用或禁用服务项目时调用。
-     * 调用链：ServiceItemController → toggleStatus @Transactional → ServiceItemMapper.updateById
-     * 数据处理：ENABLED ↔ DISABLED 相互切换。
-     * 状态影响：更新服务项目的 status 字段。
      */
     @Override
     @Transactional
@@ -296,20 +268,20 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         log.info("toggleStatus() 被调用");
         assertPositiveId(id);
         ServiceItem item = getById(id);
-        item.setStatus_wsh(item.getStatus_wsh() == null || item.getStatus_wsh() == StatusCode.SERVICE_DISABLED.getValue()
+        int target = (item.getStatus_wsh() == null
+                || item.getStatus_wsh() == StatusCode.SERVICE_DISABLED.getValue())
                 ? StatusCode.SERVICE_ENABLED.getValue()
-                : StatusCode.SERVICE_DISABLED.getValue());
+                : StatusCode.SERVICE_DISABLED.getValue();
+        // 上架必须校验计价单位/时长/预约模式；下架不受阻（暂停服务不应因单位非法而失败）
+        if (target == StatusCode.SERVICE_ENABLED.getValue()) {
+            assertPublishableUnit(item);
+        }
+        item.setStatus_wsh(target);
         serviceItemMapper.updateById(item);
     }
 
     /**
-     * 【服务项目实体转DTO】
-     *
      * 业务作用：转换为前端展示 DTO（含分类名称）。
-     * 调用场景：Controller 层返回服务项目信息前调用。
-     * 调用链：各查询 Controller → toDTO → ServiceCategoryMapper.selectById
-     * 数据处理：字段拷贝 + 查询分类名称。
-     * 状态影响：只读操作。
      */
     @Override
     public ServiceItemDTO toDTO(ServiceItem entity) {
@@ -341,15 +313,6 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 【公开查询服务项目列表】
-     *
-     * 业务作用：对外提供可预约服务的分页查询，支持按分类、商家、关键字筛选，
-     * 支持按价格、评分、距离排序，支持基于用户经纬度计算距离。
-     *
-     * 调用场景：用户端服务列表页、商家详情页服务列表。
-     *
-     * 调用链：ServiceItemController → queryPublic → ServiceItemMapper.selectList
-     *
      * 数据处理流程：
      * 1. 参数校验（分页、排序、坐标）
      * 2. 数据库查询（按条件筛选已启用服务）
@@ -358,7 +321,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
      * 5. 内存排序（价格/评分/距离）
      * 6. 分页截取
      *
-     * 状态影响：只读操作，结果缓存（key 由 ServiceItemQueryDTO.cacheKey_wsh 生成，仅含非空字段）。
+     * 业务作用：对外提供可预约服务的分页查询，支持按分类、商家、关键字筛选， 支持按价格、评分、距离排序，支持基于用户经纬度计算距离。
      *
      * @param query 查询参数（分类、商家、关键字、排序、经纬度、分页）
      * @return 分页结果（服务列表 + 总数 + 分页信息）
@@ -371,21 +334,21 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         // 参数空值处理：无参数时返回全部上架服务
         if (query == null) query = new ServiceItemQueryDTO();
 
-        // ========== 分页参数校验 ==========
+        // 分页参数校验
         int page = query.getPage_wsh();
         int size = query.getSize_wsh();
         if (page < 1) throw new BusinessException(400, "page must be >= 1");
         if (size < 1) throw new BusinessException(400, "size must be >= 1");
         if (size > MAX_SIZE) size = MAX_SIZE;  // 防止恶意请求过大分页
 
-        // ========== 排序参数校验 ==========
+        // 排序参数校验
         // 支持的排序方式：default（默认）、price_asc（价格升序）、rating_desc（评分降序）、distance_asc（距离升序）
         String sort = query.getSort_wsh() == null || query.getSort_wsh().isBlank() ? "default" : query.getSort_wsh();
         if (!SUPPORTED_SORTS.contains(sort)) {
             throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "unsupported sort: " + sort);
         }
 
-        // ========== 经纬度参数校验 ==========
+        // 经纬度参数校验
         // 用于计算用户与服务提供商家之间的距离（基于高德 GCJ02 坐标系）
         Double lat = toDouble(query.getLatitude_wsh());
         Double lng = toDouble(query.getLongitude_wsh());
@@ -403,9 +366,13 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             throw new BusinessException(400, BookingErrorCode.INVALID_SORT_PARAM, "距离排序需要提供坐标");
         }
 
-        // ========== 构建数据库查询条件 ==========
+        // 构建数据库查询条件
+        // 用户公开在售列表只允许 BookingUnit 注册表中的标准计价单位；
+        // 复用 BookingUnit 常量，不另行定义单位白名单。管理员/商家整改非法服务
+        // 请走 manage 端点（listByMerchantForManage / getManageDetail 不过滤单位）。
         LambdaQueryWrapper<ServiceItem> wrapper = new LambdaQueryWrapper<ServiceItem>()
-                .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue());  // 只查询已上架服务
+                .eq(ServiceItem::getStatus_wsh, StatusCode.SERVICE_ENABLED.getValue())  // 只查询已上架服务
+                .in(ServiceItem::getUnit_wsh, BookingUnit.NIGHT, BookingUnit.SESSION, BookingUnit.HOUR);
         // 分类筛选
         if (query.getCategory_id_wsh() != null) {
             wrapper.eq(ServiceItem::getCategory_id_wsh, query.getCategory_id_wsh());
@@ -433,12 +400,12 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             return new ServiceQueryResultVO(new ArrayList<>(), 0, page, size);
         }
 
-        // ========== 批量加载关联数据 ==========
+        // 批量加载关联数据
         // 性能优化：一次性批量加载所有关联数据，避免 N+1 查询问题（SVC-U-08）
         Map<Long, Merchant> merchants = new HashMap<>(batchMerchants(services));      // 批量加载商家信息
         Map<Long, ServiceCategory> categories = new HashMap<>(batchCategories(services));  // 批量加载分类信息
 
-        // ========== 可见性过滤 ==========
+        // 可见性过滤
         // 只显示满足以下条件的服务：
         // 1. 服务已上架（已在 SQL 过滤）
         // 2. 商家已审核通过
@@ -450,7 +417,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             return new ServiceQueryResultVO(new ArrayList<>(), 0, page, size);
         }
 
-        // ========== 批量加载扩展数据 ==========
+        // 批量加载扩展数据
         Set<Long> serviceIds = visible.stream().map(ServiceItem::getId_wsh).collect(Collectors.toSet());
         // 图册批量解析：单次媒体查询 + 单次文件记录查询，列表只展示媒体行可信 URL
         Map<Long, List<ServiceMediaDTO>> mediaByService = serviceMediaService.listMediaByServiceIds(serviceIds);
@@ -461,14 +428,14 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, RatingStats> merchantStats = aggregate(merchantIds, "merchant");
 
-        // ========== 转换为 DTO ==========
+        // 转换为 DTO
         // 包含：服务基本信息 + 商家名称 + 分类名称 + 评分统计 + 距离计算（如果提供了用户坐标）
         List<ServiceItemDTO> dtos = visible.stream()
                 .map(s -> toPublicDTO(s, merchants, categories, serviceStats, merchantStats, lat, lng,
                         mediaByService.get(s.getId_wsh())))
                 .collect(Collectors.toList());
 
-        // ========== 内存排序 ==========
+        // 内存排序
         // 评分排序和距离排序需要在内存中进行，因为涉及关联表计算
         if ("price_asc".equals(sort)) {
             // 价格升序：空值视为 0
@@ -490,7 +457,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                     .collect(Collectors.toList());
         }
 
-        // ========== 分页截取 ==========
+        // 分页截取
         int total = dtos.size();
         int from = (page - 1) * size;
         List<ServiceItemDTO> items = from >= total ? new ArrayList<>()
@@ -498,20 +465,43 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return new ServiceQueryResultVO(items, total, page, size);
     }
 
-    /** 判断服务是否对外可见（商家已审核+分类已启用） */
+    /**
+     * 【服务/分类/商家状态判定的唯一底层实现】
+     * 纯字段判定，不查库、不抛异常；列表静默过滤、详情异常、可用性异常、
+     * 下单异常、写入期校验等失败语义由各调用方自行保留。
+     */
+    public static boolean isServiceEnabled(ServiceItem service) {
+        return service != null && service.getStatus_wsh() != null
+                && service.getStatus_wsh() == StatusCode.SERVICE_ENABLED.getValue();
+    }
+
+    public static boolean isCategoryEnabled(ServiceCategory category) {
+        return category != null && category.getStatus_wsh() != null
+                && category.getStatus_wsh() == StatusCode.SERVICE_ENABLED.getValue();
+    }
+
+    public static boolean isMerchantApproved(Merchant merchant) {
+        return merchant != null && merchant.getStatus_wsh() != null
+                && merchant.getStatus_wsh() == StatusCode.MERCHANT_APPROVED.getValue();
+    }
+
+    /** 判断服务是否对外可见（标准计价单位+预约模式匹配+商家已审核+分类已启用） */
     private boolean isPubliclyVisible(ServiceItem service, Map<Long, Merchant> merchants,
                                       Map<Long, ServiceCategory> categories) {
-        Merchant merchant = merchants.get(service.getMerchant_id_wsh());
-        if (merchant == null || merchant.getStatus_wsh() == null
-                || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
+        // 纵深防御：即使 SQL 条件被绕过，非法/空计价单位或预约模式不匹配的服务
+        // 也不得进入用户公开列表；不删除、不默认转换，仅隐藏展示。
+        String unit = BookingUnit.normalize(service.getUnit_wsh());
+        if (unit == null || !BookingUnit.isSupported(unit)
+                || !Objects.equals(BookingUnit.bookingMode(unit), service.getBooking_mode_wsh())) {
             return false;
         }
-        if (service.getCategory_id_wsh() != null) {
-            ServiceCategory category = categories.get(service.getCategory_id_wsh());
-            if (category == null || category.getStatus_wsh() == null
-                    || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
-                return false;
-            }
+        Merchant merchant = merchants.get(service.getMerchant_id_wsh());
+        if (!isMerchantApproved(merchant)) {
+            return false;
+        }
+        if (service.getCategory_id_wsh() != null
+                && !isCategoryEnabled(categories.get(service.getCategory_id_wsh()))) {
+            return false;
         }
         return true;
     }
@@ -634,17 +624,17 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         vo.setDescription_wsh(service.getDescription_wsh());
         vo.setPrice_wsh(service.getPrice_wsh());
         vo.setUnit_wsh(service.getUnit_wsh());
+        // 单位仅用于补齐存量数据缺失的时长/预约模式；非法或空单位不再静默按夜兜底，
+        // 保持原值（含 null）交由展示层按「历史/未确认计价单位」处理。
         String detailUnit = BookingUnit.normalize(service.getUnit_wsh());
-        if (detailUnit == null) {
-            // 历史空单位按按夜兜底（迁移后唯一的长区间单位）
-            detailUnit = BookingUnit.NIGHT;
-        }
+        Integer fallbackDuration = detailUnit == null ? null : BookingUnit.resolveDurationMinutes(detailUnit, null);
+        String fallbackMode = detailUnit == null ? null : BookingUnit.bookingMode(detailUnit);
         vo.setDuration_minutes_wsh(service.getDuration_minutes_wsh() != null
                 ? service.getDuration_minutes_wsh()
-                : BookingUnit.resolveDurationMinutes(detailUnit, null));
+                : fallbackDuration);
         vo.setBooking_mode_wsh(service.getBooking_mode_wsh() != null
                 ? service.getBooking_mode_wsh()
-                : BookingUnit.bookingMode(detailUnit));
+                : fallbackMode);
         vo.setService_version_wsh(ServiceVersions.format(service.getUpdated_at_wsh()));
         vo.setMedia_wsh(resolvePublicMedia(service));
 
@@ -682,20 +672,16 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         if (service == null) {
             throw new BusinessException(404, BookingErrorCode.SERVICE_NOT_FOUND, "服务不存在");
         }
-        if (service.getStatus_wsh() == null
-                || service.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+        if (!isServiceEnabled(service)) {
             throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务已下架");
         }
         Merchant merchant = merchantMapper.selectById(service.getMerchant_id_wsh());
-        if (merchant == null || merchant.getStatus_wsh() == null
-                || merchant.getStatus_wsh() != StatusCode.MERCHANT_APPROVED.getValue()) {
+        if (!isMerchantApproved(merchant)) {
             throw new BusinessException(400, BookingErrorCode.MERCHANT_NOT_APPROVED, "服务所属商家未通过审核");
         }
         ServiceCategory category = service.getCategory_id_wsh() == null
                 ? null : categoryMapper.selectById(service.getCategory_id_wsh());
-        if (service.getCategory_id_wsh() != null
-                && (category == null || category.getStatus_wsh() == null
-                || category.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue())) {
+        if (service.getCategory_id_wsh() != null && !isCategoryEnabled(category)) {
             throw new BusinessException(400, BookingErrorCode.SERVICE_OFF_SHELF, "服务所属分类已下架");
         }
         return new PublicContext(service, merchant, category);
@@ -741,7 +727,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     }
 
     /**
-     * 可预约性：商家开放未来预约且服务计费单位是受支持的规范单位（day/session/hour）。
+     * 可预约性：商家开放未来预约且服务计价单位是 BookingUnit 注册表中的 night/session/hour。
      * 未知/无法解析的单位仍视为不可预约（UNSUPPORTED_SERVICE_UNIT）。
      */
     /** 判断服务是否可预约（返回不可预约原因或null） */
@@ -756,7 +742,6 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         }
         return null;
     }
-
 
     /** 校验ID是否为正数 */
     private void assertPositiveId(Long id) {
@@ -855,8 +840,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         if (cat == null) {
             throw new BusinessException(400, BookingErrorCode.CATEGORY_NOT_FOUND, "服务分类不存在");
         }
-        if (cat.getStatus_wsh() == null
-                || cat.getStatus_wsh() != StatusCode.SERVICE_ENABLED.getValue()) {
+        if (!isCategoryEnabled(cat)) {
             throw new BusinessException(400, BookingErrorCode.CATEGORY_DISABLED, "服务分类已禁用");
         }
         return cat;
@@ -878,6 +862,33 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         item.setUnit_wsh(canonical);
         item.setDuration_minutes_wsh(duration);
         item.setBooking_mode_wsh(BookingUnit.bookingMode(canonical));
+    }
+
+    /**
+     * 【上架计价单位校验（P0 统一入口）】
+     *
+     * 把服务状态置为上架（SERVICE_ENABLED）前必须全部满足：
+     * 1. unit_wsh 是 BookingUnit 注册表中的标准单位（night/session/hour）；
+     *    day/boarding/time/NULL/空串/未知值一律明确拒绝；
+     * 2. duration_minutes_wsh 通过 BookingUnit.resolveDurationMinutes 校验；
+     * 3. booking_mode_wsh 与 BookingUnit.bookingMode(unit) 完全一致
+     *    （night -> interval，session/hour -> slot）。
+     *
+     * 下架操作不调用本方法；未明确修改状态的更新不触发，避免历史脏数据被偷偷上架。
+     * 全部复用 BookingUnit，不创建第二套单位常量或预约模式字符串。
+     */
+    private void assertPublishableUnit(ServiceItem item) {
+        String unit = BookingUnit.normalize(item.getUnit_wsh());
+        if (unit == null || !BookingUnit.isSupported(unit)) {
+            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
+                    "服务计价单位不合法，不能上架：" + item.getUnit_wsh());
+        }
+        BookingUnit.resolveDurationMinutes(unit, item.getDuration_minutes_wsh());
+        String expectedMode = BookingUnit.bookingMode(unit);
+        if (!Objects.equals(expectedMode, item.getBooking_mode_wsh())) {
+            throw new BusinessException(400, BookingErrorCode.UNSUPPORTED_SERVICE_UNIT,
+                    "服务预约模式与计价单位不匹配，不能上架：" + unit + " / " + item.getBooking_mode_wsh());
+        }
     }
 
     /** 公共服务上下文（服务+商家+分类） */

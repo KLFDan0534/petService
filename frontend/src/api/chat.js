@@ -21,11 +21,3 @@ export async function markConversationRead(data) {
   const res = await request.post('/api/chat/read-conversation', data)
   return res.data
 }
-
-export async function markMessageRead(id) {
-  const res = await request.post(`/api/chat/read/${id}`)
-  return res.data
-}
-
-
-

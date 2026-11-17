@@ -183,7 +183,7 @@ function closeDetail() {
   padding: 0 24px;
 }
 
-/* ═══ Breadcrumb ═══ */
+/* Breadcrumb */
 .nt-crumb {
   display: flex;
   align-items: center;
@@ -197,7 +197,7 @@ function closeDetail() {
 .nt-crumb-sep { color: var(--ref-line); }
 .nt-crumb-here { color: var(--ref-ink-soft); }
 
-/* ═══ Eyebrow ═══ */
+/* Eyebrow */
 .nt-eyebrow {
   display: flex;
   align-items: center;
@@ -215,7 +215,7 @@ function closeDetail() {
   color: var(--ref-muted);
 }
 
-/* ═══ Header ═══ */
+/* Header */
 .nt-head {
   display: flex;
   flex-wrap: wrap;
@@ -263,7 +263,7 @@ function closeDetail() {
 .nt-stats dt { margin-top: 8px; font-size: 12px; color: var(--ref-muted); }
 .nt-markall { flex-shrink: 0; margin-bottom: 6px; }
 
-/* ═══ CTA ═══ */
+/* CTA */
 .cta {
   display: inline-flex;
   align-items: center;
@@ -286,7 +286,7 @@ function closeDetail() {
 .cta-outline { background: var(--ref-surface); color: var(--ref-ink); border-color: var(--ref-line); }
 .cta-outline:hover { border-color: color-mix(in srgb, var(--ref-ink) 35%, transparent); }
 
-/* ═══ Section ═══ */
+/* Section */
 .nt-section { margin-top: 36px; }
 .nt-sec-head { padding-bottom: 24px; }
 .nt-sec-eyebrow {
@@ -312,7 +312,7 @@ function closeDetail() {
 }
 .nt-sec-desc { margin: 8px 0 0; font-size: 13px; color: var(--ref-muted); }
 
-/* ═══ List ═══ */
+/* List */
 .nt-list {
   margin: 0;
   padding: 0;
@@ -398,7 +398,7 @@ function closeDetail() {
   font-variant-numeric: tabular-nums;
 }
 
-/* ═══ Skeleton ═══ */
+/* Skeleton */
 .nt-skeleton-list { display: grid; gap: 12px; }
 .nt-skeleton {
   height: 96px;
@@ -409,7 +409,7 @@ function closeDetail() {
   animation: nt-shimmer 1.3s linear infinite;
 }
 
-/* ═══ Empty ═══ */
+/* Empty */
 .nt-empty {
   padding: 72px 24px;
   border: 1px dashed var(--ref-line);
@@ -433,7 +433,7 @@ function closeDetail() {
 .nt-empty p { margin: 10px 0 0; font-size: 14px; color: var(--ref-muted); }
 .nt-empty .cta { margin-top: 22px; }
 
-/* ═══ Dialog ═══ */
+/* Dialog */
 .dlg-overlay {
   position: fixed;
   inset: 0;
@@ -526,7 +526,7 @@ function closeDetail() {
   border-top: 1px solid var(--ref-line);
 }
 
-/* ═══ Animations ═══ */
+/* Animations */
 @keyframes nt-shimmer { to { background-position: -200% 0; } }
 @keyframes nt-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes nt-pop {
@@ -534,7 +534,7 @@ function closeDetail() {
   to { opacity: 1; transform: none; }
 }
 
-/* ═══ Responsive ═══ */
+/* Responsive */
 @media (max-width: 760px) {
   .nt-time { display: none; }
 }
