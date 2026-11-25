@@ -27,8 +27,9 @@ export async function approveRefund(id) {
   return res.data
 }
 
-export async function rejectRefund(id) {
-  const res = await request.post(`/api/refunds/${id}/reject`, {})
+// 驳回必须写原因：用户只能从站内信看到这次驳回，没有理由等于没有解释
+export async function rejectRefund(id, reason) {
+  const res = await request.post(`/api/refunds/${id}/reject`, { reject_reason_wsh: reason })
   return res.data
 }
 

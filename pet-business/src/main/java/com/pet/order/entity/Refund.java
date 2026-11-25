@@ -34,6 +34,11 @@ public class Refund {
     @Schema(description = "原因")
     private String reason_wsh;
 
+    /** 驳回原因：由管理端在驳回时填写，随站内信一并告知用户 */
+    @TableField(value = "reject_reason_wsh")
+    @Schema(description = "驳回原因")
+    private String reject_reason_wsh;
+
     @TableField(value = "status_wsh")
     @Schema(description = "状态")
     private String status_wsh;

@@ -80,6 +80,7 @@ class FinanceLedgerTest {
     @Mock private CouponService couponService;
     @Mock private MembershipBenefitService membershipBenefitService;
     @Mock private MessageSender messageSender;
+    @Mock private com.pet.operation.service.NotificationService notificationService;
     @Mock private OrderService orderService;
     @Mock private RefundMapper refundMapper;
     @Mock private WalletService walletService;
@@ -115,7 +116,7 @@ class FinanceLedgerTest {
                 messageSender,
                 orderService,
                 walletService);
-        refundService = new RefundServiceImpl(refundMapper, orderMapper, accountingService);
+        refundService = new RefundServiceImpl(refundMapper, orderMapper, accountingService, messageSender, notificationService);
         orderStatusService = new OrderServiceImpl(
                 orderMapper,
                 paymentMapper,
@@ -232,7 +233,7 @@ class FinanceLedgerTest {
         when(orderMapper.selectById(order.getId_wsh())).thenReturn(order);
         when(refundMapper.update(any(Refund.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
-        refundService.rejectRefund(refund.getId_wsh());
+        refundService.rejectRefund(refund.getId_wsh(), "门店当天满房，无法接待");
 
         assertEquals(RefundStatus.REJECTED, refund.getStatus_wsh());
         assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());

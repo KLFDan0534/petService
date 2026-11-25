@@ -2,7 +2,9 @@ package com.pet.order.mq;
 
 import com.pet.common.RefundStatus;
 import com.pet.customer.mapper.MqConsumeLogMapper;
-import com.pet.mq.handler.OrderRefundHandler;
+import com.pet.marketing.service.CouponService;
+import com.pet.membership.service.MembershipBenefitService;
+import com.pet.mq.handler.OrderRefundCompleteHandler;
 import com.pet.operation.entity.Notification;
 import com.pet.operation.service.NotificationService;
 import com.pet.order.entity.PetOrder;
@@ -36,7 +38,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class OrderRefundHandlerImpl implements OrderRefundHandler {
+public class OrderRefundCompleteCompleteHandlerImpl implements OrderRefundCompleteHandler {
 
     /** 消费台账里的消费者标识，与队列语义对齐 */
     private static final String CONSUMER = "refund-complete";
@@ -45,6 +47,8 @@ public class OrderRefundHandlerImpl implements OrderRefundHandler {
     private final MqConsumeLogMapper consumeLogMapper;
     private final OrderMapper orderMapper;
     private final NotificationService notificationService;
+    private final CouponService couponService;
+    private final MembershipBenefitService membershipBenefitService;
 
 
     /**
@@ -97,13 +101,33 @@ public class OrderRefundHandlerImpl implements OrderRefundHandler {
         }
 
         Long userId = petOrder.getOwner_id_wsh();
+
+        // 返券与通知是两件独立的事，必须各自兜住：
+        // 返券失败不能让用户连退款通知都收不到，反之亦然。
         try {
-            // 发送消息通知用户
+            if (petOrder.getCoupon_id_wsh() != null) {
+                couponService.returnCoupon(petOrder.getCoupon_id_wsh(), userId);
+            }
+        } catch (Exception e) {
+            // order.refund 没有死信队列，消息失败即丢失，这里只能留 ERROR 日志供人工补偿
+            log.error("退款 {} 返还优惠券失败，需人工补偿: orderId={}, couponId={}",
+                    refundId, petOrder.getId_wsh(), petOrder.getCoupon_id_wsh(), e);
+        }
+
+        // 会员折扣对应的权益同样要释放，否则用户退款后额度仍被占用
+        try {
+            membershipBenefitService.releaseForOrder(petOrder.getId_wsh());
+        } catch (Exception e) {
+            log.error("退款 {} 释放会员权益失败，需人工补偿: orderId={}", refundId, petOrder.getId_wsh(), e);
+        }
+
+        try {
+            // 发送消息通知用户 通知退款成功
             Notification notification = new Notification();
             notification.setUser_id_wsh(userId);
             notification.setTitle_wsh("退款完成通知");
             notification.setContent_wsh("您的退款「" + (refund.getReason_wsh() != null ? refund.getReason_wsh() : (refund.getOrder_no_wsh() != null ? refund.getOrder_no_wsh() : "")) + "」已完成，请登录网站查看详细信息。");
-            notification.setType_wsh("refund");
+            notification.setType_wsh("order"); // order/payment/ticket/system/order_fulfillment
             notification.setRelated_id_wsh(refundId);
             notification.setIs_read_wsh(0);
             notification.setCreated_at_wsh(java.time.LocalDateTime.now());

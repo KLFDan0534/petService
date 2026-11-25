@@ -135,7 +135,13 @@
                 <span class="rf-step-label">退款到账</span>
               </div>
             </div>
-            <p v-if="r.status_wsh === 'rejected'" class="rf-fail-note">该申请未通过审核，如有疑问可联系商家客服。</p>
+            <div v-if="r.status_wsh === 'rejected'" class="rf-fail-note">
+              <p class="rf-fail-title">该申请未通过审核</p>
+              <p class="rf-fail-reason">
+                驳回原因：{{ r.reject_reason_wsh || '商家未填写原因' }}
+              </p>
+              <p class="rf-fail-reason">如有疑问可联系商家客服。</p>
+            </div>
           </article>
         </div>
       </section>
@@ -553,6 +559,8 @@ async function submitRefund() {
   font-size: 12px;
   color: color-mix(in srgb, var(--color-danger) 80%, transparent);
 }
+.rf-fail-title { margin: 0; font-weight: 500; }
+.rf-fail-reason { margin: 4px 0 0; line-height: 1.6; }
 
 /* Dialog */
 .dlg-overlay {

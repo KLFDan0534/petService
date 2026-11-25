@@ -22,6 +22,8 @@ public class RefundDTO {
     private BigDecimal amount_wsh;
     @Schema(description = "退款原因")
     private String reason_wsh;
+    @Schema(description = "驳回原因（仅驳回时存在）")
+    private String reject_reason_wsh;
     @Schema(description = "退款状态")
     private String status_wsh;
     @Schema(description = "退款前订单状态")

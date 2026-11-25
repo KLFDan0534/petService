@@ -10,6 +10,8 @@ import com.pet.common.RefundStatus;
 import com.pet.config.RabbitMQConfig;
 import com.pet.finance.service.AccountingService;
 import com.pet.mq.MessageSender;
+import com.pet.operation.entity.Notification;
+import com.pet.operation.service.NotificationService;
 import com.pet.order.dto.RefundDTO;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.entity.Refund;
@@ -56,6 +58,7 @@ public class RefundServiceImpl implements RefundService {
     private final OrderMapper orderMapper;
     private final AccountingService accountingService;
     private final MessageSender messageSender;
+    private final NotificationService notificationService;
 
 /*        public RefundServiceImpl(RefundMapper refundMapper, OrderMapper orderMapper, AccountingService accountingService) {
         this.refundMapper = refundMapper;
@@ -141,10 +144,15 @@ public class RefundServiceImpl implements RefundService {
     @Override
     public Refund createRefundByOrderId(Long ownerId, Long orderId, String reason) {
         log.info("为订单创建退款: {}", orderId);
+        // 退款原因是商家审核的唯一依据，空白原因直接拒绝（不依赖前端是否校验）
+        String normalizedReason = reason == null ? "" : reason.trim();
+        if (normalizedReason.isEmpty()) {
+            throw new BusinessException(400, "请填写退款原因");
+        }
         PetOrder order = orderMapper.selectById(orderId);
         if (order == null) throw new BusinessException(404, "订单不存在");
         if (!ownerId.equals(order.getOwner_id_wsh())) throw new BusinessException(403, "无权操作此订单");
-        return createRefund(ownerId, order.getOrder_no_wsh(), reason);
+        return createRefund(ownerId, order.getOrder_no_wsh(), normalizedReason);
     }
 
     /**
@@ -239,13 +247,13 @@ public class RefundServiceImpl implements RefundService {
      * 【完成退款执行（实现）】
      *
      * 业务作用：
-     * 执行退款转账：系统→主人转账退款金额 + 回冲平台补贴 + 标记退款COMPLETED + 标记订单REFUNDED。
+     * 执行退款转账：系统→主人转账退款金额 + 回冲平台补贴 + 标记退款COMPLETED + 标记订单REFUNDED + 发送MQ消息通知用户。
      *
      * 调用链：
      * RefundService.completeRefund()
      * ↓
      * 查询退款 → 校验状态/订单 → accountingService.transfer(退款)
-     * → accountingService.debit(回冲补贴) → 乐观锁更新退款COMPLETED → 乐观锁更新订单REFUNDED
+     * → accountingService.debit(回冲补贴) → 乐观锁更新退款COMPLETED → 乐观锁更新订单REFUNDED → 发送MQ消息通知用户
      *
      * @param refundId 退款ID
      */
@@ -269,7 +277,23 @@ public class RefundServiceImpl implements RefundService {
             throw new BusinessException(400, "订单已经处于退款状态中");
         }
 
+
+        // 退款金额口径：refund.amount_wsh 在创建退款单时就已写入 order.final_amount_wsh，
+        // 而 final_amount = settlement_amount - coupon_discount - membership_discount，
+        // 即「用户实付」，这里不能再减 coupon_discount 或 platform_subsidy，
+        // 否则会二次扣减，导致用户少拿钱（platform_subsidy 本身就包含 coupon_discount）。
         BigDecimal refundAmount = defaultMoney(refund.getAmount_wsh());
+
+        // 平台补贴是平台在支付时额外注入系统暂存账户的资金（PaymentServiceImpl 的 coupon_subsidy 入账），
+        // 退款时必须单独撤回，不能从用户退款额里扣——那是用户实付之外的钱。
+        BigDecimal subsidy = defaultMoney(order.getPlatform_subsidy_wsh());
+        if (subsidy.compareTo(BigDecimal.ZERO) > 0) {
+            accountingService.debit(accountingService.systemUserId(), subsidy, "coupon_subsidy_refund", order.getId_wsh(),
+                "coupon", String.valueOf(order.getCoupon_id_wsh()),
+                "refund:coupon-subsidy:" + refund.getId_wsh(),
+                "退款回冲平台优惠券补贴 - " + order.getOrder_no_wsh(), null);
+        }
+
         // 金额大于零才真正执行转账
         if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
             accountingService.transfer(accountingService.systemUserId(), order.getOwner_id_wsh(),
@@ -279,16 +303,8 @@ public class RefundServiceImpl implements RefundService {
                     "订单退款 - " + order.getOrder_no_wsh());
         }
 
-        // TODO 优惠卷需要返还给用户
-        BigDecimal subsidy = defaultMoney(order.getPlatform_subsidy_wsh());
-        // 有平台补贴时同步回冲给系统账户
-        if (subsidy.compareTo(BigDecimal.ZERO) > 0) {
-            accountingService.debit(accountingService.systemUserId(), subsidy, "coupon_subsidy_refund", order.getId_wsh(),
-                    "coupon", String.valueOf(order.getCoupon_id_wsh()),
-                    "refund:coupon-subsidy:" + refund.getId_wsh(),
-                    "退款回冲平台优惠券补贴 - " + order.getOrder_no_wsh(), null);
-        }
 
+        // 更新入库，标记退款为COMPLETED
         Refund refundUpdate = new Refund();
         refundUpdate.setStatus_wsh(RefundStatus.COMPLETED);
         int refundUpdated = refundMapper.update(refundUpdate, new LambdaUpdateWrapper<Refund>()
@@ -297,6 +313,7 @@ public class RefundServiceImpl implements RefundService {
         if (refundUpdated == 0) {
             throw new BusinessException(400, "退款状态已经改变,但无法完成退款");
         }
+        // 更新入库，标记订单为REFUNDED
         PetOrder orderUpdate = new PetOrder();
         orderUpdate.setStatus_wsh(OrderStatus.REFUNDED);
         int orderUpdated = orderMapper.update(orderUpdate, new LambdaUpdateWrapper<PetOrder>()
@@ -344,14 +361,20 @@ public class RefundServiceImpl implements RefundService {
      */
     @Transactional
     @Override
-    public void rejectRefund(Long refundId) {
+    public void rejectRefund(Long refundId, String reason) {
         log.info("拒绝退款: {}", refundId);
+        // 驳回原因是用户唯一能看到的解释，空白原因直接拒绝，不依赖前端校验
+        String rejectReason = reason == null ? "" : reason.trim();
+        if (rejectReason.isEmpty()) {
+            throw new BusinessException(400, "请填写驳回原因");
+        }
         Refund refund = getById(refundId);
         if (!RefundStatus.PENDING.equals(refund.getStatus_wsh())) {
             throw new BusinessException(400, "当前状态不可驳回");
         }
         Refund update = new Refund();
         update.setStatus_wsh(RefundStatus.REJECTED);
+        update.setReject_reason_wsh(rejectReason);
         int updated = refundMapper.update(update, new LambdaUpdateWrapper<Refund>()
                 .eq(Refund::getId_wsh, refund.getId_wsh())
                 .eq(Refund::getStatus_wsh, RefundStatus.PENDING));
@@ -359,6 +382,7 @@ public class RefundServiceImpl implements RefundService {
             throw new BusinessException(400, "Refund status changed, cannot reject");
         }
         refund.setStatus_wsh(RefundStatus.REJECTED);
+        refund.setReject_reason_wsh(rejectReason);
 
         PetOrder order = orderMapper.selectById(refund.getOrder_id_wsh());
         // 订单仍存在时恢复退款前的状态
@@ -373,6 +397,49 @@ public class RefundServiceImpl implements RefundService {
                 throw new BusinessException(400, "Order status changed, cannot reject refund");
             }
             order.setStatus_wsh(restoredStatus);
+        }
+
+        // 驳回是终态，用户只能通过站内信得知结果与原因；通知失败不影响驳回本身
+        notifyRejected(refund, order, rejectReason);
+    }
+
+    /**
+     * 驳回后退款单已进入终态，用户不会再去订单详情等结果，
+     * 所以必须主动发一条站内信说明「被驳回 + 原因」，否则用户只看到状态从「退款中」跳回原状态。
+     * <p>
+     * 通知属于副作用：任何异常只记 warn，不向上抛，避免把已经落库的驳回回滚掉。
+     */
+    private void notifyRejected(Refund refund, PetOrder order, String rejectReason) {
+        Long userId = order == null ? null : order.getOwner_id_wsh();
+        if (userId == null) {
+            log.warn("退款 {} 驳回通知跳过：订单或主人不存在", refund.getId_wsh());
+            return;
+        }
+        Runnable task = () -> {
+            try {
+                Notification notification = new Notification();
+                notification.setUser_id_wsh(userId);
+                notification.setTitle_wsh("退款申请被驳回");
+                notification.setContent_wsh("订单 " + refund.getOrder_no_wsh() + " 的退款申请未通过审核。驳回原因：" + rejectReason
+                        + "。如有疑问，可在订单详情页联系客服。");
+                notification.setType_wsh("order");
+                notification.setRelated_id_wsh(refund.getId_wsh());
+                notification.setIs_read_wsh(0);
+                notificationService.create(notification);
+            } catch (Exception e) {
+                log.warn("发送退款驳回通知失败: refundId={}, userId={}", refund.getId_wsh(), userId, e);
+            }
+        };
+        // 事务提交后再发，避免驳回回滚却已推送通知
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
         }
     }
 
@@ -391,6 +458,7 @@ public class RefundServiceImpl implements RefundService {
         dto.setOrder_no_wsh(entity.getOrder_no_wsh());
         dto.setAmount_wsh(entity.getAmount_wsh());
         dto.setReason_wsh(entity.getReason_wsh());
+        dto.setReject_reason_wsh(entity.getReject_reason_wsh());
         dto.setStatus_wsh(entity.getStatus_wsh());
         dto.setOrder_status_before_refund_wsh(entity.getOrder_status_before_refund_wsh());
         dto.setCreated_at_wsh(entity.getCreated_at_wsh());

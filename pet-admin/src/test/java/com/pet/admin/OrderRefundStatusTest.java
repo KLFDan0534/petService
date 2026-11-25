@@ -29,6 +29,8 @@ class OrderRefundStatusTest {
     @Mock private RefundMapper refundMapper;
     @Mock private OrderMapper orderMapper;
     @Mock private AccountingService accountingService;
+    @Mock private com.pet.mq.MessageSender messageSender;
+    @Mock private com.pet.operation.service.NotificationService notificationService;
 
     @Test
     void createRefundAcceptsConfirmedOrderAndStoresPreviousStatus() {
@@ -59,7 +61,7 @@ class OrderRefundStatusTest {
         when(refundMapper.update(any(Refund.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(orderMapper.update(any(PetOrder.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
-        service().rejectRefund(1L);
+        service().rejectRefund(1L, "门店当天无法接待，建议改期");
 
         assertEquals(RefundStatus.REJECTED, refund.getStatus_wsh());
         assertEquals(OrderStatus.CONFIRMED, order.getStatus_wsh());
@@ -79,7 +81,7 @@ class OrderRefundStatusTest {
     }
 
     private RefundServiceImpl service() {
-        return new RefundServiceImpl(refundMapper, orderMapper, accountingService);
+        return new RefundServiceImpl(refundMapper, orderMapper, accountingService, messageSender, notificationService);
     }
 
     private PetOrder order(String status) {

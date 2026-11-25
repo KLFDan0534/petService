@@ -168,4 +168,6 @@ public interface CouponService {
      * @param orderId 订单ID
      */
     void releaseForOrder(Long orderId);
+
+    void returnCoupon(Long couponIdWsh, Long userId);
 }

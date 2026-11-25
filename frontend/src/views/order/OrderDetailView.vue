@@ -230,9 +230,10 @@
               </template>
               <template v-else-if="order.status_wsh === 'confirmed'">
                 <span class="od-wait-note">已接单 · 把交接码告知看护者，由对方确认接收</span>
+                <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'refund'" @click="openRefund">申请退款</button>
               </template>
               <template v-else-if="order.status_wsh === 'paid'">
-                <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'refund'" @click="refundOpen = true">申请退款</button>
+                <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'refund'" @click="openRefund">申请退款</button>
               </template>
               <template v-else-if="order.status_wsh === 'in_progress'">
                 <!-- 补费只能由主人余额支付：金额与支付单号都来自后端 -->
@@ -302,18 +303,73 @@
       </div>
     </div>
 
-    <!-- 申请退款：已支付订单不能直接取消，只能走退款 -->
-    <div v-if="refundOpen" class="od-modal" role="dialog" aria-modal="true" aria-label="申请退款">
-      <div class="od-modal-mask" @click="refundOpen = false" />
-      <div class="od-modal-box od-modal-box-sm">
-        <h3 class="od-modal-title">申请退款？</h3>
-        <p class="od-modal-desc">已支付订单需走退款流程，提交后进入审核，通过后金额原路退回。</p>
+    <!-- 申请退款：已支付 / 已接单未接收的订单可申请。原因必填，商家据此审核 -->
+    <div v-if="refundOpen" class="od-modal" role="dialog" aria-modal="true" aria-labelledby="od-refund-title">
+      <div class="od-modal-mask" @click="closeRefund" />
+      <div class="od-modal-box od-modal-box-tall">
+        <h3 id="od-refund-title" class="od-modal-title">申请退款</h3>
+        <p class="od-modal-desc">
+          {{ order?.service_name_wsh || '本次服务' }}<template v-if="order?.pet_name_wsh"> · {{ order.pet_name_wsh }}</template>
+        </p>
         <p v-if="order?.order_no_wsh" class="od-modal-detail"><span class="od-tabular">{{ order.order_no_wsh }}</span></p>
-        <div class="od-modal-btns">
-          <button class="od-btn" type="button" @click="refundOpen = false">再想想</button>
-          <button class="od-btn od-btn-danger" type="button" :disabled="busy === 'refund'" @click="doRefund">{{ busy === 'refund' ? '提交中…' : '提交退款申请' }}</button>
+
+        <!-- 退多少、退到哪 -->
+        <div class="od-refund-money">
+          <div class="od-refund-money-head">
+            <span class="od-refund-money-label">可退金额</span>
+            <span class="od-refund-money-value od-tabular">¥{{ formatMoney(finalAmount) }}</span>
+          </div>
+          <p class="od-refund-money-note">
+            服务金额 ¥{{ formatMoney(order?.total_amount_wsh) }}<template v-if="discount > 0"> − 优惠减免 ¥{{ formatMoney(discount) }}</template> = 实付金额，按实付全额退回
+          </p>
+          <p class="od-refund-money-note">退款去向：退回账户余额，可在钱包提现</p>
+          <p v-if="order?.coupon_id_wsh" class="od-refund-warn">本单使用的优惠券不会随退款返还</p>
         </div>
-        <button class="od-modal-close" type="button" aria-label="关闭" @click="refundOpen = false">✕</button>
+
+        <!-- 为什么退 -->
+        <fieldset class="od-refund-field">
+          <legend class="od-refund-legend">退款原因<span class="od-req">*</span></legend>
+          <div class="od-reason-list">
+            <label
+              v-for="item in REFUND_REASONS"
+              :key="item.value"
+              :class="['od-reason', { 'is-active': refundReason === item.value }]"
+            >
+              <input v-model="refundReason" type="radio" name="od-refund-reason" :value="item.value" class="od-reason-radio">
+              <span class="od-reason-text">{{ item.label }}</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="od-refund-field">
+          <label class="od-refund-legend" for="od-refund-detail">
+            补充说明<span v-if="refundReason === 'other'" class="od-req">*</span><span v-else class="od-optional">选填</span>
+          </label>
+          <textarea
+            id="od-refund-detail"
+            v-model="refundDetail"
+            class="od-refund-textarea"
+            rows="3"
+            maxlength="200"
+            :placeholder="refundReason === 'other' ? '请具体说明退款原因，至少 5 个字' : '可补充说明，帮助商家更快审核'"
+          />
+          <p class="od-refund-count">{{ refundDetail.length }}/200</p>
+        </div>
+
+        <p class="od-refund-tip">
+          提交后订单进入「退款中」，由商家审核，期间不能重复申请；若被驳回，订单会恢复到当前状态。
+        </p>
+
+        <div class="od-modal-btns">
+          <button class="od-btn" type="button" @click="closeRefund">再想想</button>
+          <button
+            class="od-btn od-btn-danger"
+            type="button"
+            :disabled="busy === 'refund' || !canSubmitRefund"
+            @click="doRefund"
+          >{{ busy === 'refund' ? '提交中…' : '提交退款申请' }}</button>
+        </div>
+        <button class="od-modal-close" type="button" aria-label="关闭" @click="closeRefund">✕</button>
       </div>
     </div>
 
@@ -337,6 +393,18 @@ const PAY_METHODS = [
   { value: 'alipay', label: '支付宝', hint: '跳转支付宝完成付款' },
 ]
 
+/**
+ * 退款原因：这是商家唯一可依据的判断材料，所以必须由用户选，不能由前端写死。
+ * 选项按「最常见 → 最少见」排列，最后一档要求补充说明。
+ */
+const REFUND_REASONS = [
+  { value: 'schedule', label: '行程有变，无法按时送宠' },
+  { value: 'pet_health', label: '宠物身体原因（生病、医嘱等）' },
+  { value: 'agreed', label: '已与门店 / 照护师协商取消' },
+  { value: 'duplicate', label: '误下单或重复下单' },
+  { value: 'other', label: '其他原因' },
+]
+
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
@@ -346,6 +414,8 @@ const orderId = ref(Number(route.params.id))
 const payOpen = ref(false)
 const cancelOpen = ref(false)
 const refundOpen = ref(false)
+const refundReason = ref('')
+const refundDetail = ref('')
 const copied = ref(false)
 const busy = ref('')
 let timeoutTimer = null
@@ -498,18 +568,57 @@ async function refreshOrder() {
   await store.fetchOrderDetail(orderId.value)
 }
 
+/**
+ * 退款能否提交：必须先选原因；选「其他原因」时补充说明至少 5 个字，
+ * 否则商家拿到的退款单等于没有原因。
+ */
+const canSubmitRefund = computed(() => {
+  if (!refundReason.value) return false
+  if (refundReason.value === 'other') return refundDetail.value.trim().length >= 5
+  return true
+})
+
+/** 拼成商家能直接读的一句话：原因 +（补充说明） */
+function buildRefundReason() {
+  const label = REFUND_REASONS.find(item => item.value === refundReason.value)?.label || '其他原因'
+  const detail = refundDetail.value.trim()
+  return detail ? `${label}：${detail}` : label
+}
+
+function openRefund() {
+  refundReason.value = ''
+  refundDetail.value = ''
+  refundOpen.value = true
+}
+
+function closeRefund() {
+  // 提交中不允许关闭，避免用户以为没提交而重复点
+  if (busy.value === 'refund') return
+  refundOpen.value = false
+}
+
 async function doRefund() {
   if (busy.value) return
+  if (!canSubmitRefund.value) {
+    appStore.addToast(
+      refundReason.value === 'other' ? '请填写「其他原因」的具体说明（至少 5 个字）' : '请先选择退款原因',
+      'warning'
+    )
+    return
+  }
   busy.value = 'refund'
   try {
-    const res = await createRefund({ order_id_wsh: orderId.value, reason_wsh: '用户主动申请退款' })
+    // 原因由用户填写，不再用「用户主动申请退款」这类空话占位
+    const res = await createRefund({ order_id_wsh: orderId.value, reason_wsh: buildRefundReason() })
     if (res?.code === 200) {
-      appStore.addToast('退款申请已提交', 'success')
+      appStore.addToast('退款申请已提交，等待商家审核', 'success')
       refundOpen.value = false
+      refundReason.value = ''
+      refundDetail.value = ''
     }
     await store.fetchOrderDetail(orderId.value)
   } catch (error) {
-    appStore.addToast(error?.message || '提交失败', 'error')
+    appStore.addToast(error?.response?.data?.message || error?.message || '提交失败', 'error')
   } finally {
     busy.value = ''
   }
@@ -722,6 +831,59 @@ function dateTime(value) {
 .od-method-hint { display: block; margin-top: 3px; font-size: 12px; color: var(--ref-muted); }
 .od-method-cta { font-size: 12px; color: var(--ref-brand-deep); flex-shrink: 0; }
 .od-modal-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+/* 退款弹窗：金额 → 去向 → 原因 → 补充说明 → 后果，一屏读得完 */
+.od-modal-box-tall { max-width: 460px; max-height: calc(100vh - 40px); overflow-y: auto; padding-bottom: 0; }
+/* 原因列表可能超出视口，操作按钮吸底，避免要滚到底才能提交 */
+.od-modal-box-tall .od-modal-btns {
+  position: sticky; bottom: 0;
+  margin: 20px -26px 0; padding: 14px 26px 22px;
+  background: var(--ref-surface); border-top: 1px solid var(--ref-line);
+}
+.od-refund-money {
+  margin-top: 16px; padding: 14px 16px;
+  border: 1px solid var(--ref-line); border-radius: 14px; background: var(--ref-cream);
+}
+.od-refund-money-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.od-refund-money-label { font-size: 12px; color: var(--ref-muted); }
+.od-refund-money-value {
+  font-family: var(--ref-font-display); font-size: 24px; font-weight: 500;
+  letter-spacing: -0.01em; color: var(--ref-brand-deep);
+}
+.od-refund-money-note { margin: 8px 0 0; font-size: 11.5px; line-height: 1.6; color: var(--ref-muted); }
+.od-refund-warn { margin: 8px 0 0; font-size: 11.5px; line-height: 1.6; color: #a03422; }
+
+.od-refund-field { margin: 18px 0 0; padding: 0; border: 0; min-width: 0; }
+.od-refund-legend { display: block; margin: 0 0 8px; padding: 0; font-size: 12.5px; font-weight: 500; color: var(--ref-ink); }
+.od-req { margin-left: 3px; color: #a03422; }
+.od-optional { margin-left: 6px; font-size: 11px; font-weight: 400; color: var(--ref-muted); }
+
+.od-reason-list { display: grid; gap: 8px; }
+.od-reason {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--ref-line); border-radius: 12px;
+  background: var(--ref-surface); cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+.od-reason:hover { border-color: color-mix(in srgb, var(--ref-ink) 25%, transparent); }
+.od-reason.is-active {
+  border-color: color-mix(in srgb, var(--ref-brand) 65%, transparent);
+  background: color-mix(in srgb, var(--ref-brand) 5%, var(--ref-surface));
+}
+.od-reason-radio { width: 15px; height: 15px; flex-shrink: 0; margin: 0; accent-color: var(--ref-brand); }
+.od-reason-text { font-size: 13px; line-height: 1.4; color: var(--ref-ink); }
+
+.od-refund-textarea {
+  width: 100%; min-height: 76px; padding: 10px 12px; resize: vertical;
+  border: 1px solid var(--ref-line); border-radius: 12px;
+  background: var(--ref-surface); color: var(--ref-ink);
+  font-family: inherit; font-size: 13px; line-height: 1.6; outline: none;
+  transition: border-color 150ms ease;
+}
+.od-refund-textarea::placeholder { color: color-mix(in srgb, var(--ref-muted) 80%, transparent); }
+.od-refund-textarea:focus { border-color: color-mix(in srgb, var(--ref-ink) 40%, transparent); }
+.od-refund-count { margin: 4px 0 0; text-align: right; font-size: 11px; color: var(--ref-muted); font-variant-numeric: tabular-nums; }
+.od-refund-tip { margin: 14px 0 0; font-size: 11.5px; line-height: 1.7; color: var(--ref-muted); }
 
 @media (max-width: 860px) {
   .od-facts, .od-facts-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }

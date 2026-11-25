@@ -3,7 +3,7 @@ package com.pet.mq;
 import com.pet.config.RabbitMQConfig;
 import com.pet.mq.handler.ComplaintProcessHandler;
 import com.pet.mq.handler.NoticeNotificationHandler;
-import com.pet.mq.handler.OrderRefundHandler;
+import com.pet.mq.handler.OrderRefundCompleteHandler;
 import com.rabbitmq.client.Channel;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -48,7 +48,7 @@ public class MessageListener {
     private NoticeNotificationHandler noticeNotificationHandler;
 
     @Resource
-    private OrderRefundHandler orderRefundHandler;
+    private OrderRefundCompleteHandler orderRefundHandler;
 
     /**
      * 【订单创建事件处理】

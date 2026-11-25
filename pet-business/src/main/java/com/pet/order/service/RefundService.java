@@ -98,12 +98,13 @@ public interface RefundService {
 
     /**
      * 业务作用：管理员驳回退款的PENDING申请，驳回后订单状态恢复到退款前的状态。
-     * 调用链：管理后台/Controller ↓ rejectRefund(refundId) ↓ 查询退款 → 乐观锁更新退款REJECTED → 恢复订单为退款前状态
-     * 业务规则：1. 仅PENDING状态可驳回 2. 驳回后自动恢复订单状态（从REFUNDING恢复到退款前状态） 3. 恢复状态取 refund.order_status_before_refund
+     * 调用链：管理后台/Controller ↓ rejectRefund(refundId, reason) ↓ 查询退款 → 乐观锁更新退款REJECTED + 落驳回原因 → 恢复订单为退款前状态 → 站内信告知用户
+     * 业务规则：1. 仅PENDING状态可驳回 2. 驳回原因必填，落库并随站内信发给用户 3. 驳回后自动恢复订单状态（从REFUNDING恢复到退款前状态） 4. 恢复状态取 refund.order_status_before_refund
      *
      * @param refundId 退款ID
+     * @param reason   驳回原因，必填
      */
-    void rejectRefund(Long refundId);
+    void rejectRefund(Long refundId, String reason);
 
     /**
      * 【退款实体转DTO】

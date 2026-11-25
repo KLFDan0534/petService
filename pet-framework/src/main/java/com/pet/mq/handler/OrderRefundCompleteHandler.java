@@ -1,7 +1,7 @@
 package com.pet.mq.handler;
 
 @FunctionalInterface
-public interface OrderRefundHandler {
+public interface OrderRefundCompleteHandler {
 
     void handle(String refundId);
 

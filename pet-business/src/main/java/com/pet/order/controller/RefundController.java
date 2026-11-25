@@ -7,6 +7,7 @@ import com.pet.order.dto.RefundDTO;
 import com.pet.order.entity.Refund;
 import com.pet.security.JwtAuthenticationToken;
 import com.pet.order.service.RefundService;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.pet.order.dto.RefundCreateRequestDTO;
+import com.pet.order.dto.RefundRejectRequestDTO;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -78,7 +80,7 @@ public class RefundController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<RefundDTO> create(@AuthenticationPrincipal JwtAuthenticationToken token,
-                                @RequestBody RefundCreateRequestDTO body) {
+                                @Valid @RequestBody RefundCreateRequestDTO body) {
         log.info("调用 create()");
         return Result.success(refundService.toDTO(refundService.createRefundByOrderId(token.getUserId(), body.getOrder_id_wsh(), body.getReason_wsh())));
     }
@@ -177,21 +179,23 @@ public class RefundController {
     /**
      * 管理员驳回退款
      * @param id 退款ID
+     * @param body 请求体，驳回原因必填，会随站内信发给用户
      * @return 无返回值
      * @author: wsh
      * @date: 2026/6/24 11:05
      **/
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "驳回退款", description = "管理员驳回退款")
+    @Operation(summary = "驳回退款", description = "管理员驳回退款，必须填写驳回原因")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "操作成功"),
             @ApiResponse(responseCode = "400", description = "请求参数错误"),
             @ApiResponse(responseCode = "403", description = "无权限访问"),
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
-    public Result<Void> reject(@Parameter(description = "退款ID") @PathVariable Long id) {
-        refundService.rejectRefund(id);
+    public Result<Void> reject(@Parameter(description = "退款ID") @PathVariable Long id,
+                               @Valid @RequestBody RefundRejectRequestDTO body) {
+        refundService.rejectRefund(id, body.getReject_reason_wsh());
         return Result.success();
     }
 

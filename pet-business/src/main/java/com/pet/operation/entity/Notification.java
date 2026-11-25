@@ -37,7 +37,7 @@ public class Notification {
 
     @TableField(value = "type_wsh")
     @Schema(description = "类型")
-    private String type_wsh;
+    private String type_wsh; // 通知类型: order/payment/ticket/system/order_fulfillment
 
     @TableField(value = "is_read_wsh")
     @Schema(description = "是否已读")

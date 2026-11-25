@@ -85,4 +85,34 @@ public interface UserCouponMapper extends BaseMapper<UserCoupon> {
               AND deleted_wsh = 0
             """)
     int markUsedByOrderId(@Param("orderId") Long orderId);
+
+    /**
+     * 退款返还：把订单已核销的券退回可用状态。
+     * <p>状态从 "used" 恢复为 "available"（若券已过期则置为 "expired"），
+     * 并清空订单绑定、锁定/使用时间与抵扣金额。</p>
+     * <p>WHERE 带 status='used' 与 user_id，既是幂等保护也是并发控制：
+     * 重复调用只有第一次能命中，返回 0 表示已被其它请求返还。</p>
+     *
+     * @param couponId 用户优惠券ID
+     * @param userId   券归属用户ID
+     * @return 受影响的行数，1 表示本次完成返还
+     */
+    @Update("""
+            UPDATE user_coupon_wsh
+            SET status_wsh = CASE
+                    WHEN expire_at_wsh IS NOT NULL AND expire_at_wsh < NOW() THEN 'expired'
+                    ELSE 'available'
+                END,
+                order_id_wsh = NULL,
+                order_no_wsh = NULL,
+                discount_amount_wsh = NULL,
+                locked_at_wsh = NULL,
+                used_at_wsh = NULL,
+                updated_at_wsh = NOW()
+            WHERE id_wsh = #{couponId}
+              AND user_id_wsh = #{userId}
+              AND status_wsh = 'used'
+              AND deleted_wsh = 0
+            """)
+    int returnToAvailable(@Param("couponId") Long couponId, @Param("userId") Long userId);
 }

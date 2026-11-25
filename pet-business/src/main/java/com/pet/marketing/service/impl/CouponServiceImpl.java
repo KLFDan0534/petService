@@ -429,7 +429,7 @@ public class CouponServiceImpl implements CouponService {
         if (discount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException(400, "优惠券抵扣金额必须大于 0");
         }
-        // 原子更新锁定，避免并发重复占用同一张券
+        // 原子更新锁定，避免并发重复占用同一张券 TODO 查看是否需要优化锁,不使用数据库锁,避免数据库性能问题和死锁
         int updated = userCouponMapper.lockForOrder(userCouponId, userId, orderId, orderNo, discount);
         if (updated == 0) {
             throw new BusinessException(400, "优惠券不可用，请重新选择");
@@ -488,6 +488,37 @@ public class CouponServiceImpl implements CouponService {
             return;
         }
         userCouponMapper.releaseByOrderId(orderId);
+    }
+
+    /**
+     * 业务作用：退款完成后把订单已核销的券退回用户，恢复为 available（券已过期则置为 expired）。
+     * 业务规则：券必须属于该用户；当前状态为 used 才执行返还，已返还过视为幂等成功、不报错。
+     * 异常情况：券不存在或不属于该用户抛 404。
+     * 注意事项：返还走带 status='used' 条件的原子 UPDATE，不是先查后改，重复消费不会二次生效。
+     */
+    @Transactional
+    @Override
+    public void returnCoupon(Long couponIdWsh, Long userId) {
+
+        if (couponIdWsh == null || userId == null) {
+            return;
+        }
+
+        UserCoupon userCoupon = userCouponMapper.selectById(couponIdWsh);
+        if (userCoupon == null || !userId.equals(userCoupon.getUser_id_wsh())) {
+            throw new BusinessException(404, "优惠券不存在或不属于当前用户");
+        }
+        // 幂等：已不是 used（已返还或已过期）直接返回，避免退款消息重投时报错
+        if (!STATUS_USED.equals(userCoupon.getStatus_wsh())) {
+            return;
+        }
+        // 原子返还：只有仍为 used 的券才会被更新，并发/重复消费只有一次生效
+        if (userCouponMapper.returnToAvailable(couponIdWsh, userId) == 0) {
+            return;
+        }
+        // 核销记录逻辑删除（实体带 @TableLogic），保留删除标记便于追溯
+        usageMapper.delete(new LambdaQueryWrapper<CouponUsage>()
+                .eq(CouponUsage::getUser_coupon_id_wsh, couponIdWsh));
     }
 
     /**
