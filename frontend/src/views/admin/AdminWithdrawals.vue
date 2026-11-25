@@ -26,6 +26,18 @@
         </div>
       </template>
     </DataTable>
+
+    <div class="pager-bar">
+      <div class="pager-size">
+        <span>每页</span>
+        <select v-model.number="size" :disabled="loading" @change="changeSize">
+          <option v-for="n in pageSizes" :key="n" :value="n">{{ n }} 条</option>
+        </select>
+      </div>
+      <span class="pager-info">共 {{ total }} 条 · 第 {{ page }} / {{ pages || 1 }} 页</span>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || page <= 1" @click="goPage(page - 1)">上一页</button>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || pages === 0 || page >= pages" @click="goPage(page + 1)">下一页</button>
+    </div>
   </div>
 </template>
 
@@ -39,6 +51,14 @@ import { WithdrawalStatus, enrichWithStatus } from '@/constants/statusMaps'
 const appStore = useAppStore()
 const withdrawals = ref([])
 
+// 分页状态：提现记录持续增长，后端已支持分页，这里补上翻页控件
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const pages = ref(0)
+const loading = ref(false)
+const pageSizes = [20, 50, 100]
+
 // 补上状态文字，表格状态列才有中文可看
 function enrichWithdrawal(w) {
   return enrichWithStatus(w, 'status_wsh', WithdrawalStatus)
@@ -46,12 +66,33 @@ function enrichWithdrawal(w) {
 
 // 接口回来的是分页结构，真正的数组在 list 里
 async function loadWithdrawals() {
+  loading.value = true
   try {
-    const r = await getWithdrawals()
-    if (r.code === 200) withdrawals.value = (r.data.list || []).map(enrichWithdrawal)
+    const r = await getWithdrawals({ page: page.value, size: size.value })
+    if (r.code === 200) {
+      const data = r.data || {}
+      withdrawals.value = (data.list || []).map(enrichWithdrawal)
+      total.value = data.total || 0
+      pages.value = data.pages || 0
+      if (data.page) page.value = data.page
+    }
   } catch (e) {
     appStore.addToast(e?.message || '提现记录加载失败', 'error')
+  } finally {
+    loading.value = false
   }
+}
+
+async function changeSize() {
+  page.value = 1
+  await loadWithdrawals()
+}
+
+async function goPage(target) {
+  if (target < 1 || target === page.value) return
+  if (pages.value && target > pages.value) return
+  page.value = target
+  await loadWithdrawals()
 }
 
 onMounted(loadWithdrawals)
@@ -90,6 +131,26 @@ async function complete(id) {
 </script>
 
 <style scoped>
+.pager-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+}
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+.pager-size select {
+  width: auto;
+  min-width: 84px;
+}
 .toolbar-card {
   display: flex;
   justify-content: space-between;

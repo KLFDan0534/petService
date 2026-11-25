@@ -13,7 +13,7 @@
     <section class="summary-grid" aria-label="订单概览">
       <div class="summary-item">
         <span>全部订单</span>
-        <strong>{{ orders.length }}</strong>
+        <strong>{{ totalCount }}</strong>
       </div>
       <div class="summary-item">
         <span>已支付待处理</span>
@@ -40,6 +40,15 @@
         <span>{{ tab.label }}</span>
         <span class="tab-count">{{ countByTab(tab.key) }}</span>
       </button>
+    </div>
+
+    <div class="page-size-row">
+      <label>
+        <span>每页</span>
+        <select v-model.number="pageSize" :disabled="loading" @change="changePageSize">
+          <option v-for="n in pageSizes" :key="n" :value="n">{{ n }} 条</option>
+        </select>
+      </label>
     </div>
 
     <div v-if="loading" class="state-block">订单加载中...</div>
@@ -145,14 +154,28 @@
         </footer>
       </article>
     </div>
+
+    <div v-if="!loading && !error" class="scroll-pager">
+      <span>已加载 {{ filteredOrders.length }} / 共 {{ totalCount }} 单</span>
+      <button
+        v-if="hasMore"
+        class="btn btn-sm btn-primary"
+        type="button"
+        :disabled="loadingMore"
+        @click="loadMore"
+      >
+        {{ loadingMore ? '加载中…' : '加载更多' }}
+      </button>
+      <span v-else>已经到底了</span>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
-import { assignOrder, getMerchantOrders } from '@/api/order'
+import { assignOrder, scrollMerchantOrders, getMerchantOrderStats } from '@/api/order'
 import { getKeepersByMerchant } from '@/api/keeper'
 import { OrderStatus, getStatusBadge, getStatusLabel } from '@/constants/statusMaps'
 import { formatDate, formatDateTime, formatMoney as money } from '@/utils/format'
@@ -173,6 +196,15 @@ const loading = ref(false)
 const error = ref('')
 const activeTab = ref('all')
 const nowMs = ref(Date.now())   // 当前时间，倒计时靠它走
+
+// 游标分页状态
+const cursor = ref('')
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const pageSize = ref(20)
+const pageSizes = [20, 50, 100]
+// 服务端全量状态计数：页签数字不能在前端算，否则只覆盖已加载的一页
+const statusCounts = ref({})
 // 待分配订单的指派选择：order_no -> keeperId
 const assignSelection = reactive({})
 const assignableKeepers = ref([])
@@ -201,15 +233,8 @@ const tabStatusMap = {
   refund: ['refunding', 'refunded'],
 }
 
-// 按当前页签挑订单，"全部"就直接把原列表给出去
-const filteredOrders = computed(() => {
-  if (activeTab.value === 'all') return orders.value
-  if (activeTab.value === 'unassigned') {
-    return orders.value.filter(order => orderStatus(order) === 'paid' && !order.keeper_id_wsh)
-  }
-  const statuses = tabStatusMap[activeTab.value] || [activeTab.value]
-  return orders.value.filter(order => statuses.includes(orderStatus(order)))
-})
+// 状态筛选（含「待分配」）已下推到服务端，当前页就是筛选结果
+const filteredOrders = computed(() => orders.value)
 
 // 概览里的"服务中"是这四种状态加起来的总数
 const activeCount = computed(() =>
@@ -234,15 +259,28 @@ async function loadOrders() {
   loading.value = true
   error.value = ''
   try {
-    const res = await getMerchantOrders()
-    if (res.code !== 200) {
-      throw new Error(res.message || '接口返回异常')
+    const params = { size: pageSize.value }
+    const status = currentStatusParam()
+    if (status) params.status = status
+
+    // 列表与计数并行：计数走服务端全量，页签数字才准
+    const [listRes, statsRes] = await Promise.all([
+      scrollMerchantOrders(params),
+      getMerchantOrderStats(),
+    ])
+    if (listRes.code !== 200) {
+      throw new Error(listRes.message || '接口返回异常')
     }
-    const data = res.data
-    orders.value = (Array.isArray(data) ? data : (data?.list || [])).map(order => ({
+    const payload = listRes.data || {}
+    orders.value = (Array.isArray(payload.list_wsh) ? payload.list_wsh : []).map(order => ({
       ...order,
       status_wsh: orderStatus(order),
     }))
+    cursor.value = payload.next_cursor_wsh || ''
+    hasMore.value = Boolean(payload.has_more_wsh)
+    if (statsRes?.code === 200) {
+      statusCounts.value = statsRes.data || {}
+    }
     // 指派下拉需要本商家的在职看护人；没有待分配订单时不必查
     if (orders.value.some(isUnassigned)) {
       await loadAssignableKeepers()
@@ -254,6 +292,51 @@ async function loadOrders() {
     loading.value = false
   }
 }
+
+// 当前页签对应的服务端状态参数
+function currentStatusParam() {
+  if (activeTab.value === 'all') return ''
+  if (activeTab.value === 'unassigned') return 'unassigned'
+  const statuses = tabStatusMap[activeTab.value] || [activeTab.value]
+  return statuses.join(',')
+}
+
+// 加载下一页：追加
+async function loadMore() {
+  if (loadingMore.value || loading.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const params = { size: pageSize.value, cursor: cursor.value }
+    const status = currentStatusParam()
+    if (status) params.status = status
+
+    const res = await scrollMerchantOrders(params)
+    if (res.code === 200) {
+      const payload = res.data || {}
+      const list = (Array.isArray(payload.list_wsh) ? payload.list_wsh : []).map(order => ({
+        ...order,
+        status_wsh: orderStatus(order),
+      }))
+      orders.value = [...orders.value, ...list]
+      cursor.value = payload.next_cursor_wsh || ''
+      hasMore.value = Boolean(payload.has_more_wsh)
+    }
+  } catch (err) {
+    appStore.addToast(err?.message || '加载更多失败', 'error')
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+// 切换每页条数：回第一页
+function changePageSize() {
+  loadOrders()
+}
+
+// 页签变化即重新查询（筛选已下推服务端）
+watch(activeTab, () => {
+  loadOrders()
+})
 
 // 有订单过了支付时限就重新拉一次列表，让后端把状态改掉
 // 为什么还看一眼 nextPaymentTimeoutRefreshAt？因为每秒都打接口太费，隔一阵才真发
@@ -269,20 +352,25 @@ function refreshExpiredPaymentOrders() {
   void loadOrders()
 }
 
-// 概览卡片要用，按状态数一下有几单
+// 全部订单数：各状态计数之和，排除 unassigned（它是 paid 的子集，不能重复计）
+const totalCount = computed(() =>
+  Object.entries(statusCounts.value || {})
+    .filter(([key]) => key !== 'unassigned')
+    .reduce((sum, [, n]) => sum + (Number(n) || 0), 0)
+)
+
+// 概览卡片要用，按状态数一下有几单（服务端全量口径）
 function countByStatus(status) {
-  return orders.value.filter(order => orderStatus(order) === status).length
+  return Number(statusCounts.value?.[status]) || 0
 }
 
-// 页签上的小数字，跟筛选用的是同一套状态分组，不会出现数字和列表对不上
+// 页签上的小数字，跟筛选走同一套服务端口径，不会出现数字和列表对不上
 function countByTab(key) {
-  if (key === 'all') return orders.value.length
-  // 「待分配」= 已支付且无负责人；计数必须和 filteredOrders 同一口径
-  if (key === 'unassigned') {
-    return orders.value.filter(order => orderStatus(order) === 'paid' && !order.keeper_id_wsh).length
-  }
+  if (key === 'all') return totalCount.value
+  // 「待分配」= 已支付且无负责人，由后端单独统计并放进 unassigned 键
+  if (key === 'unassigned') return Number(statusCounts.value?.unassigned) || 0
   const statuses = tabStatusMap[key] || [key]
-  return orders.value.filter(order => statuses.includes(orderStatus(order))).length
+  return statuses.reduce((sum, status) => sum + countByStatus(status), 0)
 }
 
 // 后端有时给英文有时给中文，这里统一翻成英文小写，后面判断就不用管来源了
@@ -394,6 +482,39 @@ function goDetail(order) {
 </script>
 
 <style scoped>
+/* 每页条数选择行 */
+.page-size-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-size-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.page-size-row select {
+  width: auto;
+  min-width: 84px;
+}
+
+/* 列表底部：已加载条数 + 加载更多 */
+.scroll-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0 4px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
 .merchant-orders-page {
   display: grid;
   gap: 12px;

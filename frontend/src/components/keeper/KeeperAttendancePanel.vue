@@ -4,12 +4,12 @@
       <div>
         <h3>今日考勤</h3>
         <p v-if="currentAttendance" class="attendance-meta">
-          已上班 {{ formatDateTime(currentAttendance.check_in_at_wsh) }}
+          已打卡上班 · 上班 {{ formatDateTime(currentAttendance.check_in_at_wsh) }}
           <span v-if="currentAttendance.check_in_distance_wsh != null">
             · 距店 {{ formatMeters(currentAttendance.check_in_distance_wsh) }}
           </span>
         </p>
-        <p v-else class="attendance-meta">当前未上班</p>
+        <p v-else class="attendance-meta">未打卡 · 点击右侧按钮完成上班打卡</p>
       </div>
       <button
         class="btn btn-primary btn-sm"
@@ -42,6 +42,8 @@ import { formatDateTime as utilFormatDateTime } from '@/utils/format'
 import { checkIn, checkOut, getCurrentAttendance, getTodayAttendance } from '@/api/attendance'
 
 const appStore = useAppStore()
+// 把最新的「当前班次」状态回传给父组件，页头按钮文案才不会陈旧
+const emit = defineEmits(['status-change'])
 
 // currentAttendance 是今天还没下班的那条，records 是今天全部的打卡流水
 const currentAttendance = ref(null)
@@ -59,7 +61,10 @@ async function loadAttendance() {
       getCurrentAttendance(),
       getTodayAttendance(),
     ])
-    if (currentRes.code === 200) currentAttendance.value = currentRes.data || null
+    if (currentRes.code === 200) {
+      currentAttendance.value = currentRes.data || null
+      emit('status-change', currentAttendance.value)
+    }
     if (todayRes.code === 200) records.value = todayRes.data || []
   } catch (error) {
     appStore.addToast(error.message || '考勤记录加载失败', 'warning')

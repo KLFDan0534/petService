@@ -1,6 +1,6 @@
 <template>
-  <section class="records-grid">
-    <aside class="card section-card">
+  <section :class="['records-grid', { 'records-grid--locked': orderLocked }]">
+    <aside v-if="!orderLocked" class="card section-card">
       <h3>选择订单</h3>
       <select :value="orderId" class="form-control" @change="$emit('update:orderId', $event.target.value)">
         <option value="">请选择订单</option>
@@ -16,6 +16,12 @@
     </aside>
 
     <main v-if="orderId" class="card section-card">
+      <!-- 订单已由上层锁定（订单抽屉）时，选择器不出现，进度改在右侧展示 -->
+      <div v-if="orderLocked && dailyStatus" class="daily-card">
+        <strong>每日上传进度</strong>
+        <p>已上传 {{ dailyStatus.uploaded_days_wsh?.length || 0 }}/{{ dailyStatus.required_days_wsh?.length || 0 }}</p>
+        <p v-if="dailyStatus.missing_days_wsh?.length">缺少：{{ dailyStatus.missing_days_wsh.join('、') }}</p>
+      </div>
       <h3>上传今日动态</h3>
       <div class="record-tabs">
         <button v-for="tab in recordTabs" :key="tab.key" :class="['btn', recordType === tab.key ? 'btn-primary' : 'btn-outline', 'btn-sm']" @click="recordType = tab.key">
@@ -61,6 +67,8 @@ const props = defineProps({
   careRecords: { type: Array, default: () => [] },
   recordUploading: { type: Boolean, default: false },
   submitKey: { type: Number, default: 0 },
+  // 上层已锁定订单（如订单抽屉）时置 true：隐藏订单选择器，只留动态与进度
+  orderLocked: { type: Boolean, default: false },
 })
 
 // 为什么靠 submitKey 清空？这个组件不知道上传成没成功，只能等父组件改一下这个数字来通知它
@@ -137,21 +145,26 @@ function parseImageUrls(value) {
 </script>
 
 <style scoped>
-.records-grid { display: grid; grid-template-columns: minmax(240px, 320px) 1fr; gap: 16px; align-items: start; }
+.records-grid { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* 两列都必须能收缩，否则长日期/正文会把内容顶出容器 */
+.records-grid > * { min-width: 0; }
+/* 没有侧栏时让 main 独占整行并随容器收缩，不能退回 240–320px 的窄列 */
+.records-grid--locked { grid-template-columns: minmax(0, 1fr); }
 .section-card { padding: 22px; display: grid; gap: 14px; }
 .daily-card { border: 1px solid var(--color-border); border-radius: var(--radius-inline); padding: 12px; background: var(--color-muted); }
-.daily-card p { margin: 6px 0 0; font-size: 13px; }
+.daily-card p { margin: 6px 0 0; font-size: 13px; overflow-wrap: anywhere; }
 .record-tabs, .order-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .upload-field { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--color-muted-foreground); font-size: 13px; }
-.photo-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+/* 最小列宽跟随容器收缩：容器不足 88px 时按容器宽度排，不横向溢出 */
+.photo-preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(88px, 100%), 1fr)); gap: 8px; }
 .photo-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-inline); border: 1px solid var(--color-border); background: var(--color-muted); }
 .timeline-photos { margin-top: 8px; max-width: 420px; }
-.timeline { display: grid; gap: 10px; margin-top: 8px; }
-.timeline-item { border: 1px solid var(--color-border); border-radius: var(--radius-inline); padding: 12px; }
-.timeline-item p { margin: 6px 0; }
-.timeline-item small, .timeline-item__meta { color: var(--color-muted-foreground); font-size: 12px; word-break: break-all; }
+.timeline { display: grid; gap: 10px; margin-top: 8px; min-width: 0; }
+.timeline-item { border: 1px solid var(--color-border); border-radius: var(--radius-inline); padding: 12px; min-width: 0; }
+.timeline-item p { margin: 6px 0; overflow-wrap: anywhere; }
+.timeline-item small, .timeline-item__meta { color: var(--color-muted-foreground); font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
 .empty-inline { color: var(--color-muted-foreground); font-size: 13px; }
 @media (max-width: 760px) {
-  .records-grid { grid-template-columns: 1fr; }
+  .records-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

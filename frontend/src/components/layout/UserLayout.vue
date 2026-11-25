@@ -17,10 +17,10 @@
           <span ref="indicatorRef" class="nav-indicator" :style="indicatorStyle" />
           <router-link to="/dashboard">首页</router-link>
           <router-link to="/services">预约服务</router-link>
-          <router-link v-if="!isSupportOnly" to="/pets">我的宠物</router-link>
-          <router-link v-if="!isSupportOnly" to="/orders">订单</router-link>
-          <router-link v-if="!isSupportOnly" to="/favorites">收藏</router-link>
-          <router-link v-if="!isSupportOnly" to="/chat">消息</router-link>
+          <router-link v-if="!isSupportOnly" to="/chat" class="nav-msg-link">
+            消息
+            <span v-if="chatUnread > 0" class="nav-unread-badge" :aria-label="`${chatUnread} 条未读消息`">{{ chatUnreadText }}</span>
+          </router-link>
           <router-link v-if="!isSupportOnly" to="/ai">AI助手</router-link>
           <router-link
             v-if="authStore.isMerchant && !isSupportOnly"
@@ -175,6 +175,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 
 import { getAiChatSessions } from '@/api/ai'
+import { getUnreadMessageCount } from '@/api/chat'
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -191,6 +192,24 @@ const aiSessions = ref([])
 const aiSessionsLoading = ref(false)
 let aiCloseTimer = null
 const messageIndicatorRef = ref(null)
+
+// 导航「消息」入口的红色未读角标：与消息页共用 appStore.unread，消息页标已读后会即时回落
+let chatUnreadTimer = null
+const chatUnread = computed(() => appStore.unread || 0)
+const chatUnreadText = computed(() => (chatUnread.value > 99 ? '99+' : String(chatUnread.value)))
+
+async function loadChatUnread() {
+  if (!authStore.isLoggedIn) {
+    appStore.unread = 0
+    return
+  }
+  try {
+    const r = await getUnreadMessageCount()
+    if (r.code === 200) appStore.unread = Number(r.data) || 0
+  } catch (e) {
+    // 角标读不到不影响导航，保留上一次的数字
+  }
+}
 
 async function loadAiSessions() {
   if (aiSessions.value.length > 0) return
@@ -245,6 +264,9 @@ onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
   window.addEventListener('resize', updateIndicator)
   updateIndicator()
+  // 未读角标：进页面取一次，之后每 30 秒对齐一次（不额外占用一条长连接）
+  loadChatUnread()
+  chatUnreadTimer = window.setInterval(loadChatUnread, 30000)
   const nav = document.getElementById('user-navigation')
   if (nav) {
     const observer = new MutationObserver(updateIndicator)
@@ -255,6 +277,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleScroll)
   window.removeEventListener('resize', updateIndicator)
+  if (chatUnreadTimer) window.clearInterval(chatUnreadTimer)
 })
 
 const currentYear = new Date().getFullYear()
@@ -293,6 +316,8 @@ function logout() {
 watch(() => route.value.fullPath, () => {
   closeMobileMenu()
   updateIndicator()
+  // 切页时对齐未读数：在消息页读完消息后离开，角标立刻回落
+  loadChatUnread()
 })
 </script>
 
@@ -469,6 +494,24 @@ watch(() => route.value.fullPath, () => {
 
 .user-nav a.router-link-active:not(.nav-role-action) {
   color: var(--color-primary);
+}
+
+/* 「消息」未读角标：红底白字圆形，数字就是未读消息条数 */
+.nav-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger, #dc2626);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .user-nav a.nav-role-action {

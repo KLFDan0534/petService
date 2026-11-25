@@ -34,13 +34,15 @@ function mountTab(props) {
 }
 
 describe('KeeperOrdersTab 待抢单', () => {
-  it('pool 页签只提供「抢单」，不出现接单/拒单', () => {
+  it('pool 页签只提供「抢单」，不出现接单/拒单/履约记录', () => {
     const wrapper = mountTab({ subTab: 'pool', poolOrders: [poolOrder] })
     const texts = wrapper.findAll('button').map(button => button.text())
     expect(texts).toContain('抢单')
     // pool 里的订单没有负责人，接单/拒单都会 403，必须在 UI 上就不出现
     expect(texts).not.toContain('拒单')
     expect(texts).not.toContain('接单')
+    // 尚未抢到的订单不属于当前看护者，不能提供「履约记录」入口去读别人的时间线
+    expect(texts).not.toContain('履约记录')
   })
 
   it('点击抢单发出 claim 事件并带上订单号', async () => {
@@ -51,18 +53,39 @@ describe('KeeperOrdersTab 待抢单', () => {
     expect(wrapper.emitted('claim')[0][0].order_no_wsh).toBe('ORD-POOL-1')
   })
 
-  it('不再提供「待处理」页签（下单不再指定负责人，订单只有抢单与我的订单）', () => {
+  it('不再自带子页签：抢单池与我的订单由页面分区呈现', () => {
     const wrapper = mountTab({ subTab: 'pool', poolOrders: [] })
     const texts = wrapper.findAll('button').map(button => button.text())
     expect(texts.some(t => t.includes('待处理'))).toBe(false)
-    expect(texts.some(t => t.includes('待抢单'))).toBe(true)
-    expect(texts.some(t => t.includes('我的订单'))).toBe(true)
+    // 页签已上移到页面分区，组件里不再出现「待抢单 / 我的订单」切换
+    expect(texts.some(t => t.includes('待抢单'))).toBe(false)
+    expect(texts.some(t => t.includes('我的订单'))).toBe(false)
   })
 
   it('池子为空时给出可抢订单的说明', () => {
     const wrapper = mountTab({ subTab: 'pool', poolOrders: [] })
     expect(wrapper.text()).toContain('暂无可抢订单')
     expect(wrapper.text()).toContain('30 分钟')
+  })
+})
+
+describe('KeeperOrdersTab 订单上下文操作', () => {
+  it('我的订单按卡片渲染 order-extra 插槽，供页面注入发动态/聊天', () => {
+    const wrapper = mount(KeeperOrdersTab, {
+      props: { nowMs: Date.now(), subTab: 'active', activeOrders: [assignedOrder] },
+      slots: {
+        'order-extra': '<template #order-extra="{ order }"><button class="t-extra">{{ order.order_no_wsh }}</button></template>',
+      },
+    })
+    expect(wrapper.get('.t-extra').text()).toBe('ORD-MINE-2')
+  })
+
+  it('抢单池不渲染 order-extra 插槽内容', () => {
+    const wrapper = mount(KeeperOrdersTab, {
+      props: { nowMs: Date.now(), subTab: 'pool', poolOrders: [poolOrder] },
+      slots: { 'order-extra': '<button class="t-extra">发动态</button>' },
+    })
+    expect(wrapper.find('.t-extra').exists()).toBe(false)
   })
 })
 

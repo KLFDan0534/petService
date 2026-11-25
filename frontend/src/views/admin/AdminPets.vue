@@ -9,6 +9,18 @@
       </template>
     </DataTable>
 
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;font-size:13px">
+      <div style="display:inline-flex;align-items:center;gap:6px;margin-right:auto">
+        <span>每页</span>
+        <select v-model.number="size" :disabled="loading" style="width:auto;min-width:84px" @change="changeSize">
+          <option v-for="n in pageSizes" :key="n" :value="n">{{ n }} 条</option>
+        </select>
+      </div>
+      <span>共 {{ total }} 条 · 第 {{ page }} / {{ pages || 1 }} 页</span>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || page <= 1" @click="goPage(page - 1)">上一页</button>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || pages === 0 || page >= pages" @click="goPage(page + 1)">下一页</button>
+    </div>
+
     <AppDialog
       :visible="detailPet"
       :width="500"
@@ -71,7 +83,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { getAdminPets, createPet, updatePet, deletePet as apiDeletePet } from '@/api/pet'
+import { getAdminPetsPage, createPet, updatePet, deletePet as apiDeletePet } from '@/api/pet'
 import DataTable from '@/components/common/DataTable.vue'
 import AppDialog from '@/components/common/AppDialog.vue'
 const appStore = useAppStore()
@@ -88,10 +100,42 @@ const form = reactive({
 
 onMounted(loadPets)
 
-// 进页面拉一次全量宠物，后台这个列表不分页
+// 分页状态：原 /admin/all 全量返回，改为分页后补上翻页控件
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const pages = ref(0)
+const loading = ref(false)
+const pageSizes = [20, 50, 100]
+
 async function loadPets() {
-  try { const r = await getAdminPets(); if (r.code === 200) pets.value = r.data }
-  catch (e) { appStore.addToast('加载失败', 'error') }
+  loading.value = true
+  try {
+    const r = await getAdminPetsPage({ page: page.value, size: size.value })
+    if (r.code === 200) {
+      const data = r.data || {}
+      pets.value = Array.isArray(data.list) ? data.list : []
+      total.value = data.total || 0
+      pages.value = data.pages || 0
+      if (data.page) page.value = data.page
+    }
+  } catch (e) {
+    appStore.addToast('加载失败', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function changeSize() {
+  page.value = 1
+  await loadPets()
+}
+
+async function goPage(target) {
+  if (target < 1 || target === page.value) return
+  if (pages.value && target > pages.value) return
+  page.value = target
+  await loadPets()
 }
 
 function viewDetail(pet) { detailPet.value = pet }

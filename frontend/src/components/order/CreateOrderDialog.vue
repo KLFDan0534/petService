@@ -988,9 +988,7 @@ const BOOKING_ERROR_MESSAGES = {
   SERVICE_OFF_SHELF: '服务已下架，请选择其他服务',
   SERVICE_MERCHANT_MISMATCH: '服务与所选商家不一致，请刷新后重试',
   UNSUPPORTED_SERVICE_UNIT: '该服务暂不支持当前预约方式，请更换服务或时段',
-  PRICE_CHANGED: '服务价格或版本已更新，请刷新后重新确认',
   MERCHANT_REST_DAY: '商家当日休息，请更换日期',
-  PET_BOOKING_CONFLICT: '宠物在该时段已有预约，请更换日期',
 }
 
 function handleCreateError(res) {

@@ -1,7 +1,7 @@
 <template>
   <div class="admin-complaints-page">
     <div class="complaint-filters">
-      <select v-model="filters.status_wsh" class="form-control" @change="loadComplaints">
+      <select v-model="filters.status_wsh" class="form-control" @change="applyFilter">
         <option value="">全部状态</option>
         <option value="pending">待处理</option>
         <option value="processing">受理中</option>
@@ -12,9 +12,9 @@
         v-model="filters.keyword"
         class="form-control"
         placeholder="搜索标题/内容关键字"
-        @keyup.enter="loadComplaints"
+        @keyup.enter="applyFilter"
       >
-      <button class="btn btn-sm btn-primary" type="button" @click="loadComplaints">筛选</button>
+      <button class="btn btn-sm btn-primary" type="button" @click="applyFilter">筛选</button>
       <button class="btn btn-sm" type="button" @click="resetFilters">重置</button>
     </div>
     <DataTable :columns="columns" :data="complaints">
@@ -62,6 +62,18 @@
         </div>
       </template>
     </DataTable>
+
+    <div class="pager-bar">
+      <div class="pager-size">
+        <span>每页</span>
+        <select v-model.number="size" :disabled="loading" @change="changeSize">
+          <option v-for="n in pageSizes" :key="n" :value="n">{{ n }} 条</option>
+        </select>
+      </div>
+      <span class="pager-info">共 {{ total }} 条 · 第 {{ page }} / {{ pages || 1 }} 页</span>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || page <= 1" @click="goPage(page - 1)">上一页</button>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || pages === 0 || page >= pages" @click="goPage(page + 1)">下一页</button>
+    </div>
 
     <AppDialog
       :visible="!!pendingReview"
@@ -198,6 +210,12 @@ const appStore = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const complaints = ref([])
+// 分页状态：后端 /complaints/all 已返回 PageResult，前端补上翻页
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const pages = ref(0)
+const pageSizes = [20, 50, 100]
 // 筛选条件、证据弹窗、待处理的投诉，页面状态就这几块
 const filters = reactive({ status_wsh: '', keyword: '', merchant_id_wsh: null })
 const evidenceVisible = ref(false)
@@ -241,19 +259,48 @@ function resetFilters() {
   filters.status_wsh = ''
   filters.keyword = ''
   filters.merchant_id_wsh = null
-  loadComplaints()
+  applyFilter()
 }
 
 // 接口有时返回 {list:[]}，有时直接返回数组，两种都得能接住
 async function loadComplaints() {
+  loading.value = true
   try {
-    const response = await getComplaints(buildFilterParams())
+    const response = await getComplaints({
+      ...buildFilterParams(),
+      page: page.value,
+      size: size.value,
+    })
     if (response.code === 200) {
-      complaints.value = (response.data.list || response.data || []).map(enrichComplaint)
+      const data = response.data || {}
+      complaints.value = (data.list || []).map(enrichComplaint)
+      total.value = data.total || 0
+      pages.value = data.pages || 0
+      if (data.page) page.value = data.page
     }
   } catch {
     appStore.addToast('投诉列表加载失败', 'error')
+  } finally {
+    loading.value = false
   }
+}
+
+// 筛选条件变化回到第一页
+function applyFilter() {
+  page.value = 1
+  loadComplaints()
+}
+
+function changeSize() {
+  page.value = 1
+  loadComplaints()
+}
+
+function goPage(target) {
+  if (target < 1 || target === page.value) return
+  if (pages.value && target > pages.value) return
+  page.value = target
+  loadComplaints()
 }
 
 // 先把弹窗打开再请求证据，加载过程中弹窗里显示“加载中”，不会白屏
@@ -372,6 +419,26 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.pager-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+}
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+.pager-size select {
+  width: auto;
+  min-width: 84px;
+}
 .admin-complaints-page {
   display: grid;
   gap: 16px;

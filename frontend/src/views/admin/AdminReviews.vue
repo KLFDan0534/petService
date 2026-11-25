@@ -8,6 +8,18 @@
         </div>
       </template>
     </DataTable>
+
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;font-size:13px">
+      <div style="display:inline-flex;align-items:center;gap:6px;margin-right:auto">
+        <span>每页</span>
+        <select v-model.number="size" :disabled="loading" style="width:auto;min-width:84px" @change="changeSize">
+          <option v-for="n in pageSizes" :key="n" :value="n">{{ n }} 条</option>
+        </select>
+      </div>
+      <span>共 {{ total }} 条 · 第 {{ page }} / {{ pages || 1 }} 页</span>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || page <= 1" @click="goPage(page - 1)">上一页</button>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || pages === 0 || page >= pages" @click="goPage(page + 1)">下一页</button>
+    </div>
   </div>
 </template>
 
@@ -20,16 +32,47 @@ import { ReviewStatus, enrichWithStatus } from '@/constants/statusMaps'
 
 
 const appStore = useAppStore()
-// 审核列表：一次拉完，本地不翻页，量小够用
+// 审核列表：后端 /api/reviews 已支持分页，这里补上翻页
 const reviews = ref([])
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const pages = ref(0)
+const loading = ref(false)
+const pageSizes = [20, 50, 100]
 
 function enrichReview(r) {
   return enrichWithStatus(r, 'status_wsh', ReviewStatus)
 }
 
 async function loadReviews() {
-  try { const r = await getReviews(); if (r.code === 200) reviews.value = (r.data.list || []).map(enrichReview) }
-  catch (e) {}
+  loading.value = true
+  try {
+    const r = await getReviews({ page: page.value, size: size.value })
+    if (r.code === 200) {
+      const data = r.data || {}
+      reviews.value = (data.list || []).map(enrichReview)
+      total.value = data.total || 0
+      pages.value = data.pages || 0
+      if (data.page) page.value = data.page
+    }
+  } catch (e) {
+    // 失败保留上一次结果
+  } finally {
+    loading.value = false
+  }
+}
+
+async function changeSize() {
+  page.value = 1
+  await loadReviews()
+}
+
+async function goPage(target) {
+  if (target < 1 || target === page.value) return
+  if (pages.value && target > pages.value) return
+  page.value = target
+  await loadReviews()
 }
 onMounted(loadReviews)
 

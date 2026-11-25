@@ -141,17 +141,6 @@ const navGroups = [
     ]
   },
   {
-    label: '商家与宠物',
-    items: [
-      { route: '/admin/merchants', label: '商家审核' },
-      { route: '/admin/keepers', label: '寄养员管理' },
-      { route: '/admin/qualifications', label: '资质审核' },
-      { route: '/admin/pets', label: '宠物查看' },
-      { route: '/admin/categories', label: '宠物品种管理' },
-      { route: '/admin/service-categories', label: '服务分类管理' },
-    ]
-  },
-  {
     label: '订单与财务',
     items: [
       { route: '/admin/orders', label: '订单管理' },
@@ -168,7 +157,6 @@ const navGroups = [
     ]
   },
   {
-    // 这个标题和上面那个重名了，展开状态是按标题存的，点一个两组会一起开
     label: '商家与宠物',
     items: [
       { route: '/admin/merchants', label: '商家审核' },

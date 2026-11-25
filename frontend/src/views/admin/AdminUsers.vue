@@ -1,8 +1,8 @@
 <template>
   <div class="admin-users-page">
     <div class="toolbar">
-      <input v-model="searchQuery" placeholder="搜索用户..." style="max-width:300px" @keyup.enter="loadUsers">
-      <button class="btn btn-outline btn-sm" type="button" @click="loadUsers">搜索</button>
+      <input v-model="searchQuery" placeholder="搜索用户..." style="max-width:300px" @keyup.enter="applySearch">
+      <button class="btn btn-outline btn-sm" type="button" @click="applySearch">搜索</button>
     </div>
 
     <DataTable :columns="columns" :data="users">
@@ -16,6 +16,18 @@
         </button>
       </template>
     </DataTable>
+
+    <div class="pager-bar">
+      <div class="pager-size">
+        <span>每页</span>
+        <select v-model.number="size" :disabled="loading" @change="changeSize">
+          <option v-for="n in pageSizes" :key="n" :value="n">{{ n }} 条</option>
+        </select>
+      </div>
+      <span class="pager-info">共 {{ total }} 条 · 第 {{ page }} / {{ pages || 1 }} 页</span>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || page <= 1" @click="goPage(page - 1)">上一页</button>
+      <button class="btn btn-sm btn-outline" type="button" :disabled="loading || pages === 0 || page >= pages" @click="goPage(page + 1)">下一页</button>
+    </div>
 
     <AppDialog
       :visible="!!pendingToggle"
@@ -54,6 +66,14 @@ const users = ref([])
 const searchQuery = ref('')
 const pendingToggle = ref(null)
 
+// 分页状态：原来写死 page=1/size=100，超过 100 个用户就看不到
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const pages = ref(0)
+const loading = ref(false)
+const pageSizes = [20, 50, 100]
+
 const columns = [
   { label: 'ID', key: 'id_wsh' },
   { label: '用户名', key: 'username_wsh' },
@@ -64,15 +84,44 @@ const columns = [
 
 // 按搜索词拉用户，拉回来先补上人能看懂的角色和状态文字
 async function loadUsers() {
+  loading.value = true
   try {
-    const response = await apiGetUsers({ page: 1, size: 100, q: searchQuery.value || undefined })
+    const response = await apiGetUsers({
+      page: page.value,
+      size: size.value,
+      q: searchQuery.value || undefined,
+    })
     if (response.code === 200) {
-      const list = response.data?.list || response.data || []
+      const data = response.data || {}
+      const list = data.list || []
       users.value = Array.isArray(list) ? list.map(enrichUser) : []
+      total.value = data.total || 0
+      pages.value = data.pages || 0
+      if (data.page) page.value = data.page
     }
   } catch {
     appStore.addToast('用户列表加载失败', 'error')
+  } finally {
+    loading.value = false
   }
+}
+
+// 搜索、改每页条数都回到第一页
+async function applySearch() {
+  page.value = 1
+  await loadUsers()
+}
+
+async function changeSize() {
+  page.value = 1
+  await loadUsers()
+}
+
+async function goPage(target) {
+  if (target < 1 || target === page.value) return
+  if (pages.value && target > pages.value) return
+  page.value = target
+  await loadUsers()
 }
 
 // 后端给的是状态码和角色原串，这里转成表格能直接显示的文字
@@ -119,6 +168,25 @@ onMounted(loadUsers)
 </script>
 
 <style scoped>
+.pager-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--color-muted-foreground);
+}
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+.pager-size select {
+  width: auto;
+  min-width: 84px;
+}
 .admin-users-page {
   display: grid;
   gap: 16px;

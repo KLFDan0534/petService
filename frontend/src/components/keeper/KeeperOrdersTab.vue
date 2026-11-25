@@ -1,12 +1,5 @@
 <template>
   <section>
-    <div class="sub-toolbar">
-      <button :class="['btn', subTab === 'pool' ? 'btn-primary' : 'btn-outline', 'btn-sm']" @click="$emit('update:subTab', 'pool')">
-        待抢单 <span v-if="poolOrders.length" class="tab-count">{{ poolOrders.length }}</span>
-      </button>
-      <button :class="['btn', subTab === 'active' ? 'btn-primary' : 'btn-outline', 'btn-sm']" @click="$emit('update:subTab', 'active')">我的订单</button>
-    </div>
-
     <div v-if="loading" class="loading">加载中...</div>
     <div v-else-if="visibleOrders.length === 0" class="empty-state">
       <div class="icon">📦</div>
@@ -36,13 +29,14 @@
           <div><span>接收截止</span>{{ formatDateTime(order.receiver_available_end_wsh) }}</div>
         </div>
         <footer class="order-actions">
+          <!-- 池子里的订单尚未分配负责人，只能抢单：不能出现拒单/接单/动态入口，
+               否则点进去看到的是别人订单的履约时间线（后端也会 403） -->
           <template v-if="subTab === 'pool'">
             <button
               class="btn btn-primary btn-sm"
               :disabled="processingOrderNo === order.order_no_wsh"
               @click="$emit('claim', order)"
             >{{ processingOrderNo === order.order_no_wsh ? '抢单中...' : '抢单' }}</button>
-            <button class="btn btn-outline btn-sm" @click="$emit('select-order', order)">履约记录</button>
           </template>
           <!-- 非池子：按订单状态给出接单/拒单/履约动作。整块用 v-else 包住，
                否则「拒单」会接在「接单」的 v-else-if 链上，永远渲染不出来 -->
@@ -58,7 +52,8 @@
               </span>
               <button v-else class="btn btn-success btn-sm" :disabled="completingId === order.id_wsh || processingOrderNo === order.order_no_wsh" @click="openCheckoutModal(order)">确认接走</button>
             </template>
-            <button class="btn btn-outline btn-sm" @click="$emit('select-order', order)">履约记录</button>
+            <!-- 订单上下文的次要操作（发动态 / 聊天）由页面按订单注入，组件本身不关心 -->
+            <slot name="order-extra" :order="order" />
           </template>
         </footer>
       </article>
@@ -149,7 +144,7 @@ const props = defineProps({
   modalKey: { type: Number, default: 0 },
   nowMs: { type: Number, default: () => Date.now() },
 })
-const emit = defineEmits(['reject', 'claim', 'receive', 'start', 'checkout', 'select-order', 'update:subTab'])
+const emit = defineEmits(['reject', 'claim', 'receive', 'start', 'checkout'])
 
 const statusMap = {
   pending: '待付款', paid: '已支付',   confirmed: '待接收',
@@ -344,23 +339,7 @@ function paymentCountdownText(order) {
 </script>
 
 <style scoped>
-.sub-toolbar, .order-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.sub-toolbar { margin-bottom: 16px; }
-/* 「待抢单」角标：与页签按钮同排，数字用小圆点强调 */
-.tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  margin-left: 6px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--color-danger, #d93025);
-  color: #fff;
-  font-size: 11px;
-  line-height: 1;
-}
+.order-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .empty-hint {
   margin: 8px 0 0;
   color: var(--color-muted-foreground);

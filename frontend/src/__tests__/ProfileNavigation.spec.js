@@ -142,16 +142,43 @@ describe('优惠券和会员入口', () => {
 
     await flushPromises()
 
-    // 页面改版后入口改叫 quick-row，还多了订单/服务两个通用入口，
-    // 这里按路由把四个权益入口挑出来，文案和跳转地址仍要一一对应
-    const benefitTos = ['/coupons', '/membership', '/tickets', '/complaints']
+    // 页面改版后：订单与收藏下沉为「我的服务」主卡，工单/投诉/浏览服务为一行的次要入口，
+    // 会员与优惠券仍在 02 会员权益区。这里按路由把四个权益入口挑出来，文案与跳转要一一对应
+    const benefitTos = ['/tickets', '/complaints', '/membership', '/coupons']
     const benefitLinks = wrapper.findAllComponents(RouterLinkStub).filter(link => benefitTos.includes(link.props('to')))
     expect(benefitLinks.map(link => link.text())).toEqual([
-      expect.stringContaining('我的优惠券'),
-      expect.stringContaining('会员中心'),
       expect.stringContaining('我的工单'),
       expect.stringContaining('我的投诉'),
+      expect.stringContaining('会员中心'),
+      expect.stringContaining('我的优惠券'),
     ])
     expect(benefitLinks.map(link => link.props('to'))).toEqual(benefitTos)
+  })
+
+  it('订单与收藏在个人中心有主入口（顶部导航已移除）', async () => {
+    const pinia = createAuthenticatedPinia()
+    const wrapper = mount(Profile, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          AvatarUpload: true,
+          KeeperPanel: true,
+          MerchantPanel: true,
+          RouterLink: RouterLinkStub,
+          StatisticsPanel: true,
+          'el-icon': { template: '<span><slot /></span>' },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const links = wrapper.findAllComponents(RouterLinkStub)
+    const orders = links.find(link => link.props('to') === '/orders')
+    const favorites = links.find(link => link.props('to') === '/favorites')
+    expect(orders).toBeTruthy()
+    expect(favorites).toBeTruthy()
+    expect(orders.text()).toContain('我的订单')
+    expect(favorites.text()).toContain('我的收藏')
   })
 })

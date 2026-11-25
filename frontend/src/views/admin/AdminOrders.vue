@@ -12,6 +12,23 @@
       </button>
     </div>
 
+    <div class="admin-order-filters">
+      <input
+        v-model="keyword"
+        class="form-control"
+        placeholder="订单号搜索"
+        @keyup.enter="applyFilter"
+      />
+      <input v-model="startDate" type="date" class="form-control" title="创建日期起" />
+      <span class="filter-sep">至</span>
+      <input v-model="endDate" type="date" class="form-control" title="创建日期止" />
+      <select v-model.number="size" class="form-control filter-size" @change="changeSize">
+        <option v-for="option in pageSizes" :key="option" :value="option">{{ option }} 条/页</option>
+      </select>
+      <button class="btn btn-sm btn-primary" type="button" @click="applyFilter">查询</button>
+      <button class="btn btn-sm btn-outline" type="button" @click="resetFilter">重置</button>
+    </div>
+
     <DataTable
       :columns="columns"
       :data="filteredOrders"
@@ -38,10 +55,31 @@
       </template>
     </DataTable>
 
+    <div class="admin-order-pager">
+      <span class="pager-info">共 {{ total }} 条 · 第 {{ page }} / {{ pages || 1 }} 页</span>
+      <button
+        class="btn btn-sm btn-outline"
+        type="button"
+        :disabled="loading || page <= 1"
+        @click="goPage(page - 1)"
+      >
+        上一页
+      </button>
+      <button
+        class="btn btn-sm btn-outline"
+        type="button"
+        :disabled="loading || pages === 0 || page >= pages"
+        @click="goPage(page + 1)"
+      >
+        下一页
+      </button>
+    </div>
+
     <AppDialog
+      v-if="showDetailModal && detailOrder"
       :visible="showDetailModal && detailOrder"
       :width="760"
-      :title="`订单详情 #${detailOrder.id_wsh}`"
+      :title="`订单详情 #${detailOrder?.id_wsh || '-'}`"
       @close="showDetailModal = false"
     >
       <section class="detail-section">
@@ -112,20 +150,31 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { getOrders, getOrder, updateOrderStatus, deleteOrder as apiDeleteOrder } from '@/api/order'
+import { pageAdminOrders, getOrder, updateOrderStatus, deleteOrder as apiDeleteOrder } from '@/api/order'
 import { OrderStatus, enrichWithStatus, getStatusBadge, getStatusLabel, makeStatusBadge } from '@/constants/statusMaps'
 import DataTable from '@/components/common/DataTable.vue'
 import AppDialog from '@/components/common/AppDialog.vue'
 import { billingText } from '@/domain/BookingUnit'
 
 const appStore = useAppStore()
-// 整页数据、当前选中的标签、详情弹窗的开合和内容
+// 当前页数据、筛选条件、分页状态
 const orders = ref([])
 const activeTab = ref('all')
 const showDetailModal = ref(false)
 const detailOrder = ref(null)
+
+// 分页与筛选：全部交给后端，前端只保存当前条件
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const pages = ref(0)
+const loading = ref(false)
+const keyword = ref('')
+const startDate = ref('')
+const endDate = ref('')
+const pageSizes = [20, 50, 100]
 
 const columns = [
   { label: 'ID', key: 'id_wsh' },
@@ -160,12 +209,8 @@ function allowedStatuses(current) {
 const statuses = Object.keys(OrderStatus)
 const statusLabels = Object.fromEntries(statuses.map(status => [status, getStatusLabel(OrderStatus, status)]))
 
-// 选了「全部」就原样给，选了某个标签才按状态挑
-const filteredOrders = computed(() =>
-  activeTab.value === 'all'
-    ? orders.value
-    : orders.value.filter(order => order.status_wsh === activeTab.value)
-)
+// 状态筛选已下推到后端：当前页就是筛选后的结果，前端不再二次过滤
+const filteredOrders = computed(() => orders.value)
 
 const detailStatus = computed(() => ({
   label: getStatusLabel(OrderStatus, detailOrder.value?.status_wsh),
@@ -177,17 +222,67 @@ function enrichOrder(order) {
   return enrichWithStatus(order, 'status_wsh', OrderStatus)
 }
 
-// 一次把订单全拉回来，分页和按状态筛选都在前端做，所以切换标签是瞬时的
+// 分页查询：状态/订单号/日期都交给后端，前端只负责传条件和页码。
+// 后端不传日期时默认只看最近 30 天，翻页深度超过 2000 条会直接拒绝。
 async function loadOrders() {
+  loading.value = true
   try {
-    const response = await getOrders()
+    const params = { page: page.value, size: size.value }
+    if (activeTab.value !== 'all') params.status = activeTab.value
+    if (keyword.value.trim()) params.keyword = keyword.value.trim()
+    if (startDate.value) params.start_date = startDate.value
+    if (endDate.value) params.end_date = endDate.value
+
+    const response = await pageAdminOrders(params)
     if (response.code === 200) {
-      orders.value = (Array.isArray(response.data) ? response.data : []).map(enrichOrder)
+      const data = response.data || {}
+      orders.value = (Array.isArray(data.list) ? data.list : []).map(enrichOrder)
+      total.value = data.total || 0
+      pages.value = data.pages || 0
+      if (data.page) page.value = data.page
+    } else {
+      appStore.addToast(response.message || '获取订单列表失败', 'error')
     }
   } catch (_) {
     appStore.addToast('获取订单列表失败', 'error')
+  } finally {
+    loading.value = false
   }
 }
+
+// 改筛选条件一定回到第 1 页，否则会停在一个已经不存在的页码上
+function applyFilter() {
+  page.value = 1
+  loadOrders()
+}
+
+function resetFilter() {
+  keyword.value = ''
+  startDate.value = ''
+  endDate.value = ''
+  activeTab.value = 'all'
+  page.value = 1
+  loadOrders()
+}
+
+// 切换每页条数同样回到第 1 页
+function changeSize() {
+  page.value = 1
+  loadOrders()
+}
+
+function goPage(target) {
+  if (target < 1 || target === page.value) return
+  if (pages.value && target > pages.value) return
+  page.value = target
+  loadOrders()
+}
+
+// 标签切换即重新查询
+watch(activeTab, () => {
+  page.value = 1
+  loadOrders()
+})
 
 onMounted(loadOrders)
 
@@ -244,6 +339,41 @@ async function deleteOrder(id) {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+.admin-order-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-order-filters .form-control {
+  width: auto;
+  min-width: 140px;
+}
+
+.filter-sep {
+  color: var(--color-text-secondary);
+}
+
+.filter-size {
+  min-width: 104px;
+}
+
+.admin-order-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pager-info {
+  margin-right: auto;
+  color: var(--color-text-secondary);
+  font-size: 13px;
 }
 
 .order-status-select {
