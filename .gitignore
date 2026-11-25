@@ -164,3 +164,13 @@ frontend/spec-out/
 # 本地临时文件 / 工具缓存
 _run_args.txt
 .grill/
+
+# ===== 2026-11-25 部署前清理 =====
+
+# 临时探针文件
+_space_probe.txt
+*_space_probe.txt
+
+# 前端本地备份（目录与带时间戳的 .bak-*）
+frontend/.backup/
+*.bak-*
