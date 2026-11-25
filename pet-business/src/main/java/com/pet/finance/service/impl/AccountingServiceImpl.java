@@ -89,25 +89,11 @@ public class AccountingServiceImpl implements AccountingService {
     /**
      * 出账（实现）
      *
-     * 业务作用：扣除用户余额，校验幂等和可用余额，记录流水。
-     * 数据处理：金额 > 0 校验 → 幂等校验 → SQL 扣余额 → 记录流水。
-     * 业务规则：可用余额 (balance - frozen) 必须充足。
-     * 异常情况：余额不足抛 BusinessException("可用余额不足")。
-     * 注意事项：@Transactional 保证事务一致性。
-     */
-    @Transactional
-    @Override
-    public Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,
-                        String businessType, String businessId, String requestId, String description) {
-        return debit(userId, amount, type, orderId, businessType, businessId, requestId, description, null);
-    }
-
-    /**
      * 业务作用：扣除用户余额并记录一条出账流水，带幂等与余额不足判断。
      * 数据处理：金额经 positive 校验；幂等命中直接返回；扣款成功后再取钱包快照写流水，流水金额取负值、direction=out。
      * 业务规则：金额必须大于 0；扣款 SQL 内部要求可用余额（balance - frozen）充足。
-     * 异常情况：金额非法抛 400；扣款影响行数为 0 时二次查询钱包，可用余额不足抛「可用余额不足」，否则抛「钱包扣款失败」。
-     * 注意事项：失败分支会多查一次钱包以区分「余额不足」和「其它失败」，两次查询之间余额可能已变化。
+     * 异常情况：金额非法抛 400；可用余额不足抛 400「可用余额不足」；扣款失败抛「钱包扣款失败」。
+     * 注意事项：扣款前先查一次钱包做可用余额预检查，并发场景下最终仍由扣款 SQL 的 WHERE 条件兜底。
      */
     @Transactional
     @Override
@@ -117,14 +103,20 @@ public class AccountingServiceImpl implements AccountingService {
         BigDecimal money = positive(amount);
         if (alreadyPosted(requestId)) return walletService.getByUserId(userId);
         Wallet before = walletService.getByUserId(userId);
+
+        if (before.getBalance_wsh().subtract(before.getFrozen_amount_wsh()).compareTo(money) < 0)
+            throw new BusinessException(400,"可用余额不足");
+
         // 扣款失败时区分余额不足与其它异常
         if (walletMapper.deductBalance(userId, money) == 0) {
-            Wallet current = walletService.getByUserId(userId);
+            throw new BusinessException("钱包扣款失败");
+        }
+//        扣款成功,但是在前面需要判断额度是否足够
+ /*           Wallet current = walletService.getByUserId(userId);
             if (current.getBalance_wsh().subtract(current.getFrozen_amount_wsh()).compareTo(money) < 0) {
                 throw new BusinessException("可用余额不足");
             }
-            throw new BusinessException("钱包扣款失败");
-        }
+            throw new BusinessException("钱包扣款失败");*/
         Wallet after = walletService.getByUserId(userId);
         saveTransaction(after, type, money.negate(), before, after, "out", orderId, businessType, businessId, requestId, description, operatorId);
         return after;
@@ -149,7 +141,7 @@ public class AccountingServiceImpl implements AccountingService {
         // 出账已记账说明整笔转账处理过
         if (alreadyPosted(baseRequestId + ":out")) return;
         BigDecimal money = positive(amount);
-        debit(fromUserId, money, type, orderId, businessType, businessId, baseRequestId + ":out", description + " - out");
+        debit(fromUserId, money, type, orderId, businessType, businessId, baseRequestId + ":out", description + " - out", null);
         credit(toUserId, money, type, orderId, businessType, businessId, baseRequestId + ":in", description + " - in");
     }
 

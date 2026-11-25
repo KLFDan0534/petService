@@ -1,5 +1,6 @@
 package com.pet.finance.service;
 
+import com.pet.common.PageResult;
 import com.pet.finance.dto.TransactionDTO;
 import com.pet.finance.entity.Transaction;
 import java.util.List;
@@ -35,6 +36,20 @@ public interface TransactionService {
      * @return 交易记录列表
      */
     List<Transaction> listAllByType(String type);
+
+    /**
+     * 分页查询全部交易记录（管理员对账用）
+     *
+     * 业务作用：替代 listAllByType 的全量拉取，按创建时间倒序分页。
+     * 业务规则：type 为空不过滤；size 限制 1~100，越界回落到 20。
+     * 注意事项：流水表随时间无限增长，后台页面必须分页，否则迟早拖垮内存。
+     *
+     * @param type 交易类型，可为 null
+     * @param page 页码，从 1 开始
+     * @param size 每页条数
+     * @return 分页结果
+     */
+    PageResult<Transaction> pageAllByType(String type, Integer page, Integer size);
     /**
      * 新增交易记录
      *

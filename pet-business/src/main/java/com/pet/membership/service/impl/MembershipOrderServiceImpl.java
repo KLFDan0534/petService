@@ -83,7 +83,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
      * 创建会员订单（实现）
      *
      * 业务作用：用户创建会员购买订单，含幂等处理。
-     * 调用链：createOrder() → 幂等校验 → requireUsablePlan() → resolveStartAt() → insert() → createEvent()。
+     * 调用链：createOrder() → 幂等校验 → requireUsablePlan() → requireNoConflictingPendingOrder() → resolveStartAt() → insert() → createEvent()。
      * 数据处理：幂等校验 → 校验套餐 → 计算有效期 → 插入 pending 订单 → 记录订单事件。
      * 业务规则：request_id 防重复；续费从现有到期日顺延；仅启用的套餐可购买。
      * 异常情况：未登录抛 401；请求为空抛 400；套餐不可用抛 404/400；幂等冲突抛 400/403。
@@ -110,7 +110,8 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
 
         String payMethod = normalizePayMethod(request.getPay_method_wsh());
         MemberPlan plan = requireUsablePlan(request.getPlan_id_wsh(), request.getPlan_code_wsh());
-        LocalDateTime startAt = resolveStartAt(userId);
+        requireNoConflictingPendingOrder(userId, plan);
+        LocalDateTime startAt = resolveStartAt(userId, plan);
         LocalDateTime endAt = startAt.plusDays(plan.getDuration_days_wsh());
 
         MembershipOrder order = new MembershipOrder();
@@ -368,7 +369,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
      * 激活会员（锁内执行）
      *
      * 业务作用：在分片锁内执行会员激活逻辑。
-     * 业务规则：已激活且订单已关联的会员跳过；续费从现有到期日顺延。
+     * 业务规则：已激活且订单已关联的会员跳过；同档续费叠加、异档覆盖；补偿重算只作用于当前生效的那一单。
      * 注意事项：幂等性保护。
      */
     private void activateMembershipLocked(MembershipOrder order, Long operatorId, boolean adminOperation, boolean statusChanged) {
@@ -379,6 +380,12 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         if (existing != null
                 && Objects.equals(existing.getLast_order_id_wsh(), order.getId_wsh())
                 && "active".equals(existing.getStatus_wsh())) {
+            return;
+        }
+        // 补偿重算只允许作用于当前生效的那一单，防止旧订单被重复确认后把会员期重置
+        if (!statusChanged
+                && existing != null
+                && !Objects.equals(existing.getLast_order_id_wsh(), order.getId_wsh())) {
             return;
         }
 
@@ -441,29 +448,59 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
     }
 
     /**
-     * 业务作用：计算本次会员激活的实际起止时间，处理续费顺延、过期重开两种情况。
-     * 业务规则：基准时间早于当前且用户没有有效会员时，起算时间重置为当前时间；时长由 resolveDurationDays 决定。
-     * 注意事项：与 createOrder 中的 resolveStartAt 算法不同，这里额外考虑了同一订单重复激活不重复顺延。
+     * 业务作用：计算本次会员激活的实际起止时间。
+     * 业务规则：同档续费在现有到期日上叠加；升级或降级从支付时刻重新起算，原档剩余时长不再保留。
+     * 注意事项：发放天数由 resolveDurationDays 决定，与起算点无关，叠加和覆盖发的天数一致。
      */
     private ActivationPeriod resolveActivationPeriod(MembershipOrder order, MemberPlan plan, UserMembership existing) {
         LocalDateTime now = LocalDateTime.now();
         long durationDays = resolveDurationDays(order, plan);
-        LocalDateTime startAt = order.getMembership_start_at_wsh() == null ? now : order.getMembership_start_at_wsh();
-        // 有效会员续费从原到期日顺延
+        LocalDateTime startAt = now;
+        // 同档续费叠加在现有到期日之后，异档直接从当前时间覆盖
         if (existing != null
                 && "active".equals(existing.getStatus_wsh())
                 && existing.getExpires_at_wsh() != null
                 && existing.getExpires_at_wsh().isAfter(now)
-                && !Objects.equals(existing.getLast_order_id_wsh(), order.getId_wsh())
-                && existing.getExpires_at_wsh().isAfter(startAt)) {
+                && sameTier(existing, plan)) {
             startAt = existing.getExpires_at_wsh();
         }
-        // 起算时间已过期且无有效会员时改用当前时间
-        if (startAt.isBefore(now)
-                && (existing == null || existing.getExpires_at_wsh() == null || !existing.getExpires_at_wsh().isAfter(now))) {
-            startAt = now;
-        }
         return new ActivationPeriod(startAt, startAt.plusDays(durationDays));
+    }
+
+    /**
+     * 业务作用：判断套餐是否与用户当前会员属于同一档位。
+     * 数据处理：双方 level_wsh 都存在时按等级比较；否则退化为按套餐编码比较。
+     * 业务规则：同档视为续费，可叠加时长；不同档视为升/降级，直接覆盖。
+     * 注意事项：等级缺失的脏数据会退到 plan_code 比较，两者都拿不到时按不同档处理。
+     */
+    private boolean sameTier(UserMembership membership, MemberPlan plan) {
+        if (membership == null || plan == null) {
+            return false;
+        }
+        if (membership.getLevel_wsh() != null && plan.getLevel_wsh() != null) {
+            return membership.getLevel_wsh().equals(plan.getLevel_wsh());
+        }
+        return membership.getPlan_code_wsh() != null
+                && plan.getCode_wsh() != null
+                && membership.getPlan_code_wsh().equalsIgnoreCase(plan.getCode_wsh());
+    }
+
+    /**
+     * 业务作用：阻止同一用户同时挂多笔不同套餐的待支付订单。
+     * 数据处理：查出该用户全部 pending 订单，逐笔比对套餐 ID。
+     * 业务规则：同套餐放行（同档续费是叠加，先后支付不会互相覆盖）；不同套餐拦截。
+     * 异常情况：存在异套餐待支付订单抛 BusinessException(400)。
+     * 注意事项：异套餐订单先后支付时，后支付的那笔会覆盖先支付那笔的时长，必须在源头拦掉。
+     */
+    private void requireNoConflictingPendingOrder(Long userId, MemberPlan plan) {
+        List<MembershipOrder> pending = membershipOrderMapper.selectList(new LambdaQueryWrapper<MembershipOrder>()
+                .eq(MembershipOrder::getUser_id_wsh, userId)
+                .eq(MembershipOrder::getStatus_wsh, STATUS_PENDING));
+        for (MembershipOrder order : pending) {
+            if (!Objects.equals(order.getPlan_id_wsh(), plan.getId_wsh())) {
+                throw new BusinessException(400, "你有其他套餐的待支付会员订单，请先支付或取消后再下单");
+            }
+        }
     }
 
     /**
@@ -512,11 +549,11 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
     }
 
     /**
-     * 业务作用：创建订单时确定会员生效时间，续费场景从现有会员到期日顺延。
-     * 业务规则：有有效会员则从其到期日开始，否则从当前时间开始。
+     * 业务作用：创建订单时确定会员生效时间。
+     * 业务规则：同档续费在现有到期日上叠加；升级或降级一律从当前时间重新起算并覆盖原档。
      * 注意事项：这里算出的只是订单预期有效期，支付成功激活时会由 resolveActivationPeriod 再校正一次。
      */
-    private LocalDateTime resolveStartAt(Long userId) {
+    private LocalDateTime resolveStartAt(Long userId, MemberPlan plan) {
         LocalDateTime now = LocalDateTime.now();
         UserMembership membership = userMembershipMapper.selectOne(new LambdaQueryWrapper<UserMembership>()
                 .eq(UserMembership::getUser_id_wsh, userId)
@@ -524,8 +561,8 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
                 .gt(UserMembership::getExpires_at_wsh, now)
                 .orderByDesc(UserMembership::getExpires_at_wsh)
                 .last("LIMIT 1"));
-        // 有效会员未到期则从其到期日续期
-        if (membership != null && membership.getExpires_at_wsh() != null) {
+        // 只有同档续费才叠加到原到期日，异档从当前时间覆盖
+        if (membership != null && sameTier(membership, plan)) {
             return membership.getExpires_at_wsh();
         }
         return now;
@@ -732,7 +769,7 @@ public class MembershipOrderServiceImpl implements MembershipOrderService {
         String businessId = String.valueOf(order.getId_wsh());
         String requestId = "membership-payment:" + businessId;
         accountingService.debit(order.getUser_id_wsh(), amount, "membership_payment", null,
-                "membership_order", businessId, requestId + ":owner", "会员余额支付 - " + order.getOrder_no_wsh());
+                "membership_order", businessId, requestId + ":owner", "会员余额支付 - " + order.getOrder_no_wsh(), null);
         accountingService.credit(accountingService.systemUserId(), amount, "membership_payment", null,
                 "membership_order", businessId, requestId + ":system", "会员支付进入系统暂存 - " + order.getOrder_no_wsh());
     }

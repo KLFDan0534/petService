@@ -122,8 +122,8 @@ public class WalletServiceImpl implements WalletService {
         if (affected == 0) {
             Wallet w = getByUserId(userId);
             if (w.getBalance_wsh().subtract(w.getFrozen_amount_wsh()).compareTo(amount) < 0)
-                throw new BusinessException("可用余额不足");
-            throw new BusinessException("冻结失败");
+                throw new BusinessException(400,"可用余额不足");
+            throw new BusinessException(400,"冻结失败");
         }
     }
 

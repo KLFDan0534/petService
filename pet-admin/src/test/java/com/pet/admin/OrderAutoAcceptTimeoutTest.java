@@ -17,6 +17,7 @@ import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.common.StatusCode;
 import com.pet.finance.service.AccountingService;
+import com.pet.finance.service.WalletService;
 import com.pet.marketing.service.CouponService;
 import com.pet.membership.service.MembershipBenefitService;
 import com.pet.mq.MessageSender;
@@ -83,6 +84,7 @@ class OrderAutoAcceptTimeoutTest {
     @Mock private KeeperAttendanceService keeperAttendanceService;
     @Mock private KeeperLeaveService keeperLeaveService;
     @Mock private OrderService orderService;
+    @Mock private WalletService walletService;
     @Mock private BusinessHoursService businessHoursService;
     @Mock private BusinessHoursTargetResolver businessHoursTargetResolver;
     @Mock private RatingMapper ratingMapper;
@@ -102,7 +104,7 @@ class OrderAutoAcceptTimeoutTest {
 
         PaymentServiceImpl paymentService = new PaymentServiceImpl(
                 paymentMapper, orderMapper, orderStatusBroadcaster, accountingService, couponService,
-                membershipBenefitService, messageSender, orderService);
+                membershipBenefitService, messageSender, orderService, walletService);
 
         paymentService.pay(7L, "PAY001");
 
@@ -120,7 +122,7 @@ class OrderAutoAcceptTimeoutTest {
 
         PaymentServiceImpl paymentService = new PaymentServiceImpl(
                 paymentMapper, orderMapper, orderStatusBroadcaster, accountingService, couponService,
-                membershipBenefitService, messageSender, orderService);
+                membershipBenefitService, messageSender, orderService, walletService);
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> paymentService.createPayment(7L, "ORD_EXPIRED_CREATE", "balance"));
@@ -142,7 +144,7 @@ class OrderAutoAcceptTimeoutTest {
 
         PaymentServiceImpl paymentService = new PaymentServiceImpl(
                 paymentMapper, orderMapper, orderStatusBroadcaster, accountingService, couponService,
-                membershipBenefitService, messageSender, orderService);
+                membershipBenefitService, messageSender, orderService, walletService);
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> paymentService.pay(7L, "PAY_EXPIRED"));

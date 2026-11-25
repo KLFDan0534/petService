@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -31,8 +32,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -151,9 +154,11 @@ class MembershipOrderServiceImplTest {
     }
 
     @Test
-    void createOrderStartsAfterCurrentActiveMembershipExpiry() {
+    void createOrderStacksOnCurrentExpiryWhenSameTier() {
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(12).withNano(0);
         UserMembership membership = new UserMembership();
+        membership.setLevel_wsh(2);
+        membership.setPlan_code_wsh("GOLD_MONTH");
         membership.setExpires_at_wsh(expiresAt);
         when(membershipOrderMapper.selectOne(any())).thenReturn(null);
         when(memberPlanMapper.selectOne(any())).thenReturn(activePlan());
@@ -173,6 +178,76 @@ class MembershipOrderServiceImplTest {
         MembershipOrder saved = orderCaptor.getValue();
         assertEquals(expiresAt, saved.getMembership_start_at_wsh());
         assertEquals(expiresAt.plusDays(30), saved.getMembership_end_at_wsh());
+    }
+
+    @Test
+    void createOrderStartsNowWhenTierChanges() {
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(12).withNano(0);
+        UserMembership membership = new UserMembership();
+        membership.setLevel_wsh(1);
+        membership.setPlan_code_wsh("SILVER");
+        membership.setExpires_at_wsh(expiresAt);
+        when(membershipOrderMapper.selectOne(any())).thenReturn(null);
+        when(memberPlanMapper.selectOne(any())).thenReturn(activePlan());
+        when(userMembershipMapper.selectOne(any())).thenReturn(membership);
+        when(membershipOrderMapper.insert(any(MembershipOrder.class))).thenAnswer(invocation -> {
+            MembershipOrder order = invocation.getArgument(0);
+            order.setId_wsh(103L);
+            return 1;
+        });
+
+        MembershipOrderCreateRequestDTO request = request(null, "req-upgrade");
+        request.setPlan_code_wsh("GOLD_MONTH");
+        LocalDateTime before = LocalDateTime.now();
+        service.createOrder(7L, request);
+
+        ArgumentCaptor<MembershipOrder> orderCaptor = ArgumentCaptor.forClass(MembershipOrder.class);
+        verify(membershipOrderMapper).insert(orderCaptor.capture());
+        MembershipOrder saved = orderCaptor.getValue();
+        assertFalse(saved.getMembership_start_at_wsh().isBefore(before));
+        assertTrue(saved.getMembership_start_at_wsh().isBefore(expiresAt));
+        assertEquals(saved.getMembership_start_at_wsh().plusDays(30), saved.getMembership_end_at_wsh());
+    }
+
+    @Test
+    void createOrderRejectsPendingOrderOfAnotherTier() {
+        MembershipOrder pending = new MembershipOrder();
+        pending.setId_wsh(300L);
+        pending.setUser_id_wsh(7L);
+        pending.setPlan_id_wsh(9L);
+        pending.setStatus_wsh("pending");
+        when(membershipOrderMapper.selectOne(any())).thenReturn(null);
+        when(memberPlanMapper.selectOne(any())).thenReturn(activePlan());
+        when(membershipOrderMapper.selectList(any())).thenReturn(List.of(pending));
+
+        MembershipOrderCreateRequestDTO request = request(null, "req-conflict");
+        request.setPlan_code_wsh("GOLD_MONTH");
+
+        assertThrows(BusinessException.class, () -> service.createOrder(7L, request));
+        verify(membershipOrderMapper, never()).insert(any(MembershipOrder.class));
+    }
+
+    @Test
+    void createOrderAllowsPendingOrderOfSameTier() {
+        MembershipOrder pending = new MembershipOrder();
+        pending.setId_wsh(301L);
+        pending.setUser_id_wsh(7L);
+        pending.setPlan_id_wsh(8L);
+        pending.setStatus_wsh("pending");
+        when(membershipOrderMapper.selectOne(any())).thenReturn(null);
+        when(memberPlanMapper.selectOne(any())).thenReturn(activePlan());
+        when(membershipOrderMapper.selectList(any())).thenReturn(List.of(pending));
+        when(membershipOrderMapper.insert(any(MembershipOrder.class))).thenAnswer(invocation -> {
+            MembershipOrder order = invocation.getArgument(0);
+            order.setId_wsh(302L);
+            return 1;
+        });
+
+        MembershipOrderCreateRequestDTO request = request(null, "req-same-tier");
+        request.setPlan_code_wsh("GOLD_MONTH");
+        service.createOrder(7L, request);
+
+        verify(membershipOrderMapper).insert(any(MembershipOrder.class));
     }
 
     @Test
@@ -251,15 +326,15 @@ class MembershipOrderServiceImplTest {
         assertEquals("GOLD_MONTH", saved.getPlan_code_wsh());
         assertEquals("active", saved.getStatus_wsh());
         assertEquals(existing.getId_wsh(), saved.getLast_order_id_wsh());
-        assertEquals(existing.getMembership_start_at_wsh(), saved.getStarted_at_wsh());
-        assertEquals(existing.getMembership_end_at_wsh(), saved.getExpires_at_wsh());
+        assertNotNull(saved.getStarted_at_wsh());
+        assertEquals(saved.getStarted_at_wsh().plusDays(30), saved.getExpires_at_wsh());
 
         ArgumentCaptor<MembershipEvent> eventCaptor = ArgumentCaptor.forClass(MembershipEvent.class);
         verify(membershipEventMapper, org.mockito.Mockito.times(2)).insert(eventCaptor.capture());
         assertEquals("order_paid", eventCaptor.getAllValues().get(0).getEvent_type_wsh());
         assertEquals("membership_activated", eventCaptor.getAllValues().get(1).getEvent_type_wsh());
         verify(accountingService).debit(eq(7L), eq(new BigDecimal("20.00")), eq("membership_payment"), eq(null),
-                eq("membership_order"), eq("100"), eq("membership-payment:100:owner"), any());
+                eq("membership_order"), eq("100"), eq("membership-payment:100:owner"), any(), any());
         verify(accountingService).credit(eq(0L), eq(new BigDecimal("20.00")), eq("membership_payment"), eq(null),
                 eq("membership_order"), eq("100"), eq("membership-payment:100:system"), any());
     }
@@ -294,7 +369,7 @@ class MembershipOrderServiceImplTest {
     }
 
     @Test
-    void payPendingOrderRenewsFromCurrentActiveExpiry() {
+    void payPendingOrderStacksOnCurrentExpiryWhenSameTier() {
         MembershipOrder existing = existingOrder(7L, "pending");
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(12).withNano(0);
         UserMembership membership = activeMembership(7L, 90L, expiresAt);
@@ -316,6 +391,52 @@ class MembershipOrderServiceImplTest {
         verify(membershipOrderMapper).updateById(orderCaptor.capture());
         assertEquals(expiresAt, orderCaptor.getValue().getMembership_start_at_wsh());
         assertEquals(expiresAt.plusDays(30), orderCaptor.getValue().getMembership_end_at_wsh());
+    }
+
+    @Test
+    void payPendingOrderOverwritesFromNowWhenTierChanges() {
+        MembershipOrder existing = existingOrder(7L, "pending");
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(12).withNano(0);
+        UserMembership membership = activeMembership(7L, 90L, expiresAt);
+        membership.setLevel_wsh(1);
+        membership.setPlan_code_wsh("SILVER");
+        when(membershipOrderMapper.selectOne(any())).thenReturn(existing);
+        when(membershipOrderMapper.update(any(MembershipOrder.class), any())).thenReturn(1);
+        when(userMembershipMapper.selectOne(any())).thenReturn(membership);
+        when(memberPlanMapper.selectById(8L)).thenReturn(activePlan());
+
+        LocalDateTime before = LocalDateTime.now();
+        service.payOrder(7L, existing.getOrder_no_wsh());
+
+        ArgumentCaptor<UserMembership> membershipCaptor = ArgumentCaptor.forClass(UserMembership.class);
+        verify(userMembershipMapper).updateById(membershipCaptor.capture());
+        UserMembership saved = membershipCaptor.getValue();
+        assertFalse(saved.getStarted_at_wsh().isBefore(before));
+        assertTrue(saved.getStarted_at_wsh().isBefore(expiresAt));
+        assertEquals(saved.getStarted_at_wsh().plusDays(30), saved.getExpires_at_wsh());
+        assertEquals(Integer.valueOf(2), saved.getLevel_wsh());
+        assertEquals("GOLD_MONTH", saved.getPlan_code_wsh());
+
+        ArgumentCaptor<MembershipOrder> orderCaptor = ArgumentCaptor.forClass(MembershipOrder.class);
+        verify(membershipOrderMapper).updateById(orderCaptor.capture());
+        assertEquals(saved.getStarted_at_wsh(), orderCaptor.getValue().getMembership_start_at_wsh());
+        assertEquals(saved.getExpires_at_wsh(), orderCaptor.getValue().getMembership_end_at_wsh());
+    }
+
+    @Test
+    void confirmPaidOnStaleOrderDoesNotResetMembership() {
+        MembershipOrder stale = existingOrder(7L, "paid");
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(120).withNano(0);
+        UserMembership membership = activeMembership(7L, 90L, expiresAt);
+        when(membershipOrderMapper.selectOne(any())).thenReturn(stale);
+        when(userMembershipMapper.selectOne(any())).thenReturn(membership);
+
+        MembershipOrderDTO dto = service.confirmPaidForAdmin(1L, stale.getOrder_no_wsh());
+
+        assertEquals("paid", dto.getStatus_wsh());
+        verify(userMembershipMapper, never()).updateById(any(UserMembership.class));
+        verify(userMembershipMapper, never()).insert(any(UserMembership.class));
+        verify(membershipEventMapper, never()).insert(any(MembershipEvent.class));
     }
 
     @Test

@@ -14,6 +14,7 @@ import com.pet.boarding.service.MerchantService;
 import com.pet.boarding.service.ServiceAvailabilityService;
 import com.pet.boarding.service.ServiceItemService;
 import com.pet.common.BusinessException;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.security.JwtAuthenticationToken;
 import io.swagger.v3.oas.annotations.Operation;
@@ -369,6 +370,38 @@ public class ServiceItemController {
         log.info("listByMerchantForManage() 被调用");
         assertMerchantOwnerOrAdmin(merchantId);
         return Result.success(serviceItemService.listByMerchantForManage(merchantId).stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
+    }
+
+    /**
+     * 分页获取商家服务项目管理列表
+     *
+     * API: GET /api/services/merchant/{merchantId}/manage/page
+     * 为什么新增：原 manage 端点全量返回，服务数量多的商家一次拉完。
+     * 口径与 /manage 完全一致（同一条件、同一排序），只是加了 LIMIT。
+     */
+    @GetMapping("/merchant/{merchantId}/manage/page")
+    @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
+    @Operation(summary = "分页获取商家服务项目管理列表", description = "按创建时间倒序，size 上限 100")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<ServiceItemDTO>> pageByMerchantForManage(
+            @Parameter(description = "商家ID") @PathVariable Long merchantId,
+            @Parameter(description = "页码，从 1 开始") @RequestParam(required = false, defaultValue = "1") Integer page,
+            @Parameter(description = "每页条数 20/50/100") @RequestParam(required = false, defaultValue = "20") Integer size) {
+        log.info("pageByMerchantForManage() 被调用, merchantId={}, page={}, size={}", merchantId, page, size);
+        assertMerchantOwnerOrAdmin(merchantId);
+
+        PageResult<ServiceItem> source = serviceItemService.pageByMerchantForManage(merchantId, page, size);
+        PageResult<ServiceItemDTO> result = new PageResult<>();
+        result.setList(source.getList().stream().map(serviceItemService::toDTO).collect(Collectors.toList()));
+        result.setTotal(source.getTotal());
+        result.setPage(source.getPage());
+        result.setSize(source.getSize());
+        result.setPages(source.getPages());
+        return Result.success(result);
     }
 
     /**

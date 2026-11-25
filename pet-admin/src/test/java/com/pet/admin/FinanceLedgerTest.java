@@ -113,7 +113,8 @@ class FinanceLedgerTest {
                 couponService,
                 membershipBenefitService,
                 messageSender,
-                orderService);
+                orderService,
+                walletService);
         refundService = new RefundServiceImpl(refundMapper, orderMapper, accountingService);
         orderStatusService = new OrderServiceImpl(
                 orderMapper,
@@ -163,7 +164,7 @@ class FinanceLedgerTest {
 
         verify(paymentMapper, never()).update(any(Payment.class), any());
         verify(orderMapper, never()).update(any(PetOrder.class), any());
-        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(accountingService, never()).credit(any(), any(), any(), any(), any(), any(), any(), any());
     }
 

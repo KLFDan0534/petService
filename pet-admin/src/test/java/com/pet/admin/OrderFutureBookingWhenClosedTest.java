@@ -21,6 +21,7 @@ import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.common.StatusCode;
 import com.pet.finance.service.AccountingService;
+import com.pet.finance.service.WalletService;
 import com.pet.marketing.dto.CouponDiscountResult;
 import com.pet.marketing.service.CouponService;
 import com.pet.membership.dto.MembershipDiscountDTO;
@@ -94,6 +95,7 @@ class OrderFutureBookingWhenClosedTest {
     @Mock private OrderStatusBroadcaster orderStatusBroadcaster;
     @Mock private MessageSender messageSender;
     @Mock private AccountingService accountingService;
+    @Mock private WalletService walletService;
     @Mock private KeeperAttendanceService keeperAttendanceService;
     @Mock private KeeperLeaveService keeperLeaveService;
     @Mock private CouponService couponService;
@@ -312,7 +314,7 @@ class OrderFutureBookingWhenClosedTest {
 
         PaymentServiceImpl paymentService = new PaymentServiceImpl(
                 paymentMapper, orderMapper, orderStatusBroadcaster, accountingService, couponService,
-                membershipBenefitService, messageSender, orderServiceDelegate());
+                membershipBenefitService, messageSender, orderServiceDelegate(), walletService);
 
         paymentService.pay(7L, "PAY-CLOSED");
 
@@ -320,7 +322,7 @@ class OrderFutureBookingWhenClosedTest {
         verify(paymentMapper, never()).update(any(Payment.class), any(LambdaUpdateWrapper.class));
         verify(orderMapper, never()).update(any(), any());
         verify(orderStatusBroadcaster, never()).broadcast(any());
-        verify(accountingService, never()).debit(anyLong(), any(), any(), anyLong(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(anyLong(), any(), any(), anyLong(), any(), any(), any(), any(), any());
     }
 
     private PetOrder futurePaidOrder() {

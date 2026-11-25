@@ -54,9 +54,9 @@ public interface AccountingService {
      *
      * 业务作用：扣除用户余额，自动校验可用余额，记录流水并校验幂等。
      * 数据处理：校验幂等 → 校验可用余额 → 执行扣余额 SQL → 记录流水。
-     * 业务规则：金额必须 > 0；可用余额 (balance - frozen) 必须充足。
+     * 业务规则：金额必须 > 0；可用余额 (balance - frozen) 必须充足；requestId 重复则不重复扣款。
      * 异常情况：可用余额不足时抛 BusinessException("可用余额不足")；扣款失败时抛 BusinessException("钱包扣款失败")。
-     * 注意事项：可用余额 = balance - frozen_amount。
+     * 注意事项：可用余额 = balance - frozen_amount；operatorId 仅用于记录『谁执行了本次操作』，目标用户仍为 userId，无操作人时传 null。
      *
      * @param userId       目标用户 ID
      * @param amount       出账金额（必须 > 0）
@@ -66,17 +66,7 @@ public interface AccountingService {
      * @param businessId   业务 ID
      * @param requestId    幂等请求 ID
      * @param description  交易描述
-     * @return 出账后的钱包
-     */
-    Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,
-                 String businessType, String businessId, String requestId, String description);
-
-    /**
-     * 出账（带操作人）
-     *
-     * 业务作用：扣除用户余额，并在流水中记录操作人用户 ID。
-     * 注意事项：operatorId 仅用于记录『谁执行了本次操作』，目标用户仍为 userId。
-     *
+     * @param operatorId   操作人用户 ID（可选，无操作人传 null）
      * @return 出账后的钱包
      */
     Wallet debit(Long userId, BigDecimal amount, String type, Long orderId,

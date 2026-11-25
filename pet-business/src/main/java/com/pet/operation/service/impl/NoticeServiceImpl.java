@@ -20,6 +20,8 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -197,9 +199,20 @@ public class NoticeServiceImpl implements NoticeService {
         notice.setStatus_wsh(request.getStatus_wsh() != null ? request.getStatus_wsh() : StatusCode.NOTICE_ACTIVE.getValue());
         noticeMapper.insert(notice);
 
-        // 通知生成改为异步：只投递公告ID，由 MQ 消费者在后台批量生成
+        // 通知生成改为异步：只投递公告ID，由 MQ 消费者在后台批量生成,并且在事务提交后才发送
         if (shouldCreateNotifications(notice)) {
-            messageSender.sendNoticeNotification(notice.getId_wsh());
+
+            if(TransactionSynchronizationManager.isSynchronizationActive()){
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        messageSender.sendNoticeNotification(notice.getId_wsh());
+                    }
+                });
+            }else {
+                messageSender.sendNoticeNotification(notice.getId_wsh());
+            }
+
         }
         return notice;
     }

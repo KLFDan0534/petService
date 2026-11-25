@@ -662,7 +662,7 @@ public class AiReportServiceImpl implements AiReportService {
                 + "过敏信息: " + (pet != null ? valueOrDefault(pet.getAllergies_wsh(), "无") : "未知") + "\n"
                 + "生活习惯: " + (pet != null ? valueOrDefault(pet.getHabits_wsh(), "无") : "未知") + "\n"
                 + "看护员: " + (keeper != null ? keeper.getName_wsh() : "未指定") + "\n"
-                + "计费数量: " + (order != null && order.getDays_wsh() != null ? order.getDays_wsh() : "未知") + "\n"
+                + "计费数量: " + (order != null && order.getQuantity_wsh() != null ? order.getQuantity_wsh() : "未知") + "\n"
                 + "已上传护理动态:\n" + formatCareRecords(careRecords) + "\n"
                 + "请包含：日常喂养、活动安排、卫生护理、风险提醒、异常处理。";
     }
@@ -676,7 +676,7 @@ public class AiReportServiceImpl implements AiReportService {
         return "请生成一份宠物寄养总结报告，控制在800字以内。\n"
                 + "订单ID: " + safeId(orderId) + (order == null ? "（系统未找到该订单，请按通用寄养完成场景生成）" : "") + "\n"
                 + "订单状态: " + (order != null ? valueOrDefault(order.getStatus_wsh(), "未知") : "未知") + "\n"
-                + "计费数量: " + (order != null && order.getDays_wsh() != null ? order.getDays_wsh() : "未知") + "\n"
+                + "计费数量: " + (order != null && order.getQuantity_wsh() != null ? order.getQuantity_wsh() : "未知") + "\n"
                 + "开始日期: " + (order != null ? order.getStart_date_wsh() : "未知") + "\n"
                 + "结束日期: " + (order != null ? order.getEnd_date_wsh() : "未知") + "\n"
                 + "宠物: " + petName(pet, pet != null ? pet.getId_wsh() : null) + "\n"
@@ -697,7 +697,7 @@ public class AiReportServiceImpl implements AiReportService {
         String allergies = pet != null ? valueOrDefault(pet.getAllergies_wsh(), "无明确过敏信息") : "系统未找到宠物档案，请先按通用护理标准执行";
         String habits = pet != null ? valueOrDefault(pet.getHabits_wsh(), "无特殊习惯记录") : "未知";
         String keeperName = keeper != null ? keeper.getName_wsh() : "未指定看护员";
-        String days = order != null && order.getDays_wsh() != null ? "计费数量 " + order.getDays_wsh() : "按实际服务周期";
+        String days = order != null && order.getQuantity_wsh() != null ? "计费数量 " + order.getQuantity_wsh() : "按实际服务周期";
 
         return "护理建议 - " + petName + "（" + petType + "）\n"
                 + "看护员：" + keeperName + "\n"
@@ -719,7 +719,7 @@ public class AiReportServiceImpl implements AiReportService {
         String petName = petName(pet, pet != null ? pet.getId_wsh() : null);
         String petType = pet != null ? valueOrDefault(pet.getType_wsh(), "宠物") : "宠物";
         String keeperName = keeper != null ? keeper.getName_wsh() : "未指定看护员";
-        String days = order != null && order.getDays_wsh() != null ? "计费数量 " + order.getDays_wsh() : "本次";
+        String days = order != null && order.getQuantity_wsh() != null ? "计费数量 " + order.getQuantity_wsh() : "本次";
         String status = order != null ? valueOrDefault(order.getStatus_wsh(), "未知") : "未找到订单";
 
         return "寄养总结报告 - 订单 " + safeId(orderId) + "\n"

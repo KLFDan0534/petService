@@ -382,16 +382,16 @@ public class CouponServiceImpl implements CouponService {
         UserCoupon userCoupon = requireUserCoupon(userCouponId, userId);
         CouponTemplate template = requireUsableTemplate(userCoupon.getTemplate_id_wsh());
         if (!STATUS_AVAILABLE.equals(userCoupon.getStatus_wsh())) {
-            throw new BusinessException(400, "Coupon is not available");
+            throw new BusinessException(400, "优惠券不可用");
         }
         if (userCoupon.getExpire_at_wsh() != null && userCoupon.getExpire_at_wsh().isBefore(LocalDateTime.now())) {
-            throw new BusinessException(400, "Coupon has expired");
+            throw new BusinessException(400, "优惠券已过期");
         }
         if (!isScopeMatched(template.getScope_type_wsh(), template.getMerchant_id_wsh(), merchantId)) {
-            throw new BusinessException(400, "Coupon cannot be used for this merchant");
+            throw new BusinessException(400, "优惠券不能用于该商家");
         }
         if (settlementAmount.compareTo(moneyOrZero(template.getThreshold_amount_wsh())) < 0) {
-            throw new BusinessException(400, "Order amount does not meet coupon threshold");
+            throw new BusinessException(400, "订单金额未达到优惠券门槛");
         }
 
         BigDecimal couponDiscount = calculateCouponDiscount(template, settlementAmount);
@@ -432,7 +432,7 @@ public class CouponServiceImpl implements CouponService {
         // 原子更新锁定，避免并发重复占用同一张券
         int updated = userCouponMapper.lockForOrder(userCouponId, userId, orderId, orderNo, discount);
         if (updated == 0) {
-            throw new BusinessException(400, "优惠劵不可用，请重新选择");
+            throw new BusinessException(400, "优惠券不可用，请重新选择");
         }
     }
 
@@ -455,7 +455,7 @@ public class CouponServiceImpl implements CouponService {
         }
         int updated = userCouponMapper.markUsedByOrderId(orderId);
         if (updated == 0) {
-            throw new BusinessException(400, "Coupon status changed");
+            throw new BusinessException(400, "优惠券状态已改变");
         }
         CouponUsage usage = new CouponUsage();
         usage.setUser_coupon_id_wsh(coupon.getId_wsh());

@@ -1,6 +1,7 @@
 package com.pet.boarding.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.boarding.dto.ServiceItemCreateRequestDTO;
 import com.pet.boarding.dto.ServiceItemDTO;
 import com.pet.boarding.dto.ServiceItemQueryDTO;
@@ -21,6 +22,7 @@ import com.pet.boarding.service.ServiceMediaService;
 import com.pet.common.BookingErrorCode;
 import com.pet.common.BookingUnit;
 import com.pet.common.BusinessException;
+import com.pet.common.PageResult;
 import com.pet.common.ServiceVersions;
 import com.pet.common.StatusCode;
 import com.pet.common.geo.GeoDistanceUtils;
@@ -98,6 +100,31 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 new LambdaQueryWrapper<ServiceItem>()
                         .eq(ServiceItem::getMerchant_id_wsh, merchantId)
                         .orderByDesc(ServiceItem::getCreated_at_wsh));
+    }
+
+    /**
+     * 业务作用：分页查询某商家的服务列表（实现）。
+     * 业务规则：与 listByMerchantForManage 同一套条件与排序，只加 LIMIT。
+     * 注意事项：size 越界（<1 或 >100）回落到 20。
+     */
+    @Override
+    public PageResult<ServiceItem> pageByMerchantForManage(Long merchantId, Integer page, Integer size) {
+        int current = (page == null || page < 1) ? 1 : page;
+        int pageSize = (size == null || size < 1 || size > 100) ? 20 : size;
+
+        Page<ServiceItem> result = serviceItemMapper.selectPage(
+                new Page<>(current, pageSize),
+                new LambdaQueryWrapper<ServiceItem>()
+                        .eq(ServiceItem::getMerchant_id_wsh, merchantId)
+                        .orderByDesc(ServiceItem::getCreated_at_wsh));
+
+        PageResult<ServiceItem> pageResult = new PageResult<>();
+        pageResult.setList(result.getRecords());
+        pageResult.setTotal(result.getTotal());
+        pageResult.setPage(current);
+        pageResult.setSize(pageSize);
+        pageResult.setPages(result.getPages());
+        return pageResult;
     }
 
     /**
@@ -726,18 +753,12 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         return result;
     }
 
-    /**
-     * 可预约性：商家开放未来预约且服务计价单位是 BookingUnit 注册表中的 night/session/hour。
-     * 未知/无法解析的单位仍视为不可预约（UNSUPPORTED_SERVICE_UNIT）。
-     */
-    /** 判断服务是否可预约（返回不可预约原因或null） */
+    /** 判断服务是否可预约：商家开放未来预约且单位为 BookingUnit 注册表标准单位，否则返回不可预约原因 */
     private String bookableReason(ServiceItem service, Merchant merchant) {
-        boolean futureBookingOn = merchant != null && merchant.getFuture_booking_enabled_wsh() != null
-                && merchant.getFuture_booking_enabled_wsh() == 1;
-        if (!futureBookingOn) {
+        if (merchant == null || !Integer.valueOf(1).equals(merchant.getFuture_booking_enabled_wsh())) {
             return BookingErrorCode.FUTURE_BOOKING_DISABLED;
         }
-        if (service.getUnit_wsh() == null || BookingUnit.normalize(service.getUnit_wsh()) == null) {
+        if (BookingUnit.normalize(service.getUnit_wsh()) == null) {
             return BookingErrorCode.UNSUPPORTED_SERVICE_UNIT;
         }
         return null;

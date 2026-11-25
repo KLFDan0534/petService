@@ -21,6 +21,7 @@ import com.pet.common.OrderStatus;
 import com.pet.common.StatusCode;
 import com.pet.customer.mapper.RatingMapper;
 import com.pet.finance.service.AccountingService;
+import com.pet.finance.service.WalletService;
 import com.pet.marketing.service.CouponService;
 import com.pet.membership.service.MembershipBenefitService;
 import com.pet.mq.MessageSender;
@@ -108,6 +109,7 @@ class OrderCheckoutIntegrationTest {
     @Mock private OrderStatusBroadcaster orderStatusBroadcaster;
     @Mock private MessageSender messageSender;
     @Mock private AccountingService accountingService;
+    @Mock private WalletService walletService;
     @Mock private KeeperAttendanceService keeperAttendanceService;
     @Mock private KeeperLeaveService keeperLeaveService;
     @Mock private CouponService couponService;
@@ -141,7 +143,7 @@ class OrderCheckoutIntegrationTest {
 
     private PaymentServiceImpl paymentService(OrderServiceImpl orderService) {
         return new PaymentServiceImpl(paymentMapper, orderMapper, orderStatusBroadcaster,
-                accountingService, couponService, membershipBenefitService, messageSender, orderService);
+                accountingService, couponService, membershipBenefitService, messageSender, orderService, walletService);
     }
 
     private PetOrder nightOrderInProgress() {
@@ -245,7 +247,7 @@ class OrderCheckoutIntegrationTest {
 
         // 3. 只扣一次、只入账一次
         verify(accountingService, times(1)).debit(eq(OWNER_ID), eq(new BigDecimal("12.50")),
-                eq("payment"), eq(ORDER_ID), any(), any(), any(), any());
+                eq("payment"), eq(ORDER_ID), any(), any(), any(), any(), any());
         verify(accountingService, times(1)).credit(eq(1L), eq(new BigDecimal("12.50")),
                 eq("payment"), eq(ORDER_ID), any(), any(), any(), any());
         // 4. 累计一次并结算一次（450 + 12.50）
@@ -294,7 +296,7 @@ class OrderCheckoutIntegrationTest {
         payments.pay(OWNER_ID, pending.getPay_no_wsh());
         payments.pay(OWNER_ID, pending.getPay_no_wsh());
 
-        verify(accountingService, times(1)).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, times(1)).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
         ArgumentCaptor<PetOrder> updates = ArgumentCaptor.forClass(PetOrder.class);
         verify(orderMapper, atLeast(1)).updateById(updates.capture());
         assertEquals(1, updates.getAllValues().stream()

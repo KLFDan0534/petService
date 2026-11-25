@@ -1,8 +1,10 @@
 package com.pet.finance.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.finance.dto.TransactionDTO;
+import com.pet.finance.entity.Transaction;
 import com.pet.security.JwtAuthenticationToken;
 import com.pet.finance.service.TransactionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -87,5 +89,38 @@ public class TransactionController {
         log.info("调用 listAll(), type={}", type);
         // type 为空时返回全部类型流水
         return Result.success(transactionService.listAllByType(type).stream().map(transactionService::toDTO).collect(Collectors.toList()));
+    }
+
+    /**
+     * 分页获取全部交易流水（管理员对账）
+     *
+     * <p>API: GET /api/transactions/page</p>
+     * <p>为什么新增：流水表随时间无限增长，原 GET /api/transactions 全量返回，
+     * 后台打开一次就把整表拉进内存。新端点走 SQL 分页。</p>
+     *
+     * @param type 交易类型，可为空
+     * @param page 页码，从 1 开始
+     * @param size 每页条数（建议 20/50/100）
+     * @return 分页流水
+     */
+    @GetMapping("/page")
+    @Operation(summary = "分页获取全部流水", description = "管理员对账用，支持按类型过滤，size 上限 100")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "成功返回分页流水"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    @PreAuthorize("hasRole('ADMIN')")
+    public Result<PageResult<TransactionDTO>> pageAll(@RequestParam(required = false) String type,
+                                                      @RequestParam(defaultValue = "1") Integer page,
+                                                      @RequestParam(defaultValue = "20") Integer size) {
+        PageResult<Transaction> source = transactionService.pageAllByType(type, page, size);
+        PageResult<TransactionDTO> result = new PageResult<>();
+        result.setList(source.getList().stream().map(transactionService::toDTO).toList());
+        result.setTotal(source.getTotal());
+        result.setPage(source.getPage());
+        result.setSize(source.getSize());
+        result.setPages(source.getPages());
+        return Result.success(result);
     }
 }

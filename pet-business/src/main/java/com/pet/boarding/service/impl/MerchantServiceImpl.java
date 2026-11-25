@@ -21,6 +21,7 @@ import com.pet.system.entity.User;
 import com.pet.system.mapper.UserMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -294,6 +295,7 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
     public void approve(Long id) {
         log.info("approve() 被调用");
@@ -313,6 +315,7 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
     public void reject(Long id) {
         log.info("reject() 被调用");
@@ -331,6 +334,7 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public void updateStatus(Long id, Integer status) {
         log.info("updateStatus() 被调用: id={}, status={}", id, status);
         getById(id);
@@ -361,6 +365,7 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     @Transactional
+    @PreAuthorize("hasRole('ADMIN')")
     public void delete(Long id) {
         log.info("delete() 被调用: id={}", id);
         Merchant merchant = getById(id);
@@ -385,6 +390,8 @@ public class MerchantServiceImpl implements MerchantService {
      */
     @Override
     @Transactional
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MERCHANT')")
+    @CacheEvict(cacheNames = {"service-item-page", "serviceItem"}, allEntries = true)
     public Merchant updateStoreMode(Long id, Integer storeMode) {
         log.info("updateStoreMode() 被调用");
         Merchant merchant = getById(id);

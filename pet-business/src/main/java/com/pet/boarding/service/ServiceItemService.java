@@ -8,6 +8,7 @@ import com.pet.boarding.dto.ServiceManageDetailVO;
 import com.pet.boarding.dto.ServiceProductDetailVO;
 import com.pet.boarding.dto.ServiceQueryResultVO;
 import com.pet.boarding.entity.ServiceItem;
+import com.pet.common.PageResult;
 
 import java.util.Collection;
 import java.util.List;
@@ -28,6 +29,18 @@ public interface ServiceItemService {
      * @return 所有服务项目列表（按创建时间倒序）
      */
     List<ServiceItem> listByMerchantForManage(Long merchantId);
+
+    /**
+     * 业务作用：分页查询某商家的服务列表（商家后台管理页用）。
+     * 业务规则：按创建时间倒序；size 限制 1~100，越界回落到 20。
+     * 注意事项：查询口径与 listByMerchantForManage 完全一致，只是加了分页。
+     *
+     * @param merchantId 商家ID
+     * @param page       页码，从 1 开始
+     * @param size       每页条数
+     * @return 分页结果
+     */
+    PageResult<ServiceItem> pageByMerchantForManage(Long merchantId, Integer page, Integer size);
 
     /**
      * 业务作用：根据主键ID查询服务项目信息。

@@ -1,6 +1,7 @@
 package com.pet.admin.statistics.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import lombok.extern.slf4j.Slf4j;
 import com.pet.common.OrderStatus;
 import com.pet.order.dto.OrderDTO;
@@ -13,10 +14,15 @@ import com.pet.customer.entity.Complaint;
 import com.pet.customer.entity.Rating;
 import com.pet.customer.mapper.ComplaintMapper;
 import com.pet.customer.mapper.RatingMapper;
+import com.pet.pet.entity.Pet;
 import com.pet.pet.service.PetService;
+import com.pet.pet.mapper.PetMapper;
 import com.pet.boarding.service.KeeperService;
 import com.pet.boarding.service.MerchantService;
+import com.pet.boarding.mapper.KeeperMapper;
+import com.pet.boarding.mapper.MerchantMapper;
 import com.pet.system.service.UserService;
+import com.pet.system.mapper.UserMapper;
 import com.pet.admin.statistics.service.StatisticsService;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +33,7 @@ import com.pet.admin.statistics.vo.UserDashboardVO;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -60,6 +67,14 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final ComplaintMapper complaintMapper;
     private final OrderMapper orderMapper;
     private final TipMapper tipMapper;
+    /**
+     * 四个计数 Mapper：看板的「总用户/总宠物/总商家/总看护者」只需要 COUNT，
+     * 原先用 Service.listAll().size() 会把整表加载进内存，这里改为直接 COUNT。
+     */
+    private final UserMapper userMapper;
+    private final PetMapper petMapper;
+    private final MerchantMapper merchantMapper;
+    private final KeeperMapper keeperMapper;
 
     /**
      * 业务作用：注入用户、宠物、商家、看护者、订单服务以及评价、投诉、订单、打赏四个 Mapper。
@@ -71,7 +86,11 @@ public class StatisticsServiceImpl implements StatisticsService {
                                   RatingMapper ratingMapper,
                                   ComplaintMapper complaintMapper,
                                   OrderMapper orderMapper,
-                                  TipMapper tipMapper) {
+                                  TipMapper tipMapper,
+                                  UserMapper userMapper,
+                                  PetMapper petMapper,
+                                  MerchantMapper merchantMapper,
+                                  KeeperMapper keeperMapper) {
         this.userService = userService;
         this.petService = petService;
         this.merchantService = merchantService;
@@ -81,6 +100,10 @@ public class StatisticsServiceImpl implements StatisticsService {
         this.complaintMapper = complaintMapper;
         this.orderMapper = orderMapper;
         this.tipMapper = tipMapper;
+        this.userMapper = userMapper;
+        this.petMapper = petMapper;
+        this.merchantMapper = merchantMapper;
+        this.keeperMapper = keeperMapper;
     }
 
     /**
@@ -102,29 +125,18 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public AdminDashboardVO getAdminDashboard() {
         AdminDashboardVO stats = new AdminDashboardVO();
-        // 全量拉取后计数，数据量大时是瓶颈
-        stats.setTotal_users_wsh(userService.listAll().size());
-        stats.setTotal_pets_wsh(petService.listAll().size());
-        stats.setTotal_merchants_wsh(merchantService.listAll().size());
-        stats.setTotal_keepers_wsh(keeperService.listAll().size());
+        // 计数走 COUNT(*)，不再把整表加载进内存
+        stats.setTotal_users_wsh(countAll(userMapper));
+        stats.setTotal_pets_wsh(countAll(petMapper));
+        stats.setTotal_merchants_wsh(countAll(merchantMapper));
+        stats.setTotal_keepers_wsh(countAll(keeperMapper));
 
-        List<OrderDTO> allOrders = orderService.listAll();
-        stats.setTotal_orders_wsh(allOrders.size());
-
-        // 营收只统计已支付之后的订单状态
-        BigDecimal totalRevenue = allOrders.stream()
-                .filter(this::isRevenueOrder)
-                .map(this::finalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        stats.setTotal_revenue_wsh(totalRevenue);
-
-        long pendingOrders = allOrders.stream()
-                .filter(o -> OrderStatus.PENDING.equals(o.getStatus_wsh())).count();
-        stats.setPending_orders_wsh(pendingOrders);
-
-        long completedOrders = allOrders.stream()
-                .filter(o -> OrderStatus.COMPLETED.equals(o.getStatus_wsh())).count();
-        stats.setCompleted_orders_wsh(completedOrders);
+        // 订单四项指标由一条聚合 SQL 返回，口径与 REVENUE_STATUSES 保持一致
+        Map<String, Object> orderStats = orderMapper.selectPlatformStats();
+        stats.setTotal_orders_wsh((int) longValue(orderStats, "total_orders_wsh"));
+        stats.setTotal_revenue_wsh(bigDecimalValue(orderStats, "total_revenue_wsh"));
+        stats.setPending_orders_wsh(longValue(orderStats, "pending_orders_wsh"));
+        stats.setCompleted_orders_wsh(longValue(orderStats, "completed_orders_wsh"));
 
         return stats;
     }
@@ -146,25 +158,16 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public UserDashboardVO getUserDashboard(Long userId) {
         UserDashboardVO stats = new UserDashboardVO();
-        stats.setPets_wsh(petService.getPetsByOwner(userId).size());
+        // 宠物数量：COUNT 该主人名下宠物，不再加载宠物列表
+        Long petCount = petMapper.selectCount(new LambdaQueryWrapper<Pet>()
+                .eq(Pet::getOwner_id_wsh, userId));
+        stats.setPets_wsh(petCount == null ? 0 : petCount.intValue());
 
-        List<OrderDTO> orders = orderService.listByOwner(userId);
-
-        long activeOrders = orders.stream()
-                .filter(this::isActiveOrder)
-                .count();
-        long completedOrders = orders.stream()
-                .filter(o -> OrderStatus.COMPLETED.equals(o.getStatus_wsh()))
-                .count();
-        // 累计消费按实付金额汇总
-        BigDecimal totalSpent = orders.stream()
-                .filter(this::isRevenueOrder)
-                .map(this::finalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        stats.setActive_orders_wsh(activeOrders);
-        stats.setCompleted_orders_wsh(completedOrders);
-        stats.setTotal_spent_wsh(totalSpent);
+        // 订单四项指标由一条聚合 SQL 返回，只扫该用户的行
+        Map<String, Object> orderStats = orderMapper.selectOwnerStats(userId);
+        stats.setActive_orders_wsh(longValue(orderStats, "active_orders_wsh"));
+        stats.setCompleted_orders_wsh(longValue(orderStats, "completed_orders_wsh"));
+        stats.setTotal_spent_wsh(bigDecimalValue(orderStats, "total_spent_wsh"));
 
         return stats;
     }
@@ -186,28 +189,14 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public MerchantDashboardVO getMerchantDashboard(Long merchantId) {
         MerchantDashboardVO stats = new MerchantDashboardVO();
-        List<OrderDTO> orders = orderService.listByMerchant(merchantId);
-
-        stats.setTotal_orders_wsh(orders.size());
-        BigDecimal totalRevenue = orders.stream()
-                .filter(this::isRevenueOrder)
-                .map(this::finalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        stats.setTotal_revenue_wsh(totalRevenue);
-
-        long pending = orders.stream().filter(o -> OrderStatus.PENDING.equals(o.getStatus_wsh())).count();
-        long active = orders.stream().filter(this::isActiveOrder).count();
-        long completed = orders.stream().filter(o -> OrderStatus.COMPLETED.equals(o.getStatus_wsh())).count();
-        stats.setPending_orders_wsh(pending);
-        stats.setActive_orders_wsh(active);
-        stats.setCompleted_orders_wsh(completed);
-
-        // 服务中的宠物：只算宠物已经进店的订单，按 pet_id 去重
-        stats.setPets_wsh((int) orders.stream()
-                .filter(this::isServingOrder)
-                .map(OrderDTO::getPet_id_wsh)
-                .distinct()
-                .count());
+        // 六项指标一条聚合 SQL，只扫该商家的行；在店宠物数在 SQL 内 DISTINCT 去重
+        Map<String, Object> orderStats = orderMapper.selectMerchantStats(merchantId);
+        stats.setTotal_orders_wsh((int) longValue(orderStats, "total_orders_wsh"));
+        stats.setTotal_revenue_wsh(bigDecimalValue(orderStats, "total_revenue_wsh"));
+        stats.setPending_orders_wsh(longValue(orderStats, "pending_orders_wsh"));
+        stats.setActive_orders_wsh(longValue(orderStats, "active_orders_wsh"));
+        stats.setCompleted_orders_wsh(longValue(orderStats, "completed_orders_wsh"));
+        stats.setPets_wsh((int) longValue(orderStats, "serving_pets_wsh"));
 
         return stats;
     }
@@ -374,5 +363,78 @@ public class StatisticsServiceImpl implements StatisticsService {
         Long count = tipMapper.selectCount(new LambdaQueryWrapper<Tip>()
                 .in(Tip::getOrder_id_wsh, orderIds));
         return count == null ? 0 : count;
+    }
+
+    /**
+     * 业务作用：统计整表行数（自动带 @TableLogic 的 deleted_wsh = 0 条件）。
+     * 业务规则：null 按 0 处理。
+     * 注意事项：只走 COUNT，不加载实体；替代 Service.listAll().size() 的全表加载。
+     */
+    private static int countAll(BaseMapper<?> mapper) {
+        Long total = mapper.selectCount(null);
+        return total == null ? 0 : total.intValue();
+    }
+
+    /**
+     * 业务作用：从聚合查询返回的单行 Map 中读取 long 值。
+     * 业务规则：null / 非数字统一按 0 处理。
+     * 注意事项：MySQL 的 COUNT 返回 Long、SUM 可能返回 BigDecimal，这里统一收敛。
+     */
+    private static long longValue(Map<String, Object> row, String key) {
+        Object value = rowValue(row, key);
+        if (value == null) {
+            return 0L;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    /**
+     * 业务作用：从聚合查询返回的单行 Map 中读取金额。
+     * 业务规则：null / 无法解析时按 0 处理。
+     * 注意事项：SUM(DECIMAL) 返回 BigDecimal，原样返回可避免二次精度损失。
+     */
+    private static BigDecimal bigDecimalValue(Map<String, Object> row, String key) {
+        Object value = rowValue(row, key);
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        try {
+            return new BigDecimal(value.toString());
+        } catch (NumberFormatException e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * 业务作用：大小写不敏感地读取 Map 中的键。
+     * 业务规则：先精确匹配，再忽略大小写匹配。
+     * 注意事项：部分 JDBC 驱动会把列别名转成大写，需要这层兜底。
+     */
+    private static Object rowValue(Map<String, Object> row, String key) {
+        if (row == null || key == null) {
+            return null;
+        }
+        if (row.containsKey(key)) {
+            return row.get(key);
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 }

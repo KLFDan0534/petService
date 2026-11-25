@@ -98,7 +98,7 @@ class AccountingRechargeFlowTest {
         when(walletMapper.deductBalance(eq(7L), eq(new BigDecimal("20.00")))).thenReturn(1);
 
         Wallet after = accounting.debit(7L, new BigDecimal("20.00"), "payment", 55L,
-                "payment", "550", "payment:55:owner", "订单余额支付");
+                "payment", "550", "payment:55:owner", "订单余额支付", null);
 
         assertEquals(new BigDecimal("80.00"), after.getBalance_wsh());
         ArgumentCaptor<Transaction> tx = ArgumentCaptor.forClass(Transaction.class);
@@ -112,10 +112,9 @@ class AccountingRechargeFlowTest {
     void balancePaymentInsufficientThrowsAndNoRecord() {
         when(transactionMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         when(walletService.getByUserId(7L)).thenReturn(wallet(1L, 7L, "10.00"));
-        when(walletMapper.deductBalance(eq(7L), any(BigDecimal.class))).thenReturn(0);
 
         assertThrows(BusinessException.class, () -> accounting.debit(7L, new BigDecimal("20.00"), "payment", 55L,
-                "payment", "550", "payment:55:owner", "订单余额支付"));
+                "payment", "550", "payment:55:owner", "订单余额支付", null));
 
         verify(transactionMapper, never()).insert(any(Transaction.class));
     }
@@ -126,7 +125,7 @@ class AccountingRechargeFlowTest {
         when(walletService.getByUserId(7L)).thenReturn(wallet(1L, 7L, "80.00"));
 
         Wallet after = accounting.debit(7L, new BigDecimal("20.00"), "payment", 55L,
-                "payment", "550", "payment:55:owner", "订单余额支付");
+                "payment", "550", "payment:55:owner", "订单余额支付", null);
 
         assertEquals(new BigDecimal("80.00"), after.getBalance_wsh());
         verify(walletMapper, never()).deductBalance(any(), any());

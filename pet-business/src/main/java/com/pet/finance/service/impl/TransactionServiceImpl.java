@@ -2,6 +2,8 @@ package com.pet.finance.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.pet.common.PageResult;
 import com.pet.finance.dto.TransactionDTO;
 import com.pet.finance.entity.Transaction;
 import com.pet.finance.mapper.TransactionMapper;
@@ -69,6 +71,33 @@ public class TransactionServiceImpl implements TransactionService {
                 new LambdaQueryWrapper<Transaction>()
                         .eq(Transaction::getType_wsh, type.trim())
                         .orderByDesc(Transaction::getCreated_at_wsh));
+    }
+
+    /**
+     * 分页查询全部交易记录（实现）
+     *
+     * 业务作用：按创建时间倒序分页，供后台财务对账使用。
+     * 业务规则：type 为空不过滤；size 越界（<1 或 >100）回落到 20。
+     * 注意事项：与 listAllByType 共用同一套过滤口径，避免两个入口数据不一致。
+     */
+    @Override
+    public PageResult<Transaction> pageAllByType(String type, Integer page, Integer size) {
+        int current = (page == null || page < 1) ? 1 : page;
+        int pageSize = (size == null || size < 1 || size > 100) ? 20 : size;
+
+        LambdaQueryWrapper<Transaction> wrapper = new LambdaQueryWrapper<Transaction>()
+                .eq(type != null && !type.isBlank(), Transaction::getType_wsh,
+                        type == null ? null : type.trim())
+                .orderByDesc(Transaction::getCreated_at_wsh);
+
+        Page<Transaction> result = transactionMapper.selectPage(new Page<>(current, pageSize), wrapper);
+        PageResult<Transaction> pageResult = new PageResult<>();
+        pageResult.setList(result.getRecords());
+        pageResult.setTotal(result.getTotal());
+        pageResult.setPage(current);
+        pageResult.setSize(pageSize);
+        pageResult.setPages(result.getPages());
+        return pageResult;
     }
 
     /**
