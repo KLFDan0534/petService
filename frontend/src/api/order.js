@@ -85,9 +85,54 @@ export async function claimOrder(data) {
   return res.data
 }
 
-// 商家后台的订单列表，分页拉，一次默认 100 条
+// @deprecated 后端 /orders/merchant 是假分页（total 取 list.size，page/size 只回显）。
+// 商家订单列表请用 scrollMerchantOrders。
 export async function getMerchantOrders(page = 1, size = 100) {
   const res = await request.get(`/orders/merchant?page=${page}&size=${size}`)
+  return res.data
+}
+
+// ===== 游标分页（C 端滚动加载）：首页不传 cursor，下一页传上次返回的 next_cursor_wsh =====
+
+// 我的订单
+export async function scrollMyOrders(params = {}) {
+  const res = await request.get('/orders/scroll', { params })
+  return res.data
+}
+
+// 商家订单
+export async function scrollMerchantOrders(params = {}) {
+  const res = await request.get('/orders/merchant/scroll', { params })
+  return res.data
+}
+
+// 看护者任务
+export async function scrollKeeperOrders(params = {}) {
+  const res = await request.get('/orders/keeper/scroll', { params })
+  return res.data
+}
+
+// 待分配抢单池（按创建时间升序，先到先得）
+export async function scrollPoolOrders(params = {}) {
+  const res = await request.get('/orders/pool/scroll', { params })
+  return res.data
+}
+
+// 订单各状态计数（标签数字用）：返回 { status_wsh: count }
+// 列表分页后前端只持有已加载的一页，标签数字必须由服务端按全量算
+export async function getMyOrderStats() {
+  const res = await request.get('/orders/stats')
+  return res.data
+}
+
+export async function getMerchantOrderStats() {
+  const res = await request.get('/orders/merchant/stats')
+  return res.data
+}
+
+// 后台全平台订单（页码分页，可跳页/对账）
+export async function pageAdminOrders(params = {}) {
+  const res = await request.get('/orders/admin/page', { params })
   return res.data
 }
 
@@ -110,6 +155,12 @@ export async function getConversation(orderId) {
 
 export async function sendMessage(orderId, data) {
   const res = await request.post(`/api/order-fulfillments/${orderId}/conversation`, data)
+  return res.data
+}
+
+// 把某笔订单的会话标已读：工作区点开订单后调用，红点清零
+export async function markConversationRead(orderId, params = {}) {
+  const res = await request.post(`/api/order-fulfillments/${orderId}/conversation/read`, null, { params })
   return res.data
 }
 

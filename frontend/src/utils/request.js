@@ -49,16 +49,18 @@ request.interceptors.response.use(
     if (!error.response) {
       return Promise.reject(error)
     }
-    const { status, config } = error.response
+    const { status, config, data } = error.response
+    // 第一性：任何携带后端业务消息的 HTTP 错误，优先展示后端业务语义，
+    // 而不仅是固定的状态码兜底文案。
+    if (data && typeof data === 'object' && data.message) {
+      const appStore = useAppStore()
+      appStore.addToast(data.message, 'error')
+    }
     if (status === 401) {
       return handle401Error(config)
     }
     if (status === 403) {
       return handle403Error(config)
-    }
-    if (status === 500) {
-      const appStore = useAppStore()
-      appStore.addToast('服务器错误，请稍后重试', 'error')
     }
     return Promise.reject(error)
   }

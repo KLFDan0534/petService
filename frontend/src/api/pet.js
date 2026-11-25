@@ -38,3 +38,9 @@ export async function getAdminPets() {
   const res = await request.get('/api/pets/admin/all')
   return res.data
 }
+
+// 分页版：后台宠物列表用。原 /admin/all 是全量返回
+export async function getAdminPetsPage(params = {}) {
+  const res = await request.get('/api/pets/admin/page', { params })
+  return res.data
+}

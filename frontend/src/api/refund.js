@@ -10,6 +10,12 @@ export async function getRefunds() {
   return res.data
 }
 
+// 分页版：后台退款审核列表用。原 /all 是全量返回
+export async function getRefundsPage(params = {}) {
+  const res = await request.get('/api/refunds/all/page', { params })
+  return res.data
+}
+
 export async function createRefund(data) {
   const res = await request.post('/api/refunds', data)
   return res.data

@@ -21,3 +21,15 @@ export async function markConversationRead(data) {
   const res = await request.post('/api/chat/read-conversation', data)
   return res.data
 }
+
+// 当前用户全部未读消息（带 order_id_wsh），订单工作区按订单聚合红点用，一次拿完不用逐单拉会话
+export async function getUnreadMessages() {
+  const res = await request.get('/api/chat/unread')
+  return res.data
+}
+
+// 未读消息总数，用户端导航「消息」入口的角标用
+export async function getUnreadMessageCount() {
+  const res = await request.get('/api/chat/unread-count')
+  return res.data
+}

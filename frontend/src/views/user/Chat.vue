@@ -193,7 +193,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
@@ -221,6 +221,8 @@ let eventSource = null
 const currentUserId = computed(() => authStore.user?.id_wsh)
 const token = computed(() => authStore.token || localStorage.getItem('token'))
 const unreadTotal = computed(() => conversations.value.reduce((sum, c) => sum + (c.unread_count_wsh || 0), 0))
+// 顶部导航「消息」入口的红色角标与页内未读数同源，避免两处数字对不上
+watch(unreadTotal, (total) => { appStore.unread = total }, { immediate: true })
 const activeLastTime = computed(() => conversations.value.find(c => c.other_user_id_wsh === activeUserId.value)?.last_time_wsh || '')
 
 async function loadConversations() {
@@ -649,9 +651,10 @@ onBeforeUnmount(() => {
   height: 18px;
   padding: 0 6px;
   border-radius: var(--radius-pill);
-  background: var(--ref-brand);
+  background: var(--color-danger, #dc2626);
   color: #fff;
   font-size: 10.5px;
+  font-weight: 600;
   line-height: 1;
 }
 .ch-conv-preview {

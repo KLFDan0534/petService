@@ -106,6 +106,17 @@
             </select>
             <AppIcon class="od-sort-chev" aria-hidden="true"><ArrowDown /></AppIcon>
           </label>
+          <label class="od-sort">
+            <span class="od-sort-sr">每页条数</span>
+            <select
+              v-model.number="pageSize"
+              :disabled="loading"
+              class="od-sort-select"
+              @change="changePageSize"
+            >
+              <option v-for="n in pageSizes" :key="n" :value="n">{{ n }} 条/页</option>
+            </select>
+          </label>
           <button v-if="hasFilters" type="button" class="od-reset" @click="clearFilters">
             <AppIcon aria-hidden="true"><Close /></AppIcon>
             重置
@@ -161,7 +172,22 @@
               @viewDetail="handleViewDetail(o)"
             />
           </div>
-          <p class="od-footer-note">已显示全部 <span class="od-tabular">{{ filteredOrders.length }}</span> 张订单</p>
+          <div class="od-pager">
+            <p class="od-footer-note">
+              已加载 <span class="od-tabular">{{ filteredOrders.length }}</span> / 共
+              <span class="od-tabular">{{ totalCount }}</span> 张订单
+            </p>
+            <button
+              v-if="hasMore"
+              class="od-btn od-btn-primary"
+              type="button"
+              :disabled="loadingMore"
+              @click="loadMore"
+            >
+              {{ loadingMore ? '加载中…' : '加载更多' }}
+            </button>
+            <span v-else class="od-footer-note">已经到底了</span>
+          </div>
         </template>
       </section>
     </div>
@@ -179,7 +205,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowDown, Close, Refresh, Search, Sort } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
@@ -188,7 +214,7 @@ import TipDialog from '@/components/order/TipDialog.vue'
 import ReviewDialog from '@/components/order/ReviewDialog.vue'
 import CancelOrderDialog from '@/components/order/CancelOrderDialog.vue'
 import MediaWithFallback from '@/components/common/MediaWithFallback.vue'
-import { getOrders, cancelOrder as apiCancelOrder } from '@/api/order'
+import { scrollMyOrders, getMyOrderStats, cancelOrder as apiCancelOrder } from '@/api/order'
 import { getServiceDetail } from '@/api/service'
 import { createPayment, executePayment } from '@/api/payment'
 import { createTip } from '@/api/wallet'
@@ -206,6 +232,15 @@ const activeTab = ref('all')
 const activeStatus = ref('')
 const searchQuery = ref('')
 const sortKey = ref('recent')
+
+// 游标分页状态：列表按 created_at 倒序一页页加载
+const cursor = ref('')
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const pageSize = ref(20)
+const pageSizes = [20, 50, 100]
+// 服务端按全量算出的各状态计数：标签数字不能在前端算，否则只覆盖已加载的一页
+const statusCounts = ref({})
 const showTip = ref(null)
 const showReview = ref(null)
 const showCancel = ref(null)
@@ -235,19 +270,24 @@ const SORT_OPTIONS = [
 
 const activeGroup = computed(() => GROUPS.find(g => g.key === activeTab.value) || GROUPS[0])
 
+// 全部订单数：服务端各状态计数之和（全量口径，不随滚动变化）
+const totalCount = computed(() =>
+  Object.values(statusCounts.value || {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
+)
+
 function groupCount(groupKey) {
   const group = GROUPS.find(g => g.key === groupKey)
-  if (groupKey === 'all') return orders.value.length
+  if (groupKey === 'all') return totalCount.value
   if (!group || !group.statuses.length) return 0
-  return orders.value.filter(order => group.statuses.includes(order.status_wsh)).length
+  return group.statuses.reduce((sum, key) => sum + (Number(statusCounts.value?.[key]) || 0), 0)
 }
 
-const pendingCount = computed(() => orders.value.filter(order => order.status_wsh === 'pending').length)
+const pendingCount = computed(() => Number(statusCounts.value?.pending) || 0)
 
 const activeGroupSubStatuses = computed(() => {
   const statuses = activeGroup.value.statuses
   if (!statuses.length) return []
-  const present = statuses.filter(key => orders.value.some(order => order.status_wsh === key))
+  const present = statuses.filter(key => (Number(statusCounts.value?.[key]) || 0) > 0)
   return present.length > 1 ? present.map(key => ({ key, label: STATUS_LABELS[key] })) : []
 })
 
@@ -272,10 +312,9 @@ const stayElapsed = computed(() => {
 const stayRatio = computed(() => clamp(stayElapsed.value / stayTotal.value, 0.06, 1))
 
 const filteredOrders = computed(() => {
+  // 状态筛选已下推到服务端（「待处理」这类分组是多状态 IN），
+  // 这里只剩本地搜索与排序，作用于当前已加载的订单。
   let list = orders.value
-  const statuses = activeGroup.value.statuses
-  if (statuses.length) list = list.filter(order => statuses.includes(order.status_wsh))
-  if (activeStatus.value) list = list.filter(order => order.status_wsh === activeStatus.value)
   const keyword = searchQuery.value.trim().toLocaleLowerCase()
   if (keyword) {
     list = list.filter(order => {
@@ -306,8 +345,8 @@ const viewKey = computed(() => `${activeTab.value}-${activeStatus.value}-${sortK
 
 const summaryText = computed(() => {
   if (loading.value) return '正在同步你的订单记录…'
-  if (!orders.value.length) return '下单后，订单进度、实拍与费用都会集中在这里。'
-  const parts = [`共 ${orders.value.length} 张订单`]
+  if (!totalCount.value) return '下单后，订单进度、实拍与费用都会集中在这里。'
+  const parts = [`共 ${totalCount.value} 张订单`]
   if (groupCount('active')) parts.push(`${groupCount('active')} 张正在寄养`)
   if (groupCount('completed')) parts.push(`${groupCount('completed')} 张已完成`)
   return parts.join('，')
@@ -347,17 +386,40 @@ onUnmounted(() => {
   if (countdownTimer) window.clearInterval(countdownTimer)
 })
 
+// 当前筛选对应的状态参数：分组是多状态逗号串，细选时取单值
+function currentStatusParam() {
+  if (activeStatus.value) return activeStatus.value
+  const statuses = activeGroup.value.statuses
+  return statuses.length ? statuses.join(',') : ''
+}
+
 async function loadOrders() {
   loading.value = true
   loadError.value = ''
+  cursor.value = ''
+  hasMore.value = false
   try {
-    const res = await getOrders()
-    if (res.code === 200) {
-      const list = Array.isArray(res.data) ? res.data : []
+    const params = { size: pageSize.value }
+    const status = currentStatusParam()
+    if (status) params.status = status
+
+    // 列表与计数并行：计数必须走服务端全量，否则标签数字只覆盖已加载的一页
+    const [listRes, statsRes] = await Promise.all([
+      scrollMyOrders(params),
+      getMyOrderStats(),
+    ])
+    if (listRes.code === 200) {
+      const payload = listRes.data || {}
+      const list = Array.isArray(payload.list_wsh) ? payload.list_wsh : []
       await enrichServiceImages(list)
       orders.value = list
+      cursor.value = payload.next_cursor_wsh || ''
+      hasMore.value = Boolean(payload.has_more_wsh)
     } else {
-      loadError.value = res.message || '订单加载失败'
+      loadError.value = listRes.message || '订单加载失败'
+    }
+    if (statsRes?.code === 200) {
+      statusCounts.value = statsRes.data || {}
     }
   } catch (e) {
     loadError.value = e?.message || '订单加载失败，请检查网络连接后重试'
@@ -366,6 +428,41 @@ async function loadOrders() {
     loading.value = false
   }
 }
+
+// 加载下一页：追加而不是重置，游标由后端返回
+async function loadMore() {
+  if (loadingMore.value || loading.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const params = { size: pageSize.value, cursor: cursor.value }
+    const status = currentStatusParam()
+    if (status) params.status = status
+
+    const res = await scrollMyOrders(params)
+    if (res.code === 200) {
+      const payload = res.data || {}
+      const list = Array.isArray(payload.list_wsh) ? payload.list_wsh : []
+      await enrichServiceImages(list)
+      orders.value = [...orders.value, ...list]
+      cursor.value = payload.next_cursor_wsh || ''
+      hasMore.value = Boolean(payload.has_more_wsh)
+    }
+  } catch (e) {
+    appStore.addToast(e?.message || '加载更多失败', 'error')
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+// 切换每页条数：回第一页重新拉
+function changePageSize() {
+  loadOrders()
+}
+
+// 分组/细分状态变化即重新查询（筛选已下推服务端）
+watch([activeTab, activeStatus], () => {
+  loadOrders()
+})
 
 async function enrichServiceImages(orderList) {
   const missingIds = [...new Set(orderList.filter(o => !o.service_images_wsh && o.service_id_wsh).map(o => o.service_id_wsh))]
@@ -507,6 +604,16 @@ function orderAmount(order) {
 
 <style scoped>
 .od-page { width: 100%; padding: 6px 0 72px; }
+
+/* 分页条：左边是已加载/总数，右边是加载更多 */
+.od-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 18px 0 4px;
+}
 .od-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
 /* Breadcrumb */

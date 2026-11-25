@@ -29,8 +29,8 @@ export async function replyToRating(id, reply) {
 }
 
 // 晒单评价，跟评分是两套东西，这里带图和长文字
-export async function getReviews() {
-  const res = await request.get('/api/reviews')
+export async function getReviews(params) {
+  const res = await request.get('/api/reviews', { params })
   return res.data
 }
 

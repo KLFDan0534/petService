@@ -199,6 +199,18 @@ export const constantRoutes = [
     meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES },
   },
   {
+    path: '/profile/identity',
+    name: 'ProfileIdentity',
+    component: () => import('@/views/user/Identity.vue'),
+    meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES },
+  },
+  {
+    path: '/profile/account',
+    name: 'ProfileAccountSecurity',
+    component: () => import('@/views/user/AccountSecurity.vue'),
+    meta: { layout: 'user', requiresAuth: true, roles: ACCOUNT_AREA_ROLES },
+  },
+  {
     path: '/profile/phone',
     name: 'ProfilePhoneEdit',
     component: () => import('@/views/user/ProfileAccountEdit.vue'),

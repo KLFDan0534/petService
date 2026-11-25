@@ -223,7 +223,10 @@ async function payPayment(p) {
       await loadPayments()
     }
   } catch (e) {
-    appStore.addToast(e?.message || '支付失败', 'error')
+    // 第一性：优先展示后端返回的业务消息（如"可用余额不足"），
+    // 回退到 axios 错误字符串，最后才是兜底文案。
+    const backendMsg = e?.response?.data?.message
+    appStore.addToast(backendMsg || e?.message || '支付失败', 'error')
   }
 }
 

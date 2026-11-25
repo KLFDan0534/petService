@@ -45,8 +45,8 @@ export async function getMyWithdrawals() {
   return res.data
 }
 
-export async function getWithdrawals() {
-  const res = await request.get('/api/withdrawals')
+export async function getWithdrawals(params) {
+  const res = await request.get('/api/withdrawals', { params })
   return res.data
 }
 
@@ -81,5 +81,11 @@ export async function getMyTransactions() {
 // 后台查全部流水，对账时按时间和类型筛
 export async function getTransactions(params) {
   const res = await request.get('/api/transactions', { params })
+  return res.data
+}
+
+// 分页流水：后台对账用。流水表无限增长，全量拉取会拖垮页面
+export async function getTransactionsPage(params) {
+  const res = await request.get('/api/transactions/page', { params })
   return res.data
 }

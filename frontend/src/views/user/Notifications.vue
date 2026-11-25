@@ -116,10 +116,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 
-const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 const loading = ref(true)
 const detailNotice = ref(null)
@@ -148,14 +146,8 @@ onUnmounted(() => {
   notificationStore.stopPolling()
 })
 
-function handleClick(n) {
-  if (!n.is_read_wsh) {
-    notificationStore.markAsRead(n.id_wsh)
-  }
-}
-
 function openDetail(n) {
-  handleClick(n)
+  if (!n.is_read_wsh) notificationStore.markAsRead(n.id_wsh)
   detailNotice.value = n
 }
 

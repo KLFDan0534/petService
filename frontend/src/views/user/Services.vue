@@ -100,6 +100,28 @@
             >
             <button v-if="searchQuery" type="button" class="s-clear" aria-label="清除搜索" @click="searchQuery = ''">✕</button>
           </div>
+
+          <!-- 排序方式：默认「综合优先」；点「附近优先」会按当前位置的距离从近到远排 -->
+          <div class="s-sort-group" role="group" aria-label="排序方式">
+            <button
+              type="button"
+              class="s-chip"
+              :class="{ active: sortMode === 'default' }"
+              :aria-pressed="sortMode === 'default'"
+              @click="setSortMode('default')"
+            >
+              综合优先
+            </button>
+            <button
+              type="button"
+              class="s-chip"
+              :class="{ active: sortMode === 'nearby' }"
+              :aria-pressed="sortMode === 'nearby'"
+              @click="setSortMode('nearby')"
+            >
+              附近优先
+            </button>
+          </div>
         </div>
 
         <div class="s-results-head">
@@ -137,7 +159,7 @@ import { useServiceDistance } from '@/composables/useServiceDistance'
 
 const appStore = useAppStore()
 const categoryStore = useCategoryStore()
-const { attachDistances } = useServiceDistance()
+const { attachDistances, locateUser } = useServiceDistance()
 
 // ---------- 页面用到的数据 ----------
 // services：这一页要展示的全部服务，一次取回来，分类和搜索都在本地做
@@ -149,6 +171,8 @@ const merchants = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const selectedCategory = ref('')
+// 排序方式：default = 综合优先（默认），nearby = 附近优先（按距离从近到远）
+const sortMode = ref('default')
 
 // 接口有时候直接给一个数组，有时候把数组装在 list 里面，这里统一成数组再往下用
 function normalizeList(data) {
@@ -232,9 +256,23 @@ function resetFilters() {
 async function loadServices() {
   loading.value = true
   try {
+    // 综合优先用默认顺序；附近优先要先拿用户坐标，后端距离排序要求经纬度成对提供
+    const params = { page: 1, size: 100 }
+    if (sortMode.value === 'nearby') {
+      const location = await locateUser()
+      if (!location) {
+        // 定位失败：自动退回综合优先，不打扰用户
+        sortMode.value = 'default'
+        appStore.addToast('定位失败，已切换为综合优先')
+      } else {
+        params.sort = 'distance_asc'
+        params.latitude_wsh = location.latitude_wsh
+        params.longitude_wsh = location.longitude_wsh
+      }
+    }
     // 用公开的分页接口，一次要 100 条，因为这一页要把服务全列出来
     const [serviceResponse, merchantResponse] = await Promise.all([
-      getPublicServices({ page: 1, size: 100 }),
+      getPublicServices(params),
       getMerchants(),
     ])
     // 分页接口把数据放在 items_wsh 里
@@ -247,11 +285,18 @@ async function loadServices() {
   } catch (_) {
     // 只要有一个请求出错，就清空列表并弹提示，不让页面一直转圈
     services.value = []
-    merchants.value = [].
+    merchants.value = []
     appStore.addToast('加载预约服务失败，请稍后重试', 'error')
   } finally {
     loading.value = false
   }
+}
+
+// 切换排序方式：重新拉取列表；分类和搜索条件保留（它们都是本地筛选）
+function setSortMode(mode) {
+  if (mode === sortMode.value) return
+  sortMode.value = mode
+  void loadServices()
 }
 
 // 顶部广告轮播，单独发请求；失败就不显示，不打扰用户
@@ -480,6 +525,11 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   margin-top: 28px;
+}
+.s-sort-group {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 .s-search {
   position: relative;

@@ -95,7 +95,7 @@
               <div class="fv-body">
                 <div class="fv-tags">
                   <span class="tag-pill">{{ item.target_type_label_wsh || item.target_type_wsh || '收藏' }}</span>
-                  <span v-if="item.created_at_wsh" class="fv-date">收藏于 {{ formatDate(item.created_at_wsh) }}</span>
+                  <span v-if="item.created_at_wsh" class="fv-date">收藏于 {{ formatLocalDate(item.created_at_wsh, '') }}</span>
                 </div>
                 <h3 class="fv-name">
                   <button type="button" class="fv-name-btn" @click="openDetail(item)">{{ item.title_wsh || '未命名' }}</button>
@@ -240,10 +240,6 @@ function openDetail(item) {
   if (item?.detail_url_wsh) {
     router.push(item.detail_url_wsh)
   }
-}
-
-function formatDate(value) {
-  return formatLocalDate(value, '')
 }
 
 function formatAmount(value) {
