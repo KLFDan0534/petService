@@ -1,5 +1,6 @@
 package com.pet.order.service;
 
+import com.pet.common.PageResult;
 import com.pet.order.dto.RefundDTO;
 import com.pet.order.entity.Refund;
 import java.util.List;
@@ -19,6 +20,17 @@ public interface RefundService {
      * @return 全部退款记录列表
      */
     List<Refund> listAll();
+
+    /**
+     * 业务作用：分页获取全部退款记录（管理后台审核用）。
+     * 业务规则：按创建时间倒序；size 限制 1~100，越界回落到 20。
+     * 注意事项：只改查询方式，字段与 listAll 完全一致。
+     *
+     * @param page 页码，从 1 开始
+     * @param size 每页条数
+     * @return 分页结果
+     */
+    PageResult<Refund> pageAll(Integer page, Integer size);
 
     /**
      * 业务作用：根据主人ID查询其名下所有订单的退款记录，用于主人端退款进度查看。

@@ -67,8 +67,6 @@ class OrderFulfillmentMultiUnitTest {
         order.setQuantity_wsh(1);
         order.setUnit_price_wsh(new BigDecimal("88.00"));
         order.setDuration_minutes_wsh(60);
-        order.setDays_wsh(1);
-        order.setPrice_per_day_wsh(new BigDecimal("88.00"));
         order.setStart_date_wsh(day);
         order.setEnd_date_wsh(day.plusDays(1));
         order.setTotal_amount_wsh(new BigDecimal("88.00"));
@@ -98,7 +96,6 @@ class OrderFulfillmentMultiUnitTest {
         order.setQuantity_wsh(3);
         order.setUnit_price_wsh(new BigDecimal("30.00"));
         order.setDuration_minutes_wsh(60);
-        order.setDays_wsh(1);
         order.setStart_date_wsh(day);
         order.setEnd_date_wsh(day.plusDays(1));
 
@@ -121,7 +118,6 @@ class OrderFulfillmentMultiUnitTest {
         order.setKeeper_id_wsh(null);
         order.setMerchant_id_wsh(3L);
         order.setBilling_unit_wsh("day");
-        order.setDays_wsh(2);
         order.setStart_date_wsh(day);
         // end_date 是最后一个服务日（含）：2 天 = day ~ day+1
         order.setEnd_date_wsh(day.plusDays(1));

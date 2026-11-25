@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  * - discount_wsh            三者之和
  * - final_amount_wsh        实付 = 基础价 - discount
  *
- * 派生字段（total_minutes_wsh / billable_hours_wsh / days_wsh）仅用于展示与解释，
+ * 派生字段（total_minutes_wsh / billable_hours_wsh）仅用于展示与解释，
  * 不参与金额计算；金额只能由服务端返回，前端不得反推。
  */
 @Getter
@@ -37,9 +37,6 @@ public class OrderQuoteDTO {
 
     @Schema(description = "单单位时长（分钟）：night=1440，session/hour=服务配置时长")
     private Integer duration_minutes_wsh;
-
-    @Schema(description = "兼容展示天数：night=夜数、session/hour=1")
-    private Integer days_wsh;
 
     @Schema(description = "单价（每单位；night=每夜、session=每次、hour=每小时）")
     private BigDecimal unit_price_wsh;

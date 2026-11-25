@@ -52,14 +52,6 @@ public class PetOrder {
     @Schema(description = "结束日期")
     private LocalDate end_date_wsh;
 
-    @TableField(value = "days_wsh")
-    @Schema(description = "服务天数（night 模式=quantity；session/hour 模式固定为1的兼容投影）")
-    private Integer days_wsh;
-
-    @TableField(value = "price_per_day_wsh")
-    @Schema(description = "每日价格（旧兼容字段，night 模式=unit_price；session/hour 模式为单单位单价）")
-    private BigDecimal price_per_day_wsh;
-
     @TableField(value = "billing_unit_wsh")
     @Schema(description = "计费单位（下单时服务单位快照：night/session/hour）")
     private String billing_unit_wsh;

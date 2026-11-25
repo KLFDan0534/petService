@@ -53,10 +53,6 @@ public class OrderDTO {
     private LocalDate start_date_wsh;
     @Schema(description = "结束日期")
     private LocalDate end_date_wsh;
-    @Schema(description = "天数（兼容投影）")
-    private Integer days_wsh;
-    @Schema(description = "每日价格（兼容投影）")
-    private BigDecimal price_per_day_wsh;
     @Schema(description = "计费单位（night/session/hour）")
     private String billing_unit_wsh;
     @Schema(description = "计费数量")

@@ -1,5 +1,6 @@
 package com.pet.pet.service;
 
+import com.pet.common.PageResult;
 import com.pet.pet.dto.PetCreateRequestDTO;
 import com.pet.pet.dto.PetDTO;
 import com.pet.pet.dto.PetUpdateRequestDTO;
@@ -18,6 +19,20 @@ public interface PetService {
      * @return 宠物 DTO 列表，不会返回 null
      */
     List<PetDTO> listAll();
+
+    /**
+     * 分页查询全部宠物（管理后台用）
+     *
+     * 业务作用：替代 listAll 的全表加载，按创建时间倒序分页。
+     * 业务规则：keyword 按宠物名模糊匹配；size 限制 1~100，越界回落到 20。
+     * 注意事项：只做分页，不改动任何业务规则与字段。
+     *
+     * @param page    页码，从 1 开始
+     * @param size    每页条数
+     * @param keyword 宠物名关键词，可为 null
+     * @return 分页结果
+     */
+    PageResult<PetDTO> pageAll(Integer page, Integer size, String keyword);
     /**
      * 按主人查询宠物列表
      *

@@ -1,8 +1,10 @@
 package com.pet.order.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import com.pet.common.PageResult;
 import com.pet.common.Result;
 import com.pet.order.dto.RefundDTO;
+import com.pet.order.entity.Refund;
 import com.pet.security.JwtAuthenticationToken;
 import com.pet.order.service.RefundService;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -98,6 +100,36 @@ public class RefundController {
     })
     public Result<List<RefundDTO>> listAll() {
         return Result.success(refundService.listAll().stream().map(refundService::toDTO).collect(Collectors.toList()));
+    }
+
+    /**
+     * 分页获取所有退款列表（管理后台）
+     *
+     * <p>API: GET /api/refunds/all/page</p>
+     * <p>为什么新增：原 /all 全量返回，退款记录持续增长后会拖慢后台页面。</p>
+     *
+     * @param page 页码，从 1 开始
+     * @param size 每页条数（建议 20/50/100）
+     * @return 分页退款列表
+     */
+    @GetMapping("/all/page")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "分页获取所有退款列表", description = "按创建时间倒序，size 上限 100")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<RefundDTO>> pageAll(@RequestParam(defaultValue = "1") Integer page,
+                                                 @RequestParam(defaultValue = "20") Integer size) {
+        PageResult<Refund> source = refundService.pageAll(page, size);
+        PageResult<RefundDTO> result = new PageResult<>();
+        result.setList(source.getList().stream().map(refundService::toDTO).collect(Collectors.toList()));
+        result.setTotal(source.getTotal());
+        result.setPage(source.getPage());
+        result.setSize(source.getSize());
+        result.setPages(source.getPages());
+        return Result.success(result);
     }
 
     /**

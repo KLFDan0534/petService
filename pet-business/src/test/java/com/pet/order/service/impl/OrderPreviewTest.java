@@ -279,7 +279,6 @@ class OrderPreviewTest {
         assertEquals("night", q.getBilling_unit_wsh());
         assertEquals(3, q.getBooked_nights_wsh());
         assertEquals(3, q.getQuantity_wsh());
-        assertEquals(3, q.getDays_wsh());
         assertEquals(3, q.getEarly_extra_hours_wsh());
         assertEquals(0, q.getEarly_extra_nights_wsh());
         // 450 + 3 小时 × (150/24) = 468.75
@@ -493,7 +492,7 @@ class OrderPreviewTest {
         assertEquals(quote.getCoupon_discount_wsh(), order.getCoupon_discount_wsh());
         assertEquals(quote.getMembership_discount_wsh(), order.getMembership_discount_wsh());
         assertEquals(quote.getPlatform_subsidy_wsh(), order.getPlatform_subsidy_wsh());
-        assertEquals(quote.getDays_wsh(), order.getDays_wsh());
+        assertEquals(quote.getQuantity_wsh(), order.getQuantity_wsh());
         assertEquals(new BigDecimal("15.00"), quote.getDiscount_wsh());
         assertEquals(quote.getDiscount_wsh(), order.getDiscount_wsh());
         // 时间字段逐项比对：把 Quote 里相邻的 LocalDateTime 参数写错位就会红

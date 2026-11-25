@@ -87,6 +87,29 @@ public class PetController {
     }
 
     /**
+     * 管理员分页获取宠物
+     *
+     * API: GET /api/pets/admin/page
+     * 为什么新增：原 /admin/all 全量返回，宠物表增长后会把整表拉进内存。
+     * 只改查询方式，字段与 /admin/all 完全一致。
+     */
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "管理员分页获取宠物", description = "按创建时间倒序，支持宠物名搜索，size 上限 100")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "操作成功"),
+            @ApiResponse(responseCode = "403", description = "无权限访问"),
+            @ApiResponse(responseCode = "500", description = "服务器内部错误")
+    })
+    public Result<PageResult<PetDTO>> pageAllPets(
+            @Parameter(description = "页码，从 1 开始") @RequestParam(required = false, defaultValue = "1") Integer page,
+            @Parameter(description = "每页条数 20/50/100") @RequestParam(required = false, defaultValue = "20") Integer size,
+            @Parameter(description = "宠物名关键词") @RequestParam(required = false) String keyword) {
+        log.info("调用 pageAllPets(), page={}, size={}", page, size);
+        return Result.success(petService.pageAll(page, size, keyword));
+    }
+
+    /**
      * 获取本店服务过的宠物列表（商家后台只读视图）
      * <p>
      * 宠物归主人所有，商家没有宠物池，因此这里返回的是「在本商家下过单的宠物」去重档案，

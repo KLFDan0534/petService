@@ -15,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
 
 /**
  * U3 RED: 服务驱动下单契约 —— 计费单位 day/session/hour 均可下单（未知单位拒绝）、
@@ -22,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * 有服务时按服务单价计价，无服务时沿用看护者单价（兼容旧客户端）。
  */
 class ServiceDrivenOrderTest {
+
+    private final OrderServiceImpl orderService = mock(OrderServiceImpl.class, CALLS_REAL_METHODS);
 
     private ServiceItem service(String unit, String price, LocalDateTime updatedAt) {
         ServiceItem s = new ServiceItem();
@@ -87,27 +91,18 @@ class ServiceDrivenOrderTest {
     @Test
     void legacyDayOrderSnapshotKeepsOriginalUnit() {
         // 历史订单的计价单位一律以订单自身快照为准：day 保持 day，
-        // 不得静默推断为 night，也不得从 days_wsh / price_per_day_wsh 反推计价字段。
+        // 不得静默推断为 night，也不得从日期区间反推计价字段。
         PetOrder legacy = new PetOrder();
         legacy.setId_wsh(1L);
         legacy.setBilling_unit_wsh("day");
         legacy.setQuantity_wsh(3);
         legacy.setUnit_price_wsh(new BigDecimal("120.00"));
         legacy.setDuration_minutes_wsh(null);
-        legacy.setDays_wsh(3);
-        legacy.setPrice_per_day_wsh(new BigDecimal("120.00"));
         legacy.setTotal_amount_wsh(new BigDecimal("360.00"));
         legacy.setStart_date_wsh(LocalDate.of(2026, 8, 12));
         legacy.setEnd_date_wsh(LocalDate.of(2026, 8, 15));
 
-        OrderDTO dto = new OrderDTO();
-        dto.setBilling_unit_wsh(legacy.getBilling_unit_wsh());
-        dto.setQuantity_wsh(legacy.getQuantity_wsh());
-        dto.setUnit_price_wsh(legacy.getUnit_price_wsh());
-        dto.setDuration_minutes_wsh(legacy.getDuration_minutes_wsh());
-        dto.setDays_wsh(legacy.getDays_wsh());
-        dto.setPrice_per_day_wsh(legacy.getPrice_per_day_wsh());
-        OrderServiceImpl.applyBillingReadCompat(dto, legacy);
+        OrderDTO dto = orderService.toDTO(legacy);
 
         assertEquals("day", dto.getBilling_unit_wsh());
         assertEquals(3, dto.getQuantity_wsh());
@@ -118,11 +113,8 @@ class ServiceDrivenOrderTest {
     @Test
     void blankBillingUnitIsNeverDerivedAsNight() {
         PetOrder legacy = new PetOrder();
-        legacy.setDays_wsh(3);
-        legacy.setPrice_per_day_wsh(new BigDecimal("120.00"));
 
-        OrderDTO dto = new OrderDTO();
-        OrderServiceImpl.applyBillingReadCompat(dto, legacy);
+        OrderDTO dto = orderService.toDTO(legacy);
 
         assertNull(dto.getBilling_unit_wsh());
         assertNull(dto.getQuantity_wsh());
@@ -138,17 +130,8 @@ class ServiceDrivenOrderTest {
         legacy.setQuantity_wsh(4);
         legacy.setUnit_price_wsh(new BigDecimal("30.00"));
         legacy.setDuration_minutes_wsh(90);
-        legacy.setDays_wsh(1);
-        legacy.setPrice_per_day_wsh(new BigDecimal("30.00"));
 
-        OrderDTO dto = new OrderDTO();
-        dto.setBilling_unit_wsh(legacy.getBilling_unit_wsh());
-        dto.setQuantity_wsh(legacy.getQuantity_wsh());
-        dto.setUnit_price_wsh(legacy.getUnit_price_wsh());
-        dto.setDuration_minutes_wsh(legacy.getDuration_minutes_wsh());
-        dto.setDays_wsh(legacy.getDays_wsh());
-        dto.setPrice_per_day_wsh(legacy.getPrice_per_day_wsh());
-        OrderServiceImpl.applyBillingReadCompat(dto, legacy);
+        OrderDTO dto = orderService.toDTO(legacy);
 
         assertEquals("hour", dto.getBilling_unit_wsh());
         assertEquals(4, dto.getQuantity_wsh());
@@ -158,9 +141,7 @@ class ServiceDrivenOrderTest {
 
     @Test
     void nullOrderReadReturnsNullAndNoDerivation() {
-        OrderDTO dto = new OrderDTO();
-        OrderServiceImpl.applyBillingReadCompat(dto, null);
-        assertNull(dto.getBilling_unit_wsh());
+        assertNull(orderService.toDTO(null));
     }
 
     @Test

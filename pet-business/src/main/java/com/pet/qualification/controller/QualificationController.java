@@ -3,6 +3,9 @@ package com.pet.qualification.controller;
 import com.pet.common.Result;
 import com.pet.qualification.dto.QualificationDTO;
 import com.pet.qualification.service.QualificationService;
+import com.pet.security.JwtAuthenticationToken;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -83,14 +86,16 @@ public class QualificationController {
      */
     @PostMapping("/{id}/approve")
     @Operation(summary = "审核通过资质", description = "审核通过指定的资质申请")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MERCHANT')")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "审核通过返回更新后的资质信息"),
             @ApiResponse(responseCode = "400", description = "请求参数错误"),
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<QualificationDTO> approve(@Parameter(description = "资质ID") @PathVariable Long id,
-                                            @Parameter(description = "审核人ID") @RequestParam Long reviewerId) {
-        return Result.success(qualificationService.approve(id, reviewerId));
+                                            @Parameter(description = "审核人ID") @RequestParam Long reviewerId, // 无用暂时
+                                            @Parameter(description = "审核人ID") JwtAuthenticationToken jwtAuthenticationToken) {
+        return Result.success(qualificationService.approve(id, jwtAuthenticationToken.getUserId()));
     }
 
     /**
@@ -102,6 +107,7 @@ public class QualificationController {
      * 注意事项：与 approve 相同，reviewerId 取自请求参数而非登录态，且本接口无权限注解。
      */
     @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
     @Operation(summary = "驳回资质申请", description = "驳回指定的资质申请并填写备注")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "驳回成功返回更新后的资质信息"),
@@ -110,7 +116,8 @@ public class QualificationController {
     })
     public Result<QualificationDTO> reject(@Parameter(description = "资质ID") @PathVariable Long id,
                                            @Parameter(description = "审核人ID") @RequestParam Long reviewerId,
+                                           @Parameter(description = "审核人ID") JwtAuthenticationToken jwtAuthenticationToken,
                                            @Parameter(description = "驳回备注") @RequestParam(required = false) String remark) {
-        return Result.success(qualificationService.reject(id, reviewerId, remark));
+        return Result.success(qualificationService.reject(id, jwtAuthenticationToken.getUserId(), remark));
     }
 }

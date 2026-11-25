@@ -2,19 +2,26 @@ package com.pet.order.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
+import com.pet.common.PageResult;
 import com.pet.common.RefundStatus;
+import com.pet.config.RabbitMQConfig;
 import com.pet.finance.service.AccountingService;
+import com.pet.mq.MessageSender;
 import com.pet.order.dto.RefundDTO;
 import com.pet.order.entity.PetOrder;
 import com.pet.order.entity.Refund;
 import com.pet.order.mapper.OrderMapper;
 import com.pet.order.mapper.RefundMapper;
 import com.pet.order.service.RefundService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,6 +37,7 @@ import java.util.stream.Collectors;
  * and reverse platform subsidies. Rejected refunds restore the order to its
  * pre-refund status.
  */
+@RequiredArgsConstructor
 @Service
 @Slf4j
 public class RefundServiceImpl implements RefundService {
@@ -47,12 +55,13 @@ public class RefundServiceImpl implements RefundService {
     private final RefundMapper refundMapper;
     private final OrderMapper orderMapper;
     private final AccountingService accountingService;
+    private final MessageSender messageSender;
 
-        public RefundServiceImpl(RefundMapper refundMapper, OrderMapper orderMapper, AccountingService accountingService) {
+/*        public RefundServiceImpl(RefundMapper refundMapper, OrderMapper orderMapper, AccountingService accountingService) {
         this.refundMapper = refundMapper;
         this.orderMapper = orderMapper;
         this.accountingService = accountingService;
-    }
+    }*/
 
     /**
      * 【查询全部退款记录（实现）】
@@ -67,6 +76,29 @@ public class RefundServiceImpl implements RefundService {
         log.info("查询所有退款");
         return refundMapper.selectList(
                 new LambdaQueryWrapper<Refund>().orderByDesc(Refund::getCreated_at_wsh));
+    }
+
+    /**
+     * 业务作用：分页查询全部退款记录，供后台审核列表使用。
+     * 业务规则：按创建时间倒序；size 越界（<1 或 >100）回落到 20。
+     * 注意事项：与 listAll 共用同一套排序口径。
+     */
+    @Override
+    public PageResult<Refund> pageAll(Integer page, Integer size) {
+        int current = (page == null || page < 1) ? 1 : page;
+        int pageSize = (size == null || size < 1 || size > 100) ? 20 : size;
+
+        Page<Refund> result = refundMapper.selectPage(
+                new Page<>(current, pageSize),
+                new LambdaQueryWrapper<Refund>().orderByDesc(Refund::getCreated_at_wsh));
+
+        PageResult<Refund> pageResult = new PageResult<>();
+        pageResult.setList(result.getRecords());
+        pageResult.setTotal(result.getTotal());
+        pageResult.setPage(current);
+        pageResult.setSize(pageSize);
+        pageResult.setPages(result.getPages());
+        return pageResult;
     }
 
     /**
@@ -177,17 +209,7 @@ public class RefundServiceImpl implements RefundService {
     }
 
     /**
-     * Approves a pending refund application. Uses optimistic locking to ensure
-     * the refund is still in PENDING status before transitioning to APPROVED.
-     * <p>
-     * <b>State transition:</b> Refund PENDING → APPROVED
-     *
-     * @param refundId the refund ID to approve
-     * @throws BusinessException if refund not found or not in PENDING status
-     */
-    /**
      * 【审核通过退款（实现）】
-     *
      * 业务作用：
      * 使用乐观锁将PENDING状态的退款更新为APPROVED，等待执行退款转账。
      *
@@ -244,7 +266,7 @@ public class RefundServiceImpl implements RefundService {
         }
 
         if (!OrderStatus.REFUNDING.equals(order.getStatus_wsh())) {
-            throw new BusinessException(400, "Order is not in refunding status");
+            throw new BusinessException(400, "订单已经处于退款状态中");
         }
 
         BigDecimal refundAmount = defaultMoney(refund.getAmount_wsh());
@@ -257,13 +279,14 @@ public class RefundServiceImpl implements RefundService {
                     "订单退款 - " + order.getOrder_no_wsh());
         }
 
+        // TODO 优惠卷需要返还给用户
         BigDecimal subsidy = defaultMoney(order.getPlatform_subsidy_wsh());
         // 有平台补贴时同步回冲给系统账户
         if (subsidy.compareTo(BigDecimal.ZERO) > 0) {
             accountingService.debit(accountingService.systemUserId(), subsidy, "coupon_subsidy_refund", order.getId_wsh(),
                     "coupon", String.valueOf(order.getCoupon_id_wsh()),
                     "refund:coupon-subsidy:" + refund.getId_wsh(),
-                    "退款回冲平台优惠券补贴 - " + order.getOrder_no_wsh());
+                    "退款回冲平台优惠券补贴 - " + order.getOrder_no_wsh(), null);
         }
 
         Refund refundUpdate = new Refund();
@@ -272,7 +295,7 @@ public class RefundServiceImpl implements RefundService {
                 .eq(Refund::getId_wsh, refund.getId_wsh())
                 .eq(Refund::getStatus_wsh, RefundStatus.APPROVED));
         if (refundUpdated == 0) {
-            throw new BusinessException(400, "Refund status changed, cannot complete");
+            throw new BusinessException(400, "退款状态已经改变,但无法完成退款");
         }
         PetOrder orderUpdate = new PetOrder();
         orderUpdate.setStatus_wsh(OrderStatus.REFUNDED);
@@ -280,10 +303,30 @@ public class RefundServiceImpl implements RefundService {
                 .eq(PetOrder::getId_wsh, order.getId_wsh())
                 .eq(PetOrder::getStatus_wsh, OrderStatus.REFUNDING));
         if (orderUpdated == 0) {
-            throw new BusinessException(400, "Order status changed, cannot complete refund");
+            throw new BusinessException(400, "订单状态已经改变,但无法完成退款");
         }
         refund.setStatus_wsh(RefundStatus.COMPLETED);
         order.setStatus_wsh(OrderStatus.REFUNDED);
+
+        log.info("退款完成: {},开始发送mq消息", refund.getId_wsh());
+
+        Runnable task = () -> {
+            try {
+                messageSender.sendOrderRefund(String.valueOf(refund.getId_wsh()));
+            } catch (Exception e) {
+                log.warn("发送订单退款消息失败: refundId={}", refundId, e);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    task.run();
+                }
+            });
+        } else {
+            task.run();
+        }
     }
 
     /**

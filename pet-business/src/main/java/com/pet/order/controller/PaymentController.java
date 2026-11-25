@@ -87,7 +87,7 @@ public class PaymentController {
         log.info("调用 pay()");
         body = requireBody(body);
         if (body.getPay_no_wsh() == null || body.getPay_no_wsh().isBlank()) {
-            throw new BusinessException(400, "payNo cannot be empty");
+            throw new BusinessException(400, "支付编号不能为空");
         }
         paymentService.pay(token.getUserId(), body.getPay_no_wsh());
         return Result.success();

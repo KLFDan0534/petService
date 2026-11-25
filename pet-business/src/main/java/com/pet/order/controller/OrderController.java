@@ -22,6 +22,7 @@ import com.pet.order.dto.OrderPreviewRequestDTO;
 import com.pet.order.dto.OrderProcessRequestDTO;
 import com.pet.order.dto.OrderQuoteDTO;
 import com.pet.order.dto.OrderReceivedRequestDTO;
+import com.pet.order.dto.OrderScrollResult;
 import com.pet.order.dto.OrderStartRequestDTO;
 import com.pet.order.dto.OrderUpdateStatusRequestDTO;
 import com.pet.order.entity.PetOrder;
@@ -48,8 +49,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 订单控制器
@@ -102,21 +105,26 @@ public class OrderController {
             @ApiResponse(responseCode = "500", description = "服务器内部错误")
     })
     public Result<List<OrderDTO>> listMyOrders(@AuthenticationPrincipal JwtAuthenticationToken token) {
-        if (JwtAuthenticationToken.isAdmin(token)) {
-            return Result.success(orderService.listAll());
-        }
+        // 接口语义：获取「当前认证用户」的订单列表，与角色无关。
+        // 管理员查看全平台订单应走专门的管理后台接口，不应复用「我的订单」端点。
         return Result.success(orderService.listByOwner(token.getUserId()));
     }
 
     /**
      * 获取商户订单列表
+     *
      * @param token 当前用户认证信息
      * @param page 页码
      * @param size 每页大小
      * @return 商户订单列表及分页信息
      * @author: wsh
      * @date: 2026/06/24 11:05
+     * @deprecated 这个端点是假分页：service 返回全量，total 直接取 list.size()，
+     *             page/size 只是原样回显，翻页拿不到新数据。
+     *             请改用 {@code GET /api/orders/merchant/scroll}（游标分页，恒定快）。
+     *             保留仅为兼容旧客户端，前端已全部切换，下个版本删除。
      */
+    @Deprecated
     @GetMapping("/merchant")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "获取商户订单列表")
@@ -164,6 +172,159 @@ public class OrderController {
             return Result.success(Collections.emptyList());
         }
         return Result.success(orderService.listByKeeper(keeperId));
+    }
+
+    // =========================================================================
+    // 分页查询端点
+    //
+    // C 端四个走游标（滚动加载，恒定快），后台一个走页码（可跳页/对账）。
+    // 老接口（/、/merchant、/my-keeper、/pool）保留不动，前端切换完成后再清理。
+    // =========================================================================
+
+    /**
+     * 我的订单（游标分页）
+     *
+     * API: GET /api/orders/scroll
+     * 场景：用户端「我的订单」滚动加载。size 只支持 20/50/100。
+     */
+    @GetMapping("/scroll")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "我的订单（游标分页）",
+            description = "首页不传 cursor；下一页传上一页返回的 next_cursor_wsh；size 只支持 20/50/100")
+    public Result<OrderScrollResult> scrollMyOrders(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @Parameter(description = "游标，首页不传") @RequestParam(required = false) String cursor,
+            @Parameter(description = "每页条数 20/50/100") @RequestParam(required = false, defaultValue = "20") Integer size,
+            @Parameter(description = "状态过滤") @RequestParam(required = false) String status,
+            @Parameter(description = "订单号模糊搜索") @RequestParam(required = false) String keyword) {
+        return Result.success(orderService.scrollByOwner(token.getUserId(), cursor, size, status, keyword));
+    }
+
+    /**
+     * 商家订单（游标分页）
+     *
+     * API: GET /api/orders/merchant/scroll
+     * 场景：商家端订单管理滚动加载。替代原 /merchant 的假分页。
+     */
+    @GetMapping("/merchant/scroll")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "商家订单（游标分页）", description = "真分页，size 只支持 20/50/100")
+    public Result<OrderScrollResult> scrollMerchantOrders(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @Parameter(description = "游标，首页不传") @RequestParam(required = false) String cursor,
+            @Parameter(description = "每页条数 20/50/100") @RequestParam(required = false, defaultValue = "20") Integer size,
+            @Parameter(description = "状态过滤") @RequestParam(required = false) String status,
+            @Parameter(description = "订单号模糊搜索") @RequestParam(required = false) String keyword) {
+        var merchant = merchantService.findByUserId(token.getUserId());
+        if (merchant == null) {
+            return Result.error(404, "商户不存在");
+        }
+        return Result.success(orderService.scrollByMerchant(merchant.getId_wsh(), cursor, size, status, keyword));
+    }
+
+    /**
+     * 看护者任务（游标分页）
+     *
+     * API: GET /api/orders/keeper/scroll
+     * 场景：看护者端「我的任务」滚动加载。
+     */
+    @GetMapping("/keeper/scroll")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "看护者任务（游标分页）", description = "size 只支持 20/50/100")
+    public Result<OrderScrollResult> scrollKeeperOrders(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @Parameter(description = "游标，首页不传") @RequestParam(required = false) String cursor,
+            @Parameter(description = "每页条数 20/50/100") @RequestParam(required = false, defaultValue = "20") Integer size,
+            @Parameter(description = "状态过滤") @RequestParam(required = false) String status,
+            @Parameter(description = "订单号模糊搜索") @RequestParam(required = false) String keyword) {
+        Long keeperId = findKeeperIdByUserId(token.getUserId());
+        if (keeperId == null) {
+            return Result.success(OrderScrollResult.empty());
+        }
+        return Result.success(orderService.scrollByKeeper(keeperId, cursor, size, status, keyword));
+    }
+
+    /**
+     * 我的订单各状态计数（订单页标签用）
+     *
+     * API: GET /api/orders/stats
+     * 为什么单独一个接口：列表改成游标分页后，前端只持有已加载的那一页，
+     * 标签上的数字如果在前端算就会随滚动变化，必须由服务端按全量聚合。
+     */
+    @GetMapping("/stats")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "我的订单状态计数", description = "返回 status_wsh → 数量，用于标签数字")
+    public Result<Map<String, Long>> myOrderStats(@AuthenticationPrincipal JwtAuthenticationToken token) {
+        return Result.success(orderService.countByOwnerStatus(token.getUserId()));
+    }
+
+    /**
+     * 商家订单各状态计数（商家订单页标签用）
+     *
+     * API: GET /api/orders/merchant/stats
+     */
+    @GetMapping("/merchant/stats")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "商家订单状态计数", description = "返回 status_wsh → 数量")
+    public Result<Map<String, Long>> merchantOrderStats(@AuthenticationPrincipal JwtAuthenticationToken token) {
+        var merchant = merchantService.findByUserId(token.getUserId());
+        if (merchant == null) {
+            return Result.error(404, "商户不存在");
+        }
+        return Result.success(orderService.countByMerchantStatus(merchant.getId_wsh()));
+    }
+
+    /**
+     * 待分配订单池（游标分页）
+     *
+     * API: GET /api/orders/pool/scroll
+     * 场景：看护者抢单页滚动加载，按创建时间升序（先到先得）。
+     */
+    @GetMapping("/pool/scroll")
+    @PreAuthorize("hasRole('KEEPER')")
+    @Operation(summary = "待分配订单池（游标分页）", description = "按创建时间升序，size 只支持 20/50/100")
+    public Result<OrderScrollResult> scrollPool(
+            @AuthenticationPrincipal JwtAuthenticationToken token,
+            @Parameter(description = "游标，首页不传") @RequestParam(required = false) String cursor,
+            @Parameter(description = "每页条数 20/50/100") @RequestParam(required = false, defaultValue = "20") Integer size) {
+        return Result.success(orderService.scrollAssignableForKeeper(token.getUserId(), cursor, size));
+    }
+
+    /**
+     * 全平台订单（后台页码分页）
+     *
+     * API: GET /api/orders/admin/page
+     * 场景：管理后台订单列表。不传日期时默认最近 30 天；page*size 上限 2000。
+     */
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "全平台订单（后台分页）",
+            description = "不传日期默认最近 30 天；翻页深度上限 2000 条；size 只支持 20/50/100")
+    public Result<PageResult<OrderDTO>> pageAllOrders(
+            @Parameter(description = "页码，从 1 开始") @RequestParam(required = false, defaultValue = "1") Integer page,
+            @Parameter(description = "每页条数 20/50/100") @RequestParam(required = false, defaultValue = "20") Integer size,
+            @Parameter(description = "状态过滤") @RequestParam(required = false) String status,
+            @Parameter(description = "订单号模糊搜索") @RequestParam(required = false) String keyword,
+            @Parameter(description = "创建日期起 yyyy-MM-dd") @RequestParam(required = false) String start_date,
+            @Parameter(description = "创建日期止 yyyy-MM-dd") @RequestParam(required = false) String end_date) {
+        return Result.success(orderService.pageForAdmin(page, size, status, keyword,
+                parseDate(start_date), parseDate(end_date)));
+    }
+
+    /**
+     * 业务作用：把 yyyy-MM-dd 字符串解析为 LocalDate。
+     * 业务规则：空值返回 null，表示不限制。
+     * 异常情况：格式非法抛 400，不静默忽略（否则用户以为筛选生效了）。
+     */
+    private LocalDate parseDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (Exception e) {
+            throw new BusinessException(400, "日期格式应为 yyyy-MM-dd");
+        }
     }
 
     /**

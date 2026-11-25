@@ -9,6 +9,7 @@ import com.pet.common.PageRequestDTO;
 import com.pet.common.OrderStatus;
 import com.pet.config.RabbitMQConfig;
 import com.pet.finance.service.AccountingService;
+import com.pet.finance.service.WalletService;
 import com.pet.marketing.service.CouponService;
 import com.pet.membership.service.MembershipBenefitService;
 import com.pet.mq.MessageSender;
@@ -35,15 +36,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Implementation of {@link PaymentService} for payment processing.
+ * {@link PaymentService} 支付处理的实现。
  * <p>
- * Handles payment record creation and execution. Supported payment methods:
- * balance (internal account), wechat, and alipay. Payment execution transitions
- * the order from PENDING to PAID, performs accounting entries (debiting the
- * owner or crediting the system), and schedules accept-timeout monitoring.
+ * 负责支付记录的创建与执行。支持的支付方式包括：余额（内部账户）、微信、支付宝。
+ * 支付执行会把订单从 PENDING 推进到 PAID，完成账务记账（从主人账户扣款或记入系统），
+ * 并安排接单超时监控。
  * <p>
- * <b>Payment timeout:</b> Orders must be paid within a configured window
- * (default 15 minutes). Expired payments trigger automatic order cancellation.
+ * <b>支付超时：</b> 订单必须在配置的时间窗口内完成支付（默认 15 分钟）。
+ * 超时未支付的会触发订单自动取消。
  */
 @Service
 @Slf4j
@@ -62,6 +62,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final MessageSender messageSender;
     private final OrderService orderService;
     private static final Duration PAYMENT_TIMEOUT = Duration.ofMillis(RabbitMQConfig.ORDER_PAYMENT_TIMEOUT_TTL_MS);
+    private final WalletService walletService;
 
     /**
      * 业务作用：注入支付单、订单 Mapper，以及状态广播、账务、优惠券、会员权益、MQ 发送与订单服务。
@@ -74,7 +75,7 @@ public class PaymentServiceImpl implements PaymentService {
                               CouponService couponService,
                               MembershipBenefitService membershipBenefitService,
                               MessageSender messageSender,
-                              OrderService orderService) {
+                              OrderService orderService, WalletService walletService) {
         this.paymentMapper = paymentMapper;
         this.orderMapper = orderMapper;
         this.orderStatusBroadcaster = orderStatusBroadcaster;
@@ -83,6 +84,7 @@ public class PaymentServiceImpl implements PaymentService {
         this.membershipBenefitService = membershipBenefitService;
         this.messageSender = messageSender;
         this.orderService = orderService;
+        this.walletService = walletService;
     }
 
     /**
@@ -99,19 +101,19 @@ public class PaymentServiceImpl implements PaymentService {
     public Payment getByOrderNo(Long ownerId, String orderNo) {
         log.info("按订单号查询支付记录: {}", orderNo);
         PetOrder order = orderMapper.selectOne(
-                new LambdaQueryWrapper<PetOrder>()
-                        .eq(PetOrder::getOrder_no_wsh, orderNo)
-                        .eq(PetOrder::getOwner_id_wsh, ownerId)
-                        .last("LIMIT 1"));
+            new LambdaQueryWrapper<PetOrder>()
+                .eq(PetOrder::getOrder_no_wsh, orderNo)
+                .eq(PetOrder::getOwner_id_wsh, ownerId)
+                .last("LIMIT 1"));
         if (order == null) {
             throw new BusinessException(404, "订单不存在");
         }
         return paymentMapper.selectOne(
-                new LambdaQueryWrapper<Payment>()
-                        .eq(Payment::getOrder_no_wsh, orderNo)
-                        .eq(Payment::getPurpose_wsh, PaymentPurpose.ORDER)
-                        .orderByDesc(Payment::getId_wsh)
-                        .last("LIMIT 1"));
+            new LambdaQueryWrapper<Payment>()
+                .eq(Payment::getOrder_no_wsh, orderNo)
+                .eq(Payment::getPurpose_wsh, PaymentPurpose.ORDER)
+                .orderByDesc(Payment::getId_wsh)
+                .last("LIMIT 1"));
     }
 
     /**
@@ -124,15 +126,15 @@ public class PaymentServiceImpl implements PaymentService {
     public List<Payment> listByUser(Long userId) {
         log.info("查询用户支付记录: {}", userId);
         List<PetOrder> orders = orderMapper.selectList(
-                new LambdaQueryWrapper<PetOrder>()
-                        .eq(PetOrder::getOwner_id_wsh, userId)
-                        .select(PetOrder::getId_wsh));
+            new LambdaQueryWrapper<PetOrder>()
+                .eq(PetOrder::getOwner_id_wsh, userId)
+                .select(PetOrder::getId_wsh));
         if (orders.isEmpty()) return List.of();
         List<Long> orderIds = orders.stream().map(PetOrder::getId_wsh).collect(Collectors.toList());
         return paymentMapper.selectList(
-                new LambdaQueryWrapper<Payment>()
-                        .in(Payment::getOrder_id_wsh, orderIds)
-                        .orderByDesc(Payment::getCreated_at_wsh));
+            new LambdaQueryWrapper<Payment>()
+                .in(Payment::getOrder_id_wsh, orderIds)
+                .orderByDesc(Payment::getCreated_at_wsh));
     }
 
     /**
@@ -183,21 +185,21 @@ public class PaymentServiceImpl implements PaymentService {
     public Payment createPayment(Long ownerId, String orderNo, String method) {
         log.info("为订单创建支付: {}, 支付方式: {}", orderNo, method);
         PetOrder order = orderMapper.selectOne(
-                new LambdaQueryWrapper<PetOrder>()
-                        .eq(PetOrder::getOrder_no_wsh, orderNo)
-                        .eq(PetOrder::getOwner_id_wsh, ownerId));
+            new LambdaQueryWrapper<PetOrder>()
+                .eq(PetOrder::getOrder_no_wsh, orderNo)
+                .eq(PetOrder::getOwner_id_wsh, ownerId));
         if (order == null) throw new BusinessException(404, "订单不存在");
         if (OrderStatus.PAID.equals(order.getStatus_wsh())) throw new BusinessException(400, "订单已支付");
         if (!OrderStatus.PENDING.equals(order.getStatus_wsh())) throw new BusinessException(400, "当前订单状态不可支付");
         ensureOrderPaymentNotExpired(order);
 
         Payment existing = paymentMapper.selectOne(
-                new LambdaQueryWrapper<Payment>()
-                        .eq(Payment::getOrder_no_wsh, orderNo)
-                        .eq(Payment::getPurpose_wsh, PaymentPurpose.ORDER)
-                        .eq(Payment::getStatus_wsh, "pending")
-                        .orderByDesc(Payment::getId_wsh)
-                        .last("LIMIT 1"));
+            new LambdaQueryWrapper<Payment>()
+                .eq(Payment::getOrder_no_wsh, orderNo)
+                .eq(Payment::getPurpose_wsh, PaymentPurpose.ORDER)
+                .eq(Payment::getStatus_wsh, "pending")
+                .orderByDesc(Payment::getId_wsh)
+                .last("LIMIT 1"));
         // 已有待支付单则复用，只更新支付方式
         if (existing != null) {
             String normalized = normalizeMethod(method);
@@ -249,8 +251,8 @@ public class PaymentServiceImpl implements PaymentService {
     public void pay(Long userId, String payNo) {
         log.info("执行支付: {}", payNo);
         Payment payment = paymentMapper.selectOne(
-                new LambdaQueryWrapper<Payment>().eq(Payment::getPay_no_wsh, payNo).last("LIMIT 1"));
-        if (payment == null) throw new BusinessException(404, "支付记录不存在");
+            new LambdaQueryWrapper<Payment>().eq(Payment::getPay_no_wsh, payNo).last("LIMIT 1"));
+        if (payment == null) throw new BusinessException(404, "该支付订单号不存在");
 
         PetOrder order = orderMapper.selectById(payment.getOrder_id_wsh());
         if (order == null) throw new BusinessException(404, "订单不存在");
@@ -280,8 +282,8 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setStatus_wsh("success");
         payment.setPaid_at_wsh(LocalDateTime.now());
         int paid = paymentMapper.update(payment, new LambdaUpdateWrapper<Payment>()
-                .eq(Payment::getId_wsh, payment.getId_wsh())
-                .eq(Payment::getStatus_wsh, "pending"));
+            .eq(Payment::getId_wsh, payment.getId_wsh())
+            .eq(Payment::getStatus_wsh, "pending"));
         // 并发下已被支付则按成功处理
         if (paid == 0) {
             Payment latest = paymentMapper.selectById(payment.getId_wsh());
@@ -293,29 +295,32 @@ public class PaymentServiceImpl implements PaymentService {
 
         String requestId = "payment:" + payment.getId_wsh();
         BigDecimal paymentAmount = defaultMoney(payment.getAmount_wsh());
+
+
+
         if (paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
             // 余额支付才从主人账户扣款
             if ("balance".equals(payment.getMethod_wsh())) {
                 accountingService.debit(order.getOwner_id_wsh(), paymentAmount, "payment", order.getId_wsh(),
-                        "payment", String.valueOf(payment.getId_wsh()), requestId + ":owner", "订单余额支付 - " + order.getOrder_no_wsh());
+                    "payment", String.valueOf(payment.getId_wsh()), requestId + ":owner", "订单余额支付 - " + order.getOrder_no_wsh(), null);
             }
             accountingService.credit(accountingService.systemUserId(), paymentAmount, "payment", order.getId_wsh(),
-                    "payment", String.valueOf(payment.getId_wsh()), requestId + ":system", "订单支付进入系统暂存 - " + order.getOrder_no_wsh());
+                "payment", String.valueOf(payment.getId_wsh()), requestId + ":system", "订单支付进入系统暂存 - " + order.getOrder_no_wsh());
         }
 
         // 平台补贴单独入账，与用户实付分开
         BigDecimal subsidy = defaultMoney(order.getPlatform_subsidy_wsh());
         if (subsidy.compareTo(BigDecimal.ZERO) > 0) {
             accountingService.credit(accountingService.systemUserId(), subsidy, "coupon_subsidy", order.getId_wsh(),
-                    "coupon", String.valueOf(order.getCoupon_id_wsh()), requestId + ":coupon-subsidy",
-                    "平台优惠券补贴进入系统暂存 - " + order.getOrder_no_wsh());
+                "coupon", String.valueOf(order.getCoupon_id_wsh()), requestId + ":coupon-subsidy",
+                "平台优惠券补贴进入系统暂存 - " + order.getOrder_no_wsh());
         }
 
         PetOrder update = new PetOrder();
         update.setStatus_wsh(OrderStatus.PAID);
         int orderUpdated = orderMapper.update(update, new LambdaUpdateWrapper<PetOrder>()
-                .eq(PetOrder::getId_wsh, order.getId_wsh())
-                .eq(PetOrder::getStatus_wsh, OrderStatus.PENDING));
+            .eq(PetOrder::getId_wsh, order.getId_wsh())
+            .eq(PetOrder::getStatus_wsh, OrderStatus.PENDING));
         // 订单状态被并发改动时终止本次支付
         if (orderUpdated == 0) {
             throw new BusinessException(400, "订单状态已变化，无法支付");
@@ -386,8 +391,8 @@ public class PaymentServiceImpl implements PaymentService {
         payment.setStatus_wsh("success");
         payment.setPaid_at_wsh(LocalDateTime.now());
         int paid = paymentMapper.update(payment, new LambdaUpdateWrapper<Payment>()
-                .eq(Payment::getId_wsh, payment.getId_wsh())
-                .eq(Payment::getStatus_wsh, "pending"));
+            .eq(Payment::getId_wsh, payment.getId_wsh())
+            .eq(Payment::getStatus_wsh, "pending"));
         if (paid == 0) {
             Payment latest = paymentMapper.selectById(payment.getId_wsh());
             if (latest != null && "success".equals(latest.getStatus_wsh())) {
@@ -400,11 +405,11 @@ public class PaymentServiceImpl implements PaymentService {
         String requestId = "payment:" + payment.getId_wsh();
         if (amount.compareTo(BigDecimal.ZERO) > 0) {
             accountingService.debit(lockedOrder.getOwner_id_wsh(), amount, "payment",
-                    lockedOrder.getId_wsh(), "payment", String.valueOf(payment.getId_wsh()),
-                    requestId + ":owner", "晚接补费 - " + lockedOrder.getOrder_no_wsh());
+                lockedOrder.getId_wsh(), "payment", String.valueOf(payment.getId_wsh()),
+                requestId + ":owner", "晚接补费 - " + lockedOrder.getOrder_no_wsh(), null);
             accountingService.credit(accountingService.systemUserId(), amount, "payment",
-                    lockedOrder.getId_wsh(), "payment", String.valueOf(payment.getId_wsh()),
-                    requestId + ":system", "晚接补费进入系统暂存 - " + lockedOrder.getOrder_no_wsh());
+                lockedOrder.getId_wsh(), "payment", String.valueOf(payment.getId_wsh()),
+                requestId + ":system", "晚接补费进入系统暂存 - " + lockedOrder.getOrder_no_wsh());
         }
 
         // 4. 累计金额并完成（同事务；失败则整体回滚，T 与补费单不受影响）
@@ -423,13 +428,13 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("分页查询支付记录, page: {}, size: {}, keyword: {}", pageParam.getPage(), pageParam.getSize(), keyword);
         Page<Payment> page = new Page<>(pageParam.getPage(), pageParam.getSize());
         LambdaQueryWrapper<Payment> wrapper = new LambdaQueryWrapper<Payment>()
-                .orderByDesc(Payment::getCreated_at_wsh);
+            .orderByDesc(Payment::getCreated_at_wsh);
         // 关键字同时匹配订单号与支付编号
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
             wrapper.and(w -> w.like(Payment::getOrder_no_wsh, kw)
-                    .or()
-                    .like(Payment::getPay_no_wsh, kw));
+                .or()
+                .like(Payment::getPay_no_wsh, kw));
         }
         return paymentMapper.selectPage(page, wrapper);
     }
@@ -462,13 +467,13 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * Normalizes a payment method string to a supported internal value.
-     * Defaults to "balance" if null/blank. Maps "online" to "wechat".
-     * "mock" payments are no longer supported.
+     * 将支付方式字符串标准化为受支持的内部取值。
+     * 为空时默认 "balance"。"online" 映射为 "wechat"。
+     * 已不再支持 "mock" 支付。
      *
-     * @param method the raw payment method string
-     * @return the normalized method (balance, wechat, or alipay)
-     * @throws BusinessException if the method is unsupported or mock (deprecated)
+     * @param method 原始支付方式字符串
+     * @return 标准化后的支付方式（balance、wechat 或 alipay）
+     * @throws BusinessException 支付方式不受支持或为 mock（已废弃）时抛出
      */
     private String normalizeMethod(String method) {
         if (method == null || method.isBlank()) return METHOD_BALANCE;
@@ -483,12 +488,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * Validates that the payment method can be executed by the user directly.
-     * Currently only "balance" is executable; wechat/alipay require external
-     * payment platform confirmation and cannot be executed via this API.
+     * 校验该支付方式能否由用户直接执行。
+     * 目前只有 "balance" 可直接执行；wechat/alipay 需等待外部支付平台确认，
+     * 无法通过本接口直接执行。
      *
-     * @param method the normalized payment method
-     * @throws BusinessException if the method requires external confirmation or is mock
+     * @param method 标准化后的支付方式
+     * @throws BusinessException 需要外部确认或为 mock 时抛出
      */
     private void ensureUserExecutableMethod(String method) {
         if (METHOD_BALANCE.equals(method)) {
@@ -511,12 +516,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * Checks whether the order's payment window has expired. If expired, attempts
-     * to cancel the order via {@link OrderService#cancelPendingOrderIfPaymentTimeout}
-     * and throws an exception with an appropriate message.
+     * 校验订单的支付窗口是否已过期。若已过期，尝试通过
+     * {@link OrderService#cancelPendingOrderIfPaymentTimeout} 取消订单，
+     * 并抛出带相应提示的异常。
      *
-     * @param order the order to check
-     * @throws BusinessException if the payment window has expired
+     * @param order 待校验的订单
+     * @throws BusinessException 支付窗口已过期时抛出
      */
     private void ensureOrderPaymentNotExpired(PetOrder order) {
         LocalDateTime createdAt = order.getCreated_at_wsh();
@@ -530,12 +535,11 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * Sends a delayed message to check the accept timeout after payment succeeds.
-     * Uses {@link TransactionSynchronization#afterCommit()} to schedule the check
-     * only after the current transaction commits. If no transaction is active,
-     * sends immediately.
+     * 支付成功后发送延迟消息，用于检查接单超时。
+     * 通过 {@link TransactionSynchronization#afterCommit()} 仅在当前事务提交后安排检查。
+     * 若无活跃事务，则立即发送。
      *
-     * @param order the newly paid order whose accept timeout should be monitored
+     * @param order 刚完成支付、需要监控接单超时的订单
      */
     private void scheduleAcceptTimeoutCheck(PetOrder order) {
         String orderNo = order.getOrder_no_wsh();

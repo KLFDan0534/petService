@@ -3,6 +3,7 @@ package com.pet.order.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.pet.order.entity.Refund;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
 
 /**
  * MyBatis-Plus mapper for {@link Refund} entity.

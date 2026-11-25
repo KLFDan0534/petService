@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.pet.common.BusinessException;
 import com.pet.common.OrderStatus;
 import com.pet.finance.service.AccountingService;
+import com.pet.finance.service.WalletService;
 import com.pet.marketing.service.CouponService;
 import com.pet.membership.service.MembershipBenefitService;
 import com.pet.mq.MessageSender;
@@ -49,13 +50,14 @@ class PaymentBalancePayTest {
     @Mock private MembershipBenefitService membershipBenefitService;
     @Mock private MessageSender messageSender;
     @Mock private OrderService orderService;
+    @Mock private WalletService walletService;
 
     private PaymentServiceImpl paymentService;
 
     @BeforeEach
     void setUp() {
         paymentService = new PaymentServiceImpl(paymentMapper, orderMapper, orderStatusBroadcaster,
-                accountingService, couponService, membershipBenefitService, messageSender, orderService);
+                accountingService, couponService, membershipBenefitService, messageSender, orderService, walletService);
     }
 
     private Payment pendingPayment(long id, long orderId, String payNo, BigDecimal amount, String method) {
@@ -92,7 +94,7 @@ class PaymentBalancePayTest {
 
         paymentService.pay(7L, "PAY1");
 
-        verify(accountingService, times(1)).debit(eq(7L), eq(new BigDecimal("100.00")), eq("payment"), eq(1L), any(), any(), any(), any());
+        verify(accountingService, times(1)).debit(eq(7L), eq(new BigDecimal("100.00")), eq("payment"), eq(1L), any(), any(), any(), any(), any());
         verify(accountingService, times(1)).credit(eq(1L), eq(new BigDecimal("100.00")), eq("payment"), eq(1L), any(), any(), any(), any());
         verify(accountingService, times(1)).credit(eq(1L), eq(new BigDecimal("10.00")), eq("coupon_subsidy"), eq(1L), any(), any(), any(), any());
         verify(orderMapper).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
@@ -106,7 +108,7 @@ class PaymentBalancePayTest {
         when(paymentMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(pendingPayment(1L, 1L, "PAY1", new BigDecimal("100.00"), "balance"));
         when(orderMapper.selectById(1L)).thenReturn(pendingOrder(1L, 7L, "ORD1", new BigDecimal("100.00"), BigDecimal.ZERO));
         when(paymentMapper.update(any(Payment.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
-        when(accountingService.debit(eq(7L), any(), eq("payment"), eq(1L), any(), any(), any(), any()))
+        when(accountingService.debit(eq(7L), any(), eq("payment"), eq(1L), any(), any(), any(), any(), any()))
                 .thenThrow(new BusinessException(400, "余额不足"));
 
         assertThrows(BusinessException.class, () -> paymentService.pay(7L, "PAY1"));
@@ -124,7 +126,7 @@ class PaymentBalancePayTest {
 
         paymentService.pay(7L, "PAY1");
 
-        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(orderMapper, never()).update(any(PetOrder.class), any(LambdaUpdateWrapper.class));
     }
 
@@ -135,7 +137,7 @@ class PaymentBalancePayTest {
 
         assertThrows(BusinessException.class, () -> paymentService.pay(7L, "PAY1"));
 
-        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // ============ 晚接补费（night_overtime） ============
@@ -182,7 +184,7 @@ class PaymentBalancePayTest {
 
         paymentService.pay(7L, "PAY-OT");
 
-        verify(accountingService, times(1)).debit(eq(7L), eq(new BigDecimal("12.50")), eq("payment"), eq(1L), any(), any(), any(), any());
+        verify(accountingService, times(1)).debit(eq(7L), eq(new BigDecimal("12.50")), eq("payment"), eq(1L), any(), any(), any(), any(), any());
         verify(accountingService, times(1)).credit(eq(1L), eq(new BigDecimal("12.50")), eq("payment"), eq(1L), any(), any(), any(), any());
         // 补费不重跑补贴/券/会员
         verify(accountingService, never()).credit(any(), any(), eq("coupon_subsidy"), any(), any(), any(), any(), any());
@@ -202,7 +204,7 @@ class PaymentBalancePayTest {
         when(orderMapper.selectById(1L)).thenReturn(order);
         when(orderMapper.selectByIdForUpdate(1L)).thenReturn(order);
         when(paymentMapper.update(any(Payment.class), any(LambdaUpdateWrapper.class))).thenReturn(1);
-        when(accountingService.debit(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(accountingService.debit(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new BusinessException(400, "余额不足"));
 
         assertThrows(BusinessException.class, () -> paymentService.pay(7L, "PAY-OT"));
@@ -224,7 +226,7 @@ class PaymentBalancePayTest {
 
         paymentService.pay(7L, "PAY-OT");
 
-        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(orderService, never()).applyOvertimePayment(anyLong(), anyLong());
     }
 
@@ -237,7 +239,7 @@ class PaymentBalancePayTest {
         // AE13：本单 keeper（非主人）支付同一 pay_no 必须 403
         BusinessException ex = assertThrows(BusinessException.class, () -> paymentService.pay(30L, "PAY-OT"));
         assertEquals(403, ex.getCode());
-        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -250,7 +252,7 @@ class PaymentBalancePayTest {
         when(orderMapper.selectByIdForUpdate(1L)).thenReturn(order);
 
         assertThrows(BusinessException.class, () -> paymentService.pay(7L, "PAY-OT"));
-        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -262,6 +264,6 @@ class PaymentBalancePayTest {
         when(orderMapper.selectByIdForUpdate(1L)).thenReturn(order);
 
         assertThrows(BusinessException.class, () -> paymentService.pay(7L, "PAY-OT"));
-        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(accountingService, never()).debit(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

@@ -1,5 +1,6 @@
 package com.pet.order.service;
 
+import com.pet.common.PageResult;
 import com.pet.order.dto.OrderCheckoutDTO;
 import com.pet.order.dto.OrderCompleteRequestDTO;
 import com.pet.order.dto.OrderCreateRequestDTO;
@@ -7,7 +8,9 @@ import com.pet.order.dto.OrderDTO;
 import com.pet.order.dto.OrderPreviewRequestDTO;
 import com.pet.order.dto.OrderQuoteDTO;
 import com.pet.order.dto.OrderReceivedRequestDTO;
+import com.pet.order.dto.OrderScrollResult;
 import com.pet.order.entity.PetOrder;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface OrderService {
@@ -354,6 +357,95 @@ public interface OrderService {
      * @return 金额明细与规范化后的服务时间
      */
     OrderQuoteDTO previewOrder(Long ownerId, OrderPreviewRequestDTO request);
+
+    // =========================================================================
+    // 分页查询：C 端用游标（恒定快），后台用页码（可跳页/对账）
+    //
+    // 为什么分两种：C 端是「往下翻着看」，用户不会跳到第 5000 页，游标分页
+    // 每次只读 size 行，与页深无关；后台需要跳页、筛选、导出，页码分页才有意义，
+    // 代价是深页退化，靠「强制筛选 + 限制深度」压住。
+    // =========================================================================
+
+    /**
+     * 业务作用：按主人分页查询订单（游标分页），用于用户端「我的订单」。
+     * 业务规则：按 created_at 倒序；size 只允许 20/50/100；cursor 为空表示第一页。
+     *
+     * @param ownerId 主人用户ID
+     * @param cursor  上一页返回的 next_cursor_wsh，首页传 null
+     * @param size    每页条数（20/50/100）
+     * @param status  可选状态过滤
+     * @return 游标分页结果
+     */
+    OrderScrollResult scrollByOwner(Long ownerId, String cursor, Integer size, String status, String keyword);
+
+    /**
+     * 业务作用：按商家分页查询订单（游标分页），用于商家端订单管理。
+     *
+     * @param merchantId 商家ID
+     * @param cursor     上一页游标，首页传 null
+     * @param size       每页条数（20/50/100）
+     * @param status     可选状态过滤
+     * @return 游标分页结果
+     */
+    OrderScrollResult scrollByMerchant(Long merchantId, String cursor, Integer size, String status, String keyword);
+
+    /**
+     * 业务作用：按看护者分页查询履约中订单（游标分页），用于看护者端任务列表。
+     * 业务规则：排除 pending/paid，与 listByKeeper 口径一致。
+     *
+     * @param keeperId 看护者ID
+     * @param cursor   上一页游标，首页传 null
+     * @param size     每页条数（20/50/100）
+     * @param status   可选状态过滤
+     * @return 游标分页结果
+     */
+    OrderScrollResult scrollByKeeper(Long keeperId, String cursor, Integer size, String status, String keyword);
+
+    /**
+     * 业务作用：按状态统计当前用户各状态的订单数，用于订单页标签计数。
+     * 业务规则：只统计未删除订单；返回的 key 为 status_wsh，value 为该状态订单数。
+     * 注意事项：列表改成游标分页后，标签数字不能在前端算（只覆盖已加载数据），必须走这个聚合。
+     *
+     * @param ownerId 主人用户ID
+     * @return 状态 → 数量；无订单时返回空 Map
+     */
+    java.util.Map<String, Long> countByOwnerStatus(Long ownerId);
+
+    /**
+     * 业务作用：按状态统计某商家各状态的订单数，用于商家端订单页标签计数。
+     *
+     * @param merchantId 商家ID
+     * @return 状态 → 数量
+     */
+    java.util.Map<String, Long> countByMerchantStatus(Long merchantId);
+
+    /**
+     * 业务作用：分页查询待分配订单池（游标分页），用于看护者抢单页。
+     *
+     * @param userId 当前登录用户ID
+     * @param cursor 上一页游标，首页传 null
+     * @param size   每页条数（20/50/100）
+     * @return 游标分页结果
+     */
+    OrderScrollResult scrollAssignableForKeeper(Long userId, String cursor, Integer size);
+
+    /**
+     * 业务作用：后台全平台订单分页查询，用于管理后台订单列表。
+     * 业务规则：
+     * - 按 created_at 倒序，size 只允许 20/50/100
+     * - page * size 上限 2000，超出要求用筛选条件缩小范围（避免深页全表扫）
+     * - 不传日期区间时默认只看最近 30 天，把数据量天然压在可控范围
+     *
+     * @param page      页码（从 1 开始）
+     * @param size      每页条数（20/50/100）
+     * @param status    可选状态过滤
+     * @param keyword   可选订单号模糊搜索
+     * @param startDate 可选创建时间起（含）
+     * @param endDate   可选创建时间止（含）
+     * @return 页码分页结果
+     */
+    PageResult<OrderDTO> pageForAdmin(Integer page, Integer size, String status,
+                                      String keyword, LocalDate startDate, LocalDate endDate);
 
 }
 

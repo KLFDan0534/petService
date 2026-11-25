@@ -87,9 +87,6 @@ public final class BookingErrorCode {
     /** 看护员请假 */
     public static final String KEEPER_ON_LEAVE = "KEEPER_ON_LEAVE";
 
-    /** 宠物档期冲突 */
-    public static final String PET_BOOKING_CONFLICT = "PET_BOOKING_CONFLICT";
-
     /** 服务价格或版本已变化，需要前端刷新确认 */
     public static final String PRICE_CHANGED = "PRICE_CHANGED";
 

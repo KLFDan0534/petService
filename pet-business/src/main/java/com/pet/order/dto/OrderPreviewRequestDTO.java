@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
 @Setter
 public class OrderPreviewRequestDTO {
 
-    @Schema(description = "宠物ID（用于冲突校验）")
+    @Schema(description = "宠物ID（必须属于当前用户）")
     @NotNull(message = "宠物ID不能为空")
     private Long pet_id_wsh;
 

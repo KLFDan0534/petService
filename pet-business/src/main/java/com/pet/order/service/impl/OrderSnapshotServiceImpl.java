@@ -293,8 +293,6 @@ public class OrderSnapshotServiceImpl implements OrderSnapshotService {
         data.put("quantity_wsh", order.getQuantity_wsh());
         data.put("unit_price_wsh", defaultMoney(order.getUnit_price_wsh()));
         data.put("duration_minutes_wsh", order.getDuration_minutes_wsh());
-        data.put("days_wsh", order.getDays_wsh());
-        data.put("price_per_day_wsh", defaultMoney(order.getPrice_per_day_wsh()));
         data.put("total_amount_wsh", defaultMoney(order.getTotal_amount_wsh()));
         data.put("discount_wsh", defaultMoney(order.getDiscount_wsh()));
         data.put("coupon_id_wsh", order.getCoupon_id_wsh());

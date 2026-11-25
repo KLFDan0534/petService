@@ -2,7 +2,9 @@ package com.pet.pet.service.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pet.common.BusinessException;
+import com.pet.common.PageResult;
 import com.pet.pet.dto.PetCreateRequestDTO;
 import com.pet.pet.dto.PetDTO;
 import com.pet.pet.dto.PetUpdateRequestDTO;
@@ -45,6 +47,33 @@ public class PetServiceImpl implements PetService {
     public List<PetDTO> listAll() {
         log.info("调用 listAll()");
         return toDTOList(petMapper.selectList(null));
+    }
+
+    /**
+     * 分页查询全部宠物（实现）
+     *
+     * 业务作用：管理后台宠物列表分页，替代 listAll 的全表加载。
+     * 业务规则：keyword 按宠物名模糊匹配；size 越界（<1 或 >100）回落到 20。
+     * 注意事项：只改查询方式，DTO 组装仍复用 toDTOList，输出字段与 listAll 完全一致。
+     */
+    @Override
+    public PageResult<PetDTO> pageAll(Integer page, Integer size, String keyword) {
+        int current = (page == null || page < 1) ? 1 : page;
+        int pageSize = (size == null || size < 1 || size > 100) ? 20 : size;
+
+        LambdaQueryWrapper<Pet> wrapper = new LambdaQueryWrapper<Pet>()
+                .like(keyword != null && !keyword.isBlank(), Pet::getName_wsh,
+                        keyword == null ? null : keyword.trim())
+                .orderByDesc(Pet::getCreated_at_wsh);
+
+        Page<Pet> result = petMapper.selectPage(new Page<>(current, pageSize), wrapper);
+        PageResult<PetDTO> pageResult = new PageResult<>();
+        pageResult.setList(toDTOList(result.getRecords()));
+        pageResult.setTotal(result.getTotal());
+        pageResult.setPage(current);
+        pageResult.setSize(pageSize);
+        pageResult.setPages(result.getPages());
+        return pageResult;
     }
 
     /**
