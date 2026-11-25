@@ -8,13 +8,13 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+/**
+ * 订单支付超时事件的 RabbitMQ 监听器。
+ * 当从死信队列收到支付超时消息后，如果订单在允许的时间窗口内仍未支付，
+ * 则取消该待支付订单。
+ */
 @Component
 @Slf4j
-/**
- * RabbitMQ listener for order payment timeout events.
- * When a payment timeout message is received from the dead-letter queue,
- * cancels the pending order if it has not been paid within the allowed window.
- */
 public class OrderPaymentTimeoutListener {
 
     private final OrderService orderService;
@@ -28,13 +28,13 @@ public class OrderPaymentTimeoutListener {
     }
 
     /**
-     * Handles a payment timeout event for the given order.
-     * Attempts to cancel the order if it is still in pending status.
-     * Acknowledges the message on success, negatively acknowledges on failure.
+     * 处理指定订单的支付超时事件。
+     * 如果订单仍处于待支付状态，则尝试取消该订单。
+     * 处理成功时确认消息，处理失败时否定确认消息。
      *
-     * @param orderNo the order number
-     * @param message the AMQP message
-     * @param channel the RabbitMQ channel
+     * @param orderNo 订单号
+     * @param message AMQP 消息
+     * @param channel RabbitMQ 通道
      */
     @RabbitListener(queues = RabbitMQConfig.QUEUE_ORDER_PAYMENT_TIMEOUT)
     public void handlePaymentTimeout(String orderNo, Message message, Channel channel) {

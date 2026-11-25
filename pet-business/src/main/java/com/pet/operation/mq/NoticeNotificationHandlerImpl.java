@@ -2,7 +2,7 @@ package com.pet.operation.mq;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pet.common.StatusCode;
-import com.pet.common.mq.NoticeNotificationHandler;
+import com.pet.mq.handler.NoticeNotificationHandler;
 import com.pet.operation.entity.Notice;
 import com.pet.operation.entity.Notification;
 import com.pet.operation.mapper.NoticeMapper;
@@ -21,9 +21,9 @@ import java.util.stream.Collectors;
 
 /**
  * 为什么放 pet-business：
- * 接口 NoticeNotificationHandler 定义在 pet-common，供 pet-framework 的
+ * 接口 NoticeNotificationHandler 定义在 pet-framework 的 com.pet.mq，供 framework 的
  * MessageListener 编译期引用；实现由本模块提供，运行时由 Spring 注入。
- * 这样 pet-framework 不需要（也不能）反向依赖 pet-business。
+ * 这样 framework 不需要（也不能）反向依赖 pet-business。
  *
  * 业务作用：消费 MQ 队列 notice.notification 投递的公告ID，在后台为该公告 批量创建全量用户的站内通知，并向在线用户推送 SSE。
  * 异常情况：公告不存在或状态不满足时静默跳过，仅记录日志，不抛异常。

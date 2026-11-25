@@ -1,14 +1,14 @@
 package com.pet.mq;
 
-import com.pet.common.mq.ComplaintProcessHandler;
-import com.pet.common.mq.NoticeNotificationHandler;
 import com.pet.config.RabbitMQConfig;
+import com.pet.mq.handler.ComplaintProcessHandler;
+import com.pet.mq.handler.NoticeNotificationHandler;
+import com.pet.mq.handler.OrderRefundHandler;
 import com.rabbitmq.client.Channel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -37,16 +37,18 @@ import org.springframework.stereotype.Component;
  * 所有 handle 方法在捕获异常后调用 basicNack（requeue=false）
  * 将消息丢弃而非重新入队，避免死循环。
  */
+@Slf4j
 @Component
 public class MessageListener {
 
-    private static final Logger log = LoggerFactory.getLogger(MessageListener.class);
-
-    @Autowired(required = false)
+    @Resource
     private ComplaintProcessHandler complaintProcessHandler;
 
-    @Autowired(required = false)
+    @Resource
     private NoticeNotificationHandler noticeNotificationHandler;
+
+    @Resource
+    private OrderRefundHandler orderRefundHandler;
 
     /**
      * 【订单创建事件处理】
@@ -108,17 +110,20 @@ public class MessageListener {
      * 当前行为：
      * 记录日志并确认消息。
      *
-     * @param orderNo 订单号
+     * @param refundId 退款单 ID
      * @param message AMQP 消息体
      * @param channel RabbitMQ 信道
      */
     @RabbitListener(queues = "order.refund")
-    public void handleOrderRefund(String orderNo, Message message, Channel channel) {
+    public void handleOrderRefund(String refundId, Message message, Channel channel) {
         try {
-            log.info("订单退款: {}", orderNo);
+            log.info("订单退款: {}", refundId);
+            // 处理业务逻辑
+            orderRefundHandler.handle(refundId);
             channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
         } catch (Exception e) {
-            log.error("处理订单退款失败: {}", orderNo, e);
+            log.error("处理订单退款失败: {}", refundId, e);
+            // TODO 发送到客服，作为工单处理，
             try { channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false); } catch (Exception ignored) {}
         }
     }

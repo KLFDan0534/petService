@@ -1,13 +1,12 @@
 package com.pet.customer.mq;
 
-import com.pet.common.mq.ComplaintProcessHandler;
+import com.pet.mq.handler.ComplaintProcessHandler;
 import com.pet.customer.entity.Complaint;
 import com.pet.customer.mapper.ComplaintMapper;
 import com.pet.customer.mapper.MqConsumeLogMapper;
 import com.pet.operation.entity.Notification;
 import com.pet.operation.service.NotificationService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 
@@ -16,10 +15,9 @@ import org.springframework.stereotype.Component;
  * 业务作用：监听 RabbitMQ complaint.process 队列，处理投诉解决事件。
  * 当投诉处理完成后，创建站内通知告知投诉人处理结果。
  */
+@Slf4j
 @Component
 public class ComplaintProcessHandlerImpl implements ComplaintProcessHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(ComplaintProcessHandlerImpl.class);
 
     /** 消费台账里的消费者标识，与队列语义对齐 */
     private static final String CONSUMER = "complaint-process";

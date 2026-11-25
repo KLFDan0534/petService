@@ -146,12 +146,12 @@ public class MessageSender {
      * 消费者：
      * MessageListener.handleOrderRefund() — 当前仅记录日志确认消息。
      *
-     * @param orderNo 订单号
+     * @param refundId 退款单 ID
      */
-    public void sendOrderRefund(String orderNo) {
-        log.info("发送订单退款事件: {}", orderNo);
+    public void sendOrderRefund(String refundId) {
+        log.info("发送订单退款事件: {}", refundId);
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_DIRECT,
-                RabbitMQConfig.QUEUE_ORDER_REFUND, orderNo);
+                RabbitMQConfig.QUEUE_ORDER_REFUND, refundId);
     }
 
     /**
